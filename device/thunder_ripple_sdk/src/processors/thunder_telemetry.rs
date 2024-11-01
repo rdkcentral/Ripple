@@ -27,6 +27,7 @@ use ripple_sdk::{
         },
         extn_client_message::ExtnMessage,
     },
+    log::info,
     serde_json::json,
     tokio::sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
     utils::error::RippleError,
@@ -95,6 +96,40 @@ fn get_event_name(event: &TelemetryPayload) -> &'static str {
     }
 }
 
+pub enum ThunderMetricsTimerName {
+    PackageManagerGetList,
+    PackageManagerInstall,
+    PackageManagerUninstall,
+    PackageManagerGetMetadata,
+}
+
+impl ToString for ThunderMetricsTimerName {
+    fn to_string(&self) -> String {
+        match self {
+            ThunderMetricsTimerName::PackageManagerGetList => "package_manager_get_list".into(),
+            ThunderMetricsTimerName::PackageManagerInstall => "package_manager_install".into(),
+            ThunderMetricsTimerName::PackageManagerUninstall => "package_manager_uninstall".into(),
+            ThunderMetricsTimerName::PackageManagerGetMetadata => {
+                "package_manager_get_metadata".into()
+            }
+        }
+    }
+}
+
+pub enum ThunderResponseStatus {
+    Success,
+    Failure,
+}
+
+impl ToString for ThunderResponseStatus {
+    fn to_string(&self) -> String {
+        match self {
+            ThunderResponseStatus::Success => "success".into(),
+            ThunderResponseStatus::Failure => "failure".into(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct ThunderTelemetryProcessor {
     state: ThunderState,
@@ -137,6 +172,7 @@ impl ExtnEventProcessor for ThunderTelemetryProcessor {
         extracted_message: Self::VALUE,
     ) -> Option<bool> {
         if let Ok(data) = render_event_data(&extracted_message) {
+            info!("Sending telemetry event: {}", data);
             state
                 .get_thunder_client()
                 .call(DeviceCallRequest {
@@ -145,7 +181,6 @@ impl ExtnEventProcessor for ThunderTelemetryProcessor {
                 })
                 .await;
         }
-
         None
     }
 }

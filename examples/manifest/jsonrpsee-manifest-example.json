@@ -8,13 +8,32 @@
                 {
                     "id": "ripple:channel:device:thunder",
                     "uses": [
-                        "config"
+                        "config",
+                        "app_events",
+                        "rpc",
+                        "ripple_context",
+                        "operational_metric_listener"
                     ],
                     "fulfills": [
                         "device:info",
                         "device:windowmanager",
-                        "device:browser"
-                    ]
+                        "device:browser",
+                        "app_events",
+                        "account.device_events",
+                        "input.device_events",
+                        "hdr.device_events",
+                        "screen_resolution.device_events",
+                        "video_resolution.device_events",
+                        "voice_guidance.device_events",
+                        "network.device_events",
+                        "internet.device_events",
+                        "audio.device_events",
+                        "system_power_state.device_events",
+                        "time_zone.device_events"
+                    ],
+                    "config": {
+                        "rdk_telemetry": "true"
+                    }
                 }
             ]
         },

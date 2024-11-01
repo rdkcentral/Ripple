@@ -20,8 +20,8 @@
 pub mod handlers {
     pub mod accessory_rpc;
     pub mod account_rpc;
-    pub mod acknowledge_rpc;
     pub mod advertising_rpc;
+    pub mod audio_description_rpc;
     pub mod authentication_rpc;
     pub mod capabilities_rpc;
     pub mod closed_captions_rpc;
@@ -34,9 +34,9 @@ pub mod handlers {
     pub mod metrics_management_rpc;
     pub mod metrics_rpc;
     pub mod parameters_rpc;
-    pub mod pin_rpc;
     pub mod privacy_rpc;
     pub mod profile_rpc;
+    pub mod provider_registrar;
     pub mod second_screen_rpc;
     pub mod secure_storage_rpc;
     pub mod user_grants_rpc;

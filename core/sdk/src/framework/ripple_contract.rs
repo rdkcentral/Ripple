@@ -16,9 +16,14 @@
 //
 
 use crate::{
-    api::{session::SessionAdjective, storage_property::StorageAdjective},
+    api::{
+        session::{EventAdjective, PubSubAdjective, SessionAdjective},
+        storage_property::StorageAdjective,
+    },
+    extn::extn_id::ExtnProviderAdjective,
     utils::{error::RippleError, serde_utils::SerdeClearString},
 };
+use jsonrpsee::core::DeserializeOwned;
 use log::error;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -30,7 +35,7 @@ use serde_json::Value;
 /// b. Distributor Extn/Channel
 /// c. Combination of a Device + Distributor Extensions
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum RippleContract {
     /// Used by Main application to provide internal contracts for Extensions
@@ -81,9 +86,7 @@ pub enum RippleContract {
     /// Forwarder for extensions to pass on Events back to the registered Applications through Main
     AppEvents,
     /// Device channel specific events which get cascaded across Main and Extensions like Power, HDCP
-    DeviceEvents,
-    /// Event specific to PowerState would become an Adjective in near future.
-    PowerStateEvent,
+    DeviceEvents(EventAdjective),
     /// Contract for controlling Voice guidance typically offered by the Device Channel or the browser.
     VoiceGuidance,
     /// Distributor Contract for handling Advertising requirements.
@@ -102,7 +105,7 @@ pub enum RippleContract {
     Settings,
     /// Bi directional channel between the device and external service can be implemented by Distributors.
     /// Distributors can send unique topics on messages to control Privacy, Usergrants and Automation
-    PubSub,
+    PubSub(PubSubAdjective),
     /// Used for synchronization enforcement between cloud and local data
     CloudSync,
     /// Extensions can use this contract to get more information on the firebolt capabilities  
@@ -113,14 +116,22 @@ pub enum RippleContract {
     Metrics,
     /// Contract for Extensions to recieve Telemetry events from Main
     OperationalMetricListener,
+    Observability,
+    TelemetryEventsListener,
     Storage(StorageAdjective),
     /// Provided by the distributor could be a device extension or a cloud extension.
     /// Distributor gets the ability to configure and customize the generation of
     /// the Session information based on their policies. Used by [crate::api::session::AccountSession]
     Session(SessionAdjective),
+    RippleContext,
+    ExtnProvider(ExtnProviderAdjective),
+    AppCatalog,
+    Apps,
+    // Runtime ability for a given distributor to turn off a certian feature
+    RemoteFeatureControl,
 }
 
-pub trait ContractAdjective: serde::ser::Serialize {
+pub trait ContractAdjective: serde::ser::Serialize + DeserializeOwned {
     fn as_string(&self) -> String {
         let adjective = SerdeClearString::as_clear_string(self);
         if let Some(contract) = self.get_contract().get_adjective_contract() {
@@ -175,18 +186,42 @@ impl RippleContract {
         match self {
             Self::Storage(adj) => Some(adj.as_string()),
             Self::Session(adj) => Some(adj.as_string()),
+            Self::PubSub(adj) => Some(adj.as_string()),
+            Self::DeviceEvents(adj) => Some(adj.as_string()),
+            Self::ExtnProvider(adj) => Some(adj.id.to_string()),
             _ => None,
+        }
+    }
+
+    fn get_contract_from_adjective<T: ContractAdjective>(str: &str) -> Option<RippleContract> {
+        match serde_json::from_str::<T>(str) {
+            Ok(v) => Some(v.get_contract()),
+            Err(e) => {
+                error!("contract parser_error={:?}", e);
+                None
+            }
         }
     }
 
     pub fn from_adjective_string(contract: &str, adjective: &str) -> Option<Self> {
         let adjective = format!("\"{}\"", adjective);
         match contract {
+            "extn_provider" => {
+                return Self::get_contract_from_adjective::<ExtnProviderAdjective>(&adjective)
+            }
             "storage" => match serde_json::from_str::<StorageAdjective>(&adjective) {
                 Ok(v) => return Some(v.get_contract()),
                 Err(e) => error!("contract parser_error={:?}", e),
             },
             "session" => match serde_json::from_str::<SessionAdjective>(&adjective) {
+                Ok(v) => return Some(v.get_contract()),
+                Err(e) => error!("contract parser_error={:?}", e),
+            },
+            "pubsub" => match serde_json::from_str::<PubSubAdjective>(&adjective) {
+                Ok(v) => return Some(v.get_contract()),
+                Err(e) => error!("contract parser_error={:?}", e),
+            },
+            "device_events" => match serde_json::from_str::<EventAdjective>(&adjective) {
                 Ok(v) => return Some(v.get_contract()),
                 Err(e) => error!("contract parser_error={:?}", e),
             },
@@ -199,6 +234,9 @@ impl RippleContract {
         match self {
             Self::Storage(_) => Some("storage".to_owned()),
             Self::Session(_) => Some("session".to_owned()),
+            Self::ExtnProvider(_) => Some("extn_provider".to_owned()),
+            Self::PubSub(_) => Some("pubsub".to_owned()),
+            Self::DeviceEvents(_) => Some("device_events".to_owned()),
             _ => None,
         }
     }
@@ -218,11 +256,20 @@ impl RippleContract {
         }
         None
     }
+
+    pub fn is_extn_provider(&self) -> Option<String> {
+        if let RippleContract::ExtnProvider(e) = self {
+            Some(e.id.to_string())
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ContractFulfiller {
-    contracts: Vec<RippleContract>,
+    pub contracts: Vec<RippleContract>,
 }
 
 impl ContractFulfiller {

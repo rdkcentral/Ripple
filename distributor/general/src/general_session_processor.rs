@@ -16,8 +16,11 @@
 //
 
 use ripple_sdk::{
-    api::session::{
-        AccountSession, AccountSessionRequest, AccountSessionTokenRequest, ProvisionRequest,
+    api::{
+        device::device_request::AccountToken,
+        session::{
+            AccountSession, AccountSessionRequest, AccountSessionTokenRequest, ProvisionRequest,
+        },
     },
     async_trait::async_trait,
     extn::{
@@ -88,7 +91,9 @@ impl DistributorSessionProcessor {
             .client
             .respond(
                 msg.clone(),
-                ripple_sdk::extn::extn_client_message::ExtnResponse::AccountSession(session),
+                ripple_sdk::extn::extn_client_message::ExtnResponse::AccountSession(
+                    ripple_sdk::api::session::AccountSessionResponse::AccountSession(session),
+                ),
             )
             .await
         {
@@ -96,7 +101,7 @@ impl DistributorSessionProcessor {
             return false;
         }
 
-        Self::handle_error(state.clone().client, msg, RippleError::ExtnError).await
+        Self::handle_error(state.client, msg, RippleError::ExtnError).await
     }
 
     async fn set_token(
@@ -129,6 +134,31 @@ impl DistributorSessionProcessor {
         }
         Self::ack(state.client, msg).await.is_ok()
     }
+
+    async fn get_accesstoken(mut state: DistSessionState, msg: ExtnMessage) -> bool {
+        let device_token = AccountToken {
+            // Mock invalidated token for validation
+            token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9".into(),
+            expires: 0,
+        };
+        if let Err(e) = state
+            .client
+            .respond(
+                msg.clone(),
+                ripple_sdk::extn::extn_client_message::ExtnResponse::AccountSession(
+                    ripple_sdk::api::session::AccountSessionResponse::AccountSessionToken(
+                        device_token,
+                    ),
+                ),
+            )
+            .await
+        {
+            error!("Error sending back response {:?}", e);
+            return false;
+        }
+
+        Self::handle_error(state.clone().client, msg, RippleError::ExtnError).await
+    }
 }
 
 impl ExtnStreamProcessor for DistributorSessionProcessor {
@@ -157,7 +187,7 @@ impl ExtnStreamProcessor for DistributorSessionProcessor {
 #[async_trait]
 impl ExtnRequestProcessor for DistributorSessionProcessor {
     fn get_client(&self) -> ExtnClient {
-        self.state.clone().client
+        self.state.client.clone()
     }
     async fn process_request(
         state: Self::STATE,
@@ -165,9 +195,11 @@ impl ExtnRequestProcessor for DistributorSessionProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message {
-            AccountSessionRequest::Get => Self::get_token(state.clone(), msg).await,
-            AccountSessionRequest::Provision(p) => Self::provision(state.clone(), msg, p).await,
+            AccountSessionRequest::Get => Self::get_token(state, msg).await,
+            AccountSessionRequest::Provision(p) => Self::provision(state, msg, p).await,
             AccountSessionRequest::SetAccessToken(s) => Self::set_token(state, msg, s).await,
+            AccountSessionRequest::GetAccessToken => Self::get_accesstoken(state, msg).await,
+            AccountSessionRequest::Subscribe => Self::ack(state.client, msg).await.is_ok(),
         }
     }
 }

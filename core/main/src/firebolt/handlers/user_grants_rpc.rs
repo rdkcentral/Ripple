@@ -15,18 +15,27 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
+use jsonrpsee::{
+    core::{Error, RpcResult},
+    proc_macros::rpc,
+    types::error::CallError,
+    RpcModule,
+};
 use ripple_sdk::{
     api::{
         apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
         device::device_user_grants_data::{GrantEntry, GrantStateModify},
-        firebolt::fb_user_grants::{
-            AppInfo, GetUserGrantsByAppRequest, GetUserGrantsByCapabilityRequest, GrantInfo,
-            GrantRequest,
+        firebolt::{
+            fb_capabilities::{DenyReason, FireboltPermission, CAPABILITY_NOT_PERMITTED},
+            fb_user_grants::{
+                AppInfo, GetUserGrantsByAppRequest, GetUserGrantsByCapabilityRequest, GrantInfo,
+                GrantRequest, UserGrantRequestParam,
+            },
         },
-        gateway::rpc_gateway_api::CallContext,
+        gateway::rpc_gateway_api::{AppIdentification, CallContext},
     },
     chrono::{DateTime, Utc},
+    log::debug,
     tokio::sync::oneshot,
 };
 
@@ -59,11 +68,17 @@ pub trait UserGrants {
         request: GetUserGrantsByCapabilityRequest,
     ) -> RpcResult<Vec<GrantInfo>>;
     #[method(name = "usergrants.grant")]
-    fn usergrants_grant(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()>;
+    async fn usergrants_grant(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()>;
     #[method(name = "usergrants.deny")]
-    fn usergrants_deny(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()>;
+    async fn usergrants_deny(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()>;
     #[method(name = "usergrants.clear")]
-    fn usergrants_clear(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()>;
+    async fn usergrants_clear(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()>;
+    #[method(name = "usergrants.request")]
+    async fn usergrants_request(
+        &self,
+        ctx: CallContext,
+        request: UserGrantRequestParam,
+    ) -> RpcResult<Vec<GrantInfo>>;
 }
 
 #[derive(Debug)]
@@ -127,7 +142,10 @@ impl UserGrantsImpl {
                 id: x,
                 title: app_name,
             }),
-            state: entry.status.as_ref().unwrap().as_string().to_owned(),
+            state: entry
+                .status
+                .as_ref()
+                .map_or("INVALID".to_owned(), |s| s.as_string().to_owned()),
             capability: entry.capability.to_owned(),
             role: entry.role.as_string().to_owned(),
             lifespan: entry.lifespan.as_ref().unwrap().as_string().to_owned(),
@@ -195,52 +213,90 @@ impl UserGrantsServer for UserGrantsImpl {
         Ok(combined_grant_entries)
     }
 
-    fn usergrants_grant(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
-        let result = GrantState::grant_modify(
+    async fn usergrants_grant(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
+        let result = GrantState::update_grant_as_per_policy(
             &self.platform_state,
             GrantStateModify::Grant,
-            request.options.and_then(|x| x.app_id),
+            &request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
-        );
+        )
+        .await;
 
-        if result {
-            Ok(())
-        } else {
-            Err(rpc_err("Unable to grant the capability"))
-        }
+        result.map_err(rpc_err)
     }
 
-    fn usergrants_deny(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
-        let result = GrantState::grant_modify(
+    async fn usergrants_deny(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
+        let result = GrantState::update_grant_as_per_policy(
             &self.platform_state,
             GrantStateModify::Deny,
-            request.options.and_then(|x| x.app_id),
+            &request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
-        );
+        )
+        .await;
 
-        if result {
-            Ok(())
-        } else {
-            Err(rpc_err("Unable to deny the capability"))
-        }
+        result.map_err(rpc_err)
     }
 
-    fn usergrants_clear(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
-        let result = GrantState::grant_modify(
+    async fn usergrants_clear(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
+        let result = GrantState::update_grant_as_per_policy(
             &self.platform_state,
             GrantStateModify::Clear,
-            request.options.and_then(|x| x.app_id),
+            &request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
-        );
+        )
+        .await;
 
-        if result {
-            Ok(())
-        } else {
-            Err(rpc_err("Unable to clear the capability"))
+        result.map_err(rpc_err)
+    }
+    async fn usergrants_request(
+        &self,
+        ctx: CallContext,
+        request: UserGrantRequestParam,
+    ) -> RpcResult<Vec<GrantInfo>> {
+        let force = request
+            .options
+            .as_ref()
+            .map(|x| x.force)
+            .unwrap_or_default();
+
+        let fb_perms: Vec<FireboltPermission> = request.clone().into();
+        self.platform_state
+            .cap_state
+            .generic
+            .check_supported(&fb_perms)
+            .map_err(|err| Error::Custom(format!("{:?} not supported", err.caps)))?;
+        let grant_entries = GrantState::check_with_roles(
+            &self.platform_state,
+            &ctx.clone().into(),
+            &AppIdentification {
+                app_id: request.app_id.clone(),
+            },
+            &fb_perms,
+            false,
+            true,
+            force,
+        )
+        .await;
+        debug!("Check with roles result: {:?}", grant_entries);
+        if let Err(grant_entries_err) = grant_entries {
+            if DenyReason::AppNotInActiveState == grant_entries_err.reason {
+                return Err(jsonrpsee::core::Error::Call(CallError::Custom {
+                    code: CAPABILITY_NOT_PERMITTED,
+                    message: "Capability cannot be used when app is not in foreground state due to requiring a user grant".to_owned(),
+                    data: None,
+                }));
+            }
         }
+        self.usergrants_app(
+            ctx,
+            GetUserGrantsByAppRequest {
+                app_id: request.app_id,
+            },
+        )
+        .await
     }
 }
 

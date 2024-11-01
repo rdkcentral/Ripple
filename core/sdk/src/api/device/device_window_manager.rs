@@ -25,7 +25,7 @@ use crate::{
 
 use super::device_request::DeviceRequest;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum WindowManagerRequest {
     Visibility(String, bool),
     MoveToFront(String),
@@ -79,5 +79,20 @@ impl ExtnPayloadProvider for WindowManagerRequest {
 
     fn contract() -> RippleContract {
         RippleContract::WindowManager
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_payload_provider_for_visibility_request() {
+        let visibility_request =
+            WindowManagerRequest::Visibility(String::from("window_id_1"), true);
+
+        let contract_type: RippleContract = RippleContract::WindowManager;
+        test_extn_payload_provider(visibility_request, contract_type);
     }
 }

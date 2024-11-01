@@ -35,10 +35,12 @@ impl LoadDeviceManifestStep {
 type DeviceManifestLoader = Vec<fn() -> Result<(String, DeviceManifest), RippleError>>;
 
 fn try_manifest_files() -> Result<DeviceManifest, RippleError> {
-    let dm_arr: DeviceManifestLoader = if cfg!(test) {
+    let dm_arr: DeviceManifestLoader = if cfg!(feature = "local_dev") {
+        vec![load_from_env, load_from_home]
+    } else if cfg!(test) {
         vec![load_from_env]
     } else {
-        vec![load_from_env, load_from_home, load_from_opt, load_from_etc]
+        vec![load_from_etc]
     };
 
     for dm_provider in dm_arr {
@@ -63,10 +65,6 @@ fn load_from_home() -> Result<(String, DeviceManifest), RippleError> {
         Ok(home) => DeviceManifest::load(format!("{}/.ripple/firebolt-device-manifest.json", home)),
         Err(_) => Err(RippleError::MissingInput),
     }
-}
-
-fn load_from_opt() -> Result<(String, DeviceManifest), RippleError> {
-    DeviceManifest::load("/opt/firebolt-device-manifest.json".into())
 }
 
 fn load_from_etc() -> Result<(String, DeviceManifest), RippleError> {

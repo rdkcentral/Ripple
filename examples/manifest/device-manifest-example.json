@@ -8,11 +8,9 @@
       "enabled": true,
       "gateway": "127.0.0.1:3474"
     },
-    "platform": "Thunder",
     "platform_parameters": {
       "gateway": "ws://127.0.0.1:9998/jsonrpc"
     },
-    "distribution_platform": "Generic",
     "distribution_tenant": "reference",
     "form_factor": "ipstb",
     "default_values": {
@@ -43,7 +41,10 @@
     },
     "distributor_experience_id": "0000",
     "exclusory": {
-      "resolve_only": ["device.model", "localization.postalCode"],
+      "resolve_only": [
+        "device.model",
+        "localization.postalCode"
+      ],
       "app_authorization_rules": {
         "app_ignore_rules": {
           "foo-insecure": [
@@ -89,7 +90,7 @@
       "xrn:firebolt:capability:localization:country-code",
       "xrn:firebolt:capability:localization:language",
       "xrn:firebolt:capability:localization:locale",
-      "xrn:firebolt:capability:localization:locality", 
+      "xrn:firebolt:capability:localization:locality",
       "xrn:firebolt:capability:localization:postal-code",
       "xrn:firebolt:capability:localization:time-zone",
       "xrn:firebolt:capability:metrics:general",
@@ -114,7 +115,9 @@
       "xrn:firebolt:capability:token:session",
       "xrn:firebolt:capability:token:platform",
       "xrn:firebolt:capability:token:device",
-      "xrn:firebolt:capability:token:root"
+      "xrn:firebolt:capability:token:root",
+      "xrn:firebolt:capability:accessibility:audiodescriptions",
+      "xrn:firebolt:capability:player:base"
     ]
   },
   "lifecycle": {
@@ -126,8 +129,7 @@
   },
   "applications": {
     "distribution": {
-      "library": "/etc/firebolt-app-library.json",
-      "catalog": ""
+      "library": "/etc/firebolt-app-library.json"
     },
     "defaults": {
       "xrn:firebolt:application-type:main": "",

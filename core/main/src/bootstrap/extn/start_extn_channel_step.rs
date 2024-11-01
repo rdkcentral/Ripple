@@ -15,14 +15,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::time::Duration;
-
 use ripple_sdk::{
     api::status_update::ExtnStatus,
     async_trait::async_trait,
     framework::{bootstrap::Bootstep, RippleResponse},
-    log::error,
-    tokio::{sync::mpsc, time::timeout},
+    log::{error, warn},
+    tokio::sync::mpsc,
     utils::error::RippleError,
 };
 
@@ -34,7 +32,7 @@ fn start_preloaded_channel(
 ) -> RippleResponse {
     let client = state.platform_state.get_client();
 
-    if let Err(e) = state.clone().extn_state.start_channel(channel, client) {
+    if let Err(e) = state.extn_state.clone().start_channel(channel, client) {
         error!("Error during Device channel bootstrap");
         return Err(e);
     }
@@ -58,7 +56,7 @@ impl Bootstep<BootstrapState> for StartExtnChannelsStep {
             let mut device_channels = state.extn_state.device_channels.write().unwrap();
             while let Some(device_channel) = device_channels.pop() {
                 let id = device_channel.extn_id.clone();
-                extn_ids.push(id.clone());
+                extn_ids.push(id);
                 if let Err(e) = start_preloaded_channel(&state, device_channel) {
                     error!("Error during Device channel bootstrap");
                     return Err(e);
@@ -70,34 +68,31 @@ impl Bootstep<BootstrapState> for StartExtnChannelsStep {
             let mut deferred_channels = state.extn_state.deferred_channels.write().unwrap();
             while let Some(deferred_channel) = deferred_channels.pop() {
                 let id = deferred_channel.extn_id.clone();
-                extn_ids.push(id.clone());
+                extn_ids.push(id);
                 if let Err(e) = start_preloaded_channel(&state, deferred_channel) {
                     error!("Error during channel bootstrap");
                     return Err(e);
                 }
             }
         }
-        let t = state.platform_state.get_manifest().get_timeout();
         for extn_id in extn_ids {
             let (tx, mut tr) = mpsc::channel(1);
             if !state
                 .extn_state
                 .add_extn_status_listener(extn_id.clone(), tx)
             {
-                match timeout(Duration::from_millis(t), tr.recv()).await {
-                    Ok(Some(v)) => {
-                        state.extn_state.clear_status_listener(extn_id);
-                        match v {
-                            ExtnStatus::Ready => continue,
-                            _ => return Err(RippleError::BootstrapError),
+                while let Some(v) = tr.recv().await {
+                    match v {
+                        ExtnStatus::Ready => break,
+                        // When Extension is in this state means it has minimal success criteria for continuing
+                        // yet not fully ready due to some errors.
+                        // Expectation of the system here progressive to wait for an eventual success
+                        // without exiting with the error
+                        ExtnStatus::Interrupted => warn!("{} extension is interrupted state. Bootstrap currently paused until extension becomes ready.", extn_id.to_string()),
+                        ExtnStatus::Error => {
+                            error!("{} extension failed to load. Ripple needs to be restarted.",extn_id.to_string());
+                            return Err(RippleError::BootstrapError);
                         }
-                    }
-                    Ok(None) => {
-                        error!("Extn={:?} dropped its memory", extn_id);
-                    }
-                    Err(_) => {
-                        error!("Extn={:?} failed to load timeout occurred", extn_id);
-                        return Err(RippleError::BootstrapError);
                     }
                 }
             }

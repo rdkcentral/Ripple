@@ -15,45 +15,50 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::time::Instant;
+
 use crate::{
     firebolt::{
         firebolt_gateway::FireboltGateway,
         handlers::{
             accessory_rpc::AccessoryRippleProvider, account_rpc::AccountRPCProvider,
-            acknowledge_rpc::AckRPCProvider, advertising_rpc::AdvertisingRPCProvider,
+            advertising_rpc::AdvertisingRPCProvider,
+            audio_description_rpc::AudioDescriptionRPCProvider,
             authentication_rpc::AuthRPCProvider, capabilities_rpc::CapRPCProvider,
             closed_captions_rpc::ClosedcaptionsRPCProvider, device_rpc::DeviceRPCProvider,
             discovery_rpc::DiscoveryRPCProvider, keyboard_rpc::KeyboardRPCProvider,
             lcm_rpc::LifecycleManagementProvider, lifecycle_rpc::LifecycleRippleProvider,
             localization_rpc::LocalizationRPCProvider,
             metrics_management_rpc::MetricsManagementProvider, metrics_rpc::MetricsRPCProvider,
-            parameters_rpc::ParametersRPCProvider, pin_rpc::PinRPCProvider,
-            privacy_rpc::PrivacyProvider, profile_rpc::ProfileRPCProvider,
+            parameters_rpc::ParametersRPCProvider, privacy_rpc::PrivacyProvider,
+            profile_rpc::ProfileRPCProvider, provider_registrar::ProviderRegistrar,
             second_screen_rpc::SecondScreenRPCProvider,
             secure_storage_rpc::SecureStorageRPCProvider, user_grants_rpc::UserGrantsRPCProvider,
             voice_guidance_rpc::VoiceguidanceRPCProvider, wifi_rpc::WifiRPCProvider,
         },
         rpc::RippleRPCProvider,
     },
-    processor::rpc_gateway_processor::RpcGatewayProcessor,
     service::telemetry_builder::TelemetryBuilder,
     state::{bootstrap_state::BootstrapState, platform_state::PlatformState},
 };
 use jsonrpsee::core::{async_trait, server::rpc_module::Methods};
-use ripple_sdk::log::debug;
+use ripple_sdk::log::{debug, info};
 use ripple_sdk::{framework::bootstrap::Bootstep, utils::error::RippleError};
 pub struct FireboltGatewayStep;
 
 impl FireboltGatewayStep {
     async fn init_handlers(&self, state: PlatformState, extn_methods: Methods) -> Methods {
         let mut methods = Methods::new();
+
+        // TODO: Ultimately this may be able to register all providers below, for now just does
+        // those included by build_provider_relation_sets().
+        ProviderRegistrar::register_methods(&state, &mut methods);
+
         let _ = methods.merge(DeviceRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(WifiRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(LifecycleRippleProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(CapRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(KeyboardRPCProvider::provide_with_alias(state.clone()));
-        let _ = methods.merge(AckRPCProvider::provide_with_alias(state.clone()));
-        let _ = methods.merge(PinRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(ClosedcaptionsRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(VoiceguidanceRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(LocalizationRPCProvider::provide_with_alias(state.clone()));
@@ -70,6 +75,9 @@ impl FireboltGatewayStep {
         let _ = methods.merge(AuthRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(AccountRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(MetricsManagementProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(AudioDescriptionRPCProvider::provide_with_alias(
+            state.clone(),
+        ));
 
         // LCM Api(s) not required for internal launcher
         if !state.has_internal_launcher() {
@@ -95,12 +103,6 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
             .await;
         let gateway = FireboltGateway::new(state.clone(), methods);
         debug!("Handlers initialized");
-        // Main can now recieve RPC requests
-        state
-            .platform_state
-            .get_client()
-            .add_request_processor(RpcGatewayProcessor::new(state.platform_state.get_client()));
-        debug!("Adding RPC gateway processor");
         #[cfg(feature = "sysd")]
         if sd_notify::booted().is_ok()
             && sd_notify::notify(false, &[sd_notify::NotifyState::Ready]).is_err()
@@ -108,7 +110,12 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
             return Err(RippleError::BootstrapError);
         }
         TelemetryBuilder::send_ripple_telemetry(&state.platform_state);
+        info!(
+            "Ripple Total Bootstrap time: {}",
+            Instant::now().duration_since(state.start_time).as_millis()
+        );
         gateway.start().await;
-        Ok(())
+
+        Err(RippleError::ServiceError)
     }
 }

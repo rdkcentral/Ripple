@@ -17,7 +17,7 @@
 
 [package]
 name = "ripple_tdk"
-version = "0.8.0"
+version = "1.1.0"
 edition = "2021"
 repository = "https://github.com/rdkcentral/Ripple"
 
@@ -27,5 +27,5 @@ repository = "https://github.com/rdkcentral/Ripple"
 default = []
 
 [dependencies]
-ripple_sdk = { path = "../sdk", features = ["full"] }
-serde_json = "1.0"
+ripple_sdk = { workspace = true, features = ["full"] }
+serde_json.workspace = true

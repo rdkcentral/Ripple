@@ -112,7 +112,7 @@ fn get_app_type(manifest: &AppManifest) -> Option<String> {
 }
 
 impl AppLauncherState {
-    fn get_active_instances(self, manifest: &AppManifest) -> usize {
+    fn get_active_instances(&self, manifest: &AppManifest) -> usize {
         match get_app_type(manifest) {
             Some(t) => self
                 .apps
@@ -200,15 +200,9 @@ impl AppLauncher {
         lc_state: LifecycleState,
     ) -> BoxFuture<'static, AppResponse> {
         async move {
-            debug!(
-                "set_state: container_id={}, state={:?}",
-                container_id, state
-            );
+            debug!("set_state: container_id={}", container_id);
             let mut final_resp = Ok(AppManagerResponse::None);
-            let mut item = state
-                .clone()
-                .app_launcher_state
-                .get_app_by_id(&container_id);
+            let item = state.app_launcher_state.get_app_by_id(&container_id);
 
             if let Some(app) = item {
                 let previous_state = app.state;
@@ -220,7 +214,6 @@ impl AppLauncher {
                     final_resp = Err(AppError::UnexpectedState);
                 } else {
                     state
-                        .clone()
                         .app_launcher_state
                         .set_app_state(&container_id, lc_state);
 
@@ -261,20 +254,18 @@ impl AppLauncher {
             } else {
                 // Container ID for app not found, check registered providers to
                 // see if it's a provider container ID.
-                let app_library_state = state.clone().config.app_library_state;
-                let resp = AppLibrary::get_provider(&app_library_state, container_id.to_string());
-                if resp.is_none() {
-                    warn!("set_state: Not found {:?}", container_id);
-                    final_resp = Err(AppError::NotFound);
-                }
-                let provider = resp.unwrap();
-                item = state.clone().app_launcher_state.get_app_by_id(&provider);
-                if item.is_none() {
+                let app_library_state = &state.config.app_library_state;
+                let resp = AppLibrary::get_provider(app_library_state, container_id.to_string());
+                if let Some(provider) = resp {
+                    final_resp = state
+                        .app_launcher_state
+                        .get_app_by_id(&provider)
+                        .map_or(Err(AppError::NotFound), |_| Ok(AppManagerResponse::None));
+                } else {
                     warn!("set_state: Not found {:?}", container_id);
                     final_resp = Err(AppError::NotFound);
                 }
             }
-
             final_resp
         }
         .boxed()
@@ -285,14 +276,18 @@ impl AppLauncher {
         let entry = state
             .app_launcher_state
             .get_app_by_id(&state_change.container_props.name);
-        if entry.is_none() {
-            error!(
-                "on_app_state_change: app_id={} Not found",
-                state_change.container_props.name
-            );
-            return;
-        }
-        let app = entry.unwrap();
+
+        let app = match entry {
+            Some(app) => app,
+            None => {
+                error!(
+                    "on_app_state_change: app_id={} Not found",
+                    state_change.container_props.name
+                );
+                return;
+            }
+        };
+
         let app_id = app.container_props.name.clone();
 
         ContainerManager::on_state_changed(state, state_change.clone()).await;
@@ -322,7 +317,7 @@ impl AppLauncher {
     }
 
     async fn check_retention_policy(state: &LauncherState) {
-        let policy = state.clone().config.retention_policy;
+        let policy = state.config.retention_policy.clone();
         let mut app_count_exceeded = false;
         let app_count = state.app_launcher_state.get_app_len() as u64;
         if app_count > policy.max_retained {
@@ -376,7 +371,7 @@ impl AppLauncher {
     }
 
     fn get_oldest_removeable_app(state: &LauncherState) -> Option<String> {
-        let policy = state.clone().config.retention_policy;
+        let policy = state.config.retention_policy.clone();
         let mut candidates = state.app_launcher_state.always_retained_apps(policy);
 
         let count = candidates.len();
@@ -442,11 +437,7 @@ impl AppLauncher {
         debug!("on_unloading: entry: app_id={}", app_id);
 
         let id = app_id.to_string();
-        let timeout = state
-            .clone()
-            .config
-            .lifecycle_policy
-            .app_finished_timeout_ms;
+        let timeout = state.config.lifecycle_policy.app_finished_timeout_ms;
         let state_c = state.clone();
         tokio::spawn(async move {
             sleep(Duration::from_millis(timeout)).await;
@@ -502,7 +493,7 @@ impl AppLauncher {
                             Self::set_state(state.clone(), props.name, LifecycleState::Inactive)
                                 .await
                                 .ok();
-                        } else {
+                        } else if let LifecycleState::Foreground = app.state {
                             Self::set_state(state.clone(), props.name, LifecycleState::Background)
                                 .await
                                 .ok();
@@ -621,21 +612,11 @@ impl AppLauncher {
         state: &LauncherState,
         request: LaunchRequest,
     ) -> Result<AppManagerResponse, AppError> {
-        let resp = AppLibrary::get_manifest(&state.config.app_library_state, &request.app_id);
-        if resp.is_none() {
-            return Err(AppError::NotFound);
-        }
-
-        let app_manifest = resp.unwrap();
-
-        let app_type = get_app_type(&app_manifest);
-        if app_type.is_none() {
-            return Err(AppError::NotSupported);
-        }
-        let instances = state
-            .clone()
-            .app_launcher_state
-            .get_active_instances(&app_manifest);
+        let app_manifest =
+            AppLibrary::get_manifest(&state.config.app_library_state, &request.app_id)
+                .ok_or(AppError::NotFound)?;
+        let app_type = get_app_type(&app_manifest).ok_or(AppError::NotSupported)?;
+        let instances = state.app_launcher_state.get_active_instances(&app_manifest);
         let bnrp = BrowserNameRequestParams {
             name: app_manifest.name.clone(),
             runtime: app_manifest.runtime.clone(),
@@ -644,17 +625,13 @@ impl AppLauncher {
 
         let response = state
             .send_extn_request(BrowserRequest::GetBrowserName(bnrp))
-            .await;
-        if response.is_err() {
+            .await
+            .map_err(|_| AppError::NotSupported)?;
+        let callsign = if let Some(ExtnResponse::String(callsign)) = response.payload.extract() {
+            callsign
+        } else {
             return Err(AppError::NotSupported);
-        }
-
-        let callsign =
-            if let Some(ExtnResponse::String(callsign)) = response.unwrap().payload.extract() {
-                callsign
-            } else {
-                return Err(AppError::NotSupported);
-            };
+        };
 
         let intent = request
             .intent
@@ -672,15 +649,13 @@ impl AppLauncher {
             callsign.clone(),
             intent.clone(),
         )
-        .await;
-        if modified_url.is_err() {
-            return Err(AppError::IoError);
-        }
+        .await
+        .map_err(|_| AppError::IoError)?;
 
         let launch_params = LaunchParams {
-            uri: modified_url.unwrap(),
+            uri: modified_url,
             browser_name: callsign,
-            _type: app_type.unwrap(),
+            _type: app_type,
             name: app_manifest.name.to_string(),
             suspend: false,
             requires_focus: true,
@@ -698,7 +673,7 @@ impl AppLauncher {
             h: launch_params.h,
         };
 
-        let policy = state.clone().config.retention_policy;
+        let policy = state.config.retention_policy.clone();
         let always_retained = policy
             .always_retained
             .iter()
@@ -743,7 +718,7 @@ impl AppLauncher {
                 Err(_) => return Err(AppError::IoError),
             }
         } else {
-            let timeout = state.clone().config.lifecycle_policy.app_ready_timeout_ms;
+            let timeout = state.config.lifecycle_policy.app_ready_timeout_ms;
             let state_c = state.clone();
             let app_id = request.app_id.clone();
             let launch_time = app.launch_time;
@@ -821,7 +796,7 @@ impl AppLauncher {
     ) -> Result<AppManagerResponse, AppError> {
         info!("close {:?}", reason);
         match reason {
-            CloseReason::UserExit | CloseReason::RemoteButton => {
+            CloseReason::UserExit | CloseReason::RemoteButton | CloseReason::Done => {
                 Self::set_state(state.clone(), app_id.into(), LifecycleState::Inactive).await
             }
             CloseReason::Error => {
@@ -842,12 +817,10 @@ impl AppLauncher {
     ) -> Result<AppManagerResponse, AppError> {
         debug!("destroy: entry: app_id={}", app_id);
 
-        if state.app_launcher_state.get_app_by_id(app_id).is_none() {
+        let app = state.app_launcher_state.remove_app(app_id).ok_or_else(|| {
             error!("destroy app_id={} Not found", app_id);
-            return Err(AppError::NotFound);
-        }
-
-        let app = state.app_launcher_state.remove_app(app_id).unwrap();
+            AppError::NotFound
+        })?;
         let view_id = app.container_props.view_id;
 
         let resp = ViewManager::release_view(state, view_id).await;

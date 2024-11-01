@@ -1,0 +1,10 @@
+[package]
+name = "openrpc_validator"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+jsonschema = { version = "0.17.1", default-features = false }
+serde_json.workspace = true
+serde.workspace = true
+clap = {version = "=4.0", features = ["std"], default-features = false} # std required during ripple start

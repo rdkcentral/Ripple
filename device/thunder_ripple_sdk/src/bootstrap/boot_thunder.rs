@@ -19,21 +19,27 @@ use crate::{
     bootstrap::setup_thunder_processors::SetupThunderProcessor,
     client::plugin_manager::ThunderPluginBootParam, thunder_state::ThunderBootstrapStateWithClient,
 };
-use ripple_sdk::{extn::client::extn_client::ExtnClient, log::info};
+use ripple_sdk::{
+    extn::client::extn_client::ExtnClient,
+    log::{error, info},
+};
 
 use super::{get_config_step::ThunderGetConfigStep, setup_thunder_pool_step::ThunderPoolStep};
 
 pub async fn boot_thunder(
     state: ExtnClient,
     plugin_param: ThunderPluginBootParam,
-) -> ThunderBootstrapStateWithClient {
+) -> Option<ThunderBootstrapStateWithClient> {
     info!("Booting thunder");
-    let state = ThunderGetConfigStep::setup(state, plugin_param)
-        .await
-        .unwrap_or_else(|_| panic!("{}", ThunderGetConfigStep::get_name()));
-    let state = ThunderPoolStep::setup(state)
-        .await
-        .unwrap_or_else(|_| panic!("{}", ThunderPoolStep::get_name()));
-    SetupThunderProcessor::setup(state.clone()).await;
-    state
+    if let Ok(state) = ThunderGetConfigStep::setup(state, plugin_param).await {
+        if let Ok(state) = ThunderPoolStep::setup(state).await {
+            SetupThunderProcessor::setup(state.clone()).await;
+            return Some(state);
+        } else {
+            error!("Unable to connect to Thunder, error in ThunderPoolStep");
+        }
+    } else {
+        error!("Unable to connect to Thunder, error in ThunderGetConfigStep");
+    }
+    None
 }

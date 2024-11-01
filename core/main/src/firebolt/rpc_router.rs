@@ -29,21 +29,25 @@ use jsonrpsee::{
 };
 use ripple_sdk::{
     api::{
-        apps::EffectiveTransport,
-        gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
+        firebolt::fb_metrics::Timer,
+        gateway::rpc_gateway_api::{ApiMessage, ApiStats, RpcRequest},
     },
     chrono::Utc,
-    extn::extn_client_message::{ExtnMessage, ExtnResponse},
+    extn::extn_client_message::ExtnMessage,
     log::{error, info},
-    serde_json::{self, Result as SResult},
-    tokio::{self},
+    tokio,
     utils::error::RippleError,
 };
 use std::sync::{Arc, RwLock};
 
 use crate::{
+    firebolt::firebolt_gateway::JsonRpcMessage,
     service::telemetry_builder::TelemetryBuilder,
     state::{platform_state::PlatformState, session_state::Session},
+    utils::router_utils::{
+        add_telemetry_status_code, capture_stage, get_rpc_header, return_api_message_for_transport,
+        return_extn_response,
+    },
 };
 
 pub struct RpcRouter;
@@ -85,6 +89,7 @@ async fn resolve_route(
 ) -> Result<ApiMessage, RippleError> {
     info!("Routing {}", req.method);
     let id = Id::Number(req.ctx.call_id);
+    let mut request_c = req.clone();
     let (sink_tx, mut sink_rx) = futures_channel::mpsc::unbounded::<String>();
     let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES);
     let mut method_executors = Vec::new();
@@ -107,7 +112,6 @@ async fn resolve_route(
                     let sink = sink.clone();
                     let id = id.into_owned();
                     let params = params.into_owned();
-
                     let fut = async move {
                         (callback)(id, params, sink, 1, Some(guard)).await;
                     };
@@ -126,44 +130,68 @@ async fn resolve_route(
 
     join_all(method_executors).await;
     if let Some(r) = sink_rx.next().await {
-        return Ok(ApiMessage::new(req.ctx.protocol, r, req.ctx.request_id));
+        let rpc_header = get_rpc_header(&req);
+        let protocol = req.ctx.protocol.clone();
+        let request_id = req.ctx.request_id;
+        let status_code = if let Ok(r) = serde_json::from_str::<JsonRpcMessage>(&r) {
+            if let Some(ec) = r.error {
+                ec.code
+            } else {
+                1
+            }
+        } else {
+            1
+        };
+        capture_stage(&mut request_c, "routing");
+
+        let mut msg = ApiMessage::new(protocol, r, request_id);
+        msg.stats = Some(ApiStats {
+            stats_ref: add_telemetry_status_code(&rpc_header, status_code.to_string().as_str()),
+            stats: request_c.stats,
+        });
+
+        return Ok(msg);
     }
     Err(RippleError::InvalidOutput)
 }
 
 impl RpcRouter {
-    pub async fn route(state: PlatformState, req: RpcRequest, session: Session) {
+    pub async fn route(
+        state: PlatformState,
+        mut req: RpcRequest,
+        session: Session,
+        timer: Option<Timer>,
+    ) {
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
+
+        if let Some(overridden_method) = state.get_manifest().has_rpc_override_method(&req.method) {
+            req.method = overridden_method;
+        }
+
         tokio::spawn(async move {
-            let method = req.method.clone();
-            let app_id = req.ctx.app_id.clone();
-            let session_id = req.ctx.session_id.clone();
             let start = Utc::now().timestamp_millis();
-            if let Ok(msg) = resolve_route(methods, resources, req.clone()).await {
-                let now = Utc::now().timestamp_millis();
-                let success = !msg.is_error();
-                info!(
-                    "Sending Firebolt response to app_id={} method={} fbtt={} {} {}",
-                    app_id,
-                    method,
-                    now - start,
-                    session_id,
-                    msg.jsonrpc_msg
-                );
-                TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success);
-                match session.get_transport() {
-                    EffectiveTransport::Websocket => {
-                        if let Err(e) = session.send_json_rpc(msg).await {
-                            error!("Error while responding back message {:?}", e)
-                        }
-                    }
-                    EffectiveTransport::Bridge(container_id) => {
-                        if let Err(e) = state.send_to_bridge(container_id, msg).await {
-                            error!("Error sending event to bridge {:?}", e);
-                        }
+            let resp = resolve_route(methods, resources, req.clone()).await;
+
+            let status = match resp.clone() {
+                Ok(msg) => {
+                    if msg.is_error() {
+                        msg.jsonrpc_msg
+                    } else {
+                        "0".into()
                     }
                 }
+                Err(e) => format!("{}", e),
+            };
+
+            TelemetryBuilder::stop_and_send_firebolt_metrics_timer(&state, timer, status).await;
+
+            if let Ok(msg) = resp {
+                let now = Utc::now().timestamp_millis();
+                let success = !msg.is_error();
+                TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success, &msg);
+
+                return_api_message_for_transport(session, msg, state).await;
             }
         });
     }
@@ -173,35 +201,11 @@ impl RpcRouter {
         req: RpcRequest,
         extn_msg: ExtnMessage,
     ) {
-        if extn_msg.callback.is_none() {
-            // The caller of this function already checks this adding it here none the less.
-            error!("No valid callbacks")
-        }
-
-        let callback = extn_msg.clone().callback.unwrap();
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
         tokio::spawn(async move {
             if let Ok(msg) = resolve_route(methods, resources, req).await {
-                let r: SResult<JsonRpcApiResponse> = serde_json::from_str(&msg.jsonrpc_msg);
-
-                if let Ok(resp) = r {
-                    let response_value = if resp.result.is_some() {
-                        resp.result.unwrap()
-                    } else if resp.error.is_some() {
-                        resp.error.unwrap()
-                    } else {
-                        serde_json::to_value(RippleError::InvalidOutput).unwrap()
-                    };
-                    let return_value = ExtnResponse::Value(response_value);
-                    if let Ok(response) = extn_msg.get_response(return_value) {
-                        if let Err(e) = callback.send(response.into()) {
-                            error!("Error while sending back rpc request for extn {:?}", e);
-                        }
-                    } else {
-                        error!("Not a Request object {:?}", extn_msg);
-                    }
-                }
+                return_extn_response(msg, extn_msg);
             }
         });
     }

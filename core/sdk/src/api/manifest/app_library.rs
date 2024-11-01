@@ -23,10 +23,10 @@ use log::{error, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct AppLibraryState {
-    default_apps: Vec<AppLibraryEntry>,
-    providers: HashMap<String, String>,
+    pub default_apps: Vec<AppLibraryEntry>,
+    pub providers: HashMap<String, String>,
 }
 
 impl std::fmt::Debug for AppLibraryState {
@@ -44,7 +44,7 @@ pub struct AppLibrary {}
 
 impl AppLibraryState {
     pub fn new(default_apps: Vec<AppLibraryEntry>) -> AppLibraryState {
-        let providers = AppLibrary::generate_provider_map(&default_apps);
+        let providers = AppLibrary::generate_provider_relation_map(&default_apps);
         AppLibraryState {
             default_apps,
             providers,
@@ -86,11 +86,11 @@ impl AppLibrary {
                 error!("Local manifests not supported yet");
                 None
             }
-            AppManifestLoad::Embedded(manifest) => Some(*manifest.clone()),
+            AppManifestLoad::Embedded(manifest) => Some(manifest.clone()),
         }
     }
 
-    fn generate_provider_map(apps: &[AppLibraryEntry]) -> HashMap<String, String> {
+    fn generate_provider_relation_map(apps: &[AppLibraryEntry]) -> HashMap<String, String> {
         let mut map = HashMap::new();
 
         for app in apps.iter() {
@@ -103,10 +103,111 @@ impl AppLibrary {
                     map.insert(capability.clone(), app.app_id.clone());
                 }
             } else {
-                warn!("generate_provider_map: Not supported: {:?}", app.manifest);
+                warn!(
+                    "generate_provider_relation_map: Not supported: {:?}",
+                    app.manifest
+                );
             }
         }
 
         map
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn get_default_apps() -> Vec<AppLibraryEntry> {
+        vec![
+            AppLibraryEntry {
+                app_id: "app1".to_string(),
+                boot_state: BootState::Foreground,
+                manifest: AppManifestLoad::Embedded(AppManifest::default()),
+            },
+            AppLibraryEntry {
+                app_id: "app2".to_string(),
+                boot_state: BootState::Unloaded,
+                manifest: AppManifestLoad::Embedded(AppManifest::default()),
+            },
+        ]
+    }
+
+    #[test]
+    fn test_new_app_library_state() {
+        let default_apps = get_default_apps();
+
+        let app_library_state = AppLibraryState::new(default_apps.clone());
+        assert_eq!(app_library_state.default_apps, default_apps);
+
+        let providers = AppLibrary::generate_provider_relation_map(&default_apps);
+        assert_eq!(app_library_state.providers, providers);
+    }
+
+    #[test]
+    fn test_get_all_apps() {
+        let default_apps = get_default_apps();
+        let app_library_state = AppLibraryState::new(default_apps.clone());
+        assert_eq!(app_library_state.get_all_apps(), default_apps);
+    }
+
+    #[test]
+    fn test_get_default_app() {
+        let default_apps = get_default_apps();
+        let app_library_state = AppLibraryState::new(default_apps);
+
+        assert_eq!(
+            app_library_state.get_default_app(),
+            Some(AppLibraryEntry {
+                app_id: "app1".to_string(),
+                boot_state: BootState::Foreground,
+                manifest: AppManifestLoad::Embedded(AppManifest::default()),
+            })
+        );
+    }
+
+    #[test]
+    fn test_get_provider() {
+        let default_apps = get_default_apps();
+        let mut app_library_state = AppLibraryState::new(default_apps);
+        app_library_state
+            .providers
+            .insert("cap1".to_string(), "app1".to_string());
+        app_library_state
+            .providers
+            .insert("cap2".to_string(), "app2".to_string());
+
+        assert_eq!(
+            AppLibrary::get_provider(&app_library_state, "cap1".to_string()),
+            Some("app1".to_string())
+        );
+
+        assert_eq!(
+            AppLibrary::get_provider(&app_library_state, "cap2".to_string()),
+            Some("app2".to_string())
+        );
+
+        assert_eq!(
+            AppLibrary::get_provider(&app_library_state, "cap3".to_string()),
+            None
+        );
+    }
+
+    #[test]
+    fn test_get_manifest() {
+        let default_apps = get_default_apps();
+        let app_library_state = AppLibraryState::new(default_apps);
+
+        assert_eq!(
+            AppLibrary::get_manifest(&app_library_state, "app1"),
+            Some(AppManifest::default())
+        );
+
+        assert_eq!(
+            AppLibrary::get_manifest(&app_library_state, "app2"),
+            Some(AppManifest::default())
+        );
+
+        assert_eq!(AppLibrary::get_manifest(&app_library_state, "app3"), None);
     }
 }

@@ -16,22 +16,29 @@
 //
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
+    path::Path,
     sync::{Arc, RwLock},
 };
 
 use ripple_sdk::{
     api::{
+        config::FEATURE_CLOUD_PERMISSIONS,
+        device::device_apps::AppsRequest,
         //config::Config,
         distributor::distributor_permissions::{PermissionRequest, PermissionResponse},
         firebolt::{
-            fb_capabilities::{DenyReason, DenyReasonWithCap, FireboltPermission, RoleInfo},
+            fb_capabilities::{
+                DenyReason, DenyReasonWithCap, FireboltCap, FireboltPermission, RoleInfo,
+            },
             fb_openrpc::CapabilitySet,
         },
         manifest::device_manifest::DeviceManifest,
     },
+    extn::extn_client_message::{ExtnPayload, ExtnResponse},
     framework::{file_store::FileStore, RippleResponse},
-    log::info,
+    log::{debug, error, info},
+    tokio,
     utils::error::RippleError,
 };
 
@@ -72,32 +79,35 @@ impl PermittedState {
     }
 
     fn get_all_permissions(&self) -> HashMap<String, Vec<FireboltPermission>> {
-        self.permitted.read().unwrap().clone().value
+        self.permitted.read().unwrap().value.clone()
     }
-
-    pub fn check_cap_role(&self, app_id: &str, role_info: RoleInfo) -> Result<bool, RippleError> {
-        if let Some(role) = role_info.role {
-            if let Some(perms) = self.get_all_permissions().get(app_id) {
-                for perm in perms {
-                    if perm.cap.as_str() == role_info.capability && perm.role == role {
-                        return Ok(true);
-                    }
+    fn has_cached_permissions(&self, app_id: &String) -> bool {
+        // check if the app has permissions cached
+        self.permitted.read().unwrap().value.contains_key(app_id)
+    }
+    pub fn check_cap_role(&self, app_id: &str, role_info: &RoleInfo) -> Result<bool, RippleError> {
+        let role = role_info
+            .role
+            .unwrap_or(ripple_sdk::api::firebolt::fb_capabilities::CapabilityRole::Use);
+        if let Some(perms) = self.get_all_permissions().get(app_id) {
+            for perm in perms {
+                if perm.cap.as_str() == role_info.capability.as_str() && perm.role == role {
+                    return Ok(true);
                 }
-                return Ok(false);
-            } else {
-                // Not cached prior
-                return Err(RippleError::InvalidAccess);
             }
+            Ok(false)
+        } else {
+            // Not cached prior
+            Err(RippleError::InvalidAccess)
         }
-        Ok(false)
     }
 
     pub fn check_multiple(&self, app_id: &str, request: Vec<RoleInfo>) -> HashMap<String, bool> {
         let mut map = HashMap::new();
         for role_info in request {
             map.insert(
-                role_info.clone().capability,
-                if let Ok(v) = self.check_cap_role(app_id, role_info) {
+                role_info.capability.as_str(),
+                if let Ok(v) = self.check_cap_role(app_id, &role_info) {
                     v
                 } else {
                     false
@@ -116,7 +126,8 @@ impl PermittedState {
 }
 
 fn get_permissions_path(saved_dir: String) -> String {
-    format!("{}/{}", saved_dir, "app_perms")
+    let dir_path = Path::new(&saved_dir).join("app_perms");
+    dir_path.into_os_string().into_string().unwrap()
 }
 
 pub struct PermissionHandler;
@@ -134,37 +145,132 @@ impl PermissionHandler {
         }
     }
 
-    pub async fn fetch_and_store(state: &PlatformState, app_id: &str) -> RippleResponse {
-        let app_id_alias = Self::get_distributor_alias_for_app_id(state, app_id);
-        if state
-            .cap_state
-            .permitted_state
-            .get_app_permissions(app_id)
-            .is_some()
-        {
+    pub async fn fetch_and_store(
+        state: &PlatformState,
+        app_id: &str,
+        allow_cached: bool,
+    ) -> RippleResponse {
+        if state.open_rpc_state.is_app_excluded(app_id) {
             return Ok(());
         }
+
+        if state
+            .get_client()
+            .get_extn_client()
+            .get_features()
+            .contains(&String::from(FEATURE_CLOUD_PERMISSIONS))
+        {
+            if allow_cached {
+                if let Some(permissions) =
+                    state.cap_state.permitted_state.get_app_permissions(app_id)
+                {
+                    let mut permissions_copy = permissions;
+                    return Self::process_permissions(state, app_id, &mut permissions_copy);
+                }
+            }
+            Self::cloud_fetch_and_store(state, app_id).await
+        } else {
+            // Never use cache, always fetch from device.
+            Self::device_fetch_and_store(state, app_id).await
+        }
+    }
+
+    pub async fn cloud_fetch_and_store(state: &PlatformState, app_id: &str) -> RippleResponse {
+        // This function will always get the permissions from server and update the local cache
+        let app_id_alias = Self::get_distributor_alias_for_app_id(state, app_id);
         if let Some(session) = state.session_state.get_account_session() {
-            if let Ok(extn_response) = state
+            match state
                 .get_client()
                 .send_extn_request(PermissionRequest {
                     app_id: app_id_alias,
                     session,
+                    payload: None,
                 })
                 .await
+                .ok()
             {
-                if let Some(permission_response) = extn_response.payload.extract() {
-                    let mut map = HashMap::new();
-                    map.insert(app_id.to_owned(), permission_response);
-                    let mut permitted_state = state.cap_state.permitted_state.clone();
-                    permitted_state.ingest(map);
-                    info!("Permissions fetched for {}", app_id);
-                    return Ok(());
+                Some(extn_response) => {
+                    if let Some(permission_response) =
+                        extn_response.payload.extract::<PermissionResponse>()
+                    {
+                        let mut permission_response_copy = permission_response;
+                        return Self::process_permissions(
+                            state,
+                            app_id,
+                            &mut permission_response_copy,
+                        );
+                    }
+                    Err(RippleError::InvalidOutput)
                 }
+                None => Err(RippleError::InvalidOutput),
+            }
+        } else {
+            Err(RippleError::InvalidOutput)
+        }
+    }
+
+    pub async fn device_fetch_and_store(state: &PlatformState, app_id: &str) -> RippleResponse {
+        let mut client = state.get_client().get_extn_client();
+        let resp = client
+            .request(AppsRequest::GetFireboltPermissions(app_id.to_string()))
+            .await?;
+
+        let mut permissions = match resp.payload {
+            ExtnPayload::Response(response) => match response {
+                ExtnResponse::Permission(perms) => perms,
+                ExtnResponse::Error(e) => {
+                    error!("device_fetch_and_store: e={:?}", e);
+                    return Err(e);
+                }
+                _ => {
+                    error!("device_fetch_and_store: Unexpected response");
+                    return Err(RippleError::ExtnError);
+                }
+            },
+            _ => {
+                error!("device_fetch_and_store: Unexpected payload");
+                return Err(RippleError::ExtnError);
+            }
+        };
+
+        Self::process_permissions(state, app_id, &mut permissions)
+    }
+
+    fn process_permissions(
+        state: &PlatformState,
+        app_id: &str,
+        permissions: &mut Vec<FireboltPermission>,
+    ) -> RippleResponse {
+        info!("Permissions fetched for {}", app_id);
+        let dep_lookup = &state.get_device_manifest().capabilities.dependencies;
+        let mut deps = HashSet::new();
+
+        // Create a HashSet to track unique permissions
+        let mut unique_permissions = HashSet::new();
+
+        for p in permissions.iter() {
+            if let Some(dependent_list) = dep_lookup.get(p) {
+                deps.extend(dependent_list.iter().cloned());
             }
         }
 
-        Err(ripple_sdk::utils::error::RippleError::InvalidOutput)
+        // Filter out duplicates and insert only unique permissions
+        for permission in deps {
+            if !unique_permissions.contains(&permission) {
+                permissions.push(permission.clone()); // Clone the permission to avoid the moved value error
+                unique_permissions.insert(permission);
+            }
+        }
+
+        let map = vec![(app_id.to_owned(), permissions.clone())]
+            .into_iter()
+            .collect::<HashMap<_, _>>();
+
+        let mut permitted_state = state.cap_state.permitted_state.clone();
+        permitted_state.ingest(map.clone());
+        info!("Permissions: {:?}", map);
+
+        Ok(())
     }
 
     pub fn get_permitted_info(
@@ -186,47 +292,78 @@ impl PermissionHandler {
         permitted: &[FireboltPermission],
         request: &[FireboltPermission],
     ) -> Result<(), DenyReasonWithCap> {
-        let mut unpermitted: Option<FireboltPermission> = None;
-        let all_permitted = request.iter().all(|perm| {
+        let mut unpermitted_caps: Vec<FireboltCap> = Vec::new();
+        let _all_permitted = request.iter().all(|perm| {
             let present = permitted.contains(perm);
             if !present {
-                unpermitted = Some(perm.clone());
+                unpermitted_caps.push(perm.cap.clone());
             }
             present
         });
-        if all_permitted {
+        if unpermitted_caps.is_empty() {
             Ok(())
         } else {
             Err(DenyReasonWithCap {
                 reason: DenyReason::Unpermitted,
-                caps: vec![unpermitted.unwrap().cap],
+                caps: unpermitted_caps,
             })
         }
     }
 
-    pub async fn get_app_permission(
+    pub async fn get_cached_app_permissions(
         state: &PlatformState,
         app_id: &str,
     ) -> Vec<FireboltPermission> {
-        let result = Vec::new();
-        if let Some(permitted_caps) = state.cap_state.permitted_state.get_app_permissions(app_id) {
-            return permitted_caps;
-        } else if let Some(session) = state.session_state.get_account_session() {
-            if let Ok(extn_response) = state
-                .get_client()
-                .send_extn_request(PermissionRequest {
-                    app_id: app_id.to_owned(),
-                    session,
-                })
-                .await
-            {
-                if let Some(permission_response) =
-                    extn_response.payload.extract::<PermissionResponse>()
-                {
-                    return permission_response;
+        // This would always return cached permissions. Empty vector if no permissions are cached
+        state
+            .cap_state
+            .permitted_state
+            .get_app_permissions(app_id)
+            .map_or(Vec::new(), |v| v)
+    }
+
+    pub async fn fetch_permission_for_app_session(
+        state: &PlatformState,
+        app_id: &String,
+    ) -> Result<(), RippleError> {
+        // This call should hit the server and fetch permissions for the app.
+        // Local cache will be updated with the fetched permissions
+        let has_stored = state
+            .cap_state
+            .permitted_state
+            .has_cached_permissions(app_id);
+        let ps_c = state.clone();
+        let app_id_c = app_id.clone();
+        let handle = tokio::spawn(async move {
+            let perm_res = Self::fetch_and_store(&ps_c, &app_id_c, false).await;
+            if perm_res.is_err() {
+                if has_stored {
+                    error!(
+                        "Failed to get permissions for {}, possibly using stale permissions",
+                        app_id_c
+                    )
+                } else {
+                    error!("Failed to get permissions for {} and no previous permissions store, app may not be able to access capabilities", app_id_c)
                 }
             }
-        }
+            perm_res
+        });
+        let result: Result<(), RippleError> = if !has_stored {
+            // app has no stored permissions, wait until it does
+            debug!(
+                "{} did not have any permissions, waiting until permissions are fetched from cloud",
+                app_id
+            );
+            match handle.await {
+                Ok(handle_result) => handle_result,
+                Err(e) => {
+                    error!("fetch_permission_for_app_session: e={:?}", e);
+                    Err(RippleError::NotAvailable)
+                }
+            }
+        } else {
+            Ok(())
+        };
         result
     }
 
@@ -240,7 +377,7 @@ impl PermissionHandler {
             return Self::is_all_permitted(&permitted, request);
         } else {
             // check to retrieve it one more time
-            if (Self::fetch_and_store(state, app_id).await).is_ok() {
+            if (Self::fetch_and_store(state, app_id, true).await).is_ok() {
                 // cache primed try again
                 if let Some(permitted) = state.cap_state.permitted_state.get_app_permissions(app_id)
                 {
@@ -266,7 +403,7 @@ impl PermissionHandler {
         let mut use_granted = false;
         let mut manage_granted = false;
         let mut provide_granted = false;
-        let granted_permissions = Self::get_app_permission(platform_state, app_id).await;
+        let granted_permissions = Self::get_cached_app_permissions(platform_state, app_id).await;
         for perm in granted_permissions {
             if perm.cap.as_str() == capability {
                 match perm.role {

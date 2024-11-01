@@ -24,17 +24,18 @@ use std::{
 use ripple_sdk::{
     api::{
         apps::{AppEvent, AppEventRequest},
+        context::RippleContextUpdateRequest,
         device::{
             device_events::{DeviceEvent, DeviceEventCallback},
             device_operator::DeviceSubscribeRequest,
             device_request::{
-                AudioProfile, NetworkResponse, NetworkState, NetworkType, PowerState,
-                SystemPowerState, VoiceGuidanceState,
+                AudioProfile, InternetConnectionStatus, NetworkResponse, NetworkState, NetworkType,
+                PowerState, SystemPowerState, VoiceGuidanceState,
             },
         },
     },
     extn::extn_client_message::ExtnEvent,
-    log::{error, trace},
+    log::{debug, error, trace},
     serde_json::{self, Value},
     utils::error::RippleError,
 };
@@ -49,6 +50,16 @@ pub struct ActiveInputThunderEvent {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimeZoneChangedThunderEvent {
+    pub old_accuracy: String,
+    pub new_time_zone: String,
+    pub new_accuracy: String,
+    pub old_time_zone: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ResolutionChangedEvent {
     pub width: i32,
     pub height: i32,
@@ -61,9 +72,12 @@ pub enum ThunderEventMessage {
     ActiveInput(ActiveInputThunderEvent),
     Resolution(ResolutionChangedEvent),
     Network(NetworkResponse),
+    Internet(InternetConnectionStatus),
     PowerState(SystemPowerState),
     VoiceGuidance(VoiceGuidanceState),
     Audio(HashMap<AudioProfile, bool>),
+    Custom(Value),
+    TimeZone(TimeZoneChangedThunderEvent),
 }
 impl ThunderEventMessage {
     pub fn get(event: &str, value: &Value) -> Option<Self> {
@@ -119,9 +133,26 @@ impl ThunderEventMessage {
                         value.clone(),
                     )))
                 }
+                DeviceEvent::InternetConnectionStatusChanged => {
+                    if let Some(status) = value.get("status") {
+                        if let Ok(internet_status) = serde_json::from_value(status.clone()) {
+                            return Some(ThunderEventMessage::Internet(internet_status));
+                        }
+                    }
+                }
+                DeviceEvent::TimeZoneChanged => {
+                    if let Ok(v) = serde_json::from_value(value.clone()) {
+                        return Some(ThunderEventMessage::TimeZone(v));
+                    }
+                }
             }
+        } else {
+            debug!(
+                "Unable to convert event {} into ThunderEventMessage must be custom",
+                event
+            );
         }
-        None
+        Some(ThunderEventMessage::Custom(value.clone()))
     }
 }
 
@@ -161,7 +192,7 @@ pub trait ThunderEventHandlerProvider {
     ) -> Result<ExtnEvent, RippleError> {
         let result = serde_json::to_value(r).unwrap();
         match callback_type {
-            DeviceEventCallback::FireboltAppEvent => {
+            DeviceEventCallback::FireboltAppEvent(_) => {
                 Ok(ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
                     event_name: Self::get_mapped_event(),
                     context: None,
@@ -202,13 +233,20 @@ impl ThunderEventHandler {
         }
     }
 
+    pub fn callback_context_update(
+        state: ThunderState,
+        update_request: RippleContextUpdateRequest,
+    ) {
+        if let Err(e) = state.get_client().request_transient(update_request) {
+            error!("Error sending context update {:?}", e);
+        }
+    }
+
     pub fn callback_device_event(state: ThunderState, event_name: String, event: ExtnEvent) {
         if !state.event_processor.check_last_event(&event_name, &event) {
             state.event_processor.add_last_event(&event_name, &event);
             if (match event {
                 ExtnEvent::AppEvent(a) => state.get_client().request_transient(a),
-                ExtnEvent::PowerState(p) => state.get_client().request_transient(p),
-                ExtnEvent::VoiceGuidanceState(p) => state.get_client().request_transient(p),
                 _ => Err(RippleError::InvalidOutput),
             })
             .is_err()

@@ -41,7 +41,11 @@ use crate::state::platform_state::PlatformState;
 
 #[derive(Debug)]
 pub struct AppEventDecorationError {}
-
+impl From<serde_json::Error> for AppEventDecorationError {
+    fn from(_value: serde_json::Error) -> Self {
+        AppEventDecorationError {}
+    }
+}
 #[async_trait]
 pub trait AppEventDecorator: Send + Sync {
     async fn decorate(
@@ -134,14 +138,14 @@ impl EventListener {
         event_name: &str,
         result: &Value,
     ) -> Result<Value, AppEventDecorationError> {
-        if self.decorator.is_none() {
-            return Ok(result.clone());
+        match &self.decorator {
+            Some(decorator) => {
+                decorator
+                    .decorate(state, &self.call_ctx, event_name, result)
+                    .await
+            }
+            None => Ok(result.clone()),
         }
-        self.decorator
-            .as_ref()
-            .unwrap()
-            .decorate(state, &self.call_ctx, event_name, result)
-            .await
     }
 }
 
@@ -229,12 +233,13 @@ impl AppEvents {
         event_context: Option<Value>,
         decorator: Option<Box<dyn AppEventDecorator + Send + Sync>>,
     ) {
-        let session = state.session_state.get_session(&call_ctx);
-        if session.is_none() {
-            error!("No open sessions for id '{:?}'", call_ctx.session_id);
-            return;
-        }
-        let session = session.unwrap();
+        let session = match state.session_state.get_session(&call_ctx) {
+            Some(session) => session,
+            None => {
+                error!("No open sessions for id '{:?}'", call_ctx.session_id);
+                return;
+            }
+        };
         let app_events_state = &state.app_events_state;
         let mut listeners = app_events_state.listeners.write().unwrap();
         let event_ctx_string = event_context.map(|x| x.to_string());
@@ -264,6 +269,8 @@ impl AppEvents {
             result: data,
             id: Id::Number(listener.call_ctx.call_id),
         };
+
+        // Events are pass through no stats
         let api_message = ApiMessage::new(
             protocol,
             json!(event).to_string(),
@@ -424,5 +431,51 @@ impl AppEvents {
                 }
             }
         }
+    }
+}
+#[cfg(test)]
+pub mod tests {
+    use crate::state::session_state::Session;
+    use ripple_sdk::tokio;
+    use ripple_tdk::utils::test_utils::Mockable;
+
+    use super::*;
+    #[tokio::test]
+    pub async fn test_add_listener() {
+        let platform_state = PlatformState::mock();
+        let call_context = CallContext::mock();
+        let listen_request = ListenRequest { listen: true };
+        Session::new(
+            call_context.clone().app_id,
+            None,
+            EffectiveTransport::Websocket,
+        );
+        let session = Session::new(
+            call_context.clone().app_id,
+            None,
+            EffectiveTransport::Websocket,
+        );
+        platform_state
+            .session_state
+            .add_session(call_context.clone().session_id, session);
+
+        AppEvents::add_listener(
+            &platform_state,
+            "test_event".to_string(),
+            call_context,
+            listen_request,
+        );
+        assert!(
+            platform_state
+                .app_events_state
+                .listeners
+                .read()
+                .unwrap()
+                .len()
+                == 1
+        );
+        let listeners =
+            AppEvents::get_listeners(&platform_state.app_events_state, "test_event", None);
+        assert!(listeners.len() == 1);
     }
 }

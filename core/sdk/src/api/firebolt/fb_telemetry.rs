@@ -19,13 +19,15 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::{
-    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider, ExtnRequest},
+    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
     framework::ripple_contract::RippleContract,
 };
 
-use super::fb_metrics::{ErrorParams, ErrorType, Param};
+use super::fb_metrics::{
+    Counter, ErrorParams, ErrorType, FlatMapValue, Param, SystemErrorParams, Timer,
+};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppLoadStart {
     pub app_id: String,
     pub app_version: Option<String>,
@@ -34,7 +36,7 @@ pub struct AppLoadStart {
     pub ripple_version: String,
     pub ripple_context: Option<String>,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppLoadStop {
     pub app_id: String,
     pub stop_time: i64,
@@ -43,7 +45,7 @@ pub struct AppLoadStop {
     pub success: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppSDKLoaded {
     pub app_id: String,
     pub stop_time: i64,
@@ -52,14 +54,14 @@ pub struct AppSDKLoaded {
     pub app_session_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct TelemetryAppError {
     pub app_id: String,
     pub error_type: String,
     pub code: String,
     pub description: String,
     pub visible: bool,
-    pub parameters: Option<HashMap<String, String>>,
+    pub parameters: Option<HashMap<String, FlatMapValue>>,
     pub ripple_session_id: String,
 }
 
@@ -77,7 +79,7 @@ impl From<ErrorParams> for TelemetryAppError {
     }
 }
 
-fn get_params(error_params: Option<Vec<Param>>) -> Option<HashMap<String, String>> {
+fn get_params(error_params: Option<Vec<Param>>) -> Option<HashMap<String, FlatMapValue>> {
     error_params.map(|params| {
         params
             .into_iter()
@@ -96,8 +98,8 @@ fn get_error_type(error_type: ErrorType) -> String {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SystemError {
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct TelemetrySystemError {
     pub error_name: String,
     pub component: String,
     pub context: Option<String>,
@@ -105,22 +107,33 @@ pub struct SystemError {
     pub ripple_version: String,
     pub ripple_context: Option<String>,
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
+impl From<SystemErrorParams> for TelemetrySystemError {
+    fn from(error: SystemErrorParams) -> Self {
+        TelemetrySystemError {
+            error_name: error.error_name,
+            component: error.component,
+            context: error.context,
+            ripple_session_id: String::new(),
+            ripple_version: String::from("ripple.version.tbd"), //String::from(version()),
+            ripple_context: None,                               //ripple_context(),
+        }
+    }
+}
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct TelemetrySignIn {
     pub app_id: String,
     pub ripple_session_id: String,
     pub app_session_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct TelemetrySignOut {
     pub app_id: String,
     pub ripple_session_id: String,
     pub app_session_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct InternalInitialize {
     pub app_id: String,
     pub ripple_session_id: String,
@@ -128,7 +141,7 @@ pub struct InternalInitialize {
     pub semantic_version: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct FireboltInteraction {
     pub app_id: String,
     pub method: String,
@@ -137,15 +150,16 @@ pub struct FireboltInteraction {
     pub success: bool,
     pub ripple_session_id: String,
     pub app_session_id: Option<String>,
+    pub response: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum TelemetryPayload {
     AppLoadStart(AppLoadStart),
     AppLoadStop(AppLoadStop),
     AppSDKLoaded(AppSDKLoaded),
     AppError(TelemetryAppError),
-    SystemError(SystemError),
+    SystemError(TelemetrySystemError),
     SignIn(TelemetrySignIn),
     SignOut(TelemetrySignOut),
     InternalInitialize(InternalInitialize),
@@ -181,29 +195,106 @@ impl ExtnPayloadProvider for TelemetryPayload {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::OperationalMetricListener
+        RippleContract::TelemetryEventsListener
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum OperationalMetricRequest {
     Subscribe,
     UnSubscribe,
+    Counter(Counter),
+    Timer(Timer),
 }
 
-impl ExtnPayloadProvider for OperationalMetricRequest {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::OperationalMetricsRequest(self.clone()))
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_telemetry_app_error_from_error_params() {
+        let error_params = ErrorParams {
+            error_type: ErrorType::network,
+            code: String::from("123"),
+            description: String::from("Network error"),
+            visible: true,
+            parameters: Some(vec![
+                Param {
+                    name: String::from("param1"),
+                    value: FlatMapValue::String(String::from("value1")),
+                },
+                Param {
+                    name: String::from("param2"),
+                    value: FlatMapValue::Boolean(true),
+                },
+            ]),
+        };
+
+        let expected = TelemetryAppError {
+            app_id: String::from(""),
+            error_type: String::from("network"),
+            code: String::from("123"),
+            description: String::from("Network error"),
+            visible: true,
+            parameters: Some(
+                vec![
+                    (
+                        String::from("param1"),
+                        FlatMapValue::String(String::from("value1")),
+                    ),
+                    (String::from("param2"), FlatMapValue::Boolean(true)),
+                ]
+                .into_iter()
+                .collect(),
+            ),
+            ripple_session_id: String::from(""),
+        };
+
+        let result: TelemetryAppError = error_params.into();
+        assert_eq!(result, expected);
     }
 
-    fn get_from_payload(payload: ExtnPayload) -> Option<OperationalMetricRequest> {
-        if let ExtnPayload::Request(ExtnRequest::OperationalMetricsRequest(r)) = payload {
-            return Some(r);
-        }
-        None
+    #[test]
+    fn test_get_params() {
+        let error_params = Some(vec![
+            Param {
+                name: String::from("param1"),
+                value: FlatMapValue::String(String::from("value1")),
+            },
+            Param {
+                name: String::from("param2"),
+                value: FlatMapValue::Boolean(true),
+            },
+        ]);
+
+        let expected = Some(
+            vec![
+                (
+                    String::from("param1"),
+                    FlatMapValue::String(String::from("value1")),
+                ),
+                (String::from("param2"), FlatMapValue::Boolean(true)),
+            ]
+            .into_iter()
+            .collect(),
+        );
+
+        let result = get_params(error_params);
+        assert_eq!(result, expected);
     }
 
-    fn contract() -> RippleContract {
-        RippleContract::OperationalMetricListener
+    #[test]
+    fn test_get_error_type() {
+        assert_eq!(get_error_type(ErrorType::network), String::from("network"));
+        assert_eq!(get_error_type(ErrorType::media), String::from("media"));
+        assert_eq!(
+            get_error_type(ErrorType::restriction),
+            String::from("restriction")
+        );
+        assert_eq!(
+            get_error_type(ErrorType::entitlement),
+            String::from("entitlement")
+        );
+        assert_eq!(get_error_type(ErrorType::other), String::from("other"));
     }
 }

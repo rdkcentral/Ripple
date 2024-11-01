@@ -16,8 +16,8 @@
 //
 
 use thunder_ripple_sdk::ripple_sdk::{
-    api::storage_property::StorageAdjective,
-    crossbeam::channel::Receiver as CReceiver,
+    api::{session::EventAdjective, storage_property::StorageAdjective},
+    async_channel::Receiver as CReceiver,
     export_channel_builder, export_extn_metadata,
     extn::{
         client::{extn_client::ExtnClient, extn_sender::ExtnSender},
@@ -31,8 +31,8 @@ use thunder_ripple_sdk::ripple_sdk::{
     framework::ripple_contract::{ContractFulfiller, RippleContract},
     log::{debug, info},
     semver::Version,
-    tokio::{self, runtime::Runtime},
-    utils::{error::RippleError, logger::init_logger},
+    tokio,
+    utils::{error::RippleError, extn_utils::ExtnUtils, logger::init_logger},
 };
 
 use crate::bootstrap::boot_thunder_channel::boot_thunder_channel;
@@ -45,7 +45,15 @@ fn init_library() -> CExtnMetadata {
             RippleContract::DeviceInfo,
             RippleContract::WindowManager,
             RippleContract::Browser,
-            RippleContract::DeviceEvents,
+            RippleContract::RippleContext,
+            RippleContract::DeviceEvents(EventAdjective::Input),
+            RippleContract::DeviceEvents(EventAdjective::Hdr),
+            RippleContract::DeviceEvents(EventAdjective::ScreenResolution),
+            RippleContract::DeviceEvents(EventAdjective::VideoResolution),
+            RippleContract::DeviceEvents(EventAdjective::VoiceGuidance),
+            RippleContract::DeviceEvents(EventAdjective::Network),
+            RippleContract::DeviceEvents(EventAdjective::Audio),
+            RippleContract::DeviceEvents(EventAdjective::SystemPowerState),
             RippleContract::Storage(StorageAdjective::Local),
             RippleContract::RemoteAccessory,
             RippleContract::Wifi,
@@ -65,8 +73,8 @@ export_extn_metadata!(CExtnMetadata, init_library);
 pub fn start(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     let _ = init_logger("device_channel".into());
     info!("Starting device channel");
-    let runtime = Runtime::new().unwrap();
     let client = ExtnClient::new(receiver, sender);
+    let runtime = ExtnUtils::get_runtime("e-t".to_owned(), client.get_stack_size());
     runtime.block_on(async move {
         let client_for_receiver = client.clone();
         let client_for_thunder = client.clone();

@@ -24,13 +24,19 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         device::{
+            device_events::{
+                DeviceEvent, DeviceEventCallback, DeviceEventRequest, TIME_ZONE_CHANGED,
+            },
             device_info_request::DeviceInfoRequest,
             device_peristence::SetStringProperty,
             device_request::{LanguageProperty, TimezoneProperty},
         },
-        firebolt::fb_general::{ListenRequest, ListenerResponse},
+        firebolt::{
+            fb_general::{ListenRequest, ListenerResponse},
+            fb_localization::SetPreferredAudioLanguage,
+        },
         gateway::rpc_gateway_api::CallContext,
-        storage_property::{StorageProperty, EVENT_TIMEZONE_CHANGED, KEY_POSTAL_CODE},
+        storage_property::{StorageProperty, KEY_POSTAL_CODE},
     },
     extn::extn_client_message::ExtnResponse,
 };
@@ -160,6 +166,21 @@ pub trait Localization {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
+
+    #[method(name = "localization.preferredAudioLanguages")]
+    async fn preferred_audio_languages(&self, _ctx: CallContext) -> RpcResult<Vec<String>>;
+    #[method(name = "localization.setPreferredAudioLanguages")]
+    async fn preferred_audio_languages_set(
+        &self,
+        ctx: CallContext,
+        set_request: SetPreferredAudioLanguage,
+    ) -> RpcResult<()>;
+    #[method(name = "localization.onPreferredAudioLanguagesChanged")]
+    async fn on_preferred_audio_languages(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
 }
 
 #[derive(Debug)]
@@ -172,8 +193,13 @@ impl LocalizationImpl {
         match StorageManager::get_string(state, StorageProperty::PostalCode).await {
             Ok(resp) => Some(resp),
             Err(_) => {
-                match StorageManager::get_string_from_namespace(state, app_id, KEY_POSTAL_CODE)
-                    .await
+                match StorageManager::get_string_from_namespace(
+                    state,
+                    app_id,
+                    KEY_POSTAL_CODE,
+                    None,
+                )
+                .await
                 {
                     Ok(resp) => Some(resp.as_value()),
                     Err(_) => None,
@@ -195,7 +221,7 @@ impl LocalizationImpl {
             // TODO update with Firebolt Cap in later effort
             "xrn:firebolt:capability:localization:locale".into(),
             method.into(),
-            event_name,
+            String::from(event_name),
             ctx,
             request,
         )
@@ -472,26 +498,34 @@ impl LocalizationServer for LocalizationImpl {
         .await
     }
 
-    async fn timezone_set(&self, ctx: CallContext, set_request: TimezoneProperty) -> RpcResult<()> {
-        let resp = self
+    async fn timezone_set(
+        &self,
+        _ctx: CallContext,
+        set_request: TimezoneProperty,
+    ) -> RpcResult<()> {
+        let resp = match self
             .platform_state
             .get_client()
             .send_extn_request(DeviceInfoRequest::GetAvailableTimezones)
-            .await;
-
-        if let Err(_e) = resp {
-            return Err(jsonrpsee::core::Error::Custom(String::from(
-                "timezone_set: error response TBD",
-            )));
-        }
-        if let Some(ExtnResponse::AvailableTimezones(timezones)) = resp.unwrap().payload.extract() {
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                error!("timezone_set: error response TBD: {:?}", e);
+                return Err(jsonrpsee::core::Error::Custom(String::from(
+                    "timezone_set: error response TBD",
+                )));
+            }
+        };
+        if let Some(ExtnResponse::AvailableTimezones(timezones)) = resp.payload.extract() {
             if !timezones.contains(&set_request.value) {
                 error!(
                     "timezone_set: Unsupported timezone: tz={}",
                     set_request.value
                 );
-                return Err(jsonrpsee::core::Error::Custom(String::from(
-                    "timezone_set: error response TBD",
+                return Err(jsonrpsee::core::Error::Custom(format!(
+                    "timezone_set: Unsupported timezone: tz={0}",
+                    set_request.value
                 )));
             }
         } else {
@@ -500,22 +534,16 @@ impl LocalizationServer for LocalizationImpl {
             )));
         }
 
-        if let Ok(_response) = self
+        if self
             .platform_state
             .get_client()
             .send_extn_request(DeviceInfoRequest::SetTimezone(set_request.value.clone()))
             .await
+            .is_ok()
         {
-            rpc_add_event_listener(
-                &self.platform_state,
-                ctx,
-                ListenRequest { listen: true },
-                EVENT_TIMEZONE_CHANGED,
-            )
-            .await
-            .ok();
             return Ok(());
         }
+
         Err(rpc_err("timezone: error response TBD"))
     }
 
@@ -538,7 +566,58 @@ impl LocalizationServer for LocalizationImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(&self.platform_state, ctx, request, EVENT_TIMEZONE_CHANGED).await
+        if self
+            .platform_state
+            .get_client()
+            .send_extn_request(DeviceEventRequest {
+                event: DeviceEvent::TimeZoneChanged,
+                subscribe: true,
+                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id.to_owned()),
+            })
+            .await
+            .is_err()
+        {
+            error!("on_timezone_changed: Error while registration");
+        }
+
+        rpc_add_event_listener(&self.platform_state, ctx, request, TIME_ZONE_CHANGED).await
+    }
+
+    async fn preferred_audio_languages(&self, _ctx: CallContext) -> RpcResult<Vec<String>> {
+        Ok(StorageManager::get_vec_string(
+            &self.platform_state,
+            StorageProperty::PreferredAudioLanguages,
+        )
+        .await
+        .unwrap_or(Vec::new()))
+    }
+
+    async fn preferred_audio_languages_set(
+        &self,
+        _ctx: CallContext,
+        set_request: SetPreferredAudioLanguage,
+    ) -> RpcResult<()> {
+        StorageManager::set_vec_string(
+            &self.platform_state,
+            StorageProperty::PreferredAudioLanguages,
+            set_request.get_string(),
+            None,
+        )
+        .await
+    }
+
+    async fn on_preferred_audio_languages(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        self.on_request_app_event(
+            ctx,
+            request,
+            "LocalizationPreferredAudioLanguagesChanged",
+            "Localization.onPreferredAudioLanguagesChanged",
+        )
+        .await
     }
 }
 

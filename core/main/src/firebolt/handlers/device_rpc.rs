@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, env, time::Duration};
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
@@ -28,7 +28,6 @@ use crate::{
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
-    types::error::CallError,
     RpcModule,
 };
 use ripple_sdk::{
@@ -39,31 +38,30 @@ use ripple_sdk::{
                 HDCP_CHANGED_EVENT, HDR_CHANGED_EVENT, NETWORK_CHANGED_EVENT,
                 SCREEN_RESOLUTION_CHANGED_EVENT, VIDEO_RESOLUTION_CHANGED_EVENT,
             },
-            device_info_request::{DeviceInfoRequest, DeviceResponse},
+            device_info_request::{DeviceInfoRequest, DeviceResponse, FirmwareInfo},
             device_operator::DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS,
             device_peristence::SetStringProperty,
             device_request::{
                 AudioProfile, DeviceVersionResponse, HdcpProfile, HdrProfile, NetworkResponse,
             },
         },
-        distributor::distributor_encoder::EncoderRequest,
-        firebolt::{
-            fb_capabilities::{FireboltCap, CAPABILITY_NOT_AVAILABLE},
-            fb_general::{ListenRequest, ListenerResponse},
-            fb_openrpc::FireboltSemanticVersion,
-        },
-        gateway::rpc_gateway_api::CallContext,
-        session::{AccountSessionRequest, ProvisionRequest},
+        firebolt::fb_general::{ListenRequest, ListenerResponse},
+        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest, RpcStats},
+        session::ProvisionRequest,
         storage_property::{
             StorageProperty, EVENT_DEVICE_DEVICE_NAME_CHANGED, EVENT_DEVICE_NAME_CHANGED,
         },
     },
-    extn::extn_client_message::ExtnResponse,
+    extn::extn_client_message::{ExtnMessage, ExtnResponse},
     log::error,
     tokio::time::timeout,
+    utils::error::RippleError,
 };
+use serde_json::json;
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
+
+const KEY_FIREBOLT_DEVICE_UID: &str = "fireboltDeviceUid";
 
 // #[derive(Serialize, Clone, Debug, Deserialize)]
 // #[serde(rename_all = "camelCase")]
@@ -194,30 +192,6 @@ pub async fn get_device_id(state: &PlatformState) -> RpcResult<String> {
     }
 }
 
-pub async fn get_uid(state: &PlatformState, app_id: String) -> RpcResult<String> {
-    if let Ok(device_id) = get_device_id(state).await {
-        if state.supports_encoding() {
-            if let Ok(resp) = state
-                .get_client()
-                .send_extn_request(EncoderRequest {
-                    reference: device_id.clone(),
-                    scope: app_id,
-                })
-                .await
-            {
-                if let Some(ExtnResponse::String(enc_device_id)) =
-                    resp.payload.extract::<ExtnResponse>()
-                {
-                    return Ok(enc_device_id);
-                }
-            }
-        }
-        Ok(device_id)
-    } else {
-        Err(rpc_err("parse error"))
-    }
-}
-
 pub async fn get_ll_mac_addr(state: PlatformState) -> RpcResult<String> {
     let resp = state
         .get_client()
@@ -250,11 +224,11 @@ pub struct DeviceImpl {
 }
 
 impl DeviceImpl {
-    async fn firmware_info(&self, _ctx: CallContext) -> RpcResult<FireboltSemanticVersion> {
+    async fn firmware_info(&self, _ctx: CallContext) -> RpcResult<FirmwareInfo> {
         let resp = self
             .state
             .get_client()
-            .send_extn_request(DeviceInfoRequest::Version)
+            .send_extn_request(DeviceInfoRequest::FirmwareInfo)
             .await;
 
         match resp {
@@ -306,7 +280,7 @@ impl DeviceServer for DeviceImpl {
     }
 
     async fn uid(&self, ctx: CallContext) -> RpcResult<String> {
-        get_uid(&self.state, ctx.app_id.clone()).await
+        crate::utils::common::get_uid(&self.state, ctx.app_id, KEY_FIREBOLT_DEVICE_UID).await
     }
 
     async fn platform(&self, _ctx: CallContext) -> RpcResult<String> {
@@ -314,23 +288,22 @@ impl DeviceServer for DeviceImpl {
     }
 
     async fn version(&self, ctx: CallContext) -> RpcResult<DeviceVersionResponse> {
-        let mut os = FireboltSemanticVersion::new(
-            env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap(),
-            env!("CARGO_PKG_VERSION_MINOR").parse().unwrap(),
-            env!("CARGO_PKG_VERSION_PATCH").parse().unwrap(),
-            "".to_string(),
-        );
-        os.readable = format!("Firebolt OS v{}", env!("CARGO_PKG_VERSION"));
-
-        let firmware = self.firmware_info(ctx.clone()).await?;
-
+        let firmware_info = self.firmware_info(ctx).await?;
         let open_rpc_state = self.state.clone().open_rpc_state;
         let api = open_rpc_state.get_open_rpc().info;
+
+        // os is deprecated, for now senidng firmware ver in os as well
+        let os_ver = firmware_info.clone().version;
+
         Ok(DeviceVersionResponse {
             api,
-            firmware,
-            os,
-            debug: format!("{} ({})", env!("CARGO_PKG_VERSION"), SHA_SHORT),
+            firmware: firmware_info.version,
+            os: os_ver,
+            debug: self
+                .state
+                .version
+                .clone()
+                .unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string()),
         })
     }
 
@@ -409,9 +382,8 @@ impl DeviceServer for DeviceImpl {
             .get_client()
             .send_extn_request(DeviceEventRequest {
                 event: DeviceEvent::InputChanged,
-                id: ctx.app_id,
                 subscribe: listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent,
+                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
             })
             .await
             .is_err()
@@ -434,7 +406,10 @@ impl DeviceServer for DeviceImpl {
 
         match resp {
             Ok(response) => match response.payload.extract().unwrap() {
-                DeviceResponse::HdrResponse(value) => Ok(value),
+                DeviceResponse::HdrResponse(value) => Ok(value
+                    .into_iter()
+                    .filter(|&(p, _)| p != HdrProfile::Technicolor)
+                    .collect()),
                 _ => Err(jsonrpsee::core::Error::Custom(String::from(
                     "Hdr capabilities error response TBD",
                 ))),
@@ -463,9 +438,8 @@ impl DeviceServer for DeviceImpl {
             .get_client()
             .send_extn_request(DeviceEventRequest {
                 event: DeviceEvent::HdrChanged,
-                id: ctx.app_id,
                 subscribe: listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent,
+                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
             })
             .await
             .is_err()
@@ -516,9 +490,8 @@ impl DeviceServer for DeviceImpl {
             .get_client()
             .send_extn_request(DeviceEventRequest {
                 event: DeviceEvent::ScreenResolutionChanged,
-                id: ctx.app_id,
                 subscribe: listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent,
+                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
             })
             .await
             .is_err()
@@ -569,9 +542,8 @@ impl DeviceServer for DeviceImpl {
             .get_client()
             .send_extn_request(DeviceEventRequest {
                 event: DeviceEvent::VideoResolutionChanged,
-                id: ctx.app_id,
                 subscribe: listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent,
+                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
             })
             .await
             .is_err()
@@ -645,9 +617,8 @@ impl DeviceServer for DeviceImpl {
             .get_client()
             .send_extn_request(DeviceEventRequest {
                 event: DeviceEvent::AudioChanged,
-                id: ctx.app_id.to_owned(),
                 subscribe: listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent,
+                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
             })
             .await
             .is_err()
@@ -699,9 +670,8 @@ impl DeviceServer for DeviceImpl {
             .get_client()
             .send_extn_request(DeviceEventRequest {
                 event: DeviceEvent::NetworkChanged,
-                id: ctx.app_id,
                 subscribe: listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent,
+                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
             })
             .await
             .is_err()
@@ -717,7 +687,7 @@ impl DeviceServer for DeviceImpl {
 
     async fn provision(
         &self,
-        _ctx: CallContext,
+        mut _ctx: CallContext,
         provision_request: ProvisionRequest,
     ) -> RpcResult<()> {
         // clear the cached distributor session
@@ -725,37 +695,87 @@ impl DeviceServer for DeviceImpl {
             .session_state
             .update_account_session(provision_request.clone());
 
-        let resp = self
-            .state
-            .get_client()
-            .send_extn_request(AccountSessionRequest::Provision(provision_request))
-            .await;
-        match resp {
-            Ok(payload) => match payload.payload.extract().unwrap() {
-                ExtnResponse::None(()) => Ok(()),
-                _ => Err(rpc_err("Provision Status error response TBD")),
-            },
-            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-                "Provision Status error response TBD",
-            ))),
+        if provision_request.distributor_id.is_none() {
+            return Err(rpc_err(
+                "set_provision: session.distributor_id is not set, cannot set provisioning",
+            ));
+        };
+        _ctx.protocol = ApiProtocol::Extn;
+        let success = rpc_request_setter(
+            self.state
+                .get_client()
+                .get_extn_client()
+                .main_internal_request(RpcRequest {
+                    ctx: _ctx.clone(),
+                    method: "account.setServiceAccountId".into(),
+                    params_json: RpcRequest::prepend_ctx(
+                        Some(json!({"serviceAccountId": provision_request.account_id})),
+                        &_ctx,
+                    ),
+                    stats: RpcStats::default(),
+                })
+                .await,
+        ) && rpc_request_setter(
+            self.state
+                .get_client()
+                .get_extn_client()
+                .main_internal_request(RpcRequest {
+                    ctx: _ctx.clone(),
+                    method: "account.setXDeviceId".into(),
+                    params_json: RpcRequest::prepend_ctx(
+                        Some(json!({"xDeviceId": provision_request.device_id})),
+                        &_ctx,
+                    ),
+                    stats: RpcStats::default(),
+                })
+                .await,
+        ) && rpc_request_setter(
+            self.state
+                .get_client()
+                .get_extn_client()
+                .main_internal_request(RpcRequest {
+                    ctx: _ctx.clone(),
+                    method: "account.setPartnerId".into(),
+                    params_json: RpcRequest::prepend_ctx(
+                        Some(json!({"partnerId": provision_request.distributor_id })),
+                        &_ctx,
+                    ),
+                    stats: RpcStats::default(),
+                })
+                .await,
+        );
+
+        if success {
+            Ok(())
+        } else {
+            Err(rpc_err("Provision Status error response TBD"))
         }
     }
 
     async fn distributor(&self, _ctx: CallContext) -> RpcResult<String> {
-        let sess = self.state.session_state.get_account_session().unwrap();
-
-        match Some(sess.id) {
-            Some(resp) => Ok(resp),
-            None => Err(jsonrpsee::core::Error::Call(CallError::Custom {
-                code: CAPABILITY_NOT_AVAILABLE,
-                message: format!(
-                    "{} is not available",
-                    FireboltCap::Short(String::from("device:distributor")).as_str()
-                ),
-                data: None,
-            })),
+        if let Some(session) = self.state.session_state.get_account_session() {
+            Ok(session.id)
+        } else {
+            Err(jsonrpsee::core::Error::Custom(String::from(
+                "Account session is not available",
+            )))
         }
     }
+}
+
+fn rpc_request_setter(response: Result<ExtnMessage, RippleError>) -> bool {
+    if response.clone().is_ok() {
+        if let Ok(res) = response {
+            if let Some(ExtnResponse::Value(v)) = res.payload.extract::<ExtnResponse>() {
+                if v.is_boolean() {
+                    if let Some(b) = v.as_bool() {
+                        return b;
+                    }
+                }
+            }
+        }
+    }
+    false
 }
 
 pub struct DeviceRPCProvider;

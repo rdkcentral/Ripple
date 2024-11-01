@@ -15,6 +15,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use ripple_sdk::{
+    api::session::EventAdjective, framework::ripple_contract::RippleContract,
+    utils::error::RippleError,
+};
+
 use crate::{
     events::thunder_event_processor::ThunderEventHandlerProvider,
     ripple_sdk::{
@@ -35,8 +40,9 @@ use crate::{
 };
 
 use super::events::thunder_event_handlers::{
-    AudioChangedEvent, HDCPEventHandler, HDREventHandler, NetworkEventHandler,
-    ScreenResolutionEventHandler, SystemPowerStateChangeEventHandler, VideoResolutionEventHandler,
+    AudioChangedEvent, HDCPEventHandler, HDREventHandler, InternetEventHandler,
+    NetworkEventHandler, ScreenResolutionEventHandler, SystemPowerStateChangeEventHandler,
+    TimezoneChangedEventHandler, VideoResolutionEventHandler,
     VoiceGuidanceEnabledChangedEventHandler,
 };
 
@@ -70,6 +76,20 @@ impl ExtnStreamProcessor for ThunderOpenEventsProcessor {
     fn sender(&self) -> mpsc::Sender<ExtnMessage> {
         self.streamer.sender()
     }
+    fn fulfills_mutiple(&self) -> Option<Vec<RippleContract>> {
+        Some(vec![
+            RippleContract::DeviceEvents(EventAdjective::Input),
+            RippleContract::DeviceEvents(EventAdjective::Hdr),
+            RippleContract::DeviceEvents(EventAdjective::ScreenResolution),
+            RippleContract::DeviceEvents(EventAdjective::VideoResolution),
+            RippleContract::DeviceEvents(EventAdjective::VoiceGuidance),
+            RippleContract::DeviceEvents(EventAdjective::Network),
+            RippleContract::DeviceEvents(EventAdjective::Internet),
+            RippleContract::DeviceEvents(EventAdjective::Audio),
+            RippleContract::DeviceEvents(EventAdjective::SystemPowerState),
+            RippleContract::DeviceEvents(EventAdjective::TimeZone),
+        ])
+    }
 }
 
 #[async_trait]
@@ -84,52 +104,65 @@ impl ExtnRequestProcessor for ThunderOpenEventsProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         let event = extracted_message.clone().event;
-        let id = extracted_message.clone().id;
         let listen = extracted_message.clone().subscribe;
         let callback_type = extracted_message.clone().callback_type;
-        let v = match event {
-            DeviceEvent::AudioChanged => state.handle_listener(
+        let id = callback_type.get_id();
+        if let Some(v) = match event {
+            DeviceEvent::AudioChanged => Some(state.handle_listener(
                 listen,
                 id.clone(),
                 AudioChangedEvent::provide(id, callback_type),
-            ),
-            DeviceEvent::HdrChanged => state.handle_listener(
+            )),
+            DeviceEvent::HdrChanged => Some(state.handle_listener(
                 listen,
                 id.clone(),
                 HDREventHandler::provide(id, callback_type),
-            ),
-            DeviceEvent::InputChanged => state.handle_listener(
+            )),
+            DeviceEvent::InputChanged => Some(state.handle_listener(
                 listen,
                 id.clone(),
                 HDCPEventHandler::provide(id, callback_type),
-            ),
-            DeviceEvent::NetworkChanged => state.handle_listener(
+            )),
+            DeviceEvent::NetworkChanged => Some(state.handle_listener(
                 listen,
                 id.clone(),
                 NetworkEventHandler::provide(id, callback_type),
-            ),
-            DeviceEvent::ScreenResolutionChanged => state.handle_listener(
+            )),
+            DeviceEvent::ScreenResolutionChanged => Some(state.handle_listener(
                 listen,
                 id.clone(),
                 ScreenResolutionEventHandler::provide(id, callback_type),
-            ),
-            DeviceEvent::VideoResolutionChanged => state.handle_listener(
+            )),
+            DeviceEvent::VideoResolutionChanged => Some(state.handle_listener(
                 listen,
                 id.clone(),
                 VideoResolutionEventHandler::provide(id, callback_type),
-            ),
-            DeviceEvent::SystemPowerStateChanged => state.handle_listener(
+            )),
+            DeviceEvent::SystemPowerStateChanged => Some(state.handle_listener(
                 listen,
                 id.clone(),
                 SystemPowerStateChangeEventHandler::provide(id, callback_type),
-            ),
-            DeviceEvent::VoiceGuidanceEnabledChanged => state.handle_listener(
+            )),
+            DeviceEvent::VoiceGuidanceEnabledChanged => Some(state.handle_listener(
                 listen,
                 id.clone(),
                 VoiceGuidanceEnabledChangedEventHandler::provide(id, callback_type),
-            ),
-        };
-        v.await;
-        Self::ack(state.get_client(), msg).await.is_ok()
+            )),
+            DeviceEvent::InternetConnectionStatusChanged => Some(state.handle_listener(
+                listen,
+                id.clone(),
+                InternetEventHandler::provide(id, callback_type),
+            )),
+            DeviceEvent::TimeZoneChanged => Some(state.handle_listener(
+                listen,
+                id.clone(),
+                TimezoneChangedEventHandler::provide(id, callback_type),
+            )),
+        } {
+            v.await;
+            Self::ack(state.get_client(), msg).await.is_ok()
+        } else {
+            Self::handle_error(state.get_client(), msg, RippleError::InvalidInput).await
+        }
     }
 }

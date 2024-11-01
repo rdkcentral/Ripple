@@ -17,9 +17,11 @@
 
 pub mod accessory;
 pub mod account_link;
+pub mod app_catalog;
 pub mod apps;
 pub mod caps;
 pub mod config;
+pub mod context;
 pub mod device;
 pub mod manifest;
 pub mod protocol;
@@ -44,6 +46,7 @@ pub mod distributor {
     pub mod distributor_privacy;
     pub mod distributor_request;
     pub mod distributor_sync;
+    pub mod distributor_token;
     pub mod distributor_usergrants;
 }
 
@@ -56,6 +59,7 @@ pub mod firebolt {
     pub mod fb_keyboard;
     pub mod fb_lifecycle;
     pub mod fb_lifecycle_management;
+    pub mod fb_localization;
     pub mod fb_metrics;
     pub mod fb_openrpc;
     pub mod fb_parameters;
@@ -65,4 +69,9 @@ pub mod firebolt {
     pub mod fb_telemetry;
     pub mod fb_user_grants;
     pub mod provider;
+}
+
+pub mod observability {
+    pub mod metrics_util;
+    pub mod operational_metrics;
 }

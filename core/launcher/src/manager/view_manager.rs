@@ -88,11 +88,12 @@ impl ViewRequest {
 
     pub fn send_response(&self, response: ViewResponse) -> Result<(), RippleError> {
         let mut sender = self.resp_tx.write().unwrap();
-        if sender.is_some() {
-            oneshot_send_and_log(sender.take().unwrap(), response, "ViewManager response");
-            Ok(())
-        } else {
-            Err(RippleError::SenderMissing)
+        match sender.take() {
+            Some(tx) => {
+                oneshot_send_and_log(tx, response, "ViewManager response");
+                Ok(())
+            }
+            None => Err(RippleError::SenderMissing),
         }
     }
 }
@@ -185,7 +186,7 @@ impl ViewManager {
                 y: params.y,
                 w: params.w,
                 h: params.h,
-                properties: params.properties.clone().map(|r| r.get_browser_props()),
+                properties: params.properties.map(|r| r.get_browser_props()),
             }))
             .await;
 
@@ -239,6 +240,13 @@ impl ViewManager {
                     Err(_e) => {
                         result = Err(ViewError::General);
                     }
+                }
+
+                if Self::set_visibility(state, id, matches!(position, Position::Front))
+                    .await
+                    .is_err()
+                {
+                    error!("Couldnt set visibility for view id {:?}", id)
                 }
             }
             None => {

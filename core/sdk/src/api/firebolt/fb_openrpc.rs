@@ -19,13 +19,14 @@ use std::collections::{HashMap, HashSet};
 
 use log::{debug, warn};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use super::fb_capabilities::{
     CapRequestRpcRequest, CapabilityRole, DenyReason, DenyReasonWithCap, FireboltCap,
     FireboltPermission,
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct FireboltSemanticVersion {
     pub major: u32,
     pub minor: u32,
@@ -113,7 +114,7 @@ pub struct OpenRPCParser {
     pub methods: Vec<FireboltOpenRpcMethod>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FireboltOpenRpc {
     pub openrpc: String,
     pub info: FireboltSemanticVersion,
@@ -185,6 +186,8 @@ impl From<FireboltVersionManifest> for FireboltOpenRpc {
     }
 }
 
+#[derive(Deserialize, Serialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum CapType {
     Available,
     Supported,
@@ -236,34 +239,36 @@ impl FireboltOpenRpc {
         &self,
         getter_method: &str,
     ) -> Option<FireboltOpenRpcMethod> {
-        let mut result = None;
         let tokens: Vec<&str> = getter_method.split_terminator('.').collect();
-        if tokens.len() == 2 {
-            let setter = self.get_setter_method_for_property(tokens[1]);
-            if let Some(method) = setter {
-                let setter_tokens: Vec<&str> = method.name.split_terminator('.').collect();
-                if !setter_tokens[0].eq(tokens[0]) {
-                    result = None;
-                } else {
-                    result = Some(method);
-                }
-            }
-        } else {
-            result = None;
+
+        if tokens.len() != 2 {
+            return None;
         }
-        result
+
+        let setter = self.get_setter_method_for_property(tokens[1]);
+        setter.filter(|method| {
+            if let Some(suffix) = method
+                .name
+                .to_lowercase()
+                .strip_prefix(tokens[0].to_lowercase().as_str())
+            {
+                !suffix.is_empty() && suffix.starts_with('.')
+            } else {
+                false
+            }
+        })
     }
 
     pub fn get_setter_method_for_property(&self, property: &str) -> Option<FireboltOpenRpcMethod> {
         self.methods
             .iter()
             .find(|method| {
-                method.tags.is_some()
-                    && method.tags.as_ref().unwrap().iter().any(|tag| {
+                method.tags.as_ref().map_or(false, |tags| {
+                    tags.iter().any(|tag| {
                         (tag.name == "rpc-only" || tag.name == "setter")
-                            && tag.setter_for.is_some()
-                            && tag.setter_for.as_ref().unwrap().as_str() == property
+                            && tag.setter_for.as_deref() == Some(property)
                     })
+                })
             })
             .cloned()
     }
@@ -293,7 +298,7 @@ pub struct FireboltOpenRpcCapabilities {
     pub name: String,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FireboltOpenRpcTag {
     pub name: String,
     #[serde(rename = "x-uses")]
@@ -302,6 +307,8 @@ pub struct FireboltOpenRpcTag {
     pub manages: Option<Vec<String>>,
     #[serde(rename = "x-provides")]
     pub provides: Option<String>,
+    #[serde(rename = "x-provided-by")]
+    pub provided_by: Option<String>,
     #[serde(rename = "x-alternative")]
     pub alternative: Option<String>,
     #[serde(rename = "x-since")]
@@ -310,6 +317,18 @@ pub struct FireboltOpenRpcTag {
     pub allow_value: Option<bool>,
     #[serde(rename = "x-setter-for")]
     pub setter_for: Option<String>,
+    #[serde(rename = "x-response")]
+    pub response: Option<Value>,
+    #[serde(rename = "x-response-for")]
+    pub response_for: Option<String>,
+    #[serde(rename = "x-error")]
+    pub error: Option<Value>,
+    #[serde(rename = "x-error-for")]
+    pub error_for: Option<String>,
+    #[serde(rename = "x-allow-focus")]
+    pub allow_focus: Option<bool>,
+    #[serde(rename = "x-allow-focus-for")]
+    pub allow_focus_for: Option<String>,
 }
 
 impl FireboltOpenRpcTag {
@@ -327,7 +346,7 @@ impl FireboltOpenRpcTag {
         None
     }
 
-    fn get_provides(&self) -> Option<FireboltCap> {
+    pub fn get_provides(&self) -> Option<FireboltCap> {
         if let Some(caps) = self.provides.clone() {
             return Some(FireboltCap::Full(caps));
         }
@@ -335,7 +354,7 @@ impl FireboltOpenRpcTag {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FireboltOpenRpcMethod {
     pub name: String,
     pub tags: Option<Vec<FireboltOpenRpcTag>>,
@@ -355,13 +374,17 @@ impl FireboltOpenRpcMethod {
     }
 
     pub fn name_with_lowercase_module(method: &str) -> String {
-        let mut parts: Vec<&str> = method.split('.').collect();
-        if parts.len() < 2 {
-            return String::from(method);
+        // Check if delimter ('.') is present in method name.
+        // If found, idx will be the index of the delimiter
+        if let Some((idx, _)) = method.chars().enumerate().find(|&(_, c)| c == '.') {
+            // Split method to module and method name at the delimiter
+            let (module, method_name) = method.split_at(idx);
+            // convert module to lowercase and concatenate with method name
+            format!("{}.{}", module.to_lowercase(), &method_name[1..])
+        } else {
+            // No delimiter found, return method as is
+            method.to_string()
         }
-        let module = parts.remove(0);
-        let method_name = parts.join(".");
-        format!("{}.{}", module.to_lowercase(), method_name)
     }
 
     pub fn is_named(&self, method_name: &str) -> bool {
@@ -384,15 +407,14 @@ impl From<CapRequestRpcRequest> for CapabilitySet {
         let mut manage_caps_vec = Vec::new();
 
         for cap in c.grants {
-            if let Some(capability) = FireboltCap::parse(cap.clone().capability) {
-                if let Some(role) = cap.clone().role {
-                    match role {
-                        CapabilityRole::Use => use_caps_vec.push(capability),
-                        CapabilityRole::Provide => {
-                            let _ = provide_cap.insert(capability);
-                        }
-                        CapabilityRole::Manage => manage_caps_vec.push(capability),
+            let capability = cap.clone().capability;
+            if let Some(role) = cap.clone().role {
+                match role {
+                    CapabilityRole::Use => use_caps_vec.push(capability),
+                    CapabilityRole::Provide => {
+                        let _ = provide_cap.insert(capability);
                     }
+                    CapabilityRole::Manage => manage_caps_vec.push(capability),
                 }
             }
         }
@@ -647,7 +669,7 @@ impl CapabilitySet {
                 },
                 CapabilityRole::Manage => CapabilitySet {
                     use_caps: None,
-                    provide_cap: Some(caps.get(0).cloned().unwrap()),
+                    provide_cap: Some(caps.first().cloned().unwrap()),
                     manage_caps: None,
                 },
                 CapabilityRole::Provide => CapabilitySet {
@@ -663,5 +685,379 @@ impl CapabilitySet {
                 manage_caps: None,
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use crate::api::firebolt::{
+        fb_capabilities::{
+            CapRequestRpcRequest, CapabilityRole, FireboltCap, FireboltPermission, RoleInfo,
+        },
+        fb_openrpc::{
+            Cap, CapType, CapabilitySet, FireboltInfo, FireboltOpenRpcMethod, FireboltOpenRpcTag,
+            FireboltVersionManifest, OpenRPCParser,
+        },
+    };
+
+    #[test]
+    fn test_get_latest_rpc_empty() {
+        let manifest = FireboltVersionManifest {
+            capabilities: HashMap::new(),
+            apis: HashMap::new(),
+        };
+        assert!(manifest.get_latest_rpc().is_none());
+    }
+
+    #[test]
+    fn test_get_latest_rpc_single() {
+        let mut apis = HashMap::new();
+        let parser = OpenRPCParser {
+            openrpc: "1.0.0".to_string(),
+            info: FireboltInfo {
+                title: "Firebolt".to_string(),
+                version: "1.0.0".to_string(),
+            },
+            methods: Vec::new(),
+        };
+        apis.insert("v1".to_string(), parser);
+
+        let manifest = FireboltVersionManifest {
+            capabilities: HashMap::new(),
+            apis,
+        };
+
+        let m = manifest.get_latest_rpc().unwrap();
+        assert_eq!(m.openrpc, "1.0.0");
+        assert_eq!(m.info.version, "1.0.0");
+    }
+
+    #[test]
+    fn test_get_latest_rpc_multiple() {
+        let mut apis = HashMap::new();
+        let parser_v1 = OpenRPCParser {
+            openrpc: "1.0.0".to_string(),
+            info: FireboltInfo {
+                title: "Firebolt".to_string(),
+                version: "1.0.0".to_string(),
+            },
+            methods: Vec::new(),
+        };
+        let parser_v2 = OpenRPCParser {
+            openrpc: "1.1.0".to_string(),
+            info: FireboltInfo {
+                title: "Firebolt".to_string(),
+                version: "1.1.0".to_string(),
+            },
+            methods: Vec::new(),
+        };
+        apis.insert("v1".to_string(), parser_v1);
+        apis.insert("v2".to_string(), parser_v2);
+
+        let manifest = FireboltVersionManifest {
+            capabilities: HashMap::new(),
+            apis,
+        };
+
+        let m = manifest.get_latest_rpc().unwrap();
+        assert_eq!(m.openrpc, "1.1.0");
+        assert_eq!(m.info.version, "1.1.0");
+    }
+
+    #[test]
+    fn test_cap_from_str() {
+        let support_cap_roster = vec!["cap1".to_string(), "cap2".to_string()];
+        let cap = Cap::from_str("cap1".to_string(), support_cap_roster.clone());
+        assert_eq!(cap.cap_type, CapType::Supported);
+
+        let cap = Cap::from_str("cap".to_string(), support_cap_roster);
+        assert_eq!(cap.cap_type, CapType::Available);
+    }
+
+    #[test]
+    fn test_name_with_lowercase_module() {
+        assert_eq!(
+            FireboltOpenRpcMethod::name_with_lowercase_module("example.method"),
+            "example.method"
+        );
+
+        assert_eq!(
+            FireboltOpenRpcMethod::name_with_lowercase_module("example"),
+            "example"
+        );
+    }
+
+    #[test]
+    fn test_firebolt_open_rpc_tag_impl() {
+        let tag = FireboltOpenRpcTag {
+            name: "property".to_string(),
+            allow_value: Some(true),
+            uses: Some(vec!["cap1".to_string(), "cap2".to_string()]),
+            manages: Some(vec!["cap3".to_string(), "cap4".to_string()]),
+            provides: Some("cap5".to_string()),
+            alternative: Some("cap6".to_string()),
+            since: Some("1.0.0".to_string()),
+            setter_for: Some("example_property".to_string()),
+            response: None,
+            response_for: None,
+            error: None,
+            error_for: None,
+            allow_focus: None,
+            allow_focus_for: None,
+            provided_by: None,
+        };
+
+        assert_eq!(
+            tag.get_uses_caps(),
+            Some(vec![
+                FireboltCap::Full("cap1".to_string()),
+                FireboltCap::Full("cap2".to_string())
+            ])
+        );
+
+        assert_eq!(
+            tag.get_manages_caps(),
+            Some(vec![
+                FireboltCap::Full("cap3".to_string()),
+                FireboltCap::Full("cap4".to_string())
+            ])
+        );
+
+        assert_eq!(
+            tag.get_provides(),
+            Some(FireboltCap::Full("cap5".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_get_allow_value() {
+        let mut method = FireboltOpenRpcMethod {
+            name: "test_method".to_string(),
+            tags: Some(vec![FireboltOpenRpcTag {
+                name: "property".to_string(),
+                allow_value: Some(true),
+                uses: Some(vec!["cap1".to_string(), "cap2".to_string()]),
+                manages: Some(vec!["cap3".to_string(), "cap4".to_string()]),
+                provides: Some("cap5".to_string()),
+                alternative: Some("cap6".to_string()),
+                since: Some("1.0.0".to_string()),
+                setter_for: Some("example_property".to_string()),
+                response: None,
+                response_for: None,
+                error: None,
+                error_for: None,
+                allow_focus: None,
+                allow_focus_for: None,
+                provided_by: None,
+            }]),
+        };
+
+        assert_eq!(method.get_allow_value(), Some(true));
+
+        method.tags = Some(vec![FireboltOpenRpcTag {
+            name: "other_tag".to_string(),
+            allow_value: None,
+            uses: Some(vec!["cap1".to_string(), "cap2".to_string()]),
+            manages: Some(vec!["cap3".to_string(), "cap4".to_string()]),
+            provides: Some("cap5".to_string()),
+            alternative: Some("cap6".to_string()),
+            since: Some("1.0.0".to_string()),
+            setter_for: Some("example_property".to_string()),
+            response: None,
+            response_for: None,
+            error: None,
+            error_for: None,
+            allow_focus: None,
+            allow_focus_for: None,
+            provided_by: None,
+        }]);
+
+        assert_eq!(method.get_allow_value(), None);
+    }
+
+    #[test]
+    fn test_is_named() {
+        let method = FireboltOpenRpcMethod {
+            name: "module.method".to_string(),
+            tags: None,
+        };
+
+        assert!(method.is_named("module.method"));
+        assert!(method.is_named("Module.method"));
+        assert!(!method.is_named("other_module.method"));
+        assert!(!method.is_named("module.other_method"));
+    }
+
+    #[test]
+    fn test_from_cap_request_rpc_request() {
+        let cap_request = CapRequestRpcRequest {
+            grants: vec![
+                RoleInfo {
+                    capability: FireboltCap::Short("use_cap".to_string()),
+                    role: Some(CapabilityRole::Use),
+                },
+                RoleInfo {
+                    capability: FireboltCap::Short("provide_cap".to_string()),
+                    role: Some(CapabilityRole::Provide),
+                },
+                RoleInfo {
+                    capability: FireboltCap::Short("manage_cap".to_string()),
+                    role: Some(CapabilityRole::Manage),
+                },
+            ],
+        };
+
+        let capability_set = CapabilitySet::from(cap_request);
+
+        assert_eq!(
+            capability_set.use_caps,
+            Some(vec![FireboltCap::Short("use_cap".to_string())])
+        );
+        assert_eq!(
+            capability_set.provide_cap,
+            Some(FireboltCap::Short("provide_cap".to_string()))
+        );
+        assert_eq!(
+            capability_set.manage_caps,
+            Some(vec![FireboltCap::Short("manage_cap".to_string())])
+        );
+    }
+
+    #[test]
+    fn test_from_firebolt_permission_vec() {
+        let permissions = vec![
+            FireboltPermission {
+                cap: FireboltCap::Short("use_cap".to_string()),
+                role: CapabilityRole::Use,
+            },
+            FireboltPermission {
+                cap: FireboltCap::Short("manage_cap".to_string()),
+                role: CapabilityRole::Manage,
+            },
+            FireboltPermission {
+                cap: FireboltCap::Short("provide_cap".to_string()),
+                role: CapabilityRole::Provide,
+            },
+        ];
+
+        let capability_set = CapabilitySet::from(permissions);
+
+        assert_eq!(
+            capability_set.use_caps,
+            Some(vec![FireboltCap::Short("use_cap".to_string())])
+        );
+        assert_eq!(
+            capability_set.provide_cap,
+            Some(FireboltCap::Short("provide_cap".to_string()))
+        );
+        assert_eq!(
+            capability_set.manage_caps,
+            Some(vec![FireboltCap::Short("manage_cap".to_string())])
+        );
+    }
+
+    #[test]
+    fn test_into_firebolt_permissions_vec() {
+        let capability_set = CapabilitySet {
+            use_caps: Some(vec![FireboltCap::Short("use_cap".to_string())]),
+            provide_cap: Some(FireboltCap::Short("provide_cap".to_string())),
+            manage_caps: Some(vec![FireboltCap::Short("manage_cap".to_string())]),
+        };
+
+        let permissions = capability_set.into_firebolt_permissions_vec();
+
+        assert_eq!(
+            permissions,
+            vec![
+                FireboltPermission {
+                    cap: FireboltCap::Short("use_cap".to_string()),
+                    role: CapabilityRole::Use,
+                },
+                FireboltPermission {
+                    cap: FireboltCap::Short("manage_cap".to_string()),
+                    role: CapabilityRole::Manage,
+                },
+                FireboltPermission {
+                    cap: FireboltCap::Short("provide_cap".to_string()),
+                    role: CapabilityRole::Provide,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    pub fn test_firebolt_method_casing() {
+        let m1 = FireboltOpenRpcMethod {
+            name: String::from("SecureStorage.get"),
+            tags: None,
+        };
+        let m2 = FireboltOpenRpcMethod {
+            name: String::from("SecureStorage.getItem"),
+            tags: None,
+        };
+        let m3 = FireboltOpenRpcMethod {
+            name: String::from("SecureStorage.get.item"),
+            tags: None,
+        };
+        let m4 = FireboltOpenRpcMethod {
+            name: String::from("get"),
+            tags: None,
+        };
+
+        let m5 = FireboltOpenRpcMethod {
+            name: String::from("*"),
+            tags: None,
+        };
+
+        let m6 = FireboltOpenRpcMethod {
+            name: String::from("secureStorage.get"),
+            tags: None,
+        };
+        let m7 = FireboltOpenRpcMethod {
+            name: String::from("secureStorage.getItem"),
+            tags: None,
+        };
+        let m8 = FireboltOpenRpcMethod {
+            name: String::from("secureStorage.get.item"),
+            tags: None,
+        };
+
+        assert!(m1.is_named("securestorage.get"));
+        assert!(m2.is_named("secureStorage.getItem"));
+        assert!(!m2.is_named("secureStorage.getitem"));
+        assert!(m3.is_named("Securestorage.get.item"));
+        assert!(m4.is_named("get"));
+        assert!(!m4.is_named("Get"));
+        assert!(!m4.is_named("SecureStorage.get"));
+        assert!(m5.is_named("*"));
+        assert!(m6.is_named("securestorage.get"));
+        assert!(!m6.is_named("securestorage.Get"));
+        assert!(!m7.is_named("securestorage.getitem"));
+        assert!(m7.is_named("securestorage.getItem"));
+        assert!(m8.is_named("securestorage.get.item"));
+        assert!(!m8.is_named("securestorage.get.Item"));
+
+        assert_eq!(
+            FireboltOpenRpcMethod::name_with_lowercase_module(&m1.name),
+            "securestorage.get"
+        );
+        assert_eq!(
+            FireboltOpenRpcMethod::name_with_lowercase_module(&m2.name),
+            "securestorage.getItem"
+        );
+        assert_eq!(
+            FireboltOpenRpcMethod::name_with_lowercase_module(&m3.name),
+            "securestorage.get.item"
+        );
+        assert_eq!(
+            FireboltOpenRpcMethod::name_with_lowercase_module(&m4.name),
+            "get"
+        );
+        assert_eq!(
+            FireboltOpenRpcMethod::name_with_lowercase_module(&m5.name),
+            "*"
+        );
     }
 }

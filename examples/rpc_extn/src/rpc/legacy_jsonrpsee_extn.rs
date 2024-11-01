@@ -17,43 +17,54 @@
 
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
+    api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest, RpcStats},
     async_trait::async_trait,
-    extn::client::extn_client::ExtnClient,
-    extn::extn_client_message::ExtnResponse,
+    extn::{client::extn_client::ExtnClient, extn_client_message::ExtnResponse},
+    tokio::runtime::Runtime,
+    utils::extn_utils::ExtnUtils,
 };
 
 pub struct LegacyImpl {
     client: ExtnClient,
+    rt: Runtime,
 }
 
 impl LegacyImpl {
     pub fn new(client: ExtnClient) -> LegacyImpl {
-        LegacyImpl { client }
+        let size = client.get_stack_size();
+        LegacyImpl {
+            client,
+            rt: ExtnUtils::get_runtime("e-legacy".to_owned(), size),
+        }
     }
 }
 
 #[rpc(server)]
 pub trait Legacy {
     #[method(name = "legacy.make")]
-    fn make(&self, ctx: CallContext) -> RpcResult<String>;
+    async fn make(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "legacy.model")]
     async fn model(&self, ctx: CallContext) -> RpcResult<String>;
 }
 
 #[async_trait]
 impl LegacyServer for LegacyImpl {
-    fn make(&self, ctx: CallContext) -> RpcResult<String> {
-        let mut client = self.client.clone();
+    async fn make(&self, ctx: CallContext) -> RpcResult<String> {
+        let client = self.client.clone();
         let mut new_ctx = ctx;
         new_ctx.protocol = ApiProtocol::Extn;
 
         let rpc_request = RpcRequest {
             ctx: new_ctx.clone(),
             method: "device.make".into(),
+            stats: RpcStats::default(),
             params_json: RpcRequest::prepend_ctx(Some(serde_json::Value::Null), &new_ctx),
         };
-        if let Ok(ExtnResponse::Value(v)) = client.request_sync(rpc_request, 5000) {
+        if let Ok(Ok(ExtnResponse::Value(v))) = self
+            .rt
+            .spawn(async move { client.standalone_request(rpc_request, 5000).await })
+            .await
+        {
             if let Some(v) = v.as_str() {
                 return Ok(v.into());
             }
@@ -69,6 +80,7 @@ impl LegacyServer for LegacyImpl {
         let rpc_request = RpcRequest {
             ctx: new_ctx.clone(),
             method: "device.model".into(),
+            stats: RpcStats::default(),
             params_json: RpcRequest::prepend_ctx(Some(serde_json::Value::Null), &new_ctx),
         };
         if let Ok(msg) = client.request(rpc_request).await {

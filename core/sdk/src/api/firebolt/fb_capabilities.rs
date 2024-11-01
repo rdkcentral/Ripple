@@ -17,11 +17,12 @@
 
 use std::hash::{Hash, Hasher};
 
+use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-use crate::api::gateway::rpc_error::RpcError;
+use serde_json::json;
 
 use super::fb_openrpc::CapabilitySet;
+use crate::api::gateway::rpc_error::RpcError;
 
 /// There are many types of Firebolt Cap enums
 /// 1. Short: `device:model` becomes = `xrn:firebolt:capability:account:session` its just a handy cap which helps us write less code
@@ -38,6 +39,32 @@ impl FireboltCap {
         S: Into<String>,
     {
         FireboltCap::Short(s.into())
+    }
+}
+
+impl Serialize for FireboltCap {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for FireboltCap {
+    fn deserialize<D>(deserializer: D) -> Result<FireboltCap, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let cap = String::deserialize(deserializer)?;
+        if let Some(fc) = FireboltCap::parse(cap.clone()) {
+            Ok(fc)
+        } else {
+            Err(serde::de::Error::custom(format!(
+                "Invalid capability: {}",
+                cap
+            )))
+        }
     }
 }
 
@@ -66,22 +93,28 @@ impl FireboltCap {
     }
 
     pub fn parse(cap: String) -> Option<FireboltCap> {
-        let prefix = ["xrn", "firebolt", "capability"];
-        let c_a = cap.split(':');
-        if c_a.count() > 1 {
-            let c_a = cap.split(':');
-            let mut cap_vec = Vec::<String>::new();
-            for c in c_a {
-                if !prefix.contains(&c) {
-                    cap_vec.push(String::from(c));
-                    if cap_vec.len() == 2 {
-                        return Some(FireboltCap::Short(cap_vec.join(":")));
-                    }
-                }
-            }
+        let mut caps = cap.clone();
+        if !cap.starts_with("xrn:firebolt:capability") {
+            caps = "xrn:firebolt:capability:".to_string() + cap.as_str();
+        }
+        FireboltCap::parse_long(caps)
+    }
+
+    pub fn parse_long(cap: String) -> Option<FireboltCap> {
+        let pattern = r"^xrn:firebolt:capability:([a-z0-9\\-]+)((:[a-z0-9\\-]+)?)$";
+        if !Regex::new(pattern).unwrap().is_match(cap.as_str()) {
+            return None;
         }
 
-        None
+        let prefix = ["xrn", "firebolt", "capability"];
+        let c_a = cap.split(':');
+        let mut cap_vec = Vec::<String>::new();
+        for c in c_a.into_iter() {
+            if !prefix.contains(&c) {
+                cap_vec.push(String::from(c));
+            }
+        }
+        Some(FireboltCap::Short(cap_vec.join(":")))
     }
 
     pub fn from_vec_string(cap_strings: Vec<String>) -> Vec<FireboltCap> {
@@ -127,10 +160,79 @@ pub struct FireboltPermission {
     pub role: CapabilityRole,
 }
 
+impl FireboltPermission {
+    pub fn from_vec_string(
+        perm_strings: Vec<String>,
+        role_based_support: bool,
+    ) -> Vec<FireboltPermission> {
+        let mut perm_list: Vec<FireboltPermission> = Vec::new();
+        for permission in perm_strings {
+            if role_based_support {
+                let perm = FireboltPermission::deserialize(json!(permission));
+                if let Ok(p) = perm {
+                    perm_list.push(p);
+                }
+                if permission.ends_with("[manage]") {
+                    let mut cap = permission.clone();
+
+                    cap.truncate(permission.len() - "[manage]".len());
+                    let perm = FireboltPermission::deserialize(json!(cap));
+                    if let Ok(p) = perm {
+                        perm_list.push(p);
+                    }
+                } else if permission.ends_with("[provide]") {
+                    let mut cap = permission.clone();
+
+                    cap.truncate(permission.len() - "[provide]".len());
+                    let perm = FireboltPermission::deserialize(json!(cap));
+                    if let Ok(p) = perm {
+                        perm_list.push(p);
+                    }
+                    let perm = FireboltPermission::deserialize(json!(format!(
+                        "{}{}",
+                        cap.as_str(),
+                        "[manage]"
+                    )
+                    .as_str()));
+                    if let Ok(p) = perm {
+                        perm_list.push(p);
+                    }
+                }
+            } else {
+                let perm = FireboltPermission::deserialize(json!(permission));
+                if let Ok(p) = perm {
+                    perm_list.push(p);
+                }
+
+                let perm = FireboltPermission::deserialize(json!(format!(
+                    "{}{}",
+                    permission.as_str(),
+                    "[manage]"
+                )
+                .as_str()));
+                if let Ok(p) = perm {
+                    perm_list.push(p);
+                };
+
+                let perm = FireboltPermission::deserialize(json!(format!(
+                    "{}{}",
+                    permission.as_str(),
+                    "[provide]"
+                )
+                .as_str()));
+                if let Ok(p) = perm {
+                    perm_list.push(p);
+                };
+            }
+        }
+        perm_list
+    }
+}
+
 impl From<RoleInfo> for FireboltPermission {
     fn from(role_info: RoleInfo) -> Self {
         FireboltPermission {
-            cap: FireboltCap::Full(role_info.capability.to_owned()),
+            cap: role_info.capability.to_owned(),
             role: role_info.role.unwrap_or(CapabilityRole::Use),
         }
     }
@@ -151,7 +253,7 @@ impl From<CapRequestRpcRequest> for Vec<FireboltPermission> {
             .grants
             .iter()
             .map(|role_info| FireboltPermission {
-                cap: FireboltCap::Full(role_info.capability.to_owned()),
+                cap: role_info.capability.to_owned(),
                 role: role_info.role.unwrap_or(CapabilityRole::Use),
             })
             .collect()
@@ -223,6 +325,12 @@ impl<'de> Deserialize<'de> for FireboltPermission {
             role,
         })
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[cfg_attr(feature = "contract_tests", derive(Serialize))]
+pub struct FireboltPermissions {
+    pub capabilities: Vec<FireboltPermission>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -307,6 +415,21 @@ pub enum DenyReason {
     GrantProviderMissing,
     AppNotInActiveState,
 }
+impl std::fmt::Display for DenyReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DenyReason::NotFound => write!(f, "NotFound"),
+            DenyReason::Unpermitted => write!(f, "Unpermitted"),
+            DenyReason::Unsupported => write!(f, "Unsupported"),
+            DenyReason::Disabled => write!(f, "Disabled"),
+            DenyReason::Unavailable => write!(f, "Unavailable"),
+            DenyReason::GrantDenied => write!(f, "GrantDenied"),
+            DenyReason::Ungranted => write!(f, "Ungranted"),
+            DenyReason::GrantProviderMissing => write!(f, "GrantProviderMissing"),
+            DenyReason::AppNotInActiveState => write!(f, "AppNotInActiveState"),
+        }
+    }
+}
 
 pub const CAPABILITY_NOT_AVAILABLE: i32 = -50300;
 
@@ -320,6 +443,14 @@ pub const JSON_RPC_STANDARD_ERROR_INVALID_PARAMS: i32 = -32602;
 
 pub const JSON_RPC_STANDARD_ERROR_METHOD_NOT_FOUND: i32 = -32601;
 
+pub const CAPABILITY_GRANT_DENIED: i32 = -40400;
+
+pub const CAPABILITY_UNGRANTED: i32 = -40401;
+
+pub const CAPABILITY_APP_NOT_IN_ACTIVE_STATE: i32 = -40402;
+
+pub const CAPABILITY_GRANT_PROVIDER_MISSING: i32 = -40403;
+
 impl RpcError for DenyReason {
     type E = Vec<String>;
     fn get_rpc_error_code(&self) -> i32 {
@@ -331,6 +462,7 @@ impl RpcError for DenyReason {
             Self::Ungranted => CAPABILITY_NOT_PERMITTED,
             Self::NotFound => JSON_RPC_STANDARD_ERROR_METHOD_NOT_FOUND,
             Self::AppNotInActiveState => CAPABILITY_NOT_PERMITTED,
+            Self::GrantProviderMissing => CAPABILITY_GRANT_PROVIDER_MISSING,
             _ => CAPABILITY_GET_ERROR,
         }
     }
@@ -347,7 +479,22 @@ impl RpcError for DenyReason {
             Self::AppNotInActiveState => {
                 "Capability cannot be used when app is not in foreground state due to requiring a user grant".to_string()
             }
+            Self::GrantProviderMissing => format!("Grant provider is missing for {}", caps_disp),
             _ => format!("Error with {}", caps_disp),
+        }
+    }
+
+    fn get_observability_error_code(&self) -> i32 {
+        match self {
+            Self::Unavailable => CAPABILITY_NOT_AVAILABLE,
+            Self::Unsupported => CAPABILITY_NOT_SUPPORTED,
+            Self::GrantDenied => CAPABILITY_GRANT_DENIED,
+            Self::Unpermitted => CAPABILITY_NOT_PERMITTED,
+            Self::Ungranted => CAPABILITY_UNGRANTED,
+            Self::NotFound => JSON_RPC_STANDARD_ERROR_METHOD_NOT_FOUND,
+            Self::AppNotInActiveState => CAPABILITY_APP_NOT_IN_ACTIVE_STATE,
+            Self::GrantProviderMissing => CAPABILITY_GRANT_PROVIDER_MISSING,
+            _ => CAPABILITY_GET_ERROR,
         }
     }
 }
@@ -373,15 +520,43 @@ pub struct CapRequestRpcRequest {
     pub grants: Vec<RoleInfo>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct RoleInfo {
     pub role: Option<CapabilityRole>,
-    pub capability: String,
+    pub capability: FireboltCap,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct CapInfoRpcRequest {
-    pub capabilities: Vec<String>,
+    pub capabilities: Vec<FireboltCap>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct CapRPCRequest {
+    pub capability: FireboltCap,
+    pub options: Option<CapabilityOption>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct CapabilityOption {
+    pub role: CapabilityRole,
+}
+
+impl Default for CapabilityOption {
+    fn default() -> Self {
+        Self {
+            role: CapabilityRole::Use,
+        }
+    }
+}
+
+impl From<CapRPCRequest> for RoleInfo {
+    fn from(value: CapRPCRequest) -> Self {
+        RoleInfo {
+            role: Some(value.options.unwrap_or_default().role),
+            capability: value.capability,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -402,6 +577,240 @@ pub enum CapEvent {
 
 impl CapEvent {
     pub fn as_str(self) -> String {
-        serde_json::to_string(&self).unwrap()
+        let variant_name = match self {
+            CapEvent::OnAvailable => "onAvailable",
+            CapEvent::OnUnavailable => "onUnavailable",
+            CapEvent::OnGranted => "onGranted",
+            CapEvent::OnRevoked => "onRevoked",
+        };
+        variant_name.to_owned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_firebolt_cap_short() {
+        let cap = FireboltCap::short("account:session");
+        assert_eq!(cap.as_str(), "xrn:firebolt:capability:account:session");
+    }
+
+    #[test]
+    fn test_firebolt_cap_full() {
+        let cap = FireboltCap::parse_long("xrn:firebolt:capability:account:session".to_string());
+        assert_eq!(cap, Some(FireboltCap::Short("account:session".to_string())));
+    }
+
+    #[test]
+    fn test_firebolt_cap_parse() {
+        let cap = FireboltCap::parse("xrn:firebolt:capability:account:session".to_string());
+        assert_eq!(cap, Some(FireboltCap::Short("account:session".to_string())));
+    }
+
+    #[test]
+    fn test_firebolt_cap_parse_long() {
+        let cap = FireboltCap::parse_long("xrn:firebolt:capability:account:session".to_string());
+        assert_eq!(cap, Some(FireboltCap::Short("account:session".to_string())));
+    }
+
+    #[test]
+    fn test_firebolt_cap_from_vec_string() {
+        let cap_list = vec!["account:session".to_string()];
+        let cap = FireboltCap::from_vec_string(cap_list);
+        assert_eq!(cap, vec![FireboltCap::Full("account:session".to_string())]);
+    }
+
+    #[test]
+    fn test_capability_role_as_string() {
+        let role = CapabilityRole::Use;
+        assert_eq!(role.as_string(), "use");
+    }
+
+    #[test]
+    fn test_firebolt_permission_from_role_info() {
+        let role = RoleInfo {
+            role: Some(CapabilityRole::Use),
+            capability: FireboltCap::short("account:session"),
+        };
+        let perm = FireboltPermission::from(role);
+        assert_eq!(
+            perm,
+            FireboltPermission::from(FireboltCap::short("account:session"))
+        );
+    }
+
+    #[test]
+    fn test_firebolt_permission_from_firebolt_cap() {
+        let cap = FireboltCap::short("account:session");
+        let perm = FireboltPermission::from(cap);
+        assert_eq!(
+            perm,
+            FireboltPermission::from(FireboltCap::short("account:session"))
+        );
+    }
+
+    #[test]
+    fn test_firebolt_permission_from_cap_request_rpc_request() {
+        let cap_req = CapRequestRpcRequest {
+            grants: vec![RoleInfo {
+                role: Some(CapabilityRole::Use),
+                capability: FireboltCap::short("account:session"),
+            }],
+        };
+        let perm = Vec::<FireboltPermission>::from(cap_req);
+        assert_eq!(
+            perm,
+            vec![FireboltPermission::from(FireboltCap::short(
+                "account:session"
+            ))]
+        );
+    }
+
+    #[test]
+    fn test_firebolt_permission_from_capability_set() {
+        let cap_set = CapabilitySet {
+            use_caps: Some(vec![FireboltCap::short("account:session")]),
+            manage_caps: None,
+            provide_cap: None,
+        };
+        let perm = Vec::<FireboltPermission>::from(cap_set);
+        assert_eq!(
+            perm,
+            vec![FireboltPermission::from(FireboltCap::short(
+                "account:session"
+            ))]
+        );
+    }
+
+    #[test]
+    fn test_firebolt_permission_serialize() {
+        let perm = FireboltPermission {
+            cap: FireboltCap::short("account:session"),
+            role: CapabilityRole::Use,
+        };
+        let serialized = serde_json::to_string(&perm).unwrap();
+        assert_eq!(serialized, "\"xrn:firebolt:capability:account:session\"");
+    }
+
+    #[test]
+    fn test_firebolt_permission_deserialize() {
+        let perm = "\"xrn:firebolt:capability:account:session\"";
+        let deserialized: FireboltPermission = serde_json::from_str(perm).unwrap();
+        assert_eq!(
+            deserialized,
+            FireboltPermission {
+                cap: FireboltCap::short("account:session"),
+                role: CapabilityRole::Use
+            }
+        );
+    }
+
+    #[test]
+    fn test_deny_reason_get_rpc_error_message() {
+        let caps = vec!["xrn:firebolt:capability:account:session".to_string()];
+        assert_eq!(
+            DenyReason::Unavailable.get_rpc_error_message(caps.clone()),
+            "xrn:firebolt:capability:account:session is not available"
+        );
+        assert_eq!(
+            DenyReason::Unsupported.get_rpc_error_message(caps.clone()),
+            "xrn:firebolt:capability:account:session is not supported"
+        );
+        assert_eq!(
+            DenyReason::GrantDenied.get_rpc_error_message(caps.clone()),
+            "The user denied access to xrn:firebolt:capability:account:session"
+        );
+        assert_eq!(
+            DenyReason::Unpermitted.get_rpc_error_message(caps.clone()),
+            "xrn:firebolt:capability:account:session is not permitted"
+        );
+        assert_eq!(
+            DenyReason::Ungranted.get_rpc_error_message(caps.clone()),
+            "The user did not make a grant decision for xrn:firebolt:capability:account:session"
+        );
+        assert_eq!(
+            DenyReason::NotFound.get_rpc_error_message(caps.clone()),
+            "Method not Found"
+        );
+        assert_eq!(
+            DenyReason::AppNotInActiveState.get_rpc_error_message(caps.clone()),
+            "Capability cannot be used when app is not in foreground state due to requiring a user grant"
+        );
+        assert_eq!(
+            DenyReason::GrantProviderMissing.get_rpc_error_message(caps),
+            "Grant provider is missing for xrn:firebolt:capability:account:session"
+        );
+    }
+    #[test]
+    fn test_deny_reason_get_rpc_error_code() {
+        assert_eq!(
+            DenyReason::Unavailable.get_rpc_error_code(),
+            CAPABILITY_NOT_AVAILABLE
+        );
+        assert_eq!(
+            DenyReason::Unsupported.get_rpc_error_code(),
+            CAPABILITY_NOT_SUPPORTED
+        );
+        assert_eq!(
+            DenyReason::GrantDenied.get_rpc_error_code(),
+            CAPABILITY_NOT_PERMITTED
+        );
+        assert_eq!(
+            DenyReason::Unpermitted.get_rpc_error_code(),
+            CAPABILITY_NOT_PERMITTED
+        );
+        assert_eq!(
+            DenyReason::Ungranted.get_rpc_error_code(),
+            CAPABILITY_NOT_PERMITTED
+        );
+        assert_eq!(
+            DenyReason::NotFound.get_rpc_error_code(),
+            JSON_RPC_STANDARD_ERROR_METHOD_NOT_FOUND
+        );
+        assert_eq!(
+            DenyReason::AppNotInActiveState.get_rpc_error_code(),
+            CAPABILITY_NOT_PERMITTED
+        );
+        assert_eq!(
+            DenyReason::GrantProviderMissing.get_rpc_error_code(),
+            CAPABILITY_GRANT_PROVIDER_MISSING
+        );
+    }
+    #[test]
+    fn test_deny_reason_get_observability_error_code() {
+        assert_eq!(
+            DenyReason::Unavailable.get_observability_error_code(),
+            CAPABILITY_NOT_AVAILABLE
+        );
+        assert_eq!(
+            DenyReason::Unsupported.get_observability_error_code(),
+            CAPABILITY_NOT_SUPPORTED
+        );
+        assert_eq!(
+            DenyReason::GrantDenied.get_observability_error_code(),
+            CAPABILITY_GRANT_DENIED
+        );
+        assert_eq!(
+            DenyReason::Unpermitted.get_observability_error_code(),
+            CAPABILITY_NOT_PERMITTED
+        );
+        assert_eq!(
+            DenyReason::Ungranted.get_observability_error_code(),
+            CAPABILITY_UNGRANTED
+        );
+        assert_eq!(
+            DenyReason::NotFound.get_observability_error_code(),
+            JSON_RPC_STANDARD_ERROR_METHOD_NOT_FOUND
+        );
+        assert_eq!(
+            DenyReason::AppNotInActiveState.get_observability_error_code(),
+            CAPABILITY_APP_NOT_IN_ACTIVE_STATE
+        );
+        assert_eq!(
+            DenyReason::GrantProviderMissing.get_observability_error_code(),
+            CAPABILITY_GRANT_PROVIDER_MISSING
+        );
     }
 }

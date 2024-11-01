@@ -20,11 +20,12 @@ use serde::{Deserialize, Serialize};
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
+    utils::serde_utils::timeout_value_deserialize,
 };
 
 use super::device_request::DeviceRequest;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum WifiSecurityMode {
     None,
@@ -44,21 +45,27 @@ pub enum WifiSecurityMode {
     Wpa3Sae,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AccessPointRequest {
     pub ssid: String,
     pub passphrase: String,
     pub security: WifiSecurityMode,
 }
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WifiScanRequest {
+    #[serde(default, deserialize_with = "timeout_value_deserialize")]
+    pub timeout: u64,
+}
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum WifiRequest {
     Scan(u64),
     Connect(AccessPointRequest),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AccessPoint {
     pub ssid: String,
@@ -67,7 +74,7 @@ pub struct AccessPoint {
     pub frequency: f32,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AccessPointList {
     pub list: Vec<AccessPoint>,
 }
@@ -87,5 +94,19 @@ impl ExtnPayloadProvider for WifiRequest {
 
     fn contract() -> RippleContract {
         RippleContract::Wifi
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_payload_provider_for_wifi_scan_request() {
+        let wifi_scan_request = WifiRequest::Scan(5000);
+
+        let contract_type: RippleContract = RippleContract::Wifi;
+        test_extn_payload_provider(wifi_scan_request, contract_type);
     }
 }

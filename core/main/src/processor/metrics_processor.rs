@@ -17,10 +17,11 @@
 
 use ripple_sdk::{
     api::{
+        distributor::distributor_privacy::DataEventType,
         firebolt::{
             fb_metrics::{
-                BehavioralMetricContext, BehavioralMetricPayload, BehavioralMetricRequest,
-                MetricsPayload, MetricsRequest,
+                AppDataGovernanceState, BehavioralMetricContext, BehavioralMetricPayload,
+                BehavioralMetricRequest, MetricsPayload, MetricsRequest,
             },
             fb_telemetry::OperationalMetricRequest,
         },
@@ -31,13 +32,18 @@ use ripple_sdk::{
         client::extn_processor::{
             DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
         },
-        extn_client_message::{ExtnMessage, ExtnResponse},
+        extn_client_message::ExtnMessage,
     },
     framework::RippleResponse,
+    log::debug,
     tokio::sync::mpsc::{Receiver as MReceiver, Sender as MSender},
 };
 
-use crate::{service::telemetry_builder::TelemetryBuilder, state::platform_state::PlatformState};
+use crate::{
+    service::{data_governance::DataGovernance, telemetry_builder::TelemetryBuilder},
+    state::platform_state::PlatformState,
+    SEMVER_LIGHTWEIGHT,
+};
 
 pub async fn send_metric(
     platform_state: &PlatformState,
@@ -45,36 +51,50 @@ pub async fn send_metric(
     ctx: &CallContext,
 ) -> RippleResponse {
     // TODO use _ctx for any governance stuff
-    let session = platform_state.session_state.get_account_session();
-    update_app_context(platform_state, ctx, &mut payload);
-    if let Some(session) = session {
+    let drop_data = update_app_context(platform_state, ctx, &mut payload).await;
+    /*
+    not opted in, or configured out, do nothing
+    */
+    if drop_data {
+        debug!("drop data is true, not sending BI metrics");
+        return Ok(());
+    }
+    if let Some(session) = platform_state.session_state.get_account_session() {
         let request = BehavioralMetricRequest {
             context: Some(platform_state.metrics.get_context()),
             payload,
             session,
         };
-
-        if let Ok(resp) = platform_state.get_client().send_extn_request(request).await {
-            if let Some(ExtnResponse::Boolean(b)) = resp.payload.extract() {
-                if b {
-                    return Ok(());
-                }
-            }
-        }
+        return platform_state
+            .get_client()
+            .send_extn_request_transient(request);
     }
     Err(ripple_sdk::utils::error::RippleError::ProcessorError)
 }
 
-pub fn update_app_context(
+pub async fn update_app_context(
     ps: &PlatformState,
     ctx: &CallContext,
     payload: &mut BehavioralMetricPayload,
-) {
+) -> bool {
     let mut context: BehavioralMetricContext = ctx.clone().into();
     if let Some(app) = ps.app_manager_state.get(&ctx.app_id) {
         context.app_session_id = app.loaded_session_id.to_owned();
         context.app_user_session_id = app.active_session_id;
+        context.app_version = ps
+            .version
+            .clone()
+            .unwrap_or(String::from(SEMVER_LIGHTWEIGHT));
     }
+    if let Some(session) = ps.session_state.get_account_session() {
+        context.partner_id = session.id;
+    }
+    let (tags, drop_data) =
+        DataGovernance::resolve_tags(ps, ctx.app_id.clone(), DataEventType::BusinessIntelligence)
+            .await;
+    let tag_name_set = tags.iter().map(|tag| tag.tag_name.clone()).collect();
+    context.governance_state = Some(AppDataGovernanceState::new(tag_name_set));
+
     payload.update_context(context);
 
     match payload {
@@ -85,8 +105,55 @@ pub fn update_app_context(
         BehavioralMetricPayload::SignOut(_) => TelemetryBuilder::send_sign_out(ps, ctx),
         _ => {}
     }
+    drop_data
 }
+pub async fn send_metric_for_app_state_change(
+    ps: &PlatformState,
+    mut payload: BehavioralMetricPayload,
+    app_id: &str,
+) -> RippleResponse {
+    match payload {
+        BehavioralMetricPayload::AppStateChange(_) | BehavioralMetricPayload::Error(_) => {
+            let (tags, drop_data) = DataGovernance::resolve_tags(
+                ps,
+                app_id.to_string(),
+                DataEventType::BusinessIntelligence,
+            )
+            .await;
+            let tag_name_set = tags.iter().map(|tag| tag.tag_name.clone()).collect();
 
+            if drop_data {
+                debug!("drop data is true, not sending BI metrics");
+                return Ok(());
+            }
+
+            let mut context: BehavioralMetricContext = payload.get_context();
+            let session = ps.session_state.get_account_session();
+            if let Some(session) = session {
+                if let Some(app) = ps.app_manager_state.get(app_id) {
+                    context.app_session_id = app.loaded_session_id.to_owned();
+                    context.app_user_session_id = app.active_session_id;
+                    context.app_version = ps
+                        .version
+                        .clone()
+                        .unwrap_or(String::from(SEMVER_LIGHTWEIGHT));
+                }
+                context.governance_state = Some(AppDataGovernanceState::new(tag_name_set));
+                context.partner_id = session.clone().id;
+                payload.update_context(context);
+
+                let request = BehavioralMetricRequest {
+                    context: Some(ps.metrics.get_context()),
+                    payload,
+                    session,
+                };
+                return ps.get_client().send_extn_request_transient(request);
+            }
+            Err(ripple_sdk::utils::error::RippleError::ProcessorError)
+        }
+        _ => Ok(()),
+    }
+}
 /// Supports processing of Metrics request from extensions and forwards the metrics accordingly.
 #[derive(Debug)]
 pub struct MetricsProcessor {
@@ -138,9 +205,10 @@ impl ExtnRequestProcessor for MetricsProcessor {
                     Err(e) => Self::handle_error(client, msg, e).await,
                 }
             }
-            MetricsPayload::OperationalMetric(t) => {
+            MetricsPayload::TelemetryPayload(t) => {
                 TelemetryBuilder::update_session_id_and_send_telemetry(&state, t).is_ok()
             }
+            MetricsPayload::OperationalMetric(_) => true,
         }
     }
 }
@@ -188,14 +256,15 @@ impl ExtnRequestProcessor for OpMetricsProcessor {
         msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
-        let requestor = msg.clone().requestor.to_string();
+        let requestor = msg.requestor.to_string();
         match extracted_message {
             OperationalMetricRequest::Subscribe => state
                 .metrics
                 .operational_telemetry_listener(&requestor, true),
             OperationalMetricRequest::UnSubscribe => state
                 .metrics
-                .operational_telemetry_listener(&requestor, true),
+                .operational_telemetry_listener(&requestor, false),
+            _ => (),
         }
         Self::ack(state.get_client().get_extn_client(), msg)
             .await

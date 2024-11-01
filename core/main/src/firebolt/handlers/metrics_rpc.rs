@@ -25,20 +25,22 @@ use std::collections::HashMap;
 
 use ripple_sdk::{
     api::{
+        account_link::{AccountLinkRequest, WatchedRequest},
         firebolt::{
             fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+            fb_discovery::WatchedInfo,
             fb_metrics::{
                 self, hashmap_to_param_vec, Action, BehavioralMetricContext,
-                BehavioralMetricPayload, CategoryType, ErrorParams, InternalInitializeParams,
-                InternalInitializeResponse, MediaEnded, MediaLoadStart, MediaPause, MediaPlay,
-                MediaPlaying, MediaPositionType, MediaProgress, MediaRateChanged,
-                MediaRenditionChanged, MediaSeeked, MediaSeeking, MediaWaiting, MetricsError, Page,
-                SignIn, SignOut, StartContent, StopContent, Version,
+                BehavioralMetricPayload, CategoryType, ErrorParams, FlatMapValue,
+                InternalInitializeParams, InternalInitializeResponse, MediaEnded, MediaLoadStart,
+                MediaPause, MediaPlay, MediaPlaying, MediaPositionType, MediaProgress,
+                MediaRateChanged, MediaRenditionChanged, MediaSeeked, MediaSeeking, MediaWaiting,
+                MetricsError, Page, SignIn, SignOut, StartContent, StopContent, Version,
             },
         },
         gateway::rpc_gateway_api::CallContext,
     },
-    log::trace,
+    log::{error, trace},
 };
 
 use serde::Deserialize;
@@ -48,8 +50,6 @@ use crate::{
     service::telemetry_builder::TelemetryBuilder, state::platform_state::PlatformState,
     utils::rpc_utils::rpc_err,
 };
-
-use ripple_sdk::api::firebolt::fb_metrics::SemanticVersion;
 
 //const LAUNCH_COMPLETED_SEGMENT: &'static str = "LAUNCH_COMPLETED";
 
@@ -64,7 +64,7 @@ pub struct ActionParams {
     pub category: CategoryType,
     #[serde(rename = "type")]
     pub action_type: String,
-    pub parameters: Option<HashMap<String, String>>,
+    pub parameters: Option<HashMap<String, FlatMapValue>>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -77,18 +77,18 @@ pub struct StopContentParams {
     #[serde(rename = "entityId")]
     pub entity_id: Option<String>,
 }
-// fn validate_metrics_action_type(metrics_action: &str) -> RpcResult<bool> {
-//     match metrics_action.len() {
-//         1..=256 => Ok(true),
-//         _ => {
-//             return Err(jsonrpsee::core::Error::Call(CallError::Custom {
-//                 code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
-//                 message: "metrics.action.action_type out of range".to_string(),
-//                 data: None,
-//             }))
-//         }
-//     }
-// }
+
+fn validate_metrics_action_type(metrics_action: &str) -> RpcResult<bool> {
+    match metrics_action.len() {
+        1..=256 => Ok(true),
+        _ => Err(jsonrpsee::core::Error::Call(CallError::Custom {
+            code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+            message: "metrics.action.action_type out of range".to_string(),
+            data: None,
+        })),
+    }
+}
+
 pub const ERROR_MEDIA_POSITION_OUT_OF_RANGE: &str = "absolute media position out of range";
 pub const ERROR_BAD_ABSOLUTE_MEDIA_POSITION: &str =
     "absolute media position must not contain any numbers to the right of the decimal point.";
@@ -346,8 +346,7 @@ impl MetricsServer for MetricsImpl {
         }
     }
     async fn action(&self, ctx: CallContext, action_params: ActionParams) -> RpcResult<bool> {
-        //call it and let it blow up
-        //let _ = validate_metrics_action_type(&action_params.action_type)?;
+        let _ = validate_metrics_action_type(&action_params.action_type)?;
         let p_type = action_params.clone();
 
         let action = BehavioralMetricPayload::Action(Action {
@@ -417,20 +416,17 @@ impl MetricsServer for MetricsImpl {
     ) -> RpcResult<InternalInitializeResponse> {
         TelemetryBuilder::internal_initialize(&self.state, &ctx, &internal_initialize_params);
         let readable_result = internal_initialize_params
-            .value
+            .version
             .readable
             .replace("SDK", "FEE");
         let internal_initialize_resp = Version {
-            major: internal_initialize_params.value.major,
-            minor: internal_initialize_params.value.minor,
-            patch: internal_initialize_params.value.patch,
+            major: internal_initialize_params.version.major,
+            minor: internal_initialize_params.version.minor,
+            patch: internal_initialize_params.version.patch,
             readable: readable_result,
         };
         Ok(InternalInitializeResponse {
-            name: String::from("Default Result"),
-            value: SemanticVersion {
-                version: internal_initialize_resp,
-            },
+            version: internal_initialize_resp,
         })
     }
     async fn media_load_start(
@@ -514,6 +510,38 @@ impl MetricsServer for MetricsImpl {
         media_progress_params: MediaProgressParams,
     ) -> RpcResult<bool> {
         let progress = convert_to_media_position_type(media_progress_params.progress)?;
+
+        if self
+            .state
+            .get_device_manifest()
+            .configuration
+            .default_values
+            .media_progress_as_watched_events
+            && progress != MediaPositionType::None
+        {
+            if let Some(p) = media_progress_params.progress {
+                let request = WatchedRequest {
+                    context: ctx.clone(),
+                    info: WatchedInfo {
+                        entity_id: media_progress_params.entity_id.clone(),
+                        progress: p,
+                        completed: None,
+                        watched_on: None,
+                    },
+                    unit: None,
+                };
+
+                if let Err(e) = self
+                    .state
+                    .get_client()
+                    .send_extn_request(AccountLinkRequest::Watched(request))
+                    .await
+                {
+                    error!("Error sending watched event: {:?}", e);
+                }
+            }
+        }
+
         let media_progress = BehavioralMetricPayload::MediaProgress(MediaProgress {
             context: ctx.clone().into(),
             entity_id: media_progress_params.entity_id,
@@ -548,7 +576,8 @@ impl MetricsServer for MetricsImpl {
         ctx: CallContext,
         media_seeked_params: MediaSeekedParams,
     ) -> RpcResult<bool> {
-        let position = convert_to_media_position_type(media_seeked_params.position).unwrap();
+        let position = convert_to_media_position_type(media_seeked_params.position)
+            .unwrap_or(MediaPositionType::None);
         let media_seeked = BehavioralMetricPayload::MediaSeeked(MediaSeeked {
             context: ctx.clone().into(),
             entity_id: media_seeked_params.entity_id,

@@ -16,8 +16,11 @@
 //
 
 use crate::{
-    client::plugin_manager::ThunderPluginBootParam, thunder_state::ThunderBootstrapStateWithConfig,
+    client::plugin_manager::ThunderPluginBootParam,
+    thunder_state::{ThunderBootstrapStateWithConfig, ThunderConnectionState},
 };
+use std::sync::Arc;
+
 use ripple_sdk::extn::{
     client::extn_client::ExtnClient,
     extn_client_message::{ExtnMessage, ExtnResponse},
@@ -84,7 +87,7 @@ impl ThunderGetConfigStep {
                         GATEWAY_DEFAULT
                     );
                 }
-                if let Ok(host_override) = std::env::var("THUNDER_HOST") {
+                if let Ok(host_override) = std::env::var("DEVICE_HOST") {
                     gateway_url.set_host(Some(&host_override)).ok();
                 }
                 return Ok(ThunderBootstrapStateWithConfig {
@@ -92,6 +95,7 @@ impl ThunderGetConfigStep {
                     url: gateway_url,
                     pool_size,
                     plugin_param: expected_plugins,
+                    thunder_connection_state: Arc::new(ThunderConnectionState::new()),
                 });
             }
         }

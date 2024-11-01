@@ -17,7 +17,12 @@
 
 use std::collections::HashMap;
 
-use ripple_sdk::{api::device::device_request::AudioProfile, serde_json::Value};
+use jsonrpsee::core::Error;
+use ripple_sdk::{
+    api::device::{device_operator::DeviceResponseMessage, device_request::AudioProfile},
+    serde_json::Value,
+};
+use serde::Deserialize;
 
 pub fn get_audio_profile_from_value(value: Value) -> HashMap<AudioProfile, bool> {
     let mut hm: HashMap<AudioProfile, bool> = HashMap::new();
@@ -28,10 +33,11 @@ pub fn get_audio_profile_from_value(value: Value) -> HashMap<AudioProfile, bool>
     hm.insert(AudioProfile::DolbyDigital7_1Plus, false);
     hm.insert(AudioProfile::DolbyAtmos, false);
 
-    if value.get("supportedAudioFormat").is_none() {
-        return hm;
-    }
-    let supported_profiles = value["supportedAudioFormat"].as_array().unwrap();
+    let supported_profiles = match value.get("supportedAudioFormat") {
+        Some(profiles) => profiles.as_array().unwrap(),
+        None => return hm,
+    };
+
     for profile in supported_profiles {
         let profile_name = profile.as_str().unwrap();
         match profile_name {
@@ -79,4 +85,27 @@ pub fn get_audio_profile_from_value(value: Value) -> HashMap<AudioProfile, bool>
         }
     }
     hm
+}
+
+pub fn check_thunder_response_success(response: &DeviceResponseMessage) -> bool {
+    let r = response.message.get("success");
+    if let Some(r) = r {
+        r.as_bool().unwrap_or_default()
+    } else {
+        false
+    }
+}
+
+#[derive(Deserialize)]
+pub struct ThunderErrorResponse {
+    pub error: Value,
+}
+
+pub fn get_error_value(error: &Error) -> Value {
+    if let jsonrpsee::core::Error::Request(s) = error {
+        if let Ok(v) = ripple_sdk::serde_json::from_str::<ThunderErrorResponse>(s) {
+            return v.error;
+        }
+    }
+    Value::Null
 }

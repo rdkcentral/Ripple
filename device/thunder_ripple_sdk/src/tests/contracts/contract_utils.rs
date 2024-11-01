@@ -19,8 +19,8 @@ use pact_consumer::mock_server::StartMockServerAsync;
 use pact_consumer::prelude::PactBuilder;
 use pact_consumer::prelude::PactBuilderAsync;
 use pact_consumer::prelude::ValidatingMockServer;
-use ripple_sdk::crossbeam::channel::Receiver;
-use ripple_sdk::crossbeam::channel::Sender;
+use ripple_sdk::async_channel::Receiver;
+use ripple_sdk::async_channel::Sender;
 use ripple_sdk::extn::client::extn_client::ExtnClient;
 use ripple_sdk::extn::client::extn_sender::ExtnSender;
 use ripple_sdk::extn::extn_client_message::ExtnMessage;
@@ -64,6 +64,42 @@ macro_rules! get_pact_with_params {
                 "result":  $result.get()
             }]
         })
+    }
+}
+
+#[macro_export]
+macro_rules! mock_websocket_server {
+    ($pact_builder:ident, $server: ident,$server_url: ident, $test_name:expr, $interactions:expr) => {
+
+        let mut $pact_builder = PactBuilder::new_v4("ripple", $test_name) // Define the message consumer and provider by name
+        .using_plugin("websockets", Some("0.4.2".to_string()))
+        .await;
+
+        let pacts = $interactions.clone();
+        let pacts = pacts.as_array();
+
+        if let Some(multis) = pacts {
+         for interaction in multis {
+            $pact_builder.synchronous_message_interaction($test_name, |mut i| async move {
+             i.test_name($test_name);
+             i.contents_from(interaction.clone()).await;
+             i
+            }).await;
+         }
+        }else {
+            $pact_builder.synchronous_message_interaction($test_name, |mut i| async move {
+                i.test_name($test_name);
+                i.contents_from($interactions.clone()).await;
+                i
+               }).await;
+
+        }
+
+        let $server = $pact_builder.start_mock_server_async(Some("websockets/transport/websockets")).await;
+
+        let $server_url = reqwest::Url::parse($server.path("/jsonrpc").as_str()).unwrap();
+
+
     }
 }
 
@@ -156,6 +192,7 @@ pub fn get_extn_msg(payload: ExtnPayload) -> ExtnMessage {
         payload,
         requestor: ExtnId::new_channel(ExtnClassId::Device, "pact".into()),
         target: RippleContract::DeviceInfo,
+        target_id: None,
         ts: Some(30),
     }
 }

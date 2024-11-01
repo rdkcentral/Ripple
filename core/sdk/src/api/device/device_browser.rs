@@ -24,7 +24,8 @@ use crate::{
 
 use super::device_request::DeviceRequest;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "lowercase")]
 pub struct BrowserProps {
     pub user_agent: Option<String>,
@@ -36,14 +37,12 @@ pub struct BrowserProps {
 
 impl BrowserProps {
     pub fn is_local_storage_enabled(&self) -> bool {
-        if self.local_storage_enabled.is_some() {
-            return self.local_storage_enabled.unwrap();
-        }
-        false
+        self.local_storage_enabled.unwrap_or(false)
     }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct BrowserLaunchParams {
     pub uri: String,
     pub browser_name: String,
@@ -62,19 +61,20 @@ pub struct BrowserLaunchParams {
 
 impl BrowserLaunchParams {
     pub fn is_local_storage_enabled(&self) -> bool {
-        if self.properties.is_some() {
-            return self.properties.clone().unwrap().is_local_storage_enabled();
+        if let Some(properties) = &self.properties {
+            properties.is_local_storage_enabled()
+        } else {
+            false
         }
-        false
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct BrowserDestroyParams {
     pub browser_name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct BrowserNameRequestParams {
     pub runtime: String,
     pub name: String,
@@ -82,6 +82,7 @@ pub struct BrowserNameRequestParams {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum BrowserRequest {
     Start(BrowserLaunchParams),
     Destroy(BrowserDestroyParams),
@@ -103,5 +104,75 @@ impl ExtnPayloadProvider for BrowserRequest {
 
     fn contract() -> RippleContract {
         RippleContract::Browser
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+    use rstest::rstest;
+
+    fn get_mock_browser_launch_params() -> BrowserLaunchParams {
+        BrowserLaunchParams {
+            uri: String::from("https://example.com"),
+            browser_name: String::from("chrome"),
+            _type: String::from("web"),
+            visible: true,
+            suspend: false,
+            focused: true,
+            name: String::from("browser_instance"),
+            x: 0,
+            y: 0,
+            w: 800,
+            h: 600,
+            properties: None,
+        }
+    }
+
+    #[rstest]
+    #[case(
+        true,
+        Some(BrowserProps {
+            local_storage_enabled: Some(true),
+            ..Default::default()
+        })
+    )]
+    #[case(
+        false,
+        Some(BrowserProps {
+            local_storage_enabled: Some(false),
+            ..Default::default()
+        })
+    )]
+    #[case(false, None)]
+    fn test_is_local_storage_enabled(
+        #[case] expected_result: bool,
+        #[case] properties: Option<BrowserProps>,
+    ) {
+        if properties.is_some() {
+            assert_eq!(
+                properties.clone().unwrap().is_local_storage_enabled(),
+                expected_result
+            );
+        }
+
+        let browser_params = BrowserLaunchParams {
+            properties,
+            ..get_mock_browser_launch_params()
+        };
+
+        let result = browser_params.is_local_storage_enabled();
+        assert_eq!(result, expected_result);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_browser_request_start() {
+        let start_params = get_mock_browser_launch_params();
+
+        let browser_start_request = BrowserRequest::Start(start_params);
+
+        let contract_type: RippleContract = RippleContract::Browser;
+        test_extn_payload_provider(browser_start_request, contract_type);
     }
 }

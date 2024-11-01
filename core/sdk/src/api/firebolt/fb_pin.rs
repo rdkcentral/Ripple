@@ -45,7 +45,7 @@ impl From<PinChallengeRequestWithContext> for PinChallengeRequest {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PinChallengeRequestWithContext {
     pub pin_space: PinSpace,
@@ -82,7 +82,7 @@ pub enum PinChallengeResultReason {
     Cancelled,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct PinChallengeResponse {
     pub granted: Option<bool>,
     pub reason: PinChallengeResultReason,
@@ -99,7 +99,7 @@ impl PinChallengeResponse {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum PinSpace {
     Purchase,
@@ -127,5 +127,91 @@ impl ExtnPayloadProvider for PinChallengeResponse {
 
     fn contract() -> RippleContract {
         RippleContract::PinChallenge
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::gateway::rpc_gateway_api::{ApiProtocol, CallContext};
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_pin_challenge_request_from_context() {
+        let pin_space = PinSpace::Purchase;
+        let requestor = ChallengeRequestor {
+            id: "id".to_string(),
+            name: "name".to_string(),
+        };
+        let capability = Some(String::from("capability"));
+
+        let context = CallContext {
+            session_id: "session_id".to_string(),
+            request_id: "request_id".to_string(),
+            app_id: "app_id".to_string(),
+            call_id: 123,
+            protocol: ApiProtocol::Bridge,
+            method: "POST".to_string(),
+            cid: Some("cid".to_string()),
+            gateway_secure: true,
+        };
+
+        let pin_challenge_request_with_context = PinChallengeRequestWithContext {
+            pin_space: pin_space.clone(),
+            requestor: requestor.clone(),
+            capability: capability.clone(),
+            call_ctx: context,
+        };
+
+        let pin_challenge_request = PinChallengeRequest::from(pin_challenge_request_with_context);
+
+        assert_eq!(pin_challenge_request.pin_space, pin_space);
+        assert_eq!(pin_challenge_request.requestor, requestor);
+        assert_eq!(pin_challenge_request.capability, capability);
+    }
+
+    #[test]
+    fn test_pin_challenge_response_getters() {
+        let granted = Some(true);
+        let reason = PinChallengeResultReason::CorrectPin;
+        let pin_challenge_response = PinChallengeResponse::new(granted, reason.clone());
+
+        assert_eq!(pin_challenge_response.get_granted(), granted);
+        assert_eq!(pin_challenge_response.get_reason(), reason);
+    }
+
+    #[test]
+    fn test_extn_request_pin_challenge_with_context() {
+        let pin_challenge_request = PinChallengeRequestWithContext {
+            pin_space: PinSpace::Purchase,
+            requestor: ChallengeRequestor {
+                id: "test_requestor_id".to_string(),
+                name: "eest_requestor_name".to_string(),
+            },
+            capability: Some("test_capability".to_string()),
+            call_ctx: CallContext {
+                session_id: "test_session_id".to_string(),
+                request_id: "test_request_id".to_string(),
+                app_id: "test_app_id".to_string(),
+                call_id: 123,
+                protocol: ApiProtocol::Bridge,
+                method: "POST".to_string(),
+                cid: Some("test_cid".to_string()),
+                gateway_secure: true,
+            },
+        };
+        let contract_type: RippleContract = RippleContract::PinChallenge;
+        test_extn_payload_provider(pin_challenge_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_response_pin_challenge() {
+        let pin_challenge_response = PinChallengeResponse {
+            granted: Some(true),
+            reason: PinChallengeResultReason::NoPinRequired,
+        };
+
+        let contract_type: RippleContract = RippleContract::PinChallenge;
+        test_extn_payload_provider(pin_challenge_response, contract_type);
     }
 }

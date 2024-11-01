@@ -15,7 +15,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::utils::error::RippleError;
+use crate::{
+    framework::ripple_contract::{ContractAdjective, RippleContract},
+    utils::error::RippleError,
+};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::Value;
+
+use super::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExtnClassId {
@@ -133,11 +140,34 @@ impl ExtnClassType {
 /// Below capability means the given plugin offers a JsonRpsee rpc extension for a service named bridge
 ///
 /// `ripple:extn:jsonrpsee:bridge`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ExtnId {
-    _type: ExtnType,
-    class: ExtnClassId,
-    service: String,
+    pub _type: ExtnType,
+    pub class: ExtnClassId,
+    pub service: String,
+}
+
+impl Serialize for ExtnId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for ExtnId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        if let Ok(str) = String::deserialize(deserializer) {
+            if let Ok(id) = ExtnId::try_from(str) {
+                return Ok(id);
+            }
+        }
+        Err(serde::de::Error::unknown_variant("unknown", &["unknown"]))
+    }
 }
 
 impl ToString for ExtnId {
@@ -156,39 +186,29 @@ impl TryFrom<String> for ExtnId {
     type Error = RippleError;
 
     fn try_from(cap: String) -> Result<Self, Self::Error> {
-        let c_a = cap.split(':');
-        if c_a.count() > 3 {
-            let c_a: Vec<&str> = cap.split(':').collect();
-            match c_a.first().unwrap().to_lowercase().as_str() {
-                "ripple" => {}
-                _ => return Err(RippleError::ParseError),
-            }
-            let _type = ExtnType::get(c_a.get(1).unwrap());
-            if _type.is_none() {
-                return Err(RippleError::ParseError);
-            }
-            let _type = _type.unwrap();
+        let c_a = cap.split(':').collect::<Vec<_>>();
 
-            let class = ExtnClassId::get(c_a.get(2).unwrap());
-            if class.is_none() {
-                return Err(RippleError::ParseError);
-            }
-            let class = class.unwrap();
-
-            let service = c_a.get(3);
-            if service.is_none() {
-                return Err(RippleError::ParseError);
-            }
-            let service = String::from(*service.unwrap());
-
-            return Ok(ExtnId {
-                _type,
-                class,
-                service,
-            });
+        match c_a
+            .first()
+            .ok_or(RippleError::ParseError)?
+            .to_lowercase()
+            .as_str()
+        {
+            "ripple" => {}
+            _ => return Err(RippleError::ParseError),
         }
 
-        Err(RippleError::ParseError)
+        let _type = ExtnType::get(c_a.get(1).ok_or(RippleError::ParseError)?)
+            .ok_or(RippleError::ParseError)?;
+        let class = ExtnClassId::get(c_a.get(2).ok_or(RippleError::ParseError)?)
+            .ok_or(RippleError::ParseError)?;
+        let service = c_a.get(3).ok_or(RippleError::ParseError)?;
+
+        Ok(ExtnId {
+            _type,
+            class,
+            service: String::from(*service),
+        })
     }
 }
 
@@ -406,8 +426,267 @@ impl ExtnId {
     }
 }
 
-impl PartialEq for ExtnId {
-    fn eq(&self, other: &ExtnId) -> bool {
-        self._type == other._type && self.class == other.class
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExtnProviderAdjective {
+    pub id: ExtnId,
+}
+
+impl Serialize for ExtnProviderAdjective {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.id.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for ExtnProviderAdjective {
+    fn deserialize<D>(deserializer: D) -> Result<ExtnProviderAdjective, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        if let Ok(str) = String::deserialize(deserializer) {
+            if let Ok(id) = ExtnId::try_from(str) {
+                return Ok(ExtnProviderAdjective { id });
+            }
+        }
+        Err(serde::de::Error::unknown_variant("unknown", &["unknown"]))
+    }
+}
+
+impl ContractAdjective for ExtnProviderAdjective {
+    fn get_contract(&self) -> RippleContract {
+        RippleContract::ExtnProvider(self.clone())
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ExtnProviderRequest {
+    pub value: Value,
+    pub id: ExtnId,
+}
+
+impl ExtnPayloadProvider for ExtnProviderRequest {
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        if let ExtnPayload::Request(ExtnRequest::Extn(value)) = payload {
+            if let Ok(v) = serde_json::from_value::<ExtnProviderRequest>(value) {
+                return Some(v);
+            }
+        }
+
+        None
+    }
+
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::Extn(
+            serde_json::to_value(self.clone()).unwrap(),
+        ))
+    }
+
+    fn contract() -> RippleContract {
+        // Will be replaced by the IEC before CExtnMessage conversion
+        RippleContract::ExtnProvider(ExtnProviderAdjective {
+            id: ExtnId::get_main_target("default".into()),
+        })
+    }
+
+    fn get_contract(&self) -> RippleContract {
+        RippleContract::ExtnProvider(ExtnProviderAdjective {
+            id: self.id.clone(),
+        })
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ExtnProviderResponse {
+    pub value: Value,
+}
+
+impl ExtnPayloadProvider for ExtnProviderResponse {
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        if let ExtnPayload::Response(ExtnResponse::Value(value)) = payload {
+            return Some(ExtnProviderResponse { value });
+        }
+
+        None
+    }
+
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Response(ExtnResponse::Value(self.value.clone()))
+    }
+
+    fn contract() -> RippleContract {
+        // Will be replaced by the IEC before CExtnMessage conversion
+        RippleContract::ExtnProvider(ExtnProviderAdjective {
+            id: ExtnId::get_main_target("default".into()),
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extn_class_id_to_string() {
+        assert_eq!(ExtnClassId::Gateway.to_string(), "gateway");
+        assert_eq!(ExtnClassId::Device.to_string(), "device");
+        assert_eq!(ExtnClassId::DataGovernance.to_string(), "data-governance");
+        assert_eq!(ExtnClassId::Distributor.to_string(), "distributor");
+        assert_eq!(ExtnClassId::Protected.to_string(), "rpc");
+        assert_eq!(ExtnClassId::Jsonrpsee.to_string(), "jsonrpsee");
+        assert_eq!(ExtnClassId::Launcher.to_string(), "launcher");
+        assert_eq!(ExtnClassId::Internal.to_string(), "internal");
+    }
+
+    #[test]
+    fn test_extn_class_id_get() {
+        assert_eq!(ExtnClassId::get("device"), Some(ExtnClassId::Device));
+        assert_eq!(ExtnClassId::get("unknown"), None);
+        // Add similar assertions for other variants
+    }
+
+    #[test]
+    fn test_extn_type_to_string() {
+        assert_eq!(ExtnType::Main.to_string(), "main");
+        assert_eq!(ExtnType::Channel.to_string(), "channel");
+        assert_eq!(ExtnType::Extn.to_string(), "extn");
+    }
+
+    #[test]
+    fn test_extn_type_get() {
+        assert_eq!(ExtnType::get("main"), Some(ExtnType::Main));
+        assert_eq!(ExtnType::get("unknown"), None);
+        // Add similar assertions for other variants
+    }
+
+    #[test]
+    fn test_extn_class_type_new() {
+        let extn_class_type = ExtnClassType::new(ExtnType::Main, ExtnClassId::Internal);
+        assert_eq!(extn_class_type._type, ExtnType::Main);
+        assert_eq!(extn_class_type.class, ExtnClassId::Internal);
+    }
+
+    #[test]
+    fn test_extn_id_to_string() {
+        let extn_id = ExtnId::new_channel(ExtnClassId::Device, "info".into());
+        assert_eq!(extn_id.to_string(), "ripple:channel:device:info");
+    }
+
+    #[test]
+    fn test_extn_id_try_from() {
+        let extn_id_str = "ripple:channel:device:info";
+        let extn_id = ExtnId::try_from(extn_id_str.to_string()).unwrap();
+        assert_eq!(extn_id._type, ExtnType::Channel);
+        assert_eq!(extn_id.class, ExtnClassId::Device);
+        assert_eq!(extn_id.service, "info");
+    }
+
+    #[test]
+    fn test_extn_id_get_main_target() {
+        let main_cap = ExtnId::get_main_target("cap".into());
+        assert_eq!(main_cap.to_string(), "ripple:main:internal:cap");
+    }
+
+    #[test]
+    fn test_extn_id_is_channel() {
+        let device_channel = ExtnId::new_channel(ExtnClassId::Device, "info".into());
+        assert!(device_channel.is_channel());
+    }
+
+    #[test]
+    fn test_extn_id_is_extn() {
+        let device_channel = ExtnId::new_extn(ExtnClassId::Device, "info".into());
+        assert!(device_channel.is_extn());
+    }
+
+    #[test]
+    fn test_extn_id_is_main() {
+        let launcher_channel = ExtnId::get_main_target("cap".into());
+        assert!(launcher_channel.is_main());
+    }
+
+    #[test]
+    fn test_extn_id_is_device_channel() {
+        let device_channel = ExtnId::new_channel(ExtnClassId::Device, "info".into());
+        assert!(device_channel.is_device_channel());
+    }
+
+    #[test]
+    fn test_extn_id_is_launcher_channel() {
+        let launcher_channel = ExtnId::new_channel(ExtnClassId::Launcher, "info".into());
+        assert!(launcher_channel.is_launcher_channel());
+    }
+
+    #[test]
+    fn test_extn_id_is_distributor_channel() {
+        let dist_channel = ExtnId::new_channel(ExtnClassId::Distributor, "general".into());
+        assert!(dist_channel.is_distributor_channel());
+    }
+
+    #[test]
+    fn test_extn_id_match_layer() {
+        let info = ExtnId::new_channel(ExtnClassId::Device, "info".into());
+        let remote = ExtnId::new_channel(ExtnClassId::Device, "remote".into());
+        assert!(info.match_layer(remote));
+    }
+
+    #[test]
+    fn test_extn_id_get_short() {
+        let device_channel = ExtnId::new_channel(ExtnClassId::Device, "info".into());
+        assert_eq!(device_channel.get_short(), "Channel:Device");
+    }
+
+    #[test]
+    fn test_extn_class_id_get_unknown() {
+        assert_eq!(ExtnClassId::get("unknown"), None);
+        // Add similar assertions for other variants
+    }
+
+    #[test]
+    fn test_extn_type_get_unknown() {
+        assert_eq!(ExtnType::get("unknown"), None);
+        // Add similar assertions for other variants
+    }
+
+    #[test]
+    fn test_extn_class_type_get_cap() {
+        let extn_class_type = ExtnClassType::new(ExtnType::Main, ExtnClassId::Internal);
+        let extn_id = extn_class_type.get_cap("some_service".into());
+        assert_eq!(extn_id.to_string(), "ripple:main:internal:some_service");
+    }
+
+    #[test]
+    fn test_extn_id_try_from_invalid_format() {
+        let extn_id_str = "invalid_format";
+        assert!(ExtnId::try_from(extn_id_str.to_string()).is_err());
+    }
+
+    #[test]
+    fn test_extn_id_try_from_incomplete_fields() {
+        let extn_id_str = "ripple:channel:device";
+        assert!(ExtnId::try_from(extn_id_str.to_string()).is_err());
+    }
+
+    #[test]
+    fn test_extn_id_try_from_invalid_prefix() {
+        let extn_id_str = "invalid:channel:device:info";
+        assert!(ExtnId::try_from(extn_id_str.to_string()).is_err());
+    }
+
+    #[test]
+    fn test_extn_id_try_from_valid() {
+        let extn_id_str = "ripple:channel:device:info";
+        let extn_id = ExtnId::try_from(extn_id_str.to_string()).unwrap();
+        assert_eq!(extn_id._type, ExtnType::Channel);
+        assert_eq!(extn_id.class, ExtnClassId::Device);
+        assert_eq!(extn_id.service, "info");
+    }
+
+    #[test]
+    fn test_extn_id_eq() {
+        let extn_id1 = ExtnId::new_channel(ExtnClassId::Device, "info".into());
+        let extn_id2 = ExtnId::new_channel(ExtnClassId::Device, "info".into());
+        assert_eq!(extn_id1, extn_id2);
     }
 }

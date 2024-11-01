@@ -20,6 +20,7 @@ use crate::get_pact_with_params;
 use crate::processors::thunder_remote::ThunderRemoteAccessoryRequestProcessor;
 use crate::ripple_sdk::extn::client::extn_processor::ExtnRequestProcessor;
 use crate::tests::contracts::contract_utils::*;
+use crate::thunder_state::ThunderConnectionState;
 use crate::{
     ripple_sdk::{
         api::device::{
@@ -28,7 +29,7 @@ use crate::{
             },
             device_request::DeviceRequest,
         },
-        crossbeam::channel::unbounded,
+        async_channel::unbounded,
         extn::extn_client_message::{ExtnPayload, ExtnRequest},
         serde_json::{self},
     },
@@ -40,6 +41,7 @@ use ripple_sdk::api::device::device_accessory::AccessoryListType;
 use ripple_sdk::api::device::device_accessory::AccessoryProtocolListType;
 use serde_json::json;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 // #[tokio::test(flavor = "multi_thread")]
 // #[cfg_attr(not(feature = "contract_tests"), ignore)]
@@ -88,7 +90,10 @@ async fn test_device_remote_start_pairing() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s.clone(), r.clone());
@@ -174,7 +179,10 @@ async fn test_device_remote_network_status() {
     let msg = get_extn_msg(payload);
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client = ThunderClientPool::start(url, None, 1).await.unwrap();
+    let thunder_client =
+        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+            .await
+            .unwrap();
 
     let (s, r) = unbounded();
     let extn_client = get_extn_client(s.clone(), r.clone());

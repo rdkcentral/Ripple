@@ -16,7 +16,7 @@
 //
 
 use crate::{
-    api::firebolt::fb_openrpc::FireboltSemanticVersion,
+    api::{firebolt::fb_openrpc::FireboltSemanticVersion, session::EventAdjective},
     extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
     framework::ripple_contract::RippleContract,
     utils::serde_utils::language_code_serde,
@@ -25,12 +25,14 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 use super::{
-    device_accessory::RemoteAccessoryRequest, device_browser::BrowserRequest,
-    device_info_request::DeviceInfoRequest, device_peristence::DevicePersistenceRequest,
-    device_wifi::WifiRequest, device_window_manager::WindowManagerRequest,
+    device_accessory::RemoteAccessoryRequest, device_apps::AppsRequest,
+    device_browser::BrowserRequest, device_info_request::DeviceInfoRequest,
+    device_peristence::DevicePersistenceRequest, device_wifi::WifiRequest,
+    device_window_manager::WindowManagerRequest,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum DeviceRequest {
     DeviceInfo(DeviceInfoRequest),
     Browser(BrowserRequest),
@@ -38,6 +40,7 @@ pub enum DeviceRequest {
     Storage(DevicePersistenceRequest),
     Wifi(WifiRequest),
     Accessory(RemoteAccessoryRequest),
+    Apps(AppsRequest),
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]
@@ -48,17 +51,17 @@ pub enum HdcpProfile {
     Hdcp2_2,
 }
 
-#[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]
+#[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize, Clone, Copy)]
 pub enum HdrProfile {
-    #[serde(rename = "HDR10")]
+    #[serde(rename = "hdr10")]
     Hdr10,
-    #[serde(rename = "HDR10+")]
+    #[serde(rename = "hdr10Plus")]
     Hdr10plus,
-    #[serde(rename = "HLG")]
+    #[serde(rename = "hlg")]
     Hlg,
-    #[serde(rename = "Dolby Vision")]
+    #[serde(rename = "dolbyVision")]
     DolbyVision,
-    #[serde(rename = "Technicolor")]
+    #[serde(rename = "technicolor")]
     Technicolor,
 }
 
@@ -91,6 +94,12 @@ impl std::fmt::Display for AudioProfile {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct AccountToken {
+    pub token: String,
+    pub expires: u64,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DeviceVersionResponse {
     pub api: FireboltSemanticVersion,
@@ -98,11 +107,20 @@ pub struct DeviceVersionResponse {
     pub os: FireboltSemanticVersion,
     pub debug: String,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct NetworkResponse {
     pub state: NetworkState,
     #[serde(rename = "type")]
     pub _type: NetworkType,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum InternetConnectionStatus {
+    NoInternet,
+    LimitedInternet,
+    CaptivePortal,
+    FullyConnected,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -145,7 +163,7 @@ impl FromStr for NetworkType {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct HDCPStatus {
     pub is_connected: bool,
@@ -191,7 +209,7 @@ impl Resolution {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct OnInternetConnectedRequest {
     pub timeout: u64,
 }
@@ -212,6 +230,7 @@ pub struct TimezoneProperty {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PowerState {
     Standby,
     DeepSleep,
@@ -232,20 +251,37 @@ impl FromStr for PowerState {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemPowerState {
     pub power_state: PowerState,
     pub current_power_state: PowerState,
 }
 
-impl ExtnPayloadProvider for SystemPowerState {
+impl Default for SystemPowerState {
+    fn default() -> Self {
+        SystemPowerState {
+            power_state: PowerState::Standby,
+            current_power_state: PowerState::Standby,
+        }
+    }
+}
+
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TimeZone {
+    #[serde(rename = "timeZone")]
+    pub time_zone: String,
+    pub offset: i64,
+}
+
+impl ExtnPayloadProvider for TimeZone {
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Event(ExtnEvent::PowerState(self.clone()))
+        ExtnPayload::Event(ExtnEvent::TimeZone(self.clone()))
     }
 
-    fn get_from_payload(payload: ExtnPayload) -> Option<SystemPowerState> {
-        if let ExtnPayload::Event(ExtnEvent::PowerState(r)) = payload {
+    fn get_from_payload(payload: ExtnPayload) -> Option<TimeZone> {
+        if let ExtnPayload::Event(ExtnEvent::TimeZone(r)) = payload {
             return Some(r);
         }
 
@@ -253,11 +289,11 @@ impl ExtnPayloadProvider for SystemPowerState {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::PowerStateEvent
+        RippleContract::DeviceEvents(EventAdjective::TimeZone)
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct VoiceGuidanceState {
     pub state: bool,
@@ -284,6 +320,71 @@ impl ExtnPayloadProvider for VoiceGuidanceState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::test_utils::test_extn_payload_provider;
+    use rstest::rstest;
+
+    #[rstest]
+    fn test_system_power_state_default() {
+        let default_state = SystemPowerState::default();
+        assert_eq!(default_state.power_state, PowerState::Standby);
+        assert_eq!(default_state.current_power_state, PowerState::Standby);
+    }
+
+    #[rstest]
+    #[case("STANDBY", PowerState::Standby)]
+    #[case("ON", PowerState::On)]
+    fn test_power_state_from_str(#[case] s: &str, #[case] expected: PowerState) {
+        assert_eq!(PowerState::from_str(s), Ok(expected));
+    }
+
+    #[test]
+    fn test_power_state_from_str_invalid() {
+        assert_eq!(PowerState::from_str("INVALID"), Err(()));
+    }
+
+    #[rstest]
+    #[case("WIFI", NetworkType::Wifi)]
+    #[case("ETHERNET", NetworkType::Ethernet)]
+    #[case("HYBRID", NetworkType::Hybrid)]
+    fn test_network_type_from_str(#[case] input: &str, #[case] expected: NetworkType) {
+        let result = NetworkType::from_str(input);
+        assert_eq!(result, Ok(expected));
+    }
+
+    #[test]
+    fn test_network_type_from_str_invalid() {
+        assert_eq!(NetworkType::from_str("INVALID"), Err(()));
+    }
+
+    #[rstest]
+    #[case("CONNECTED", NetworkState::Connected)]
+    #[case("DISCONNECTED", NetworkState::Disconnected)]
+    fn test_network_state_from_str(#[case] input: &str, #[case] expected: NetworkState) {
+        let result = NetworkState::from_str(input);
+        assert_eq!(result, Ok(expected));
+    }
+
+    #[rstest]
+    fn test_resolution_dimension(
+        #[values(
+            (Resolution::Resolution480, vec![720, 480]),
+            (Resolution::Resolution1080, vec![1920, 1080]),
+            (Resolution::Resolution2160, vec![3840, 2160]),
+        )]
+        resolution: (Resolution, Vec<i32>),
+    ) {
+        let (res, expected) = resolution;
+        assert_eq!(res.dimension(), expected);
+    }
+
+    #[rstest]
+    #[case(AudioProfile::Stereo, "stereo")]
+    #[case(AudioProfile::DolbyDigital5_1, "dolbyDigital5.1")]
+    #[case(AudioProfile::DolbyDigital7_1Plus, "dolbyDigital7.1+")]
+    fn test_audio_profile_fmt(#[case] audio_profile: AudioProfile, #[case] expected_result: &str) {
+        let formatted = format!("{}", audio_profile);
+        assert_eq!(formatted, expected_result);
+    }
 
     #[test]
     fn test_language_serializer() {
@@ -307,4 +408,23 @@ mod tests {
     //     let tz = "{\"value\":\"America/New_York\"}";
     //     assert!(serde_json::from_str::<TimezoneProperty>(tz).is_ok());
     // }
+
+    #[test]
+    fn test_extn_payload_provider_for_time_zone() {
+        let time_zone = TimeZone {
+            time_zone: String::from("America/Los_Angeles"),
+            offset: -28800,
+        };
+
+        let contract_type: RippleContract = RippleContract::DeviceEvents(EventAdjective::TimeZone);
+        test_extn_payload_provider(time_zone, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_voice_guidance_state() {
+        let voice_guidance_state = VoiceGuidanceState { state: true };
+
+        let contract_type: RippleContract = RippleContract::VoiceGuidance;
+        test_extn_payload_provider(voice_guidance_state, contract_type);
+    }
 }

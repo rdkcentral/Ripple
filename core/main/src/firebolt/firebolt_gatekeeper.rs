@@ -30,7 +30,7 @@ use crate::state::{cap::permitted_state::PermissionHandler, platform_state::Plat
 pub struct FireboltGatekeeper {}
 
 impl FireboltGatekeeper {
-    fn resolve_dependencies(
+    pub fn resolve_dependencies(
         platform_state: &PlatformState,
         perm_set: &Vec<FireboltPermission>,
     ) -> Vec<FireboltPermission> {
@@ -63,11 +63,10 @@ impl FireboltGatekeeper {
         if !secure {
             api_surface.push(ApiSurface::Ripple);
         }
-        let perm_based_on_spec_opt = platform_state
+        let perm_based_on_spec = platform_state
             .open_rpc_state
-            .get_perms_for_method(method, api_surface);
-        perm_based_on_spec_opt.as_ref()?;
-        let perm_based_on_spec = perm_based_on_spec_opt.unwrap();
+            .get_perms_for_method(method, api_surface)?;
+
         if perm_based_on_spec.is_empty() {
             return Some(perm_based_on_spec);
         }
@@ -78,65 +77,14 @@ impl FireboltGatekeeper {
     }
     // TODO return Deny Reason into ripple error
     pub async fn gate(state: PlatformState, request: RpcRequest) -> Result<(), DenyReasonWithCap> {
-        let open_rpc_state = state.clone().open_rpc_state;
-        if open_rpc_state.is_excluded(request.clone().method, request.clone().ctx.app_id) {
-            trace!("Method is exluded from gating {}", request.method);
-            return Ok(());
-        }
-        // if let Some(caps) = open_rpc_state.get_caps_for_method(&request.method) {
-        let caps_opt =
-            Self::get_resolved_caps_for_method(&state, &request.method, request.ctx.gateway_secure);
-        if caps_opt.is_none() {
-            return Err(DenyReasonWithCap {
-                reason: DenyReason::NotFound,
-                caps: Vec::new(),
-            });
-        }
-        let caps = caps_opt.unwrap();
-        if !caps.is_empty() {
-            // Supported and Availability checks
-            trace!(
-                "Required caps for method:{} Caps: [{:?}]",
-                request.method,
-                caps
-            );
-            if let Err(e) = state.clone().cap_state.generic.check_all(&caps) {
-                trace!("check_all for caps[{:?}] failed", caps);
-                return Err(e);
-            }
-            // permission checks
-            if let Err(e) =
-                PermissionHandler::check_permitted(&state, &request.ctx.app_id, &caps).await
-            {
-                trace!(
-                    "check_permitted for method ({}) failed. Error: {:?}",
-                    request.method,
-                    e
-                );
-                return Err(e);
-            } else {
-                trace!("check_permitted for method ({}) succeded", request.method);
-                //usergrants check
-                if let Err(e) = GrantState::check_with_roles(
-                    &state,
-                    &request.ctx.clone().into(),
-                    &request.ctx.clone().into(),
-                    &caps,
-                    true,
-                )
-                .await
-                {
-                    trace!(
-                        "check_with_roles for method ({}) failed. Error: {:?}",
-                        request.method,
-                        e
-                    );
-                    return Err(e);
-                } else {
-                    trace!("check_with_roles for method ({}) succeded", request.method);
-                }
-            }
-        } else {
+        let caps =
+            Self::get_resolved_caps_for_method(&state, &request.method, request.ctx.gateway_secure)
+                .ok_or(DenyReasonWithCap {
+                    reason: DenyReason::NotFound,
+                    caps: Vec::new(),
+                })?;
+
+        if caps.is_empty() {
             // Couldnt find any capabilities for the method
             trace!(
                 "Unable to find any caps for the method ({})",
@@ -147,6 +95,80 @@ impl FireboltGatekeeper {
                 caps: Vec::new(),
             });
         }
+        let filtered_perm_list = state
+            .clone()
+            .cap_state
+            .generic
+            .clear_non_negotiable_permission(&state, &caps);
+        if filtered_perm_list.is_empty() {
+            trace!("Role/Capability is cleared based on non-negotiable policy");
+            return Ok(());
+        }
+        // Supported and Availability checks
+        trace!(
+            "Required caps for method:{} Caps: [{:?}]",
+            request.method,
+            filtered_perm_list
+        );
+        if let Err(e) = state
+            .clone()
+            .cap_state
+            .generic
+            .check_all(&filtered_perm_list)
+        {
+            trace!("check_all for caps[{:?}] failed", filtered_perm_list);
+            return Err(e);
+        }
+        // permission checks
+        Self::permissions_check(state, request, filtered_perm_list).await?;
+        Ok(())
+    }
+
+    async fn permissions_check(
+        state: PlatformState,
+        request: RpcRequest,
+        filtered_perm_list: Vec<FireboltPermission>,
+    ) -> Result<(), DenyReasonWithCap> {
+        // permission checks
+        let open_rpc_state = state.clone().open_rpc_state;
+        // check if the app or method is in permission exclusion list
+        if open_rpc_state.is_excluded(request.clone().method, request.clone().ctx.app_id) {
+            trace!("Method is exluded from permission check {}", request.method);
+        } else if let Err(e) =
+            PermissionHandler::check_permitted(&state, &request.ctx.app_id, &filtered_perm_list)
+                .await
+        {
+            trace!(
+                "check_permitted for method ({}) failed. Error: {:?}",
+                request.method,
+                e
+            );
+            return Err(e);
+        }
+
+        trace!("check_permitted for method ({}) succeded", request.method);
+        //usergrants check
+        if let Err(e) = GrantState::check_with_roles(
+            &state,
+            &request.ctx.clone().into(),
+            &request.ctx.clone().into(),
+            &filtered_perm_list,
+            true,
+            true,
+            false,
+        )
+        .await
+        {
+            trace!(
+                "check_with_roles for method ({}) failed. Error: {:?}",
+                request.method,
+                e
+            );
+            return Err(e);
+        } else {
+            trace!("check_with_roles for method ({}) succeded", request.method);
+        }
+
         Ok(())
     }
 }

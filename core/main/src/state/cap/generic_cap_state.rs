@@ -23,12 +23,16 @@ use std::{
 use ripple_sdk::{
     api::{
         firebolt::fb_capabilities::{
-            DenyReason, DenyReasonWithCap, FireboltCap, FireboltPermission,
+            CapabilityRole, DenyReason, DenyReasonWithCap, FireboltCap, FireboltPermission,
         },
         manifest::device_manifest::DeviceManifest,
     },
-    log::debug,
+    log::{error, info, trace},
 };
+use serde::Deserialize;
+use serde_json::json;
+
+use crate::state::platform_state::PlatformState;
 
 #[derive(Clone, Debug, Default)]
 pub struct GenericCapState {
@@ -41,17 +45,25 @@ impl GenericCapState {
     pub fn new(manifest: DeviceManifest) -> GenericCapState {
         let cap_state = GenericCapState::default();
         cap_state.ingest_supported(manifest.get_supported_caps());
+        let caps = vec![
+            FireboltCap::Short("input:keyboard".to_owned()),
+            FireboltCap::Short("token:account".to_owned()),
+            FireboltCap::Short("token:platform".to_owned()),
+            FireboltCap::Short("usergrant:acknowledgechallenge".to_owned()),
+            FireboltCap::Short("usergrant:pinchallenge".to_owned()),
+        ];
+        cap_state.ingest_availability(caps, false);
         cap_state
     }
 
-    pub fn ingest_supported(&self, request: Vec<FireboltCap>) {
+    pub fn ingest_supported(&self, request: Vec<FireboltPermission>) {
         let mut supported = self.supported.write().unwrap();
         supported.extend(
             request
                 .iter()
-                .map(|a| a.as_str())
+                .map(|a: &FireboltPermission| serde_json::to_string(a).unwrap())
                 .collect::<HashSet<String>>(),
-        )
+        );
     }
 
     pub fn ingest_availability(&self, request: Vec<FireboltCap>, is_available: bool) {
@@ -63,13 +75,25 @@ impl GenericCapState {
                 not_available.insert(cap.as_str());
             }
         }
+        info!("Caps that are not available: {:?}", not_available);
     }
 
     pub fn check_for_processor(&self, request: Vec<String>) -> HashMap<String, bool> {
         let supported = self.supported.read().unwrap();
         let mut result = HashMap::new();
+        let supported_cap: Vec<String> = supported
+            .clone()
+            .iter()
+            .map(|f| {
+                FireboltPermission::deserialize(json!(f))
+                    .unwrap()
+                    .cap
+                    .as_str()
+            })
+            .collect();
+
         for cap in request {
-            result.insert(cap.clone(), supported.contains(&cap));
+            result.insert(cap.clone(), supported_cap.contains(&cap));
         }
         result
     }
@@ -78,14 +102,14 @@ impl GenericCapState {
         let supported = self.supported.read().unwrap();
         let not_supported: Vec<FireboltCap> = request
             .iter()
-            .filter(|fb_perm| !supported.contains(&fb_perm.cap.as_str()))
+            .filter(|fb_perm| !supported.contains(&serde_json::to_string(fb_perm).unwrap()))
             .map(|fb_perm| fb_perm.cap.clone())
             .collect();
 
-        debug!(
-            "checking supported caps request={:?}, not_supported={:?}",
-            request, not_supported
-        );
+        // debug!(
+        //     "checking supported caps request={:?}, not_supported={:?}, supported: {:?}",
+        //     request, not_supported, supported
+        // );
 
         if !not_supported.is_empty() {
             return Err(DenyReasonWithCap::new(
@@ -96,18 +120,33 @@ impl GenericCapState {
         Ok(())
     }
 
+    /*
+     * Actually we are not maintaining the available capability list.
+     * We are maintaining only non-available list.
+     * The notion is all supported caps are intrinsically available
+     * unless made as unavailable during initialization.
+     */
     pub fn check_available(
         &self,
         request: &Vec<FireboltPermission>,
     ) -> Result<(), DenyReasonWithCap> {
+        self.check_supported(request)?;
         let not_available = self.not_available.read().unwrap();
         let mut result: Vec<FireboltCap> = Vec::new();
         for fb_perm in request {
-            if not_available.contains(&fb_perm.cap.as_str()) {
+            if fb_perm.role == CapabilityRole::Use && not_available.contains(&fb_perm.cap.as_str())
+            {
                 result.push(fb_perm.cap.clone())
             }
         }
+        trace!(
+            "checking availability of caps request={:?}, not_available={:?}, result: {:?}",
+            request,
+            not_available,
+            result
+        );
         if !result.is_empty() {
+            error!("Availability Error for {:?}", result);
             return Err(DenyReasonWithCap::new(DenyReason::Unavailable, result));
         }
         Ok(())
@@ -117,7 +156,36 @@ impl GenericCapState {
         &self,
         permissions: &Vec<FireboltPermission>,
     ) -> Result<(), DenyReasonWithCap> {
-        self.check_supported(permissions)?;
         self.check_available(permissions)
+    }
+
+    pub fn clear_non_negotiable_permission(
+        &self,
+        state: &PlatformState,
+        permissions: &[FireboltPermission],
+    ) -> Vec<FireboltPermission> {
+        let filtered_permissions: Vec<FireboltPermission> = permissions
+            .iter()
+            .filter_map(|permission| {
+                if let Some(cap_policy) = state
+                    .open_rpc_state
+                    .get_capability_policy(permission.cap.as_str())
+                {
+                    let role_policy = match permission.role {
+                        CapabilityRole::Use => &cap_policy.use_role,
+                        CapabilityRole::Manage => &cap_policy.manage,
+                        CapabilityRole::Provide => &cap_policy.provide,
+                    };
+
+                    if let Some(perm_policy) = role_policy {
+                        if perm_policy.public && !perm_policy.negotiable {
+                            return None;
+                        }
+                    }
+                }
+                Some(permission.clone())
+            })
+            .collect();
+        filtered_permissions
     }
 }

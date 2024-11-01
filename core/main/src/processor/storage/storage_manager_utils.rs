@@ -28,12 +28,12 @@ fn storage_error() -> jsonrpsee::core::Error {
 }
 
 fn get_storage_data(resp: Result<ExtnResponse, RippleError>) -> Result<Option<StorageData>, Error> {
-    if resp.is_err() {
-        return Err(storage_error());
-    }
-    match resp.unwrap() {
-        ExtnResponse::StorageData(storage_data) => Ok(Some(storage_data)),
-        _ => Ok(None),
+    match resp {
+        Ok(response) => match response {
+            ExtnResponse::StorageData(storage_data) => Ok(Some(storage_data)),
+            _ => Ok(None),
+        },
+        Err(_) => Err(storage_error()),
     }
 }
 
@@ -44,17 +44,11 @@ fn get_value(resp: Result<ExtnResponse, RippleError>) -> Result<Value, Error> {
         return Ok(storage_data.value);
     }
 
-    // // K/V stored prior to StorageData implementation.
-    // match resp.unwrap().as_value() {
-    //     Some(value) => Ok(value),
-    //     None => Err(storage_error()),
-    // }
-
     match resp.unwrap() {
         ExtnResponse::Value(value) => Ok(value),
         ExtnResponse::String(str_val) => match serde_json::from_str(&str_val) {
             Ok(value) => Ok(value),
-            Err(_) => Err(storage_error()),
+            Err(_) => Ok(Value::String(str_val)), // An actual string was stored, return it as a Value.
         },
         _ => Err(storage_error()),
     }
@@ -113,6 +107,16 @@ pub fn storage_to_f32_rpc_result(resp: Result<ExtnResponse, RippleError>) -> Rpc
 pub fn storage_to_void_rpc_result(resp: Result<ExtnResponse, RippleError>) -> RpcResult<()> {
     match resp {
         Ok(_) => Ok(()),
+        Err(_) => Err(storage_error()),
+    }
+}
+
+pub fn storage_to_vec_string_rpc_result(
+    resp: Result<ExtnResponse, RippleError>,
+) -> RpcResult<Vec<String>> {
+    let value = get_value(resp)?;
+    match serde_json::from_value(value) {
+        Ok(v) => Ok(v),
         Err(_) => Err(storage_error()),
     }
 }

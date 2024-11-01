@@ -24,14 +24,31 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::device::device_user_grants_data::{GrantLifespan, GrantStatus};
+use super::device::device_user_grants_data::{GrantLifespan, GrantStatus, PolicyPersistenceType};
 use super::firebolt::fb_capabilities::FireboltPermission;
 use super::storage_property::StorageAdjective;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
 pub enum UserGrantsStoreRequest {
     GetUserGrants(String, FireboltPermission),
     SetUserGrants(UserGrantInfo),
+    SyncGrantMapPerPolicy(),
+    ClearUserGrants(PolicyPersistenceType),
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum UserGrantsPersistenceType {
+    Account,
+    Cloud,
+}
+
+impl UserGrantsPersistenceType {
+    pub fn as_string(&self) -> &'static str {
+        match self {
+            UserGrantsPersistenceType::Account => "account",
+            UserGrantsPersistenceType::Cloud => "cloud",
+        }
+    }
 }
 
 impl ExtnPayloadProvider for UserGrantsStoreRequest {
@@ -52,11 +69,11 @@ impl ExtnPayloadProvider for UserGrantsStoreRequest {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
 pub struct UserGrantInfo {
     pub role: CapabilityRole,
     pub capability: String,
-    pub status: GrantStatus,
+    pub status: Option<GrantStatus>,
     pub last_modified_time: Duration, // Duration since Unix epoch
     pub expiry_time: Option<Duration>,
     pub app_name: Option<String>,
@@ -68,11 +85,34 @@ impl Default for UserGrantInfo {
         UserGrantInfo {
             role: CapabilityRole::Use,
             capability: Default::default(),
-            status: GrantStatus::Denied,
+            status: Some(GrantStatus::Denied),
             last_modified_time: Duration::new(0, 0),
             expiry_time: None,
             app_name: None,
             lifespan: GrantLifespan::Once,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::firebolt::fb_capabilities::{CapabilityRole, FireboltCap};
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_user_grants_store() {
+        let user_id = "test_user_id".to_string();
+        let firebolt_permission = FireboltPermission {
+            cap: FireboltCap::Short("test_short_cap".to_string()),
+            role: CapabilityRole::Use,
+        };
+
+        let user_grants_request =
+            UserGrantsStoreRequest::GetUserGrants(user_id, firebolt_permission);
+        let contract_type: RippleContract =
+            RippleContract::Storage(StorageAdjective::UsergrantLocal);
+
+        test_extn_payload_provider(user_grants_request, contract_type);
     }
 }

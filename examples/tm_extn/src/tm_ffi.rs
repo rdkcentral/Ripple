@@ -17,7 +17,7 @@
 
 use ripple_sdk::{
     api::{firebolt::fb_telemetry::OperationalMetricRequest, status_update::ExtnStatus},
-    crossbeam::channel::Receiver as CReceiver,
+    async_channel::Receiver as CReceiver,
     export_channel_builder, export_extn_metadata,
     extn::{
         client::{extn_client::ExtnClient, extn_sender::ExtnSender},
@@ -31,8 +31,8 @@ use ripple_sdk::{
     framework::ripple_contract::{ContractFulfiller, RippleContract},
     log::{debug, error, info},
     semver::Version,
-    tokio::{self, runtime::Runtime, sync::mpsc::channel},
-    utils::{error::RippleError, logger::init_logger},
+    tokio::{self, sync::mpsc::channel},
+    utils::{error::RippleError, extn_utils::ExtnUtils, logger::init_logger},
 };
 use tokio_tungstenite::tungstenite::{connect, Message};
 use url::Url;
@@ -69,7 +69,7 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     }
     if let Some(ws_url) = client.get_config("ws_url") {
         info!("ws_url={}", ws_url);
-        let runtime = Runtime::new().unwrap();
+        let runtime = ExtnUtils::get_runtime("e-tm".to_owned(), client.get_stack_size());
 
         runtime.block_on(async move {
             let client_c = client.clone();
@@ -81,7 +81,7 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
                         // Lets Main know that the distributor channel is ready
                         let _ = client.event(ExtnStatus::Ready);
                         while let Some(v) = tr.recv().await {
-                            if let Err(e) = socket.write_message(Message::Text(v)) {
+                            if let Err(e) = socket.send(Message::Text(v)) {
                                 error!("Error sending to socket {:?}", e);
                             }
                         }

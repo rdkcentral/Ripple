@@ -32,7 +32,9 @@ use super::manifest::{
 
 use super::manifest::device_manifest::AppLibraryEntry;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+pub const FEATURE_CLOUD_PERMISSIONS: &str = "cloud_permissions";
+
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Config {
     AllDefaultApps,
     DefaultApp,
@@ -45,7 +47,6 @@ pub enum Config {
     WebSocketGatewayHost,
     InternalWebSocketEnabled,
     InternalWebSocketGatewayHost,
-    Platform,
     PlatformParameters,
     Caps,
     DpabPlatform,
@@ -64,6 +65,9 @@ pub enum Config {
     LauncherConfig,
     RippleFeatures,
     SavedDir,
+    SupportsDistributorSession,
+    Firebolt,
+    RFC(String),
 }
 
 impl ExtnPayloadProvider for Config {
@@ -84,7 +88,30 @@ impl ExtnPayloadProvider for Config {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct RfcRequest {
+    pub flag: String,
+}
+
+impl ExtnPayloadProvider for RfcRequest {
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Request(ExtnRequest::Extn(Value::String(self.flag.clone())))
+    }
+
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        if let ExtnPayload::Request(ExtnRequest::Extn(Value::String(flag))) = payload {
+            return Some(RfcRequest { flag });
+        }
+
+        None
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::RemoteFeatureControl
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ConfigResponse {
     String(String),
     Boolean(bool),
@@ -96,7 +123,7 @@ pub enum ConfigResponse {
     IdSalt(IdSalt),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct LauncherConfig {
     pub retention_policy: RetentionPolicy,
     pub lifecycle_policy: LifecyclePolicy,
@@ -122,5 +149,55 @@ impl ExtnPayloadProvider for LauncherConfig {
 
     fn contract() -> RippleContract {
         RippleContract::Config
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::manifest::device_manifest::{AppManifestLoad, BootState};
+    use crate::utils::test_utils::test_extn_payload_provider;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_extn_request_config() {
+        let contract_type: RippleContract = RippleContract::Config;
+        test_extn_payload_provider(Config::DefaultValues, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_rfc_request() {
+        let rfc_request = RfcRequest {
+            flag: String::from("test_flag"),
+        };
+        let contract_type: RippleContract = RippleContract::RemoteFeatureControl;
+        test_extn_payload_provider(rfc_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_launcher_config() {
+        let launcher_config = LauncherConfig {
+            retention_policy: RetentionPolicy {
+                max_retained: 10,
+                min_available_mem_kb: 1024,
+                always_retained: vec!["app1".to_string(), "app2".to_string()],
+            },
+            lifecycle_policy: LifecyclePolicy {
+                app_ready_timeout_ms: 5000,
+                app_finished_timeout_ms: 10000,
+            },
+            app_library_state: AppLibraryState {
+                default_apps: vec![AppLibraryEntry {
+                    app_id: "app1".to_string(),
+                    manifest: AppManifestLoad::Remote(
+                        "https://example.com/app1/manifest".to_string(),
+                    ),
+                    boot_state: BootState::Inactive,
+                }],
+                providers: HashMap::new(),
+            },
+        };
+        let contract_type: RippleContract = RippleContract::Config;
+        test_extn_payload_provider(launcher_config, contract_type);
     }
 }

@@ -27,8 +27,9 @@ use crate::{
 };
 use futures::SinkExt;
 use futures::StreamExt;
+use jsonrpsee::types::{error::ErrorCode, ErrorResponse, Id};
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{ClientContext, RpcRequest},
+    api::gateway::rpc_gateway_api::{ApiMessage, ApiProtocol, ClientContext, RpcRequest},
     log::{error, info, trace},
     tokio::{
         net::{TcpListener, TcpStream},
@@ -219,10 +220,10 @@ impl FireboltWs {
             error!("Error registering the connection {:?}", e);
             return;
         }
-
-        if PermissionHandler::fetch_and_store(&state, &app_id)
-            .await
-            .is_err()
+        if !gateway_secure
+            && PermissionHandler::fetch_and_store(&state, &app_id, false)
+                .await
+                .is_err()
         {
             error!("Couldnt pre cache permissions");
         }
@@ -233,7 +234,19 @@ impl FireboltWs {
                 let send_result = sender.send(Message::Text(rs.jsonrpc_msg.clone())).await;
                 match send_result {
                     Ok(_) => {
-                        debug!(
+                        if let Some(stats) = rs.stats {
+                            info!(
+                                "Sending Firebolt response: {},{}",
+                                stats.stats_ref,
+                                stats.stats.get_total_time()
+                            );
+                            debug!(
+                                "Full Firebolt Split: {},{}",
+                                stats.stats_ref,
+                                stats.stats.get_stage_durations()
+                            )
+                        }
+                        info!(
                             "Sent Firebolt response cid={} msg={}",
                             connection_id_c, rs.jsonrpc_msg
                         );
@@ -260,15 +273,32 @@ impl FireboltWs {
                             Some(connection_id.clone()),
                             ctx.gateway_secure,
                         ) {
-                            debug!(
-                                "firebolt_ws Received Firebolt request {} {} {}",
-                                connection_id, request.ctx.request_id, request.method
-                            );
+                            info!("Received Firebolt request {}", request.params_json);
                             let msg = FireboltGatewayCommand::HandleRpc { request };
                             if let Err(e) = client.clone().send_gateway_command(msg) {
                                 error!("failed to send request {:?}", e);
                             }
                         } else {
+                            if let Some(session) = &state
+                                .session_state
+                                .get_session_for_connection_id(&connection_id)
+                            {
+                                use ripple_sdk::api::apps::EffectiveTransport;
+                                let err =
+                                    ErrorResponse::new(ErrorCode::InvalidRequest.into(), Id::Null);
+                                let msg = serde_json::to_string(&err).unwrap();
+                                let api_msg =
+                                    ApiMessage::new(ApiProtocol::JsonRpc, msg, req_id.clone());
+                                // No Stats here its an invalid RPC request
+                                match session.get_transport() {
+                                    EffectiveTransport::Bridge(id) => {
+                                        let _ = state.send_to_bridge(id, api_msg).await;
+                                    }
+                                    EffectiveTransport::Websocket => {
+                                        let _ = session.send_json_rpc(api_msg).await;
+                                    }
+                                }
+                            }
                             error!("invalid message {}", req_text)
                         }
                     }

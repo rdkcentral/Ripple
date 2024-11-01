@@ -22,20 +22,26 @@ use crate::{
 };
 
 use super::{
-    firebolt::fb_discovery::{ContentAccessRequest, WatchNextInfo, WatchedInfo},
+    firebolt::fb_discovery::{ContentAccessRequest, ProgressUnit, WatchedInfo},
     gateway::rpc_gateway_api::CallContext,
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum AccountLinkRequest {
     SignIn(CallContext),
     SignOut(CallContext),
     ContentAccess(CallContext, ContentAccessRequest),
     ClearContentAccess(CallContext),
-    Watched(CallContext, WatchedInfo),
-    // TODO: assess if boxing this is a productive move: https://rust-lang.github.io/rust-clippy/master/index.html#/large_enum_variant
-    WatchedNext(CallContext, Box<WatchNextInfo>),
+    Watched(WatchedRequest),
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchedRequest {
+    pub context: CallContext,
+    pub info: WatchedInfo,
+    pub unit: Option<ProgressUnit>,
 }
 
 impl ExtnPayloadProvider for AccountLinkRequest {
@@ -53,5 +59,32 @@ impl ExtnPayloadProvider for AccountLinkRequest {
 
     fn contract() -> RippleContract {
         RippleContract::AccountLink
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::account_link::AccountLinkRequest;
+    use crate::api::gateway::rpc_gateway_api::{ApiProtocol, CallContext};
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_account_link() {
+        let call_context = CallContext {
+            session_id: "test_session_id".to_string(),
+            request_id: "test_request_id".to_string(),
+            app_id: "test_app_id".to_string(),
+            call_id: 123,
+            protocol: ApiProtocol::Bridge,
+            method: "some_method".to_string(),
+            cid: Some("test_cid".to_string()),
+            gateway_secure: true,
+        };
+
+        let account_link_request = AccountLinkRequest::SignIn(call_context);
+        let contract_type: RippleContract = RippleContract::AccountLink;
+
+        test_extn_payload_provider(account_link_request, contract_type);
     }
 }

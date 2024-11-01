@@ -15,9 +15,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::time::Duration;
+
 use ripple_sdk::{
     api::status_update::ExtnStatus,
-    log::{info, warn},
+    log::{error, info, warn},
     utils::error::RippleError,
 };
 
@@ -36,37 +38,84 @@ impl ThunderPoolStep {
     }
 
     pub async fn setup(
-        mut state: ThunderBootstrapStateWithConfig,
+        state: ThunderBootstrapStateWithConfig,
     ) -> Result<ThunderBootstrapStateWithClient, RippleError> {
         let pool_size = state.pool_size;
         let url = state.url.clone();
+        let thunder_connection_state = state.thunder_connection_state.clone();
         if pool_size < 2 {
             warn!("Pool size of 1 is not recommended, there will be no dedicated connection for Controller events");
             return Err(RippleError::BootstrapError);
         }
-        let controller_pool = ThunderClientPool::start(url.clone(), None, 1).await;
-        if controller_pool.is_err() {
-            if let Err(e) = controller_pool {
+        let controller_pool = ripple_sdk::tokio::time::timeout(
+            Duration::from_secs(10),
+            ThunderClientPool::start(url.clone(), None, thunder_connection_state.clone(), 1),
+        )
+        .await;
+
+        let controller_pool = match controller_pool {
+            Ok(Ok(thunder_client)) => thunder_client,
+            Ok(Err(e)) => {
+                error!("Fatal Thunder Unavailability Error: Ripple connection with Thunder is intermittent causing bootstrap errors.");
                 let _ = state.extn_client.event(ExtnStatus::Error);
                 return Err(e);
             }
-        }
-        let controller_pool = controller_pool.unwrap();
+            Err(_) => {
+                error!("Timed out waiting for starting ThunderClientPool.");
+                let _ = state.extn_client.event(ExtnStatus::Error);
+                return Err(RippleError::BootstrapError);
+            }
+        };
+
+        info!("Received Controller pool");
         let expected_plugins = state.plugin_param.clone();
-        let plugin_manager_tx =
-            PluginManager::start(Box::new(controller_pool), expected_plugins).await;
-        let client = ThunderClientPool::start(url, Some(plugin_manager_tx), pool_size - 1).await;
+        let tc = Box::new(controller_pool);
+        let (plugin_manager_tx, failed_plugins) =
+            PluginManager::start(tc, expected_plugins.clone()).await;
 
-        if client.is_err() {
-            if let Err(e) = client {
-                let _ = state.extn_client.event(ExtnStatus::Error);
-                return Err(e);
+        if !failed_plugins.is_empty() {
+            error!(
+                "Mandatory Plugin activation for {:?} failed. Thunder Bootstrap delayed...",
+                failed_plugins
+            );
+            loop {
+                let failed_plugins = PluginManager::activate_mandatory_plugins(
+                    expected_plugins.clone(),
+                    plugin_manager_tx.clone(),
+                )
+                .await;
+                if !failed_plugins.is_empty() {
+                    error!(
+                        "Mandatory Plugin activation for {:?} failed. Thunder Bootstrap delayed...",
+                        failed_plugins
+                    );
+                    let _ = state.extn_client.event(ExtnStatus::Interrupted);
+                    continue;
+                } else {
+                    break;
+                }
             }
         }
 
-        let client = client.unwrap();
+        let client = ThunderClientPool::start(
+            url,
+            Some(plugin_manager_tx),
+            thunder_connection_state.clone(),
+            pool_size - 1,
+        )
+        .await;
+
+        let client = match client {
+            Ok(client) => client,
+            Err(e) => {
+                error!("Fatal Thunder Unavailability Error: Ripple connection with Thunder is intermittent causing bootstrap errors.");
+                let _ = state.extn_client.event(ExtnStatus::Error);
+                return Err(e);
+            }
+        };
+
         info!("Thunder client connected successfully");
-        let _ = state.extn_client.event(ExtnStatus::Ready);
+
         let extn_client = state.extn_client.clone();
         let thunder_boot_strap_state_with_client = ThunderBootstrapStateWithClient {
             prev: state,

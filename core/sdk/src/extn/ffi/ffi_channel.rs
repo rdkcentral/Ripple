@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crossbeam::channel::Receiver as CReceiver;
+use async_channel::Receiver as CReceiver;
 use libloading::{Library, Symbol};
 use log::{debug, error};
 
@@ -61,7 +61,7 @@ pub unsafe fn load_channel_builder(lib: &Library) -> Result<Box<ExtnChannelBuild
 /// use ripple_sdk::extn::ffi::ffi_message::CExtnMessage;
 /// use ripple_sdk::extn::ffi::ffi_channel::{ExtnChannel,ExtnChannelBuilder};
 /// use ripple_sdk::extn::extn_id::{ExtnClassId};
-/// use ripple_sdk::crossbeam::channel::Receiver as CReceiver;
+/// use ripple_sdk::async_channel::Receiver as CReceiver;
 /// use semver::Version;
 /// use ripple_sdk::utils::error::RippleError;
 /// use ripple_sdk::export_channel_builder;
@@ -94,4 +94,50 @@ macro_rules! export_channel_builder {
             Box::into_raw(boxed)
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::extn::client::extn_sender::tests::Mockable;
+
+    #[test]
+    fn test_extn_channel_builder() {
+        // Mock implementation for the build function
+        fn build_fn(_extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
+            // Mock implementation for creating an ExtnChannel
+            let extn_channel = ExtnChannel {
+                start: |_client, _receiver| {
+                    // Mock implementation for ExtnChannel's start function
+                },
+            };
+            Ok(Box::new(extn_channel))
+        }
+
+        // Mock service name
+        let service = "mock_service".to_string();
+
+        // Create an instance of ExtnChannelBuilder with the mock build function
+        let extn_channel_builder = ExtnChannelBuilder {
+            build: build_fn,
+            service,
+        };
+
+        // Use the ExtnChannelBuilder to create an ExtnChannel
+        let extn_id = "some_extn_id".to_string();
+        let result = (extn_channel_builder.build)(extn_id);
+
+        // Perform assertions or actions based on the expected behavior
+        match result {
+            Ok(extn_channel) => {
+                let (mock_sender, rx) = ExtnSender::mock();
+                // If the build was successful, you can now use the created ExtnChannel
+                (extn_channel.start)(mock_sender, rx);
+            }
+            Err(err) => {
+                // Handle the error case if the build fails
+                panic!("Error building ExtnChannel: {:?}", err);
+            }
+        }
+    }
 }

@@ -22,29 +22,29 @@ use jsonrpsee::{
 };
 use ripple_sdk::{
     api::{
-        distributor::distributor_encoder::EncoderRequest,
-        firebolt::fb_capabilities::{CapEvent, FireboltCap},
-        gateway::rpc_gateway_api::CallContext,
-        session::{AccountSessionRequest, AccountSessionTokenRequest},
+        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest, RpcStats},
+        session::AccountSessionTokenRequest,
     },
-    extn::extn_client_message::ExtnResponse,
-    log::error,
+    extn::extn_client_message::{ExtnMessage, ExtnResponse},
+    utils::error::RippleError,
 };
+use serde_json::json;
 
 use crate::{
-    firebolt::rpc::RippleRPCProvider,
-    state::{cap::cap_state::CapState, platform_state::PlatformState},
+    firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState,
     utils::rpc_utils::rpc_err,
 };
+
+const KEY_FIREBOLT_ACCOUNT_UID: &str = "fireboltAccountUid";
 
 #[rpc(server)]
 pub trait Account {
     #[method(name = "account.session")]
     async fn session(&self, ctx: CallContext, a_t_r: AccountSessionTokenRequest) -> RpcResult<()>;
     #[method(name = "account.id")]
-    async fn id_rpc(&self, ctx: CallContext) -> RpcResult<String>;
+    async fn id(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "account.uid")]
-    async fn uid_rpc(&self, ctx: CallContext) -> RpcResult<String>;
+    async fn uid(&self, ctx: CallContext) -> RpcResult<String>;
 }
 
 #[derive(Debug, Clone)]
@@ -54,74 +54,43 @@ pub struct AccountImpl {
 
 #[async_trait]
 impl AccountServer for AccountImpl {
-    async fn session(&self, _ctx: CallContext, a_t_r: AccountSessionTokenRequest) -> RpcResult<()> {
+    async fn session(
+        &self,
+        mut _ctx: CallContext,
+        a_t_r: AccountSessionTokenRequest,
+    ) -> RpcResult<()> {
         self.platform_state
             .session_state
-            .insert_session_token(a_t_r.clone().token);
-        let resp = self
-            .platform_state
-            .get_client()
-            .send_extn_request(AccountSessionRequest::SetAccessToken(a_t_r))
-            .await;
-        if resp.is_err() {
-            error!("Error in session {:?}", resp);
+            .insert_session_token(a_t_r.token.clone());
+        _ctx.protocol = ApiProtocol::Extn;
+        let success = rpc_request_setter(
+            self.platform_state
+                .get_client()
+                .get_extn_client()
+                .main_internal_request(RpcRequest {
+                    ctx: _ctx.clone(),
+                    method: "account.setServiceAccessToken".into(),
+                    params_json: RpcRequest::prepend_ctx(
+                        Some(json!({"token": a_t_r.token, "expires": a_t_r.expires_in})),
+                        &_ctx,
+                    ),
+                    stats: RpcStats::default(),
+                })
+                .await,
+        );
+        if !success {
             return Err(rpc_err("session error response TBD"));
         }
-
-        match resp {
-            Ok(payload) => match payload.payload.extract().unwrap() {
-                ExtnResponse::None(()) => {
-                    CapState::emit(
-                        &self.platform_state,
-                        CapEvent::OnAvailable,
-                        FireboltCap::Short("token:platform".to_owned()),
-                        None,
-                    )
-                    .await;
-                    Ok(())
-                }
-                _ => {
-                    CapState::emit(
-                        &self.platform_state,
-                        CapEvent::OnUnavailable,
-                        FireboltCap::Short("token:platform".to_owned()),
-                        None,
-                    )
-                    .await;
-                    Err(rpc_err("Provision Status error response TBD"))
-                }
-            },
-            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-                "Provision Status error response TBD",
-            ))),
-        }
+        Ok(())
     }
 
-    async fn id_rpc(&self, _ctx: CallContext) -> RpcResult<String> {
+    async fn id(&self, _ctx: CallContext) -> RpcResult<String> {
         self.id().await
     }
 
-    async fn uid_rpc(&self, ctx: CallContext) -> RpcResult<String> {
-        if let Ok(id) = self.id().await {
-            if self.platform_state.supports_encoding() {
-                if let Ok(resp) = self
-                    .platform_state
-                    .get_client()
-                    .send_extn_request(EncoderRequest {
-                        reference: id.clone(),
-                        scope: ctx.app_id.clone(),
-                    })
-                    .await
-                {
-                    if let Some(ExtnResponse::String(s)) = resp.payload.extract() {
-                        return Ok(s);
-                    }
-                }
-            }
-            return Ok(id);
-        }
-
-        Err(rpc_err("Account.uid: some failure"))
+    async fn uid(&self, ctx: CallContext) -> RpcResult<String> {
+        crate::utils::common::get_uid(&self.platform_state, ctx.app_id, KEY_FIREBOLT_ACCOUNT_UID)
+            .await
     }
 }
 impl AccountImpl {
@@ -132,6 +101,21 @@ impl AccountImpl {
             Err(rpc_err("Account.id: some failure"))
         }
     }
+}
+
+fn rpc_request_setter(response: Result<ExtnMessage, RippleError>) -> bool {
+    if response.clone().is_ok() {
+        if let Ok(res) = response {
+            if let Some(ExtnResponse::Value(v)) = res.payload.extract::<ExtnResponse>() {
+                if v.is_boolean() {
+                    if let Some(b) = v.as_bool() {
+                        return b;
+                    }
+                }
+            }
+        }
+    }
+    false
 }
 
 pub struct AccountRPCProvider;

@@ -17,7 +17,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::fb_capabilities::CapabilityRole;
+use super::fb_capabilities::{CapabilityRole, FireboltCap, FireboltPermission};
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -63,4 +63,73 @@ pub struct GrantRequest {
     pub role: CapabilityRole,
     pub capability: String,
     pub options: Option<GrantModificationOptions>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct UserGrantRequestParam {
+    pub app_id: String,
+    pub permissions: Vec<CapabilityAndRole>,
+    pub options: Option<RequestOptions>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct RequestOptions {
+    pub force: bool,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct CapabilityAndRole {
+    pub capability: FireboltCap,
+    pub role: CapabilityRole,
+}
+
+impl From<UserGrantRequestParam> for Vec<FireboltPermission> {
+    fn from(value: UserGrantRequestParam) -> Self {
+        let mut fb_perms = Vec::new();
+        for caps in value.permissions {
+            fb_perms.push(FireboltPermission {
+                cap: caps.capability.clone(),
+                role: caps.role,
+            })
+        }
+        fb_perms
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_from_user_grant_request_param() {
+        let param = UserGrantRequestParam {
+            app_id: String::from("my_app"),
+            permissions: vec![
+                CapabilityAndRole {
+                    capability: FireboltCap::Short("use_cap".to_string()),
+                    role: CapabilityRole::Use,
+                },
+                CapabilityAndRole {
+                    capability: FireboltCap::Short("provide_cap".to_string()),
+                    role: CapabilityRole::Provide,
+                },
+            ],
+            options: Some(RequestOptions { force: true }),
+        };
+
+        let expected = vec![
+            FireboltPermission {
+                cap: FireboltCap::Short("use_cap".to_string()),
+                role: CapabilityRole::Use,
+            },
+            FireboltPermission {
+                cap: FireboltCap::Short("provide_cap".to_string()),
+                role: CapabilityRole::Provide,
+            },
+        ];
+
+        let result: Vec<FireboltPermission> = param.into();
+        assert_eq!(result, expected);
+    }
 }

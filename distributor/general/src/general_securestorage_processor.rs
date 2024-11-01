@@ -17,7 +17,8 @@
 
 use ripple_sdk::{
     api::firebolt::fb_secure_storage::{
-        SecureStorageGetResponse, SecureStorageRequest, SecureStorageResponse,
+        SecureStorageDefaultResponse, SecureStorageGetResponse, SecureStorageRequest,
+        SecureStorageResponse,
     },
     async_trait::async_trait,
     extn::{
@@ -75,17 +76,18 @@ impl ExtnRequestProcessor for DistributorSecureStorageProcessor {
         self.client.clone()
     }
     async fn process_request(
-        state: Self::STATE,
+        mut state: Self::STATE,
         msg: ripple_sdk::extn::extn_client_message::ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message {
             SecureStorageRequest::Set(_req, _session) => {
                 if let Err(e) = state
-                    .clone()
                     .respond(
                         msg,
-                        ripple_sdk::extn::extn_client_message::ExtnResponse::None(()),
+                        ripple_sdk::extn::extn_client_message::ExtnResponse::SecureStorage(
+                            SecureStorageResponse::Set(SecureStorageDefaultResponse {}),
+                        ),
                     )
                     .await
                 {
@@ -100,7 +102,6 @@ impl ExtnRequestProcessor for DistributorSecureStorageProcessor {
                 };
 
                 if let Err(e) = state
-                    .clone()
                     .respond(
                         msg,
                         if let ExtnPayload::Response(r) =
@@ -123,10 +124,11 @@ impl ExtnRequestProcessor for DistributorSecureStorageProcessor {
 
             SecureStorageRequest::Remove(_req, _session) => {
                 if let Err(e) = state
-                    .clone()
                     .respond(
                         msg,
-                        ripple_sdk::extn::extn_client_message::ExtnResponse::None(()),
+                        ripple_sdk::extn::extn_client_message::ExtnResponse::SecureStorage(
+                            SecureStorageResponse::Remove(SecureStorageDefaultResponse {}),
+                        ),
                     )
                     .await
                 {
@@ -138,10 +140,11 @@ impl ExtnRequestProcessor for DistributorSecureStorageProcessor {
 
             SecureStorageRequest::Clear(_req, _session) => {
                 if let Err(e) = state
-                    .clone()
                     .respond(
                         msg,
-                        ripple_sdk::extn::extn_client_message::ExtnResponse::None(()),
+                        ripple_sdk::extn::extn_client_message::ExtnResponse::SecureStorage(
+                            SecureStorageResponse::Clear(SecureStorageDefaultResponse {}),
+                        ),
                     )
                     .await
                 {

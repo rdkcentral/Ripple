@@ -70,17 +70,16 @@ impl ExtnRequestProcessor for DistributorMetricsProcessor {
         self.client.clone()
     }
     async fn process_request(
-        state: Self::STATE,
+        mut state: Self::STATE,
         msg: ripple_sdk::extn::extn_client_message::ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message.clone().payload {
             BehavioralMetricPayload::Ready(_) => {
                 if let Err(e) = state
-                    .clone()
                     .respond(
                         msg,
-                        ripple_sdk::extn::extn_client_message::ExtnResponse::Boolean(false),
+                        ripple_sdk::extn::extn_client_message::ExtnResponse::Boolean(true),
                     )
                     .await
                 {
@@ -143,6 +142,9 @@ impl ExtnRequestProcessor for DistributorMetricsProcessor {
             BehavioralMetricPayload::MediaEnded(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
+            BehavioralMetricPayload::AppStateChange(_) => {
+                mock_metrics_response(state, msg, extracted_message).await
+            }
             BehavioralMetricPayload::Raw(_) => {
                 mock_metrics_response(state, msg, extracted_message).await
             }
@@ -152,15 +154,14 @@ impl ExtnRequestProcessor for DistributorMetricsProcessor {
 
 /// listener for events any events.
 pub async fn mock_metrics_response(
-    state: ExtnClient,
+    mut state: ExtnClient,
     msg: ripple_sdk::extn::extn_client_message::ExtnMessage,
     _extracted_message: BehavioralMetricRequest,
 ) -> bool {
     if let Err(e) = state
-        .clone()
         .respond(
             msg,
-            ripple_sdk::extn::extn_client_message::ExtnResponse::Boolean(false),
+            ripple_sdk::extn::extn_client_message::ExtnResponse::Boolean(true),
         )
         .await
     {

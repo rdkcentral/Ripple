@@ -22,7 +22,7 @@ use ripple_sdk::{
         apps::{AppError, AppManagerResponse, AppMethod, AppRequest},
         manifest::extn_manifest::ExtnSymbol,
     },
-    crossbeam::channel::Sender as CSender,
+    async_channel::Sender as CSender,
     extn::{
         client::{
             extn_client::ExtnClient,
@@ -43,8 +43,8 @@ use ripple_sdk::{
 };
 
 use crate::{
-    firebolt::firebolt_gateway::FireboltGatewayCommand, state::bootstrap_state::ChannelsState,
-    utils::rpc_utils::rpc_await_oneshot,
+    broker::endpoint_broker::BrokerOutput, firebolt::firebolt_gateway::FireboltGatewayCommand,
+    state::bootstrap_state::ChannelsState, utils::rpc_utils::rpc_await_oneshot,
 };
 
 /// RippleClient is an internal delegate component which helps in operating
@@ -67,6 +67,7 @@ pub struct RippleClient {
     client: Arc<RwLock<ExtnClient>>,
     gateway_sender: Sender<FireboltGatewayCommand>,
     app_mgr_sender: Sender<AppRequest>, // will be used by LCM RPC
+    broker_sender: Sender<BrokerOutput>,
 }
 
 impl RippleClient {
@@ -84,6 +85,18 @@ impl RippleClient {
             gateway_sender: state.get_gateway_sender(),
             app_mgr_sender: state.get_app_mgr_sender(),
             client: Arc::new(RwLock::new(extn_client)),
+            broker_sender: state.get_broker_sender(),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn test_client(extn_client: ExtnClient) -> RippleClient {
+        let cs = ChannelsState::new();
+        RippleClient {
+            client: Arc::new(RwLock::new(extn_client)),
+            gateway_sender: cs.get_gateway_sender(),
+            app_mgr_sender: cs.get_app_mgr_sender(),
+            broker_sender: cs.get_broker_sender(),
         }
     }
 
@@ -103,9 +116,9 @@ impl RippleClient {
         Ok(())
     }
 
-    pub async fn get_app_state(&self, app_id: String) -> Result<String, RippleError> {
+    pub async fn get_app_state(&self, app_id: &str) -> Result<String, RippleError> {
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<Result<AppManagerResponse, AppError>>();
-        let app_request = AppRequest::new(AppMethod::State(app_id.to_string()), app_resp_tx);
+        let app_request = AppRequest::new(AppMethod::State(app_id.to_owned()), app_resp_tx);
         if let Err(e) = self.send_app_request(app_request) {
             error!("Send error for get_state {:?}", e);
             return Err(RippleError::SendFailure);
@@ -133,6 +146,10 @@ impl RippleClient {
     ) -> Result<ExtnMessage, RippleError> {
         self.get_extn_client().clone().request(payload).await
     }
+    pub fn send_extn_request_transient(&self, payload: impl ExtnPayloadProvider) -> RippleResponse {
+        self.get_extn_client().request_transient(payload)?;
+        Ok(())
+    }
 
     pub async fn respond(&self, msg: ExtnMessage) -> Result<(), RippleError> {
         self.get_extn_client().clone().send_message(msg).await
@@ -157,5 +174,9 @@ impl RippleClient {
 
     pub fn send_event(&self, event: impl ExtnPayloadProvider) -> RippleResponse {
         self.get_extn_client().event(event)
+    }
+
+    pub fn get_broker_sender(&self) -> Sender<BrokerOutput> {
+        self.broker_sender.clone()
     }
 }

@@ -39,6 +39,7 @@ use super::privacy_rpc;
 
 #[derive(Serialize, Debug, Clone)]
 pub struct AppInitParameters {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub us_privacy: Option<String>,
     pub lmt: Option<u16>,
     pub discovery: Option<DiscoveryEvent>,
@@ -76,9 +77,17 @@ pub struct ParametersImpl {
 impl ParametersServer for ParametersImpl {
     async fn initialization(&self, ctx: CallContext) -> RpcResult<AppInitParameters> {
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
-        let app_request = AppRequest::new(AppMethod::GetLaunchRequest(ctx.app_id), app_resp_tx);
-        let privacy_data =
-            privacy_rpc::get_allow_app_content_ad_targeting_settings(&self.platform_state).await;
+        let app_request = AppRequest::new(
+            AppMethod::GetLaunchRequest(ctx.app_id.to_owned()),
+            app_resp_tx,
+        );
+        let privacy_data = privacy_rpc::get_allow_app_content_ad_targeting_settings(
+            &self.platform_state,
+            None,
+            &ctx.app_id.to_string(),
+            &ctx,
+        )
+        .await;
 
         let _ = self
             .platform_state

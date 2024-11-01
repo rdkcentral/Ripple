@@ -22,6 +22,8 @@ use crate::{
     framework::ripple_contract::{ContractAdjective, RippleContract},
 };
 
+use super::device::device_request::AccountToken;
+
 pub fn deserialize_expiry<'de, D>(deserializer: D) -> Result<Expiry, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -37,7 +39,7 @@ where
 }
 
 type Expiry = u32;
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountSessionTokenRequest {
     pub token: String,
@@ -45,7 +47,7 @@ pub struct AccountSessionTokenRequest {
     pub expires_in: Expiry,
 }
 
-#[derive(Serialize, Clone, Debug, Deserialize)]
+#[derive(Serialize, PartialEq, Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvisionRequest {
     pub account_id: String,
@@ -53,11 +55,13 @@ pub struct ProvisionRequest {
     pub distributor_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AccountSessionRequest {
     Get,
     Provision(ProvisionRequest),
     SetAccessToken(AccountSessionTokenRequest),
+    GetAccessToken,
+    Subscribe,
 }
 
 impl ExtnPayloadProvider for AccountSessionRequest {
@@ -79,7 +83,14 @@ impl ExtnPayloadProvider for AccountSessionRequest {
 }
 
 #[repr(C)]
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub enum AccountSessionResponse {
+    AccountSession(AccountSession),
+    AccountSessionToken(AccountToken),
+}
+
+#[repr(C)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Default)]
 pub struct AccountSession {
     pub id: String,
     pub token: String,
@@ -108,15 +119,43 @@ impl std::fmt::Display for AccountSession {
 }
 impl ExtnPayloadProvider for AccountSession {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        if let ExtnPayload::Response(ExtnResponse::AccountSession(v)) = payload {
-            return Some(v);
+        if let ExtnPayload::Response(ExtnResponse::AccountSession(
+            AccountSessionResponse::AccountSession(account_session),
+        )) = payload
+        {
+            return Some(account_session);
         }
 
         None
     }
 
     fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Response(ExtnResponse::AccountSession(self.clone()))
+        ExtnPayload::Response(ExtnResponse::AccountSession(
+            AccountSessionResponse::AccountSession(self.clone()),
+        ))
+    }
+
+    fn contract() -> RippleContract {
+        RippleContract::Session(SessionAdjective::Account)
+    }
+}
+
+impl ExtnPayloadProvider for AccountToken {
+    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
+        if let ExtnPayload::Response(ExtnResponse::AccountSession(
+            AccountSessionResponse::AccountSessionToken(dist_token),
+        )) = payload
+        {
+            return Some(dist_token);
+        }
+
+        None
+    }
+
+    fn get_extn_payload(&self) -> ExtnPayload {
+        ExtnPayload::Response(ExtnResponse::AccountSession(
+            AccountSessionResponse::AccountSessionToken(self.clone()),
+        ))
     }
 
     fn contract() -> RippleContract {
@@ -146,7 +185,7 @@ impl AccountSession {
  * https://developer.comcast.com/firebolt/core/sdk/latest/api/authentication
  */
 /*TokenType and Token are Firebolt spec types */
-#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
 pub enum TokenType {
     #[serde(rename = "platform")]
     Platform,
@@ -158,13 +197,24 @@ pub enum TokenType {
     Root,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+impl ToString for TokenType {
+    fn to_string(&self) -> String {
+        match self {
+            TokenType::Platform => String::from("platform"),
+            TokenType::Device => String::from("device"),
+            TokenType::Distributor => String::from("distributor"),
+            TokenType::Root => String::from("root"),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct TokenContext {
     pub distributor_id: String,
     pub app_id: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SessionTokenRequest {
     pub token_type: TokenType,
     pub options: Vec<String>,
@@ -198,7 +248,20 @@ impl ExtnPayloadProvider for SessionTokenRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum PubSubAdjective {
+    Provider,
+    Listener,
+    Publish,
+}
+impl ContractAdjective for PubSubAdjective {
+    fn get_contract(&self) -> RippleContract {
+        RippleContract::PubSub(self.clone())
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum SessionAdjective {
     Account,
@@ -211,5 +274,95 @@ pub enum SessionAdjective {
 impl ContractAdjective for SessionAdjective {
     fn get_contract(&self) -> RippleContract {
         RippleContract::Session(self.clone())
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum EventAdjective {
+    Input,
+    Hdr,
+    ScreenResolution,
+    VideoResolution,
+    VoiceGuidance,
+    Network,
+    Internet,
+    Audio,
+    SystemPowerState,
+    TimeZone,
+}
+
+impl ContractAdjective for EventAdjective {
+    fn get_contract(&self) -> RippleContract {
+        RippleContract::DeviceEvents(self.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::config::Config;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_extn_request_account_session() {
+        let account_session_request = AccountSessionRequest::Get;
+        let contract_type: RippleContract = RippleContract::Session(SessionAdjective::Account);
+        test_extn_payload_provider(account_session_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_request_account_session_none() {
+        let other_payload = ExtnPayload::Request(ExtnRequest::Config(Config::DefaultApp));
+        let result = AccountSessionRequest::get_from_payload(other_payload);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_extn_request_session_token() {
+        let token_context = TokenContext {
+            distributor_id: String::from("test_distributor"),
+            app_id: String::from("test_app"),
+        };
+        let session_token_request = SessionTokenRequest {
+            token_type: TokenType::Device,
+            options: vec![String::from("option1"), String::from("option2")],
+            context: Some(token_context),
+        };
+
+        let contract_type: RippleContract = RippleContract::Session(SessionAdjective::Device);
+        test_extn_payload_provider(session_token_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_request_session_token_none() {
+        let other_payload =
+            ExtnPayload::Request(ExtnRequest::AccountSession(AccountSessionRequest::Get));
+        let result = SessionTokenRequest::get_from_payload(other_payload);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_account_session() {
+        let account_session = AccountSession {
+            id: String::from("your_id"),
+            token: String::from("your_token"),
+            account_id: String::from("your_account_id"),
+            device_id: String::from("your_device_id"),
+        };
+
+        let contract_type: RippleContract = RippleContract::Session(SessionAdjective::Account);
+        test_extn_payload_provider(account_session, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_account_token() {
+        let account_token = AccountToken {
+            token: String::from("your_token"),
+            expires: 123456789,
+        };
+
+        let contract_type: RippleContract = RippleContract::Session(SessionAdjective::Account);
+        test_extn_payload_provider(account_token, contract_type);
     }
 }

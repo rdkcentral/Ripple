@@ -19,10 +19,11 @@ use crate::bootstrap::boot::boot;
 use ripple_sdk::{
     log::{error, info},
     tokio,
-    utils::logger::init_logger,
+    utils::logger::init_and_configure_logger,
 };
 use state::bootstrap_state::BootstrapState;
 pub mod bootstrap;
+pub mod broker;
 pub mod firebolt;
 pub mod processor;
 pub mod service;
@@ -30,14 +31,14 @@ pub mod state;
 pub mod utils;
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
-#[tokio::main]
+#[tokio::main(worker_threads = 2)]
 async fn main() {
     // Init logger
-    if let Err(e) = init_logger("gateway".into()) {
+    if let Err(e) = init_and_configure_logger(SEMVER_LIGHTWEIGHT, "gateway".into()) {
         println!("{:?} logger init error", e);
         return;
     }
-    info!("version {} {}", SEMVER, SHA_SHORT);
+    info!("version {}", SEMVER_LIGHTWEIGHT);
     let bootstate = BootstrapState::build().expect("Failure to init state for bootstrap");
 
     // bootstrap

@@ -32,12 +32,11 @@ use crate::{
     state::platform_state::PlatformState,
 };
 
+pub use ripple_sdk::utils::rpc_utils::rpc_err;
+
 pub const FIRE_BOLT_DEEPLINK_ERROR_CODE: i32 = -40400;
 pub const DOWNSTREAM_SERVICE_UNAVAILABLE_ERROR_CODE: i32 = -50200;
-
-pub fn rpc_err(msg: impl Into<String>) -> Error {
-    Error::Custom(msg.into())
-}
+pub const SESSION_NO_INTENT_ERROR_CODE: i32 = -40000;
 
 /// Awaits a oneshot to respond. If the oneshot fails to repond, creates a generic
 /// RPC internal error
@@ -91,11 +90,32 @@ pub fn rpc_downstream_service_err(msg: &str) -> jsonrpsee::core::error::Error {
         data: None,
     })
 }
-
+pub fn rpc_session_no_intent_err(msg: &str) -> jsonrpsee::core::error::Error {
+    Error::Call(CallError::Custom {
+        code: SESSION_NO_INTENT_ERROR_CODE,
+        message: msg.to_owned(),
+        data: None,
+    })
+}
 pub fn rpc_navigate_reserved_app_err(msg: &str) -> jsonrpsee::core::error::Error {
     Error::Call(CallError::Custom {
         code: FIRE_BOLT_DEEPLINK_ERROR_CODE,
         message: msg.to_owned(),
         data: None,
     })
+}
+
+pub fn get_base_method(method: &str) -> String {
+    let method_vec: Vec<&str> = method.split('.').collect();
+    method_vec.first().unwrap().to_string().to_lowercase()
+}
+
+pub fn extract_tcp_port(url: &str) -> String {
+    let url_split: Vec<&str> = url.split("://").collect();
+    if let Some(domain) = url_split.get(1) {
+        let domain_split: Vec<&str> = domain.split('/').collect();
+        domain_split.first().unwrap().to_string()
+    } else {
+        url.to_owned()
+    }
 }

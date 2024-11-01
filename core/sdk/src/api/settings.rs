@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
@@ -25,7 +25,7 @@ use crate::{
 
 use super::gateway::rpc_gateway_api::CallContext;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum SettingKey {
     VoiceGuidanceEnabled,
     ClosedCaptions,
@@ -72,11 +72,41 @@ impl SettingKey {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct SettingsRequestParam {
+    pub context: CallContext,
+    pub keys: Vec<SettingKey>,
+    pub alias_map: Option<HashMap<String, String>>,
+}
+
+impl SettingsRequestParam {
+    pub fn new(
+        context: CallContext,
+        keys: Vec<SettingKey>,
+        alias_map: Option<HashMap<String, String>>,
+    ) -> Self {
+        Self {
+            context,
+            keys,
+            alias_map,
+        }
+    }
+
+    pub fn get_alias(&self, key: &SettingKey) -> String {
+        if let Some(alias) = &self.alias_map {
+            if let Some(s) = alias.get(&key.to_string()) {
+                return s.to_owned();
+            }
+        }
+        key.to_string()
+    }
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum SettingsRequest {
-    Get(CallContext, Vec<SettingKey>),
-    Subscribe(CallContext, Vec<SettingKey>),
+    Get(SettingsRequestParam),
+    Subscribe(SettingsRequestParam),
 }
 
 impl ExtnPayloadProvider for SettingsRequest {
@@ -97,7 +127,7 @@ impl ExtnPayloadProvider for SettingsRequest {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct SettingValue {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
@@ -117,5 +147,81 @@ impl SettingValue {
             value: None,
             enabled: Some(enabled),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::gateway::rpc_gateway_api::ApiProtocol;
+    use crate::utils::test_utils::test_extn_payload_provider;
+
+    #[test]
+    fn test_setting_key_to_string() {
+        let setting_key = SettingKey::VoiceGuidanceEnabled;
+        assert_eq!(setting_key.to_string(), "VoiceGuidanceEnabled");
+    }
+
+    #[test]
+    fn test_setting_key_use_capability() {
+        let setting_key = SettingKey::VoiceGuidanceEnabled;
+        assert_eq!(setting_key.use_capability(), "accessibility:voiceguidance");
+    }
+
+    #[test]
+    fn test_settings_request_param_get_alias() {
+        let alias_map = Some(
+            vec![
+                ("VoiceGuidanceEnabled".to_owned(), "Alias1".to_owned()),
+                ("ClosedCaptions".to_owned(), "Alias2".to_owned()),
+            ]
+            .into_iter()
+            .collect(),
+        );
+        let settings_request_param = SettingsRequestParam::new(
+            CallContext {
+                session_id: "test_session_id".to_string(),
+                request_id: "test_request_id".to_string(),
+                app_id: "test_app_id".to_string(),
+                call_id: 123,
+                protocol: ApiProtocol::JsonRpc,
+                method: "some method".to_string(),
+                cid: Some("test_cid".to_string()),
+                gateway_secure: true,
+            },
+            vec![SettingKey::VoiceGuidanceEnabled, SettingKey::ClosedCaptions],
+            alias_map,
+        );
+        assert_eq!(
+            settings_request_param.get_alias(&SettingKey::VoiceGuidanceEnabled),
+            "Alias1"
+        );
+        assert_eq!(
+            settings_request_param.get_alias(&SettingKey::ClosedCaptions),
+            "Alias2"
+        );
+    }
+
+    #[test]
+    fn test_extn_request_settings() {
+        let settings_request_param = SettingsRequestParam {
+            context: CallContext {
+                session_id: "test_session_id".to_string(),
+                request_id: "test_request_id".to_string(),
+                app_id: "test_app_id".to_string(),
+                call_id: 123,
+                protocol: ApiProtocol::JsonRpc,
+                method: "some method".to_string(),
+                cid: Some("test_cid".to_string()),
+                gateway_secure: true,
+            },
+            keys: vec![SettingKey::VoiceGuidanceEnabled, SettingKey::ClosedCaptions],
+            alias_map: Some(HashMap::new()),
+        };
+
+        let settings_request = SettingsRequest::Get(settings_request_param);
+
+        let contract_type: RippleContract = RippleContract::Settings;
+        test_extn_payload_provider(settings_request, contract_type);
     }
 }

@@ -34,12 +34,13 @@ pub enum ThunderPlugin {
     TextToSpeech,
     Hdcp,
     Telemetry,
+    PackageManager,
 }
 const CONTROLLER_CFG: Cfg = Cfg::new("Controller", false, true);
 const DEVICE_INFO_CFG: Cfg = Cfg::new("DeviceInfo", true, false);
 const DISPLAY_SETTINGS_CFG: Cfg = Cfg::new("org.rdk.DisplaySettings", true, false);
 const HDCP_CFG: Cfg = Cfg::new("org.rdk.HdcpProfile", true, false);
-const NETWORK_CFG: Cfg = Cfg::new("org.rdk.Network", true, false);
+const NETWORK_CFG: Cfg = Cfg::new("org.rdk.Network", false, false);
 const PERSISTENT_STORAGE_CFG: Cfg = Cfg::new("org.rdk.PersistentStore", false, false);
 const RDKSHELL_CFG: Cfg = Cfg::new("org.rdk.RDKShell", false, false);
 const REMOTE_CONTROL_CFG: Cfg = Cfg::new("org.rdk.RemoteControl", false, false);
@@ -47,7 +48,8 @@ const SYSTEM_CFG: Cfg = Cfg::new("org.rdk.System", true, false);
 const WIFI_CFG: Cfg = Cfg::new("org.rdk.Wifi", false, false);
 const LOCATION_SYNC: Cfg = Cfg::new("LocationSync", false, false);
 const TTS_CFG: Cfg = Cfg::new("org.rdk.TextToSpeech", false, true);
-const TELEMETRY_CFG: Cfg = Cfg::new("org.rdk.Telemetry", true, true);
+const TELEMETRY_CFG: Cfg = Cfg::new("org.rdk.Telemetry", false, false);
+const PACKAGE_MANAGER_CFG: Cfg = Cfg::new("org.rdk.PackageManager", false, false);
 
 impl ThunderPlugin {
     pub fn cfg(&self) -> Cfg {
@@ -66,6 +68,7 @@ impl ThunderPlugin {
             LocationSync => LOCATION_SYNC,
             TextToSpeech => TTS_CFG,
             Telemetry => TELEMETRY_CFG,
+            PackageManager => PACKAGE_MANAGER_CFG,
         }
     }
     pub fn callsign(&self) -> &str {
@@ -122,5 +125,47 @@ impl ThunderPluginConfig {
             activate_at_boot,
             expect_activated,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_thunder_plugin_controller() {
+        // Test ThunderPlugin APIs for Controller
+        assert_eq!(ThunderPlugin::Controller.callsign(), "Controller");
+        assert_eq!(
+            ThunderPlugin::Controller.callsign_and_version(),
+            "Controller.1"
+        );
+        assert_eq!(ThunderPlugin::Controller.callsign_string(), "Controller");
+        assert!(!ThunderPlugin::Controller.activate_at_boot());
+        assert!(ThunderPlugin::Controller.expect_activated());
+        assert_eq!(
+            ThunderPlugin::Controller.method("register"),
+            "Controller.1.register"
+        );
+        assert_eq!(
+            ThunderPlugin::Controller.method_version("register", 1),
+            "Controller.1.register"
+        );
+        assert_eq!(
+            ThunderPlugin::Controller.unversioned_method("register"),
+            "Controller.register"
+        );
+    }
+    #[test]
+    fn test_thunder_plugin_activates() {
+        assert_eq!(ThunderPlugin::activate_on_boot_plugins().len(), 4);
+        assert_eq!(ThunderPlugin::expect_activated_plugins().len(), 2);
+    }
+    #[test]
+    fn test_thunder_plugin_config_new() {
+        let cfg = ThunderPluginConfig::new("org.test.plugin", true, false);
+        assert_eq!(cfg.callsign, "org.test.plugin");
+        assert!(cfg.activate_at_boot);
+        assert!(!cfg.expect_activated);
     }
 }

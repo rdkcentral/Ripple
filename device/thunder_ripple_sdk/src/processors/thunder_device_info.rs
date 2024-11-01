@@ -18,15 +18,11 @@
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
-    thread,
-    time::{self, Duration},
+    time::Duration,
 };
 
 use crate::{
-    client::{
-        thunder_client::ThunderClient,
-        thunder_plugin::ThunderPlugin::{self, LocationSync},
-    },
+    client::{thunder_client::ThunderClient, thunder_plugin::ThunderPlugin},
     ripple_sdk::{
         api::device::{device_info_request::DeviceCapabilities, device_request::AudioProfile},
         chrono::NaiveDateTime,
@@ -34,16 +30,14 @@ use crate::{
         tokio::sync::mpsc,
     },
     thunder_state::ThunderState,
+    utils::check_thunder_response_success,
 };
 use crate::{
     ripple_sdk::{
         api::{
             device::{
                 device_info_request::{DeviceInfoRequest, DeviceResponse},
-                device_operator::{
-                    DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
-                    DeviceSubscribeRequest, DeviceUnsubscribeRequest,
-                },
+                device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
                 device_request::{
                     HDCPStatus, HdcpProfile, HdrProfile, NetworkResponse, NetworkState,
                     NetworkType, Resolution,
@@ -65,7 +59,27 @@ use crate::{
     },
     utils::get_audio_profile_from_value,
 };
-use ripple_sdk::serde_json::{Map, Value};
+use regex::{Match, Regex};
+use ripple_sdk::{
+    api::{
+        config::Config,
+        context::RippleContextUpdateRequest,
+        device::{
+            device_info_request::{FirmwareInfo, PlatformBuildInfo},
+            device_request::{InternetConnectionStatus, PowerState},
+        },
+        device::{
+            device_info_request::{
+                DEVICE_INFO_AUTHORIZED, DEVICE_MAKE_MODEL_AUTHORIZED, DEVICE_SKU_AUTHORIZED,
+            },
+            device_request::TimeZone,
+        },
+        manifest::device_manifest::DefaultValues,
+    },
+    log::trace,
+    serde_json::{Map, Value},
+    tokio::join,
+};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 
@@ -82,6 +96,7 @@ pub mod hdr_flags {
     pub const HDRSTANDARD_HLG: u32 = 0x02;
     pub const HDRSTANDARD_DOLBY_VISION: u32 = 0x04;
     pub const HDRSTANDARD_TECHNICOLOR_PRIME: u32 = 0x08;
+    pub const HDRSTANDARD_HDR10PLUS: u32 = 0x10;
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -111,7 +126,7 @@ struct ThunderInterfaceStatus {
     connected: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 struct ThunderGetInterfacesResponse {
     interfaces: Vec<ThunderInterfaceStatus>,
@@ -133,10 +148,8 @@ pub struct CachedDeviceInfo {
     model: Option<String>,
     make: Option<String>,
     hdcp_support: Option<HashMap<HdcpProfile, bool>>,
-    hdcp_status: Option<HDCPStatus>,
     hdr_profile: Option<HashMap<HdrProfile, bool>>,
     version: Option<FireboltSemanticVersion>,
-    all_timezones: Option<ThunderAllTimezonesResponse>,
 }
 
 #[derive(Debug, Clone)]
@@ -168,15 +181,6 @@ impl CachedState {
     fn update_hdcp_support(&self, value: HashMap<HdcpProfile, bool>) {
         let mut hdcp = self.cached.write().unwrap();
         let _ = hdcp.hdcp_support.insert(value);
-    }
-
-    fn get_hdcp_status(&self) -> Option<HDCPStatus> {
-        self.cached.read().unwrap().hdcp_status.clone()
-    }
-
-    fn update_hdcp_status(&self, value: HDCPStatus) {
-        let mut hdcp = self.cached.write().unwrap();
-        let _ = hdcp.hdcp_status.insert(value);
     }
 
     fn get_hdr(&self) -> Option<HashMap<HdrProfile, bool>> {
@@ -232,15 +236,6 @@ impl CachedState {
         let mut cached = self.cached.write().unwrap();
         let _ = cached.version.insert(version);
     }
-
-    fn update_timezone(&self, timezones: ThunderAllTimezonesResponse) {
-        let mut cached = self.cached.write().unwrap();
-        let _ = cached.all_timezones.insert(timezones);
-    }
-
-    fn get_timezone(&self) -> Option<ThunderAllTimezonesResponse> {
-        self.cached.read().unwrap().all_timezones.clone()
-    }
 }
 
 pub struct ThunderNetworkService;
@@ -255,14 +250,8 @@ impl ThunderNetworkService {
             })
             .await;
         info!("{}", response.message);
-        serde_json::from_str(&response.message.to_string()).unwrap()
-
-        // let get_interfaces = Network.method("getInterfaces");
-        // let get_internet_response = client
-        //     .clone()
-        //     .call_thunder(&get_interfaces, None, Some(span.clone()))
-        //     .await;
-        // serde_json::from_value(get_internet_response.message).unwrap()
+        serde_json::from_str(&response.message.to_string())
+            .unwrap_or(ThunderGetInterfacesResponse::default())
     }
 
     async fn get_connected_interface(state: CachedState) -> ThunderInterfaceType {
@@ -281,15 +270,16 @@ impl ThunderNetworkService {
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
-                method: ThunderPlugin::LocationSync.method("location"),
+                method: ThunderPlugin::Network.method("isConnectedToInternet"),
                 params: None,
             })
             .await;
         info!("{}", response.message);
-        if let Some(ip) = response.message["publicip"].as_str() {
-            return !ip.is_empty();
-        };
-        false
+        let response = response.message.get("connectedToInternet");
+        if response.is_none() {
+            return false;
+        }
+        response.unwrap().as_bool().unwrap_or(false)
     }
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -352,12 +342,12 @@ impl ThunderAllTimezonesResponse {
                     if let Ok(nutz) =
                         NaiveDateTime::parse_from_str(&utc_tz, "%a %b %d %H:%M:%S %Y %Z")
                     {
-                        return (ntz - nutz).num_seconds();
+                        let delta = (ntz - nutz).num_seconds();
+                        return round_to_nearest_quarter_hour(delta);
                     }
                 }
             }
         }
-
         0
     }
 }
@@ -373,7 +363,15 @@ impl<'de> Deserialize<'de> for ThunderAllTimezonesResponse {
                 &mut timezones,
                 String::from(""),
                 zones,
-                vec!["Etc", "Utc", "America", "Australia", "Africa", "Europe"],
+                vec![
+                    "Etc",
+                    "Utc",
+                    "America",
+                    "Australia",
+                    "Africa",
+                    "Europe",
+                    "Pacific",
+                ],
             );
         }
         Ok(ThunderAllTimezonesResponse { timezones })
@@ -407,9 +405,8 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     async fn get_mac_address(state: &CachedState) -> String {
-        let response: String;
         match state.get_mac_address() {
-            Some(value) => response = value,
+            Some(value) => value,
             None => {
                 let resp = state
                     .get_thunder_client()
@@ -421,31 +418,27 @@ impl ThunderDeviceInfoRequestProcessor {
                     })
                     .await;
                 info!("{}", resp.message);
-
-                let mac_value_option = resp.message["estb_mac"].as_str();
-                if let Some(value) = mac_value_option {
-                    response = value.to_string();
-                    state.update_mac_address(response.clone())
-                } else {
-                    response = "".to_string();
+                let resp = resp.message.get("estb_mac");
+                if resp.is_none() {
+                    return "".to_string();
                 }
+                let mac = resp.unwrap().as_str().unwrap().trim_matches('"');
+                state.update_mac_address(mac.to_string());
+                mac.to_string()
             }
         }
-        response
     }
 
     async fn mac_address(state: CachedState, req: ExtnMessage) -> bool {
         let response: String = Self::get_mac_address(&state).await;
-
         Self::respond(state.get_client(), req, ExtnResponse::String(response))
             .await
             .is_ok()
     }
 
     async fn get_serial_number(state: &CachedState) -> String {
-        let response: String;
         match state.get_serial_number() {
-            Some(value) => response = value,
+            Some(value) => value,
             None => {
                 let resp = state
                     .get_thunder_client()
@@ -456,16 +449,16 @@ impl ThunderDeviceInfoRequestProcessor {
                     .await;
                 info!("{}", resp.message);
 
-                let serial_number_option = resp.message["serialNumber"].as_str();
-                if serial_number_option.is_none() {
-                    response = "".to_string();
-                } else {
-                    response = serial_number_option.unwrap().to_string();
-                    state.update_serial_number(response.clone())
-                }
+                resp.message["serialNumber"].as_str().map_or_else(
+                    || "".to_string(),
+                    |serial_number| {
+                        let serial_number = serial_number.to_string();
+                        state.update_serial_number(serial_number.clone());
+                        serial_number
+                    },
+                )
             }
         }
-        response
     }
 
     async fn serial_number(state: CachedState, req: ExtnMessage) -> bool {
@@ -477,9 +470,8 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     async fn get_model(state: &CachedState) -> String {
-        let response: String;
         match state.get_model() {
-            Some(value) => response = value,
+            Some(value) => value,
             None => {
                 let resp = state
                     .get_thunder_client()
@@ -489,15 +481,17 @@ impl ThunderDeviceInfoRequestProcessor {
                     })
                     .await;
                 info!("{}", resp.message);
-
-                let full_firmware_version =
-                    String::from(resp.message["stbVersion"].as_str().unwrap());
-                let split_string: Vec<&str> = full_firmware_version.split('_').collect();
-                response = String::from(split_string[0]);
-                state.update_model(response.clone());
+                let resp = resp.message.get("stbVersion");
+                if resp.is_none() {
+                    return "NA".to_owned();
+                }
+                let resp = resp.unwrap().as_str().unwrap().trim_matches('"');
+                let split_string: Vec<&str> = resp.split('_').collect();
+                let model = String::from(split_string[0]);
+                state.update_model(model.clone());
+                model
             }
         }
-        response
     }
 
     async fn model(state: CachedState, req: ExtnMessage) -> bool {
@@ -507,10 +501,31 @@ impl ThunderDeviceInfoRequestProcessor {
             .is_ok()
     }
 
+    async fn get_internet_connection_status(
+        state: &CachedState,
+    ) -> Option<InternetConnectionStatus> {
+        let dev_response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::Network.method("getInternetConnectionState"),
+                params: None,
+            })
+            .await;
+        let resp = dev_response.message.get("state")?;
+        if let Ok(internet_status) = serde_json::from_value::<u32>(resp.clone()) {
+            return match internet_status {
+                0 => Some(InternetConnectionStatus::NoInternet),
+                1 => Some(InternetConnectionStatus::LimitedInternet),
+                2 => Some(InternetConnectionStatus::CaptivePortal),
+                3 => Some(InternetConnectionStatus::FullyConnected),
+                _ => None,
+            };
+        }
+        None
+    }
     async fn get_make(state: &CachedState) -> String {
-        let response: String;
         match state.get_make() {
-            Some(value) => response = value,
+            Some(value) => value,
             None => {
                 let resp = state
                     .get_thunder_client()
@@ -520,17 +535,69 @@ impl ThunderDeviceInfoRequestProcessor {
                     })
                     .await;
                 info!("{}", resp.message);
-                if let Some(make) = resp.message["make"].as_str() {
-                    response = make.into();
-                    state.update_make(response.clone());
+                let r = resp.message.get("make");
+                if r.is_none() {
+                    "".into()
                 } else {
-                    response = "".into();
+                    let make = r.unwrap().as_str().unwrap().trim_matches('"');
+                    state.update_make(make.to_string());
+                    make.to_string()
                 }
             }
         }
-        response
     }
 
+    async fn start_internet_monitoring_changes(state: CachedState, request: ExtnMessage) -> bool {
+        // Self::start_internet_monitoring(&state).await
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::Network.method("startConnectivityMonitoring"),
+                params: Some(DeviceChannelParams::Json(
+                    /* This interval is in seconds. Arrived at this magical number 180 secs
+                     * after discussing with NetworkPlugin developer.
+                     */
+                    json!({"interval": 180}).to_string(),
+                )),
+            })
+            .await;
+        if check_thunder_response_success(&response) {
+            return Self::respond(state.get_client(), request, ExtnResponse::None(()))
+                .await
+                .is_ok();
+        }
+        Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
+    }
+    async fn internet_connection_status(state: CachedState, req: ExtnMessage) -> bool {
+        if let Some(response) = Self::get_internet_connection_status(&state).await {
+            trace!(
+                "Successfully got internetConnection status from thunder: {:?}",
+                response
+            );
+            let event = RippleContextUpdateRequest::InternetStatus(response.clone());
+            let _send_event_result = state.get_client().request_transient(event);
+            trace!(
+                "Result of sending ripple context event: {:?}",
+                _send_event_result
+            );
+            Self::respond(
+                state.get_client(),
+                req,
+                if let ExtnPayload::Response(resp) =
+                    DeviceResponse::InternetConnectionStatus(response).get_extn_payload()
+                {
+                    resp
+                } else {
+                    ExtnResponse::Error(RippleError::ProcessorError)
+                },
+            )
+            .await
+            .is_ok()
+        } else {
+            error!("Unable to get internet connection status from thunder");
+            Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
+        }
+    }
     async fn make(state: CachedState, req: ExtnMessage) -> bool {
         let response: String = Self::get_make(&state).await;
 
@@ -552,9 +619,7 @@ impl ThunderDeviceInfoRequestProcessor {
             })
             .await;
         info!("{}", response.message);
-        if response.message.get("success").is_none()
-            || !response.message["success"].as_bool().unwrap_or_default()
-        {
+        if !check_thunder_response_success(&response) {
             error!("{}", response.message);
             return HashMap::new();
         }
@@ -588,18 +653,32 @@ impl ThunderDeviceInfoRequestProcessor {
             })
             .await;
         info!("{}", response.message);
-        let hdcp_version = response.message["supportedHDCPVersion"].to_string();
-        let is_hdcp_supported: bool = response.message["isHDCPSupported"]
-            .to_string()
-            .parse()
-            .unwrap();
         let mut hdcp_response = HashMap::new();
+        let resp = response.message.get("supportedHDCPVersion");
+
+        if resp.is_none() {
+            return hdcp_response;
+        }
+        let v = resp.unwrap();
+
+        let hdcp_version = v.to_string();
+
+        let is_hdcp_supported: bool = if let Some(h) = response.message.get("isHDCPSupported") {
+            if let Ok(v) = h.to_string().parse::<bool>() {
+                v
+            } else {
+                false
+            }
+        } else {
+            false
+        };
         if hdcp_version.contains("1.4") {
             hdcp_response.insert(HdcpProfile::Hdcp1_4, is_hdcp_supported);
         }
         if hdcp_version.contains("2.2") {
             hdcp_response.insert(HdcpProfile::Hdcp2_2, is_hdcp_supported);
         }
+
         hdcp_response
     }
 
@@ -631,22 +710,17 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     async fn get_hdcp_status(state: &CachedState) -> HDCPStatus {
-        let response: HDCPStatus;
-        match state.get_hdcp_status() {
-            Some(status) => response = status,
-            None => {
-                let resp = state
-                    .get_thunder_client()
-                    .call(DeviceCallRequest {
-                        method: ThunderPlugin::Hdcp.method("getHDCPStatus"),
-                        params: None,
-                    })
-                    .await;
-                info!("{}", resp.message);
-                let thdcp: ThunderHDCPStatus = serde_json::from_value(resp.message).unwrap();
-                response = thdcp.hdcp_status;
-                state.update_hdcp_status(response.clone());
-            }
+        let mut response: HDCPStatus = HDCPStatus::default();
+        let resp = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::Hdcp.method("getHDCPStatus"),
+                params: None,
+            })
+            .await;
+        info!("{}", resp.message);
+        if let Ok(thdcp) = serde_json::from_value::<ThunderHDCPStatus>(resp.message) {
+            response = thdcp.hdcp_status;
         }
         response
     }
@@ -709,6 +783,10 @@ impl ThunderDeviceInfoRequestProcessor {
             HdrProfile::Technicolor,
             0 != (supported_cap & hdr_flags::HDRSTANDARD_TECHNICOLOR_PRIME),
         );
+        hm.insert(
+            HdrProfile::Hdr10plus,
+            0 != (supported_cap & hdr_flags::HDRSTANDARD_HDR10PLUS),
+        );
         hm
     }
 
@@ -739,14 +817,12 @@ impl ThunderDeviceInfoRequestProcessor {
             .await;
         info!("{}", response.message);
 
-        if response.message.get("success").is_none()
-            || !response.message["success"].as_bool().unwrap_or_default()
-        {
+        if !check_thunder_response_success(&response) {
             error!("{}", response.message);
             return Vec::new();
         }
         info!("{}", response.message);
-        let resol = response.message["resolution"].as_str().unwrap();
+        let resol = response.message["resolution"].as_str().unwrap_or_default();
         get_dimension_from_resolution(resol)
     }
 
@@ -768,7 +844,24 @@ impl ThunderDeviceInfoRequestProcessor {
         .is_ok()
     }
 
-    async fn get_video_resolution(state: &CachedState) -> Vec<i32> {
+    async fn get_current_resolution(state: &CachedState) -> Result<Vec<i32>, ()> {
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::DisplaySettings.method("getCurrentResolution"),
+                params: None,
+            })
+            .await;
+        if !check_thunder_response_success(&response) {
+            error!("{}", response.message);
+            return Err(());
+        }
+        info!("{}", response.message);
+        let resol = response.message["resolution"].as_str().unwrap_or_default();
+        Ok(get_dimension_from_resolution(resol))
+    }
+
+    async fn get_default_resolution(state: &CachedState) -> Result<Vec<i32>, ()> {
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -776,15 +869,34 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        if response.message.get("success").is_none()
-            || !response.message["success"].as_bool().unwrap_or_default()
-        {
+        if !check_thunder_response_success(&response) {
             error!("{}", response.message);
-            return Vec::new();
+            return Err(());
         }
         info!("{}", response.message);
-        let resol = response.message["defaultResolution"].as_str().unwrap();
-        get_dimension_from_resolution(resol)
+        if let Some(resol) = response.message.get("defaultResolution") {
+            if let Some(r) = resol.as_str() {
+                return Ok(get_dimension_from_resolution(r));
+            }
+        }
+        Err(())
+    }
+
+    async fn get_video_resolution(state: &CachedState) -> Vec<i32> {
+        if let Ok(resolution) = Self::get_current_resolution(state).await {
+            return resolution;
+        }
+        if let Ok(resolution) = Self::get_default_resolution(state).await {
+            return resolution;
+        }
+        if let Ok(response) = state.get_client().request(Config::DefaultValues).await {
+            if let Some(ExtnResponse::Value(value)) = response.payload.extract() {
+                if let Ok(default_values) = serde_json::from_value::<DefaultValues>(value) {
+                    return default_values.video_dimensions;
+                }
+            }
+        }
+        vec![]
     }
 
     async fn video_resolution(state: CachedState, req: ExtnMessage) -> bool {
@@ -831,68 +943,38 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     async fn on_internet_connected(state: CachedState, req: ExtnMessage, timeout: u64) -> bool {
-        if ThunderNetworkService::has_internet(&state).await {
-            return Self::respond(state.get_client(), req, ExtnResponse::None(()))
-                .await
-                .is_ok();
-        }
+        if tokio::time::timeout(
+            Duration::from_millis(timeout),
+            Self::respond(state.get_client(), req.clone(), {
+                let value = ThunderNetworkService::has_internet(&state).await;
 
-        let (s, mut r) = mpsc::channel::<DeviceResponseMessage>(32);
-        let cloned_state = state.clone();
-        let client = state.get_thunder_client();
-
-        client
-            .clone()
-            .subscribe(
-                DeviceSubscribeRequest {
-                    module: LocationSync.callsign_and_version(),
-                    event_name: "locationchange".into(),
-                    params: None,
-                    sub_id: None,
-                },
-                s,
-            )
-            .await;
-        info!("subscribed to locationchangeChanged events");
-
-        let thread_res = tokio::spawn(async move {
-            while r.recv().await.is_some() {
-                if ThunderNetworkService::has_internet(&cloned_state).await {
-                    // Internet precondition for browsers are supposed to be met
-                    // when locationchange event is given, but seems to be a short period
-                    // where it still is not. Wait for a small amount of time.
-                    thread::sleep(time::Duration::from_millis(1000));
-                    cloned_state
-                        .get_thunder_client()
-                        .unsubscribe(DeviceUnsubscribeRequest {
-                            module: LocationSync.callsign_and_version(),
-                            event_name: "locationchange".into(),
-                        })
-                        .await;
-                    info!("Unsubscribing to locationchangeChanged events");
+                if let ExtnPayload::Response(r) =
+                    DeviceResponse::InternetConnectionStatus(match value {
+                        true => InternetConnectionStatus::FullyConnected,
+                        false => InternetConnectionStatus::NoInternet,
+                    })
+                    .get_extn_payload()
+                {
+                    r
+                } else {
+                    ExtnResponse::Error(RippleError::ProcessorError)
                 }
-            }
-        });
-        let dur = Duration::from_millis(timeout);
-        if tokio::time::timeout(dur, thread_res).await.is_err() {
-            return Self::respond(
-                state.get_client(),
-                req,
-                ExtnResponse::Error(RippleError::NoResponse),
-            )
-            .await
-            .is_ok();
+            }),
+        )
+        .await
+        .is_err()
+        {
+            Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
+        } else {
+            true
         }
-        Self::respond(state.get_client().clone(), req, ExtnResponse::None(()))
-            .await
-            .is_ok()
     }
 
-    async fn get_version(state: &CachedState) -> FireboltSemanticVersion {
-        let response: FireboltSemanticVersion;
+    async fn get_os_info(state: &CachedState) -> FirmwareInfo {
+        let version: FireboltSemanticVersion;
         // TODO: refactor this to use return syntax and not use response variable across branches
         match state.get_version() {
-            Some(v) => response = v,
+            Some(v) => version = v,
             None => {
                 let resp = state
                     .get_thunder_client()
@@ -902,36 +984,45 @@ impl ThunderDeviceInfoRequestProcessor {
                     })
                     .await;
                 info!("{}", resp.message);
-                let tsv: SystemVersion = serde_json::from_value(resp.message).unwrap();
-                let tsv_split = tsv.receiver_version.split('.');
-                let tsv_vec: Vec<&str> = tsv_split.collect();
+                if let Ok(tsv) = serde_json::from_value::<SystemVersion>(resp.message) {
+                    let tsv_split = tsv.receiver_version.split('.');
+                    let tsv_vec: Vec<&str> = tsv_split.collect();
 
-                if tsv_vec.len() >= 3 {
-                    let major: String = tsv_vec[0].chars().filter(|c| c.is_ascii_digit()).collect();
-                    let minor: String = tsv_vec[1].chars().filter(|c| c.is_ascii_digit()).collect();
-                    let patch: String = tsv_vec[2].chars().filter(|c| c.is_ascii_digit()).collect();
+                    if tsv_vec.len() >= 3 {
+                        let major: String =
+                            tsv_vec[0].chars().filter(|c| c.is_ascii_digit()).collect();
+                        let minor: String =
+                            tsv_vec[1].chars().filter(|c| c.is_ascii_digit()).collect();
+                        let patch: String =
+                            tsv_vec[2].chars().filter(|c| c.is_ascii_digit()).collect();
 
-                    response = FireboltSemanticVersion {
-                        major: major.parse::<u32>().unwrap(),
-                        minor: minor.parse::<u32>().unwrap(),
-                        patch: patch.parse::<u32>().unwrap(),
-                        readable: tsv.stb_version,
-                    };
-                    state.update_version(response.clone());
+                        version = FireboltSemanticVersion {
+                            major: major.parse::<u32>().unwrap(),
+                            minor: minor.parse::<u32>().unwrap(),
+                            patch: patch.parse::<u32>().unwrap(),
+                            readable: tsv.stb_version,
+                        };
+                        state.update_version(version.clone());
+                    } else {
+                        version = FireboltSemanticVersion {
+                            readable: tsv.stb_version,
+                            ..FireboltSemanticVersion::default()
+                        };
+                        state.update_version(version.clone())
+                    }
                 } else {
-                    response = FireboltSemanticVersion {
-                        readable: tsv.stb_version,
-                        ..FireboltSemanticVersion::default()
-                    };
-                    state.update_version(response.clone())
+                    version = FireboltSemanticVersion::default()
                 }
             }
         }
-        response
+        FirmwareInfo {
+            name: "rdk".into(),
+            version,
+        }
     }
 
-    async fn version(state: CachedState, req: ExtnMessage) -> bool {
-        let response = Self::get_version(&state).await;
+    async fn os_info(state: CachedState, req: ExtnMessage) -> bool {
+        let response = Self::get_os_info(&state).await;
         Self::respond(
             state.get_client(),
             req,
@@ -956,9 +1047,7 @@ impl ThunderDeviceInfoRequestProcessor {
             })
             .await;
         info!("{}", response.message);
-        if response.message.get("success").is_some()
-            && response.message["success"].as_bool().unwrap_or_default()
-        {
+        if check_thunder_response_success(&response) {
             if let Some(v) = response.message["freeRam"].as_u64() {
                 return Self::respond(state.get_client(), req, ExtnResponse::Value(json!(v)))
                     .await
@@ -993,10 +1082,8 @@ impl ThunderDeviceInfoRequestProcessor {
             })
             .await;
 
-        info!("{}", response.message);
-        if response.message.get("success").is_none()
-            || response.message["success"].as_bool().unwrap_or_default()
-        {
+        info!("getTimeZoneDST: {}", response.message);
+        if check_thunder_response_success(&response) {
             if let Ok(v) = serde_json::from_value::<ThunderTimezoneResponse>(response.message) {
                 return Ok(v.time_zone);
             }
@@ -1014,29 +1101,61 @@ impl ThunderDeviceInfoRequestProcessor {
         }
     }
 
-    async fn get_timezone_with_offset(state: CachedState, req: ExtnMessage) -> bool {
-        if let Ok(timezone) = Self::get_timezone_value(&state).await {
-            if let Ok(timezones) = Self::get_all_timezones(&state).await {
-                let offset = timezones.get_offset(&timezone);
+    pub async fn get_timezone_with_offset(state: CachedState, req: ExtnMessage) -> bool {
+        if let Some(TimeZone { time_zone, offset }) = state.get_client().get_timezone() {
+            if !time_zone.is_empty() {
                 return Self::respond(
                     state.get_client(),
                     req,
-                    ExtnResponse::TimezoneWithOffset(timezone, offset),
+                    ExtnResponse::TimezoneWithOffset(time_zone, offset),
                 )
                 .await
                 .is_ok();
             }
         }
+
+        // If timezone or offset is None or empty
+        if let Some(tz) = Self::get_timezone_and_offset(&state).await {
+            let cloned_state = state.clone();
+            let cloned_tz = tz.clone();
+
+            cloned_state
+                .get_client()
+                .context_update(RippleContextUpdateRequest::TimeZone(TimeZone {
+                    time_zone: cloned_tz.time_zone,
+                    offset: cloned_tz.offset,
+                }));
+
+            return Self::respond(
+                state.get_client(),
+                req,
+                ExtnResponse::TimezoneWithOffset(tz.time_zone, tz.offset),
+            )
+            .await
+            .is_ok();
+        }
+
         error!("get_timezone_offset: Unsupported timezone");
         Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
+    }
+
+    pub async fn get_timezone_and_offset(state: &CachedState) -> Option<TimeZone> {
+        let timezone_result = ThunderDeviceInfoRequestProcessor::get_timezone_value(state).await;
+        let timezones_result = ThunderDeviceInfoRequestProcessor::get_all_timezones(state).await;
+
+        if let (Ok(timezone), Ok(timezones)) = (timezone_result, timezones_result) {
+            Some(TimeZone {
+                time_zone: timezone.clone(),
+                offset: timezones.get_offset(&timezone),
+            })
+        } else {
+            None
+        }
     }
 
     async fn get_all_timezones(
         state: &CachedState,
     ) -> Result<ThunderAllTimezonesResponse, RippleError> {
-        if let Some(t) = state.get_timezone() {
-            return Ok(t);
-        }
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -1044,14 +1163,9 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        if response.message.get("success").is_some()
-            && response.message["success"].as_bool().unwrap_or_default()
-        {
+        if check_thunder_response_success(&response) {
             match serde_json::from_value::<ThunderAllTimezonesResponse>(response.message) {
-                Ok(timezones) => {
-                    state.update_timezone(timezones.clone());
-                    Ok(timezones)
-                }
+                Ok(timezones) => Ok(timezones),
                 Err(e) => {
                     error!("{}", e.to_string());
                     Err(RippleError::ProcessorError)
@@ -1093,9 +1207,7 @@ impl ThunderDeviceInfoRequestProcessor {
             .await;
         info!("{}", response.message);
 
-        if response.message.get("success").is_none()
-            || response.message["success"].as_bool().unwrap_or_default()
-        {
+        if check_thunder_response_success(&response) {
             return Self::respond(state.get_client(), request, ExtnResponse::None(()))
                 .await
                 .is_ok();
@@ -1137,9 +1249,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 params,
             })
             .await;
-        if response.message.get("success").is_some()
-            && response.message["success"].as_bool().is_some()
-        {
+        if check_thunder_response_success(&response) {
             return Self::ack(state.get_client(), request).await.is_ok();
         }
         Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
@@ -1199,12 +1309,202 @@ impl ThunderDeviceInfoRequestProcessor {
                 params,
             })
             .await;
-        if response.message.get("success").is_some()
-            && response.message["success"].as_bool().is_some()
-        {
+        if check_thunder_response_success(&response) {
             return Self::ack(state.get_client(), request).await.is_ok();
         }
         Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
+    }
+
+    async fn power_state(state: CachedState, req: ExtnMessage) -> bool {
+        let dev_response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::System.method("getPowerState"),
+                params: None,
+            })
+            .await;
+        let resp = dev_response.message.get("powerState").cloned();
+        if resp.is_none() {
+            error!("Unable to get power state from thunder");
+            return Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await;
+        }
+
+        let value = resp.unwrap();
+        let power_state = serde_json::from_value::<PowerState>(value);
+        if power_state.is_err() {
+            return Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await;
+        }
+        let power_state = power_state.unwrap();
+        Self::respond(
+            state.get_client(),
+            req,
+            if let ExtnPayload::Response(r) =
+                DeviceResponse::PowerState(power_state).get_extn_payload()
+            {
+                r
+            } else {
+                ExtnResponse::Error(RippleError::ProcessorError)
+            },
+        )
+        .await
+        .is_ok()
+    }
+
+    async fn get_device_capabilities(state: CachedState, keys: &[&str], msg: ExtnMessage) -> bool {
+        let device_info_authorized = keys.contains(&DEVICE_INFO_AUTHORIZED);
+        let (
+            video_dimensions,
+            native_dimensions,
+            firmware_info_result,
+            hdr_info,
+            hdcp_result,
+            audio_result,
+            model_result,
+            make_result,
+        ) = join!(
+            async {
+                if device_info_authorized {
+                    Some(Self::get_video_resolution(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if device_info_authorized {
+                    Some(Self::get_screen_resolution(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if device_info_authorized {
+                    Some(Self::get_os_info(&state).await.version)
+                } else {
+                    None
+                }
+            },
+            async {
+                if device_info_authorized {
+                    Some(Self::get_cached_hdr(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if device_info_authorized {
+                    Some(Self::get_hdcp_status(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if device_info_authorized {
+                    Some(Self::get_audio(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if keys.contains(&DEVICE_SKU_AUTHORIZED) {
+                    Some(Self::get_model(&state).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if keys.contains(&DEVICE_MAKE_MODEL_AUTHORIZED) {
+                    Some(Self::get_make(&state).await)
+                } else {
+                    None
+                }
+            }
+        );
+
+        let device_capabilities = DeviceCapabilities {
+            audio: audio_result,
+            firmware_info: firmware_info_result,
+            hdcp: hdcp_result,
+            hdr: hdr_info,
+            make: make_result,
+            model: model_result,
+            video_resolution: video_dimensions,
+            screen_resolution: native_dimensions,
+        };
+        if let ExtnPayload::Response(r) =
+            DeviceResponse::FullCapabilities(device_capabilities).get_extn_payload()
+        {
+            Self::respond(state.get_client(), msg, r).await.is_ok()
+        } else {
+            Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await
+        }
+    }
+
+    async fn platform_build_info(state: CachedState, msg: ExtnMessage) -> bool {
+        let resp = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::System.method("getSystemVersions"),
+                params: None,
+            })
+            .await;
+        if let Ok(tsv) = serde_json::from_value::<SystemVersion>(resp.message) {
+            let release_regex = Regex::new(r"([^_]*)_(.*)_(VBN|PROD[^_]*)_(.*)").unwrap();
+            let non_release_regex =
+                Regex::new(r"([^_]*)_(VBN|PROD[^_]*)_(.*)_(\d{14}(sdy|sey))(.*)").unwrap();
+            let fallback_regex = Regex::new(r"([^_]*)_(.*)").unwrap();
+            fn match_or_empty(m_opt: Option<Match>) -> String {
+                if let Some(m) = m_opt {
+                    String::from(m.as_str())
+                } else {
+                    String::from("")
+                }
+            }
+
+            let name = tsv.stb_version.clone();
+
+            let info_opt = if let Some(caps) = release_regex.captures(&tsv.stb_version) {
+                Some(PlatformBuildInfo {
+                    name,
+                    device_model: match_or_empty(caps.get(1)),
+                    branch: None,
+                    release_version: caps.get(2).map(|s| String::from(s.as_str())),
+                    debug: match_or_empty(caps.get(3)) == "VBN",
+                })
+            } else if let Some(caps) = non_release_regex.captures(&tsv.stb_version) {
+                Some(PlatformBuildInfo {
+                    name,
+                    device_model: match_or_empty(caps.get(1)),
+                    branch: caps.get(3).map(|s| String::from(s.as_str())),
+                    release_version: None,
+                    debug: match_or_empty(caps.get(2)) == "VBN",
+                })
+            } else if let Some(caps) = fallback_regex.captures(&tsv.stb_version) {
+                Some(PlatformBuildInfo {
+                    name,
+                    device_model: match_or_empty(caps.get(1)),
+                    branch: None,
+                    release_version: None,
+                    debug: match_or_empty(caps.get(2)).contains("VBN"),
+                })
+            } else {
+                error!("Could not parse build name {}", tsv.stb_version);
+                None
+            };
+
+            if let Some(info) = info_opt {
+                if let ExtnPayload::Response(r) =
+                    DeviceResponse::PlatformBuildInfo(info).get_extn_payload()
+                {
+                    Self::respond(state.get_client(), msg, r).await.is_ok()
+                } else {
+                    Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await
+                }
+            } else {
+                Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await
+            }
+        } else {
+            Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await
+        }
     }
 }
 
@@ -1292,7 +1592,7 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             DeviceInfoRequest::VideoResolution => Self::video_resolution(state.clone(), msg).await,
             DeviceInfoRequest::Network => Self::network(state.clone(), msg).await,
             DeviceInfoRequest::Make => Self::make(state.clone(), msg).await,
-            DeviceInfoRequest::Version => Self::version(state.clone(), msg).await,
+            DeviceInfoRequest::FirmwareInfo => Self::os_info(state.clone(), msg).await,
             DeviceInfoRequest::AvailableMemory => Self::available_memory(state.clone(), msg).await,
             DeviceInfoRequest::OnInternetConnected(time_out) => {
                 Self::on_internet_connected(state.clone(), msg, time_out.timeout).await
@@ -1320,28 +1620,139 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             DeviceInfoRequest::VoiceGuidanceSpeed => {
                 Self::voice_guidance_speed(state.clone(), msg).await
             }
-            DeviceInfoRequest::FullCapabilities => {
-                let device_capabilities = DeviceCapabilities {
-                    audio: Self::get_audio(&state).await,
-                    firmware_info: Self::get_version(&state).await,
-                    hdcp: Self::get_hdcp_status(&state).await,
-                    hdr: Self::get_cached_hdr(&state).await,
-                    is_wifi: matches!(Self::get_network(&state).await._type, NetworkType::Wifi),
-                    make: Self::get_make(&state).await,
-                    model: Self::get_model(&state).await,
-                    video_resolution: Self::get_video_resolution(&state).await,
-                    screen_resolution: Self::get_screen_resolution(&state).await,
-                };
-                if let ExtnPayload::Response(r) =
-                    DeviceResponse::FullCapabilities(Box::new(device_capabilities))
-                        .get_extn_payload()
-                {
-                    Self::respond(state.get_client(), msg, r).await.is_ok()
-                } else {
-                    Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await
-                }
+            DeviceInfoRequest::InternetConnectionStatus => {
+                Self::internet_connection_status(state.clone(), msg).await
+            }
+            DeviceInfoRequest::StartMonitoringInternetChanges => {
+                Self::start_internet_monitoring_changes(state.clone(), msg).await
+            }
+            DeviceInfoRequest::FullCapabilities(keys) => {
+                let keys_as_str: Vec<&str> = keys.iter().map(String::as_str).collect();
+                Self::get_device_capabilities(state.clone(), &keys_as_str, msg).await
+            }
+            DeviceInfoRequest::PowerState => Self::power_state(state.clone(), msg).await,
+            DeviceInfoRequest::PlatformBuildInfo => {
+                Self::platform_build_info(state.clone(), msg).await
             }
             _ => false,
+        }
+    }
+}
+
+fn round_to_nearest_quarter_hour(offset_seconds: i64) -> i64 {
+    // Convert minutes to quarter hours
+    let quarter_hours = (offset_seconds as f64 / 900.0).round() as i64;
+
+    // Convert back to minutes
+    let rounded_minutes = quarter_hours * 15;
+
+    // Convert minutes back to seconds
+    rounded_minutes * 60
+}
+
+#[cfg(test)]
+pub mod tests {
+    use std::{fs::File, sync::Arc};
+
+    use ripple_sdk::{
+        api::device::{
+            device_info_request::{DeviceInfoRequest, DeviceResponse, PlatformBuildInfo},
+            device_operator::DeviceResponseMessage,
+            device_request::DeviceRequest,
+        },
+        extn::{
+            client::extn_processor::ExtnRequestProcessor,
+            extn_client_message::{ExtnMessage, ExtnRequest},
+            mock_extension_client::MockExtnClient,
+        },
+        framework::ripple_contract::RippleContract,
+        serde_json::{self, json},
+        tokio,
+        utils::channel_utils::oneshot_send_and_log,
+    };
+    use serde::{Deserialize, Serialize};
+
+    use crate::{
+        client::{thunder_client::ThunderCallMessage, thunder_plugin::ThunderPlugin},
+        processors::thunder_device_info::ThunderDeviceInfoRequestProcessor,
+        tests::mock_thunder_controller::{CustomHandler, MockThunderController, ThunderHandlerFn},
+    };
+
+    macro_rules! run_platform_info_test {
+        ($build_name:expr) => {
+            test_platform_build_info_with_build_name($build_name, Arc::new(|msg: ThunderCallMessage| {
+                oneshot_send_and_log(
+                    msg.callback,
+                    DeviceResponseMessage::call(json!({"success" : true, "stbVersion": $build_name, "receiverVersion": $build_name, "stbTimestamp": "".to_owned() })),
+                    "",
+                );
+            })).await;
+        };
+    }
+
+    #[derive(Debug, Serialize, Deserialize, Clone)]
+    struct BuildInfoTest {
+        build_name: String,
+        info: PlatformBuildInfo,
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_platform_build_info() {
+        run_platform_info_test!("SCXI11BEI_023.005.03.6.8p12s3_VBN_sdy");
+        run_platform_info_test!("SCXI11BEI_23_VBN_sdy");
+        run_platform_info_test!("SCXI11BEI_VBN_23_20231130001020sdy");
+        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_PRODLOG_sdy");
+        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_PROD_sdy");
+        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_VBN_sdy");
+        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_VBN_sey");
+        run_platform_info_test!("SCXI11BEI_023.003.00.6.8p7s1_PRODLOG_sdy_XOE");
+        run_platform_info_test!("SCXI11BEI_VBN_stable2_20231129231433sdy_XOE_NG");
+        run_platform_info_test!("SCXI11AIC_PROD_6.6_p1v_20231130001020sdy_NG");
+        run_platform_info_test!("SCXI11AIC_VBN_23Q4_sprint_20231129232625sdy_FG_NG");
+        run_platform_info_test!("SCXI11AIC_VBN_23Q4_sprint_20231129232625sey_FG_NG");
+        run_platform_info_test!("SCXI11BEI_PROD_some_branch_20231129233157sdy_FG_NG-signed");
+        run_platform_info_test!("SCXI11BEI_PROD_QS024_20231129231350sdy_XOE_NG");
+        run_platform_info_test!("COESST11AEI_VBN_23Q4_sprint_20231130233011sdy_DFL_FG_GRT");
+        run_platform_info_test!("COESST11AEI_23.40p11d24_EXP_PROD_sdy-signed");
+        run_platform_info_test!(
+            "SCXI11BEI_VBN_23Q4_sprint_20231113173051sdy_FG_EDGE_DISTPDEMO-signed"
+        );
+        run_platform_info_test!("SCXI11BEI_somebuild");
+        run_platform_info_test!("SCXI11BEI_someVBNbuild");
+    }
+
+    async fn test_platform_build_info_with_build_name(
+        build_name: &'static str,
+        handler: Arc<ThunderHandlerFn>,
+    ) {
+        let tests_file = File::open("src/tests/buildinfo-parse-tests.json").unwrap();
+        let tests: Vec<BuildInfoTest> = serde_json::from_reader(tests_file).unwrap();
+        let mut ch = CustomHandler::default();
+        ch.custom_request_handler.insert(
+            ThunderPlugin::System.unversioned_method("getSystemVersions"),
+            handler,
+        );
+        let (state, r) = MockThunderController::state_with_mock(Some(ch));
+        let msg = MockExtnClient::req(
+            RippleContract::DeviceInfo,
+            ExtnRequest::Device(DeviceRequest::DeviceInfo(
+                DeviceInfoRequest::PlatformBuildInfo,
+            )),
+        );
+
+        ThunderDeviceInfoRequestProcessor::process_request(
+            state,
+            msg,
+            DeviceInfoRequest::PlatformBuildInfo,
+        )
+        .await;
+        let msg: ExtnMessage = r.recv().await.unwrap().try_into().unwrap();
+        let resp_opt = msg.payload.extract::<DeviceResponse>();
+        if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp_opt {
+            let exp = tests.iter().find(|x| x.build_name == build_name).unwrap();
+            assert_eq!(info, exp.info);
+        } else {
+            panic!("Did not get the expected PlatformBuildInfo from extension call");
         }
     }
 }

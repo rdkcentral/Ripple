@@ -37,10 +37,12 @@ use super::{
     gateway::rpc_gateway_api::CallContext,
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct AppSession {
     pub app: AppBasicInfo,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub runtime: Option<AppRuntime>,
+    #[serde(default)]
     pub launch: AppLaunchInfo,
 }
 
@@ -60,9 +62,13 @@ impl AppSession {
             None => EffectiveTransport::Websocket,
         }
     }
+
+    pub fn update_intent(&mut self, intent: NavigationIntent) {
+        let _ = self.launch.intent.insert(intent);
+    }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct AppBasicInfo {
     pub id: String,
     pub catalog: Option<String>,
@@ -70,7 +76,7 @@ pub struct AppBasicInfo {
     pub title: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum AppRuntimeTransport {
     Bridge,
@@ -81,14 +87,14 @@ fn runtime_transport_default() -> AppRuntimeTransport {
     AppRuntimeTransport::Websocket
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppRuntime {
     pub id: Option<String>,
     #[serde(default = "runtime_transport_default")]
     pub transport: AppRuntimeTransport,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Default, Serialize, Deserialize, Clone)]
 pub struct AppLaunchInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub intent: Option<NavigationIntent>,
@@ -103,9 +109,19 @@ pub struct AppLaunchInfo {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum EffectiveTransport {
     Bridge(String),
     Websocket,
+}
+
+impl std::fmt::Display for EffectiveTransport {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            EffectiveTransport::Bridge(id) => write!(f, "bridge_{}", id),
+            EffectiveTransport::Websocket => write!(f, "websocket"),
+        }
+    }
 }
 
 pub type AppResponse = Result<AppManagerResponse, AppError>;
@@ -171,7 +187,7 @@ impl AppRequest {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum AppManagerResponse {
     None,
     State(LifecycleState),
@@ -186,7 +202,7 @@ pub enum AppManagerResponse {
     Session(SessionResponse),
 }
 
-#[derive(Debug, Serialize, Deserialize, Copy, Clone)]
+#[derive(Debug, Serialize, Deserialize, Copy, Clone, PartialEq)]
 pub enum AppError {
     General,
     NotFound,
@@ -197,6 +213,7 @@ pub enum AppError {
     Timeout,
     Pending,
     AppNotReady,
+    NoIntentError,
 }
 
 #[derive(Debug, Clone)]
@@ -220,7 +237,7 @@ pub enum AppMethod {
     NewLoadedSession(AppSession),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum CloseReason {
     RemoteButton,
@@ -228,6 +245,7 @@ pub enum CloseReason {
     Error,
     AppNotReady,
     ResourceContention,
+    Done,
 }
 
 impl CloseReason {
@@ -238,6 +256,7 @@ impl CloseReason {
             CloseReason::Error => "error",
             CloseReason::AppNotReady => "appNotReady",
             CloseReason::ResourceContention => "resourceContention",
+            CloseReason::Done => "done",
         }
     }
 }
@@ -265,7 +284,7 @@ pub struct AppEvent {
     pub app_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AppEventRequest {
     Emit(AppEvent),
     Register(CallContext, String, ListenRequest),
@@ -290,5 +309,194 @@ impl ExtnPayloadProvider for AppEventRequest {
 
     fn contract() -> RippleContract {
         RippleContract::AppEvents
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        api::{
+            device::entertainment_data::{HomeIntent, NavigationIntentStrict},
+            firebolt::fb_discovery::DiscoveryContext,
+        },
+        utils::test_utils::test_extn_payload_provider,
+    };
+
+    #[test]
+    fn test_get_transport_with_bridge_runtime_and_id() {
+        let app = AppSession {
+            app: AppBasicInfo {
+                id: "app_id".to_string(),
+                catalog: None,
+                url: None,
+                title: None,
+            },
+            runtime: Some(AppRuntime {
+                id: Some("runtime_id".to_string()),
+                transport: AppRuntimeTransport::Bridge,
+            }),
+            launch: AppLaunchInfo::default(),
+        };
+
+        assert_eq!(
+            app.get_transport(),
+            EffectiveTransport::Bridge("runtime_id".to_string())
+        );
+    }
+
+    #[test]
+    fn test_get_transport_with_bridge_runtime_and_no_id() {
+        let app = AppSession {
+            app: AppBasicInfo {
+                id: "app_id".to_string(),
+                catalog: None,
+                url: None,
+                title: None,
+            },
+            runtime: Some(AppRuntime {
+                id: None,
+                transport: AppRuntimeTransport::Bridge,
+            }),
+            launch: AppLaunchInfo::default(),
+        };
+
+        assert_eq!(app.get_transport(), EffectiveTransport::Websocket);
+    }
+
+    #[test]
+    fn test_get_transport_with_websocket_runtime() {
+        let app = AppSession {
+            app: AppBasicInfo {
+                id: "app_id".to_string(),
+                catalog: None,
+                url: None,
+                title: None,
+            },
+            runtime: Some(AppRuntime {
+                id: Some("runtime_id".to_string()),
+                transport: AppRuntimeTransport::Websocket,
+            }),
+            launch: AppLaunchInfo::default(),
+        };
+
+        assert_eq!(app.get_transport(), EffectiveTransport::Websocket);
+    }
+
+    #[test]
+    fn test_get_transport_with_no_runtime() {
+        let app = AppSession {
+            app: AppBasicInfo {
+                id: "app_id".to_string(),
+                catalog: None,
+                url: None,
+                title: None,
+            },
+            runtime: None,
+            launch: AppLaunchInfo::default(),
+        };
+
+        assert_eq!(app.get_transport(), EffectiveTransport::Websocket);
+    }
+
+    #[test]
+    fn test_update_intent() {
+        let mut app = AppSession {
+            app: AppBasicInfo {
+                id: "app_id".to_string(),
+                catalog: None,
+                url: None,
+                title: None,
+            },
+            runtime: None,
+            launch: AppLaunchInfo::default(),
+        };
+
+        let home_intent = HomeIntent {
+            context: DiscoveryContext {
+                source: "test_source".to_string(),
+            },
+        };
+
+        app.update_intent(NavigationIntent::NavigationIntentStrict(
+            NavigationIntentStrict::Home(home_intent.clone()),
+        ));
+
+        assert_eq!(
+            app.launch.intent,
+            Some(NavigationIntent::NavigationIntentStrict(
+                NavigationIntentStrict::Home(home_intent),
+            ))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_send_response_success() {
+        // Create a mock response
+        let response = Ok(AppManagerResponse::None);
+
+        // Create a mock sender
+        let (sender, receiver) = oneshot::channel();
+
+        // Create an instance of AppRequest with the mock sender
+        let app_request = AppRequest {
+            method: AppMethod::Ready(String::from("ready")),
+            resp_tx: Arc::new(RwLock::new(Some(sender))),
+        };
+
+        // Call the send_response function
+        let result = app_request.send_response(response.clone());
+
+        // Assert that the result is Ok
+        assert!(result.is_ok());
+
+        // Drop the lock explicitly
+        {
+            let sender_lock = app_request.resp_tx.read().unwrap();
+            assert!(sender_lock.is_none());
+        } // Lock is released here
+
+        // Assert that the response has been sent through the channel
+        let received_response = receiver.await.unwrap();
+        assert_eq!(received_response, response);
+    }
+
+    #[tokio::test]
+    async fn test_send_response_sender_missing() {
+        // Create a mock response
+        let response = Ok(AppManagerResponse::None);
+
+        // Create an instance of AppRequest with a None sender
+        let app_request = AppRequest {
+            method: AppMethod::Ready(String::from("ready")),
+            resp_tx: Arc::new(RwLock::new(None)),
+        };
+
+        // Call the send_response function
+        let result = app_request.send_response(response);
+
+        // Assert that the result is Err with RippleError::SenderMissing
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), RippleError::SenderMissing);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_app_response() {
+        let app_response: AppResponse = Ok(AppManagerResponse::State(LifecycleState::Initializing));
+        let contract_type: RippleContract = RippleContract::LifecycleManagement;
+        test_extn_payload_provider(app_response, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_app_event_request() {
+        let app_event_request = AppEventRequest::Emit(AppEvent {
+            event_name: String::from("your_event_name"),
+            result: serde_json::to_value("your_event_result").unwrap(),
+            context: Some(serde_json::to_value("your_event_context").unwrap()),
+            app_id: Some(String::from("your_app_id")),
+        });
+
+        let contract_type: RippleContract = RippleContract::AppEvents;
+        test_extn_payload_provider(app_event_request, contract_type);
     }
 }
