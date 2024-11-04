@@ -38,7 +38,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use openrpc_validator::FireboltOpenRpc as FireboltOpenRpcValidator;
+use openrpc_validator::{FireboltOpenRpc as FireboltOpenRpcValidator, RpcMethodValidator};
 
 #[derive(Debug, Clone)]
 pub enum ApiSurface {
@@ -75,7 +75,7 @@ pub struct OpenRpcState {
     cap_policies: Arc<RwLock<HashMap<String, CapabilityPolicy>>>,
     extended_rpc: Arc<RwLock<Vec<FireboltOpenRpc>>>,
     provider_relation_map: Arc<RwLock<HashMap<String, ProviderRelationSet>>>,
-    openrpc_validator: Arc<RwLock<FireboltOpenRpcValidator>>,
+    openrpc_validator: Arc<RwLock<RpcMethodValidator>>,
     provider_registrations: Vec<String>,
     json_schema_cache: Arc<RwLock<HashMap<String, JSONSchema>>>,
 }
@@ -127,6 +127,8 @@ impl OpenRpcState {
         let ripple_open_rpc: FireboltOpenRpc = FireboltOpenRpc::default();
         let openrpc_validator: FireboltOpenRpcValidator = serde_json::from_str(&open_rpc_path)
             .expect("Failed parsing FireboltOpenRpcValidator from open RPC file");
+        let mut rpc_method_validator = RpcMethodValidator::new();
+        rpc_method_validator.add_schema(openrpc_validator);
         let v = OpenRpcState {
             firebolt_cap_map: Arc::new(RwLock::new(firebolt_open_rpc.get_methods_caps())),
             ripple_cap_map: Arc::new(RwLock::new(ripple_open_rpc.get_methods_caps())),
@@ -135,12 +137,11 @@ impl OpenRpcState {
             open_rpc: firebolt_open_rpc.clone(),
             extended_rpc: Arc::new(RwLock::new(Vec::new())),
             provider_relation_map: Arc::new(RwLock::new(HashMap::new())),
-            openrpc_validator: Arc::new(RwLock::new(openrpc_validator)),
+            openrpc_validator: Arc::new(RwLock::new(rpc_method_validator)),
             provider_registrations,
             json_schema_cache: Arc::new(RwLock::new(HashMap::new())),
         };
         v.build_provider_relation_sets(&firebolt_open_rpc.methods);
-
         for path in extn_sdks {
             if v.add_extension_open_rpc(&path).is_err() {
                 error!("Error adding extn_sdk from {path}");
@@ -176,9 +177,7 @@ impl OpenRpcState {
             return match serde_json::from_str::<FireboltOpenRpcValidator>(&open_rpc) {
                 Ok(additional_open_rpc_validator) => {
                     let mut validator = self.openrpc_validator.write().unwrap();
-                    for (k, v) in additional_open_rpc_validator.apis {
-                        validator.apis.insert(k, v);
-                    }
+                    validator.add_schema(additional_open_rpc_validator);
                     return Ok(());
                 }
                 Err(_) => Err(RippleError::ParseError),
@@ -332,7 +331,7 @@ impl OpenRpcState {
         self.open_rpc.info.clone()
     }
 
-    pub fn get_openrpc_validator(&self) -> FireboltOpenRpcValidator {
+    pub fn get_openrpc_validator(&self) -> RpcMethodValidator {
         self.openrpc_validator.read().unwrap().clone()
     }
 

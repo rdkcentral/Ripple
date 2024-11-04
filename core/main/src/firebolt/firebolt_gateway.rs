@@ -343,7 +343,7 @@ fn validate_request(
         let major_version = open_rpc_state.get_version().major.to_string();
         let openrpc_validator = open_rpc_state.get_openrpc_validator();
         // Get Method from the validator
-        if let Some(rpc_method) = openrpc_validator.get_method_by_name(&method_name) {
+        if let Some(rpc_method) = openrpc_validator.get_method(&method_name) {
             // Get schema validator
             let validator = openrpc_validator
                 .params_validator(major_version, &rpc_method.name)
