@@ -31,7 +31,7 @@ use ripple_sdk::{
     utils::error::RippleError,
 };
 use url::Url;
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 use crate::{
     client::{plugin_manager::ThunderPluginBootParam, thunder_client::ThunderClient},
     events::thunder_event_processor::{ThunderEventHandler, ThunderEventProcessor},

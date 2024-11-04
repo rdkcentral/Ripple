@@ -33,6 +33,7 @@ use ripple_sdk::{
 use serde::{Deserialize, Serialize};
 
 use super::thunder_plugin::ThunderPlugin::Controller;
+#[cfg(not(feature = "thunderBroker_enabled"))]
 use super::{thunder_client::ThunderClient, thunder_plugin::ThunderPlugin};
 
 pub struct ActivationSubscriber {

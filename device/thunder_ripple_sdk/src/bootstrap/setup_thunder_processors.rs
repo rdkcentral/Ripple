@@ -23,6 +23,8 @@ use crate::processors::thunder_package_manager::ThunderPackageManagerRequestProc
 use crate::processors::thunder_rfc::ThunderRFCProcessor;
 use crate::processors::thunder_telemetry::ThunderTelemetryProcessor;
 use crate::thunder_state::ThunderBootstrapStateWithClient;
+use crate::thunder_state::ThunderState;
+use ripple_sdk::extn::client::extn_client::ExtnClient;
 
 use crate::processors::{
     thunder_browser::ThunderBrowserRequestProcessor,
@@ -40,7 +42,7 @@ impl SetupThunderProcessor {
     pub fn get_name() -> String {
         "SetupThunderProcessor".into()
     }
-
+    #[cfg(not(feature = "thunderBroker_enabled"))]
     pub async fn setup(state: ThunderBootstrapStateWithClient) {
         let mut extn_client = state.state.get_client();
         extn_client
@@ -71,6 +73,43 @@ impl SetupThunderProcessor {
             }
         }
         extn_client.add_request_processor(ThunderRFCProcessor::new(state.clone().state));
+        let _ = extn_client.event(ExtnStatus::Ready);
+    }
+
+    #[cfg(feature = "thunderBroker_enabled")]
+    pub async fn setup(thunder_state: ThunderState, thndrextn_client: ExtnClient) {
+        let mut extn_client = thndrextn_client.clone();
+        extn_client.add_request_processor(ThunderDeviceInfoRequestProcessor::new(
+            thunder_state.clone(),
+        ));
+        extn_client
+            .add_request_processor(ThunderBrowserRequestProcessor::new(thunder_state.clone()));
+        extn_client.add_request_processor(ThunderWifiRequestProcessor::new(thunder_state.clone()));
+        extn_client
+            .add_request_processor(ThunderStorageRequestProcessor::new(thunder_state.clone()));
+        extn_client.add_request_processor(ThunderWindowManagerRequestProcessor::new(
+            thunder_state.clone(),
+        ));
+        extn_client.add_request_processor(ThunderRemoteAccessoryRequestProcessor::new(
+            thunder_state.clone(),
+        ));
+        extn_client.add_request_processor(ThunderOpenEventsProcessor::new(thunder_state.clone()));
+
+        let package_manager_processor =
+            ThunderPackageManagerRequestProcessor::new(thunder_state.clone());
+        extn_client.add_request_processor(package_manager_processor);
+
+        if extn_client.get_bool_config("rdk_telemetry") {
+            match extn_client
+                .request(OperationalMetricRequest::Subscribe)
+                .await
+            {
+                Ok(_) => extn_client
+                    .add_event_processor(ThunderTelemetryProcessor::new(thunder_state.clone())),
+                Err(_) => error!("Telemetry not setup"),
+            }
+        }
+        extn_client.add_request_processor(ThunderRFCProcessor::new(thunder_state.clone()));
         let _ = extn_client.event(ExtnStatus::Ready);
     }
 }

@@ -19,6 +19,9 @@ use crate::{
     bootstrap::setup_thunder_processors::SetupThunderProcessor,
     client::plugin_manager::ThunderPluginBootParam, thunder_state::ThunderBootstrapStateWithClient,
 };
+
+use crate::client::thunder_client2;
+use crate::thunder_state::ThunderState;
 use ripple_sdk::{
     extn::client::extn_client::ExtnClient,
     log::{error, info},
@@ -31,15 +34,32 @@ pub async fn boot_thunder(
     plugin_param: ThunderPluginBootParam,
 ) -> Option<ThunderBootstrapStateWithClient> {
     info!("Booting thunder");
-    if let Ok(state) = ThunderGetConfigStep::setup(state, plugin_param).await {
-        if let Ok(state) = ThunderPoolStep::setup(state).await {
-            SetupThunderProcessor::setup(state.clone()).await;
-            return Some(state);
+
+    #[cfg(feature = "thunderBroker_enabled")]
+    {
+        info!("thunderBroker_enabled feature is enabled");
+        if let Ok(thndr_client) = thunder_client2::ThunderClientBuilder::get_client().await {
+            let thunder_state = ThunderState::new(state.clone(), thndr_client);
+            SetupThunderProcessor::setup(thunder_state, state.clone()).await;
         } else {
-            error!("Unable to connect to Thunder, error in ThunderPoolStep");
+            error!("Unable to connect to Thunder_Broker, error in ThunderClientBuilder");
         }
-    } else {
-        error!("Unable to connect to Thunder, error in ThunderGetConfigStep");
+        None
     }
-    None
+
+    #[cfg(not(feature = "thunderBroker_enabled"))]
+    {
+        info!("thunderBroker_enabled feature is not enabled, go for thunderclient");
+        if let Ok(state) = ThunderGetConfigStep::setup(state, plugin_param).await {
+            if let Ok(state) = ThunderPoolStep::setup(state).await {
+                SetupThunderProcessor::setup(state.clone()).await;
+                return Some(state);
+            } else {
+                error!("Unable to connect to Thunder, error in ThunderPoolStep");
+            }
+        } else {
+            error!("Unable to connect to Thunder, error in ThunderGetConfigStep");
+        };
+        None
+    }
 }

@@ -15,11 +15,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
+#[cfg(not(feature = "thunderBroker_enabled"))]
+use super::{
+    plugin_manager::PluginManagerCommand,
+    thunder_client::{ThunderClient, ThunderMessage},
 };
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 use crate::{client::thunder_client::ThunderClientBuilder, thunder_state::ThunderConnectionState};
 use ripple_sdk::{
     api::device::device_operator::DeviceResponseMessage,
@@ -29,30 +30,29 @@ use ripple_sdk::{
     uuid::Uuid,
 };
 use ripple_sdk::{tokio, utils::error::RippleError};
-use url::Url;
-
-use super::{
-    plugin_manager::PluginManagerCommand,
-    thunder_client::{ThunderClient, ThunderMessage},
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
 };
-
+use url::Url;
+#[cfg(not(feature = "thunderBroker_enabled"))]
 #[derive(Debug)]
 pub struct ThunderClientPool {
     clients: Vec<PooledThunderClient>,
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 #[derive(Debug)]
 struct PooledThunderClient {
     in_use: Arc<AtomicBool>,
     client: ThunderClient,
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 #[derive(Debug)]
 pub enum ThunderPoolCommand {
     ThunderMessage(ThunderMessage),
     ResetThunderClient(Uuid),
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 impl ThunderClientPool {
     pub async fn start(
         url: Url,
@@ -179,7 +179,7 @@ impl ThunderClientPool {
         }
     }
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 #[cfg(test)]
 mod tests {
     use super::*;

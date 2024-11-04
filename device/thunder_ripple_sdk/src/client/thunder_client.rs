@@ -62,16 +62,16 @@ use super::{
     plugin_manager::{PluginActivatedResult, PluginManagerCommand},
 };
 use std::{env, process::Command};
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 pub struct ThunderClientBuilder;
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 #[derive(Debug)]
 pub struct ThunderCallMessage {
     pub method: String,
     pub params: Option<DeviceChannelParams>,
     pub callback: OneShotSender<DeviceResponseMessage>,
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 impl ThunderCallMessage {
     pub fn callsign(&self) -> String {
         JsonRpcMethodLocator::from_str(&self.method)
@@ -86,13 +86,13 @@ impl ThunderCallMessage {
             .method_name
     }
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ThunderRegisterParams {
     pub event: String,
     pub id: String,
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 #[derive(Debug)]
 pub struct ThunderSubscribeMessage {
     pub module: String,
@@ -102,7 +102,7 @@ pub struct ThunderSubscribeMessage {
     pub callback: Option<OneShotSender<DeviceResponseMessage>>,
     pub sub_id: Option<String>,
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 impl ThunderSubscribeMessage {
     pub fn resubscribe(&self) -> ThunderSubscribeMessage {
         ThunderSubscribeMessage {
@@ -115,21 +115,21 @@ impl ThunderSubscribeMessage {
         }
     }
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 #[derive(Debug, Clone)]
 pub struct ThunderUnsubscribeMessage {
     pub module: String,
     pub event_name: String,
     pub subscription_id: Option<String>,
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 #[derive(Debug)]
 pub enum ThunderMessage {
     ThunderCallMessage(ThunderCallMessage),
     ThunderSubscribeMessage(ThunderSubscribeMessage),
     ThunderUnsubscribeMessage(ThunderUnsubscribeMessage),
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 impl ThunderMessage {
     pub fn clone(&self, intercept_tx: OneShotSender<DeviceResponseMessage>) -> ThunderMessage {
         match self {
@@ -158,6 +158,7 @@ impl ThunderMessage {
 }
 
 #[derive(Debug, Clone)]
+#[cfg(not(feature = "thunderBroker_enabled"))]
 pub struct ThunderClient {
     pub sender: Option<MpscSender<ThunderMessage>>,
     pub pooled_sender: Option<MpscSender<ThunderPoolCommand>>,
@@ -165,12 +166,12 @@ pub struct ThunderClient {
     pub plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
     pub subscriptions: Option<Arc<Mutex<HashMap<String, ThunderSubscription>>>>,
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DefaultThunderResult {
     pub success: bool,
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 impl ThunderClient {
     /// Sends a message to thunder. If this client is pooled
     /// then it will wrap the message in a pool command before sending
@@ -187,7 +188,7 @@ impl ThunderClient {
         }
     }
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 #[async_trait]
 impl DeviceOperator for ThunderClient {
     async fn call(&self, request: DeviceCallRequest) -> DeviceResponseMessage {
@@ -237,7 +238,7 @@ impl DeviceOperator for ThunderClient {
         self.send_message(msg).await;
     }
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 #[derive(Debug)]
 pub struct ThunderSubscription {
     handle: JoinHandle<()>,
@@ -245,7 +246,7 @@ pub struct ThunderSubscription {
     listeners: HashMap<String, MpscSender<DeviceResponseMessage>>,
     rpc_response: DeviceResponseMessage,
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 impl ThunderClient {
     async fn subscribe(
         client_id: Uuid,
@@ -477,7 +478,7 @@ impl ThunderClient {
         None
     }
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 impl ThunderClientBuilder {
     fn parse_subscribe_method(subscribe_method: &str) -> Option<(String, String)> {
         if let Some(client_start) = subscribe_method.find("client.") {
@@ -669,12 +670,12 @@ impl ThunderClientBuilder {
         }
     }
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 pub struct ThunderRawBoolRequest {
     method: String,
     v: bool,
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 impl ThunderRawBoolRequest {
     async fn send_request(self: Box<Self>) -> Value {
         let host = {
@@ -715,11 +716,11 @@ impl ThunderRawBoolRequest {
         }
     }
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 pub struct ThunderNoParamRequest {
     method: String,
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 impl ThunderNoParamRequest {
     async fn send_request(self: Box<Self>, client: &Client) -> Value {
         let result = client.request(&self.method, None).await;
@@ -730,13 +731,13 @@ impl ThunderNoParamRequest {
         result.unwrap()
     }
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 pub struct ThunderParamRequest<'a> {
     method: &'a str,
     params: &'a str,
     json_based: bool,
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 impl<'a> ThunderParamRequest<'a> {
     async fn send_request(self: Box<Self>, client: &Client) -> Value {
         let result = client.request(self.method, self.get_params()).await;
@@ -762,12 +763,12 @@ impl<'a> ThunderParamRequest<'a> {
         }
     }
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 fn return_message(callback: OneShotSender<DeviceResponseMessage>, response: Value) {
     let msg = DeviceResponseMessage::call(response);
     oneshot_send_and_log(callback, msg, "returning message");
 }
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 #[cfg(test)]
 mod tests {
     use super::*;
