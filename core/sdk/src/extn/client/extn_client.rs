@@ -391,6 +391,7 @@ impl ExtnClient {
                     trace!("Send to other client result: {:?}", send_res);
                 }
             }
+            //check for active listeners
             if self.has_event_listener(&message.target.as_clear_string()) {
                 Self::handle_vec_stream(message, self.event_processors.clone());
             }
