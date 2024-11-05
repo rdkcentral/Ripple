@@ -102,6 +102,8 @@ pub struct Rule {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filter: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub event_handler: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub endpoint: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sources: Option<Vec<JsonDataSource>>,

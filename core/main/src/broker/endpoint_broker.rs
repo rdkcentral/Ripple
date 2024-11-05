@@ -44,6 +44,7 @@ use std::{
 };
 
 use crate::{
+    broker::broker_utils::BrokerUtils,
     firebolt::firebolt_gateway::{FireboltGatewayCommand, JsonRpcError},
     service::extn::ripple_client::RippleClient,
     state::platform_state::PlatformState,
@@ -741,6 +742,7 @@ impl BrokerOutputForwarder {
 
                 if let Some(id) = id {
                     if let Ok(broker_request) = platform_state.endpoint_state.get_request(id) {
+                        let trigger_event_handling = broker_request.rule.event_handler.is_some();
                         let workflow_callback = broker_request.clone().workflow_callback;
                         let sub_processed = broker_request.is_subscription_processed();
                         let rpc_request = broker_request.rpc.clone();
@@ -760,6 +762,24 @@ impl BrokerOutputForwarder {
                                 if !apply_filter(&broker_request, &result, &rpc_request) {
                                     continue;
                                 }
+
+                                // TODO: Refactor code in the future to apply rule-based filtering and transformations as required.
+                                if trigger_event_handling {
+                                    if let Some(method) = broker_request.rule.event_handler.clone()
+                                    {
+                                        let platform_state_c = platform_state.clone();
+                                        let rpc_request_c = rpc_request.clone();
+                                        let response_c = response.clone();
+                                        tokio::spawn(Self::handle_event(
+                                            platform_state_c,
+                                            method,
+                                            rpc_request_c,
+                                            response_c,
+                                        ));
+                                        continue;
+                                    }
+                                }
+
                                 // check if the request transform has event_decorator_method
                                 if let Some(decorator_method) =
                                     broker_request.rule.transform.event_decorator_method.clone()
@@ -917,6 +937,38 @@ impl BrokerOutputForwarder {
                 }
             }
         });
+    }
+
+    async fn handle_event(
+        platform_state: PlatformState,
+        method: String,
+        rpc_request: RpcRequest,
+        mut response: JsonRpcApiResponse,
+    ) {
+        let session_id = rpc_request.ctx.get_id();
+        let request_id = rpc_request.ctx.call_id;
+        let protocol = rpc_request.ctx.protocol.clone();
+        let platform_state_c = &platform_state;
+
+        if let Ok(res) =
+            BrokerUtils::process_internal_main_request(platform_state_c, method.as_str()).await
+        {
+            response.result = Some(serde_json::to_value(res.clone()).unwrap());
+        }
+        response.id = Some(request_id);
+
+        let message = ApiMessage::new(
+            protocol,
+            serde_json::to_string(&response).unwrap(),
+            request_id.to_string(),
+        );
+
+        if let Some(session) = platform_state_c
+            .session_state
+            .get_session_for_connection_id(&session_id)
+        {
+            return_api_message_for_transport(session, message, platform_state.clone()).await;
+        }
     }
 
     pub fn handle_non_jsonrpc_response(
@@ -1098,6 +1150,7 @@ mod tests {
                         transform: RuleTransform::default(),
                         endpoint: None,
                         filter: None,
+                        event_handler: None,
                         sources: None,
                     },
                     subscription_processed: None,
@@ -1168,6 +1221,7 @@ mod tests {
                     transform: RuleTransform::default(),
                     endpoint: None,
                     filter: None,
+                    event_handler: None,
                     sources: None,
                 },
                 None,
@@ -1181,6 +1235,7 @@ mod tests {
                     transform: RuleTransform::default(),
                     endpoint: None,
                     filter: None,
+                    event_handler: None,
                     sources: None,
                 },
                 None,
