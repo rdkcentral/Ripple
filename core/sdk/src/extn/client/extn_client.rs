@@ -380,6 +380,7 @@ impl ExtnClient {
         };
         let new_context = { self.ripple_context.read().unwrap().clone() };
         let message = new_context.get_event_message();
+
         if propagate {
             trace!("Formed Context update event: {:?}", message);
             let c_message: CExtnMessage = message.clone().into();
@@ -390,7 +391,9 @@ impl ExtnClient {
                     trace!("Send to other client result: {:?}", send_res);
                 }
             }
-            Self::handle_vec_stream(message, self.event_processors.clone());
+            if self.has_event_listener(&message.target.as_clear_string()) {
+                Self::handle_vec_stream(message, self.event_processors.clone());
+            }
         } else {
             trace!("Context information is already updated. Hence not propagating");
         }
