@@ -71,7 +71,6 @@ pub struct SecondScreenImpl {
 
 #[async_trait]
 impl SecondScreenServer for SecondScreenImpl {
-
     async fn friendly_name(&self, _ctx: CallContext) -> RpcResult<String> {
         get_device_name(&self.state).await
     }

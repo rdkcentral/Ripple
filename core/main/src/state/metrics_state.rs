@@ -255,7 +255,6 @@ impl MetricsState {
             }
         }
 
-
         let ctx = CallContext::new(
             Uuid::new_v4().to_string(),
             Uuid::new_v4().to_string(),
@@ -345,9 +344,7 @@ impl MetricsState {
             None,
             false,
         );
-        let country = BrokerUtils::get_country_code(&ctx, state)
-            .await
-            .ok();
+        let country = BrokerUtils::get_country_code(&ctx, state).await.ok();
         debug!("got country_code={:?}", &country);
 
         let region = StorageManager::get_string(state, StorageProperty::Locality)

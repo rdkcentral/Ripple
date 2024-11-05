@@ -27,8 +27,7 @@ use ripple_sdk::{
     tokio::{self, net::TcpStream},
     uuid::Uuid,
 };
-use serde_json::Value;
-use serde_json::from_value;
+use serde_json::{from_value, Value};
 use std::time::Duration;
 use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
 
