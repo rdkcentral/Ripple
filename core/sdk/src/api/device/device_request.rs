@@ -19,7 +19,6 @@ use crate::{
     api::{firebolt::fb_openrpc::FireboltSemanticVersion, session::EventAdjective},
     extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
     framework::ripple_contract::RippleContract,
-    utils::serde_utils::language_code_serde,
 };
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
