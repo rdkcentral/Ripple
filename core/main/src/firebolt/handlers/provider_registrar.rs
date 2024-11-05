@@ -305,7 +305,7 @@ impl ProviderRegistrar {
                     .platform_state
                     .open_rpc_state
                     .get_openrpc_validator()
-                    .get_result_properties_schema_by_name(event)
+                    .get_result_properties_schema(event)
                 {
                     // Populate the event result, injecting the app ID if the field exists in the event schema
 
@@ -457,7 +457,7 @@ impl ProviderRegistrar {
                                         .platform_state
                                         .open_rpc_state
                                         .get_openrpc_validator()
-                                        .get_result_properties_schema_by_name(&context.method)
+                                        .get_result_properties_schema(&context.method)
                                     {
                                         // Inject the provider app ID if the field exists in the provided-to response schema, the other field will be
                                         // the provider response. The firebolt spec is not ideal in that the provider response data is captured
