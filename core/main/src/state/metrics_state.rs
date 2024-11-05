@@ -20,6 +20,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use crate::broker::broker_utils::BrokerUtils;
 use jsonrpsee::tracing::debug;
 use ripple_sdk::{
     api::{
@@ -30,6 +31,7 @@ use ripple_sdk::{
             fb_metrics::{MetricsContext, MetricsEnvironment},
             fb_openrpc::FireboltSemanticVersion,
         },
+        gateway::rpc_gateway_api::{ApiProtocol, CallContext},
         manifest::device_manifest::DataGovernanceConfig,
         storage_property::StorageProperty,
     },
@@ -37,6 +39,7 @@ use ripple_sdk::{
     extn::extn_client_message::ExtnResponse,
     log::error,
     utils::error::RippleError,
+    uuid::Uuid,
 };
 
 use rand::Rng;
@@ -252,10 +255,22 @@ impl MetricsState {
             }
         }
 
-        let language = match StorageManager::get_string(state, StorageProperty::Language).await {
-            Ok(resp) => resp,
-            Err(_) => "no.language.set".to_string(),
-        };
+
+        let ctx = CallContext::new(
+            Uuid::new_v4().to_string(),
+            Uuid::new_v4().to_string(),
+            "internal".into(),
+            1,
+            ApiProtocol::Extn,
+            "localization.language".to_string(),
+            None,
+            false,
+        );
+
+        let language = BrokerUtils::get_language(&ctx, state)
+            .await
+            .unwrap_or("no.language.set".to_string());
+        debug!("got language={:?}", &language);
 
         let os_info = match Self::get_os_info_from_firebolt(state).await {
             Ok(info) => info,
@@ -320,9 +335,20 @@ impl MetricsState {
 
         let coam = Self::get_persistent_store_bool(state, PERSISTENT_STORAGE_KEY_COAM).await;
 
-        let country = StorageManager::get_string(state, StorageProperty::CountryCode)
+        let ctx = CallContext::new(
+            Uuid::new_v4().to_string(),
+            Uuid::new_v4().to_string(),
+            "internal".into(),
+            1,
+            ApiProtocol::Extn,
+            "localization.countryCode".to_string(),
+            None,
+            false,
+        );
+        let country = BrokerUtils::get_country_code(&ctx, state)
             .await
             .ok();
+        debug!("got country_code={:?}", &country);
 
         let region = StorageManager::get_string(state, StorageProperty::Locality)
             .await

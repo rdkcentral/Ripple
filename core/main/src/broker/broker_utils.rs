@@ -15,15 +15,20 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::time::Duration;
-
+use crate::state::platform_state::PlatformState;
 use crate::utils::rpc_utils::extract_tcp_port;
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::StreamExt;
+use jsonrpsee::{core::RpcResult, types::error::CallError};
+use ripple_sdk::api::firebolt::fb_capabilities::CAPABILITY_NOT_AVAILABLE;
 use ripple_sdk::{
+    api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest, RpcStats},
+    extn::extn_client_message::ExtnResponse,
     log::{error, info},
     tokio::{self, net::TcpStream},
 };
+use serde_json::from_value;
+use std::time::Duration;
 use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
 
 pub struct BrokerUtils;
@@ -65,5 +70,69 @@ impl BrokerUtils {
             index += 1;
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
+    }
+
+    pub async fn get_language(ctx: &CallContext, state: &PlatformState) -> RpcResult<String> {
+        let mut new_ctx = ctx.clone();
+        new_ctx.protocol = ApiProtocol::Extn;
+
+        let rpc_request = RpcRequest {
+            ctx: new_ctx.clone(),
+            method: "localization.language".into(),
+            stats: RpcStats::default(),
+            params_json: RpcRequest::prepend_ctx(None, &new_ctx),
+        };
+
+        let resp = state
+            .get_client()
+            .get_extn_client()
+            .main_internal_request(rpc_request.clone())
+            .await;
+
+        if let Ok(res) = resp {
+            if let Some(ExtnResponse::Value(val)) = res.payload.extract::<ExtnResponse>() {
+                if let Ok(v) = from_value::<String>(val) {
+                    return Ok(v);
+                }
+            }
+        }
+
+        Err(jsonrpsee::core::Error::Call(CallError::Custom {
+            code: CAPABILITY_NOT_AVAILABLE,
+            message: "device.name is not available".into(),
+            data: None,
+        }))
+    }
+
+    pub async fn get_country_code(ctx: &CallContext, state: &PlatformState) -> RpcResult<String> {
+        let mut new_ctx = ctx.clone();
+        new_ctx.protocol = ApiProtocol::Extn;
+
+        let rpc_request = RpcRequest {
+            ctx: new_ctx.clone(),
+            method: "localization.countryCode".into(),
+            stats: RpcStats::default(),
+            params_json: RpcRequest::prepend_ctx(None, &new_ctx),
+        };
+
+        let resp = state
+            .get_client()
+            .get_extn_client()
+            .main_internal_request(rpc_request.clone())
+            .await;
+
+        if let Ok(res) = resp {
+            if let Some(ExtnResponse::Value(val)) = res.payload.extract::<ExtnResponse>() {
+                if let Ok(v) = from_value::<String>(val) {
+                    return Ok(v);
+                }
+            }
+        }
+
+        Err(jsonrpsee::core::Error::Call(CallError::Custom {
+            code: CAPABILITY_NOT_AVAILABLE,
+            message: "localization.countryCode is not available".into(),
+            data: None,
+        }))
     }
 }
