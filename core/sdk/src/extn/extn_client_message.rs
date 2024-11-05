@@ -62,6 +62,7 @@ use crate::{
         },
         gateway::rpc_gateway_api::RpcRequest,
         manifest::device_manifest::AppLibraryEntry,
+        observability::analytics::AnalyticsRequest,
         protocol::BridgeProtocolRequest,
         pubsub::{PubSubEvents, PubSubRequest, PubSubResponse},
         session::{AccountSessionRequest, AccountSessionResponse, SessionTokenRequest},
@@ -319,6 +320,7 @@ pub enum ExtnRequest {
     DistributorToken(DistributorTokenRequest),
     Context(RippleContextUpdateRequest),
     AppCatalog(AppCatalogRequest),
+    Analytics(AnalyticsRequest),
 }
 
 impl ExtnPayloadProvider for ExtnRequest {

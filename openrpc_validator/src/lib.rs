@@ -7,6 +7,59 @@ use serde_json::{json, Map, Value};
 pub extern crate jsonschema;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RpcMethodValidator {
+    pub validators: Vec<FireboltOpenRpc>,
+}
+
+impl Default for RpcMethodValidator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl RpcMethodValidator {
+    pub fn new() -> RpcMethodValidator {
+        RpcMethodValidator { validators: vec![] }
+    }
+
+    pub fn add_schema(&mut self, schema: FireboltOpenRpc) {
+        self.validators.push(schema);
+    }
+
+    pub fn get_method(&self, name: &str) -> Option<RpcMethod> {
+        for validator in &self.validators {
+            if let Some(method) = validator.get_method_by_name(name) {
+                return Some(method);
+            }
+        }
+        None
+    }
+
+    pub fn get_result_properties_schema(&self, name: &str) -> Option<Map<String, Value>> {
+        for validator in &self.validators {
+            if let Some(method) = validator.get_result_properties_schema_by_name(name) {
+                return Some(method);
+            }
+        }
+        None
+    }
+
+    pub fn params_validator(
+        &self,
+        version: String,
+        method: &str,
+    ) -> Result<JSONSchema, ValidationError> {
+        for validator in &self.validators {
+            let validator = validator.params_validator(version.clone(), method);
+            if validator.is_ok() {
+                return validator;
+            }
+        }
+        Err(ValidationError::SpecVersionNotFound)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FireboltOpenRpc {
     pub apis: HashMap<String, FireboltOpenRpcSpec>,
 }
