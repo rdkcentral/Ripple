@@ -326,7 +326,6 @@ impl ExtnClient {
                             if let Some(sender) = req_sender {
                                 let _ = new_message.callback.insert(sender);
                             }
-                            Self::handle_vec_stream(message, self.event_processors.clone());
                         }
 
                         tokio::spawn(async move {
@@ -387,10 +386,10 @@ impl ExtnClient {
                     trace!("Send to other client result: {:?}", send_res);
                 }
             }
+            Self::handle_vec_stream(message, self.event_processors.clone());
         } else {
             trace!("Context information is already updated. Hence not propagating");
         }
-        Self::handle_vec_stream(message, self.event_processors.clone());
     }
 
     fn handle_no_processor_error(&self, message: ExtnMessage) {

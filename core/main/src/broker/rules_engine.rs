@@ -18,10 +18,10 @@ use jaq_interpret::{Ctx, FilterT, ParseCtx, RcIter, Val};
 use ripple_sdk::api::{
     gateway::rpc_gateway_api::RpcRequest, manifest::extn_manifest::ExtnManifest,
 };
-use ripple_sdk::log::trace;
+
 use ripple_sdk::{
     chrono::Utc,
-    log::{error, info, warn},
+    log::{debug, error, info, trace, warn},
     serde_json::Value,
     utils::error::RippleError,
 };
@@ -50,7 +50,7 @@ impl RuleSet {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Default)]
 pub struct RuleEndpoint {
     pub protocol: RuleEndpointProtocol,
     pub url: String,
@@ -75,16 +75,25 @@ fn default_autostart() -> bool {
     true
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "lowercase")]
 #[cfg_attr(test, derive(PartialEq))]
 pub enum RuleEndpointProtocol {
+    #[default]
     Websocket,
     Http,
     Thunder,
+    Workflow,
+}
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct JsonDataSource {
+    // configurable namespace to "stuff" an in individual result payload into
+    pub namespace: Option<String>,
+    pub method: String,
+    pub params: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct Rule {
     pub alias: String,
     // Not every rule needs transform
@@ -93,7 +102,11 @@ pub struct Rule {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filter: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub event_handler: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub endpoint: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sources: Option<Vec<JsonDataSource>>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default, Serialize)]
@@ -152,15 +165,34 @@ impl RuleEngine {
         }
     }
 
+    pub fn load(path: &str) -> Result<RuleEngine, RippleError> {
+        let path = Path::new(path);
+        if path.exists() {
+            let contents = fs::read_to_string(path).unwrap();
+            Self::load_from_string_literal(contents)
+        } else {
+            warn!("path for the rule is invalid {}", path.display());
+            Err(RippleError::InvalidInput)
+        }
+    }
+    pub fn load_from_string_literal(contents: String) -> Result<RuleEngine, RippleError> {
+        let (_content, rule_set) = Self::load_from_content(contents)?;
+        let mut rules_engine = RuleEngine::default();
+        rules_engine.rules.append(rule_set);
+        Ok(rules_engine.clone())
+    }
+
     pub fn build(extn_manifest: &ExtnManifest) -> Self {
         trace!("building rules engine {:?}", extn_manifest.rules_path);
         let mut engine = RuleEngine::default();
         for path in extn_manifest.rules_path.iter() {
             let path_for_rule = Self::build_path(path, &extn_manifest.default_path);
-            info!("loading rule {}", path_for_rule);
+            debug!("loading rules file {}", path_for_rule);
             if let Some(p) = Path::new(&path_for_rule).to_str() {
                 if let Ok(contents) = fs::read_to_string(p) {
-                    info!("Rule content {}", contents);
+                    info!("Rules content {}", contents);
+                    info!("loading rules from path {}", path);
+                    info!("loading rule {}", path_for_rule);
                     if let Ok((_, rule_set)) = Self::load_from_content(contents) {
                         engine.rules.append(rule_set)
                     } else {
@@ -180,7 +212,7 @@ impl RuleEngine {
         match serde_json::from_str::<RuleSet>(&contents) {
             Ok(manifest) => Ok((contents, manifest)),
             Err(err) => {
-                warn!("{:?} could not load rule", err);
+                error!("{:?} could not load rule", err);
                 Err(RippleError::InvalidInput)
             }
         }
@@ -215,7 +247,10 @@ impl RuleEngine {
 }
 
 pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value, RippleError> {
-    info!("Jq rule {}  input {:?}", filter, input);
+    info!(
+        "Jq rule {}  input {:?}, reference {}",
+        filter, input, reference
+    );
     let start = Utc::now().timestamp_millis();
     // start out only from core filters,
     // which do not include filters in the standard library
@@ -253,6 +288,27 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
     }
 
     Err(RippleError::ParseError)
+}
+pub fn compose_json_values(values: Vec<Value>) -> Value {
+    if values.len() == 1 {
+        return values[0].clone();
+    }
+    debug!("Composing values {:?}", values);
+
+    let mut composition_filter = ".[0]".to_string();
+    for v in 1..values.len() {
+        composition_filter = format!("{} * .[{}]", composition_filter, v);
+    }
+    match jq_compile(Value::Array(values), &composition_filter, String::new()) {
+        Ok(composed_value) => composed_value,
+        Err(err) => {
+            error!("Failed to compose JSON values with error: {:?}", err);
+            Value::Null // Return a default value on failure
+        }
+    }
+}
+pub fn make_name_json_safe(name: &str) -> String {
+    name.replace([' ', '.', ','], "_")
 }
 
 #[cfg(test)]
@@ -306,5 +362,59 @@ mod tests {
         });
         let resp = jq_compile(input, filter, String::new());
         assert_eq!(resp.unwrap(), "EN".to_string());
+    }
+    #[test]
+    fn test_composed_jq_compile() {
+        let a = json!({"asome": "avalue"});
+        let b = json!({"bsome": "bvalue"});
+        let c = json!({"csome": {"cvalue" : "nested"}});
+        let vals = vec![a, b, c];
+        let mut composition_filter = ".[0]".to_string();
+        for v in 1..vals.len() {
+            composition_filter = format!("{} * .[{}]", composition_filter, v);
+        }
+
+        assert!(jq_compile(
+            jq_compile(
+                Value::Array(vals.clone()),
+                &composition_filter,
+                String::new()
+            )
+            .unwrap(),
+            ".asome",
+            String::new()
+        )
+        .unwrap()
+        .as_str()
+        .unwrap()
+        .contains("avalue"));
+        assert!(jq_compile(
+            jq_compile(
+                Value::Array(vals.clone()),
+                &composition_filter,
+                String::new()
+            )
+            .unwrap(),
+            ".bsome",
+            String::new()
+        )
+        .unwrap()
+        .as_str()
+        .unwrap()
+        .contains("bvalue"));
+        assert!(jq_compile(
+            jq_compile(
+                Value::Array(vals.clone()),
+                &composition_filter,
+                String::new()
+            )
+            .unwrap(),
+            ".csome.cvalue",
+            String::new()
+        )
+        .unwrap()
+        .as_str()
+        .unwrap()
+        .contains("nested"));
     }
 }

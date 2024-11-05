@@ -375,7 +375,8 @@ impl StatusManager {
                 }
             }
         } else if let Some(_e) = &data.error {
-            Self::on_thunder_error_response(self, callback, data, &callsign.to_string()).await;
+            self.on_thunder_error_response(callback, data, &callsign.to_string())
+                .await;
         }
     }
 
@@ -386,20 +387,25 @@ impl StatusManager {
         data: &JsonRpcApiResponse,
         request: &str,
     ) {
-        let result = match &data.result {
-            Some(result) => result,
-            None => return,
-        };
-
         let callsign = match request.split('@').last() {
             Some(callsign) => callsign.trim_matches(|c| c == '"' || c == '}'),
-            None => return,
+            None => "",
+        };
+
+        let result = match &data.result {
+            Some(result) => result,
+            None => {
+                self.on_thunder_error_response(callback, data, &callsign.to_string())
+                    .await;
+                return;
+            }
         };
 
         let status_res: Vec<Status> = match serde_json::from_value(result.clone()) {
             Ok(status_res) => status_res,
             Err(_) => {
-                Self::on_thunder_error_response(self, callback, data, &callsign.to_string()).await;
+                self.on_thunder_error_response(callback, data, &callsign.to_string())
+                    .await;
                 return;
             }
         };
