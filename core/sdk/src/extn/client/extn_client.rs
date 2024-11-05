@@ -329,7 +329,6 @@ impl ExtnClient {
                             if let Some(sender) = req_sender {
                                 let _ = new_message.callback.insert(sender);
                             }
-                            Self::handle_vec_stream(message, self.event_processors.clone());
                         }
 
                         tokio::spawn(async move {
