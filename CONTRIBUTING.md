@@ -15,7 +15,7 @@ ADR - Architectural Decision Record
 PR - Pull Request
 
 # Useful Links
-
+[\[\\]]
 Ripple project board: [https://github.com/orgs/rdkcentral/projects/11](https://github.com/orgs/rdkcentral/projects/11)
 
 Ripple ADRs: [https://github.com/rdkcentral/Ripple/tree/main/docs/adr](https://github.com/rdkcentral/Ripple/tree/main/docs/adr)
