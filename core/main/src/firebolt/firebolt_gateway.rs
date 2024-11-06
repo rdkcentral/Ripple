@@ -179,6 +179,7 @@ impl FireboltGateway {
             }
         }
         let platform_state = self.state.platform_state.clone();
+
         /*
          * The reason for spawning a new thread is that when request-1 comes, and it waits for
          * user grant. The response from user grant, (eg ChallengeResponse) comes as rpc which
@@ -235,10 +236,11 @@ impl FireboltGateway {
 
             match result {
                 Ok(_) => {
-                    if !platform_state
-                        .endpoint_state
-                        .handle_brokerage(request_c.clone(), extn_msg.clone())
-                    {
+                    if !platform_state.endpoint_state.handle_brokerage(
+                        request_c.clone(),
+                        extn_msg.clone(),
+                        None,
+                    ) {
                         // Route
                         match request.clone().ctx.protocol {
                             ApiProtocol::Extn => {
@@ -342,7 +344,7 @@ fn validate_request(
         let major_version = open_rpc_state.get_version().major.to_string();
         let openrpc_validator = open_rpc_state.get_openrpc_validator();
         // Get Method from the validator
-        if let Some(rpc_method) = openrpc_validator.get_method_by_name(&method_name) {
+        if let Some(rpc_method) = openrpc_validator.get_method(&method_name) {
             // Get schema validator
             let validator = openrpc_validator
                 .params_validator(major_version, &rpc_method.name)

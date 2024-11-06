@@ -65,10 +65,9 @@ impl Bootstep<BootstrapState> for StartOtherBrokers {
         if let Ok(rx) = state.channels_state.get_broker_receiver() {
             BrokerOutputForwarder::start_forwarder(ps.clone(), rx)
         }
-        let session = ps.session_state.get_account_session();
         // Setup the endpoints from the manifests
         let mut endpoint_state = ps.endpoint_state;
-        endpoint_state.build_other_endpoints(session);
+        endpoint_state.build_other_endpoints(ps.session_state.get_account_session());
         Ok(())
     }
 }
