@@ -84,14 +84,6 @@ const KEY_FIREBOLT_DEVICE_UID: &str = "fireboltDeviceUid";
 
 #[rpc(server)]
 pub trait Device {
-    #[method(name = "device.name")]
-    async fn name(&self, ctx: CallContext) -> RpcResult<String>;
-    #[method(name = "device.setName")]
-    async fn set_name(
-        &self,
-        ctx: CallContext,
-        _setname_request: SetStringProperty,
-    ) -> RpcResult<()>;
     #[method(name = "device.id")]
     async fn id(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "device.uid")]
@@ -210,14 +202,6 @@ pub async fn get_ll_mac_addr(state: PlatformState) -> RpcResult<String> {
     }
 }
 
-pub async fn set_device_name(state: &PlatformState, prop: SetStringProperty) -> RpcResult<()> {
-    StorageManager::set_string(state, StorageProperty::DeviceName, prop.value, None).await
-}
-
-pub async fn get_device_name(state: &PlatformState) -> RpcResult<String> {
-    StorageManager::get_string(state, StorageProperty::DeviceName).await
-}
-
 #[derive(Debug)]
 pub struct DeviceImpl {
     pub state: PlatformState,
@@ -247,18 +231,6 @@ impl DeviceImpl {
 
 #[async_trait]
 impl DeviceServer for DeviceImpl {
-    async fn name(&self, _ctx: CallContext) -> RpcResult<String> {
-        get_device_name(&self.state).await
-    }
-
-    async fn set_name(
-        &self,
-        _ctx: CallContext,
-        setname_request: SetStringProperty,
-    ) -> RpcResult<()> {
-        set_device_name(&self.state, setname_request).await
-    }
-
     async fn on_name_changed(
         &self,
         ctx: CallContext,

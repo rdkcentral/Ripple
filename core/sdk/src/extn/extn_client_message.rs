@@ -159,6 +159,12 @@ impl ExtnMessage {
             ts: None,
         }
     }
+    pub fn as_value(&self) -> Option<Value> {
+        if let Some(ExtnResponse::Value(val)) = self.payload.extract::<ExtnResponse>() {
+            return Some(val);
+        }
+        None
+    }
 }
 
 impl TryFrom<String> for ExtnPayload {

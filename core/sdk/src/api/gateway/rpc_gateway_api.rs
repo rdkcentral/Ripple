@@ -26,6 +26,7 @@ use crate::{
     api::firebolt::{fb_general::ListenRequest, fb_openrpc::FireboltOpenRpcMethod},
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
+    utils::error::RippleError,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -96,6 +97,18 @@ impl CallContext {
             return cid.clone();
         }
         self.session_id.clone()
+    }
+    pub fn internal(method: &str) -> Self {
+        CallContext::new(
+            Uuid::new_v4().to_string(),
+            Uuid::new_v4().to_string(),
+            "internal".into(),
+            1,
+            ApiProtocol::Extn,
+            method.to_owned(),
+            None,
+            false,
+        )
     }
 }
 
@@ -246,9 +259,27 @@ impl JsonRpcApiError {
         JsonRpcApiResponse::error(self)
     }
 }
+impl From<JsonRpcApiError> for jsonrpsee::core::Error {
+    fn from(error: JsonRpcApiError) -> Self {
+        jsonrpsee::core::Error::Call(jsonrpsee::types::error::CallError::Custom {
+            code: error.code,
+            message: error.message,
+            data: None,
+        })
+    }
+}
 impl From<JsonRpcApiError> for JsonRpcApiResponse {
     fn from(error: JsonRpcApiError) -> Self {
         JsonRpcApiResponse::error(&error)
+    }
+}
+
+pub fn rpc_value_result_to_string_result(
+    result: jsonrpsee::core::RpcResult<Value>,
+) -> jsonrpsee::core::RpcResult<String> {
+    match result {
+        Ok(v) => Ok(format!("{}", v.as_str().unwrap_or_default())),
+        Err(e) => Err(e),
     }
 }
 
@@ -388,7 +419,21 @@ pub struct RpcRequest {
     pub ctx: CallContext,
     pub stats: RpcStats,
 }
-
+impl RpcRequest {
+    pub fn internal(method: &str) -> Self {
+        let ctx = CallContext::internal(&method);
+        RpcRequest {
+            params_json: Self::prepend_ctx(None, &ctx),
+            ctx: ctx,
+            method: method.to_owned(),
+            stats: RpcStats::default(),
+        }
+    }
+    pub fn with_params(mut self, params: Option<Value>) -> Self {
+        self.params_json = Self::prepend_ctx(params, &self.ctx);
+        self
+    }
+}
 impl ExtnPayloadProvider for RpcRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Request(ExtnRequest::Rpc(self.clone()))
