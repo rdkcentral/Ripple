@@ -18,16 +18,11 @@
 use crate::{state::platform_state::PlatformState, utils::rpc_utils::extract_tcp_port};
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::StreamExt;
-use jsonrpsee::{core::RpcResult, types::error::CallError};
+use jsonrpsee::core::RpcResult;
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{
-        ApiProtocol, CallContext, JsonRpcApiError, RpcRequest, RpcStats,
-    },
-    extn::extn_client_message::{ExtnMessage, ExtnResponse},
+    api::gateway::rpc_gateway_api::{JsonRpcApiError, RpcRequest},
     log::{error, info},
     tokio::{self, net::TcpStream},
-    utils::error::RippleError,
-    uuid::Uuid,
 };
 use serde_json::Value;
 use std::time::Duration;
@@ -80,24 +75,20 @@ impl BrokerUtils {
         params: Option<Value>,
     ) -> RpcResult<Value> {
         match state
-            .internal_rpc_request(&RpcRequest::internal(&method).with_params(params))
+            .internal_rpc_request(&RpcRequest::internal(method).with_params(params))
             .await
         {
-            Ok(res) => res.as_value().map_or_else(
-                || {
-                    Err(JsonRpcApiError::default()
-                        .with_code(-32100)
-                        .with_message(format!("failed to call internal rpc method {}", method))
-                        .into())
-                },
-                |val| Ok(val),
-            ),
-            Err(e) => {
-                return Err(JsonRpcApiError::default()
+            Ok(res) => match res.as_value() {
+                Some(v) => Ok(v),
+                None => Err(JsonRpcApiError::default()
                     .with_code(-32100)
-                    .with_message(format!("failed to get {} : {}", method, e))
-                    .into())
-            }
+                    .with_message(format!("failed to get {} : {:?}", method, res))
+                    .into()),
+            },
+            Err(e) => Err(JsonRpcApiError::default()
+                .with_code(-32100)
+                .with_message(format!("failed to get {} : {}", method, e))
+                .into()),
         }
     }
 }

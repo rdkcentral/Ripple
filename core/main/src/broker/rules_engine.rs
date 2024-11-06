@@ -417,8 +417,4 @@ mod tests {
         .unwrap()
         .contains("nested"));
     }
-    #[test]
-    pub fn test_jq_rule_conditionals() {
-        assert!(false)
-    }
 }

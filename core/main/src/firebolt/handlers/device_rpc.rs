@@ -19,7 +19,6 @@ use std::{collections::HashMap, env, time::Duration};
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
-    processor::storage::storage_manager::StorageManager,
     service::apps::app_events::AppEvents,
     state::platform_state::PlatformState,
     utils::rpc_utils::{rpc_add_event_listener, rpc_err},
@@ -40,7 +39,6 @@ use ripple_sdk::{
             },
             device_info_request::{DeviceInfoRequest, DeviceResponse, FirmwareInfo},
             device_operator::DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS,
-            device_peristence::SetStringProperty,
             device_request::{
                 AudioProfile, DeviceVersionResponse, HdcpProfile, HdrProfile, NetworkResponse,
             },
@@ -48,9 +46,7 @@ use ripple_sdk::{
         firebolt::fb_general::{ListenRequest, ListenerResponse},
         gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest, RpcStats},
         session::ProvisionRequest,
-        storage_property::{
-            StorageProperty, EVENT_DEVICE_DEVICE_NAME_CHANGED, EVENT_DEVICE_NAME_CHANGED,
-        },
+        storage_property::{EVENT_DEVICE_DEVICE_NAME_CHANGED, EVENT_DEVICE_NAME_CHANGED},
     },
     extn::extn_client_message::{ExtnMessage, ExtnResponse},
     log::error,

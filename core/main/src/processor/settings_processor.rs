@@ -49,7 +49,6 @@ use crate::{
     firebolt::handlers::{
         capabilities_rpc::is_permitted,
         closed_captions_rpc::ClosedcaptionsImpl,
-        device_rpc,
         discovery_rpc::DiscoveryImpl,
         privacy_rpc::PrivacyImpl,
         voice_guidance_rpc::{

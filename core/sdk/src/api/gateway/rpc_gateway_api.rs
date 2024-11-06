@@ -26,7 +26,6 @@ use crate::{
     api::firebolt::{fb_general::ListenRequest, fb_openrpc::FireboltOpenRpcMethod},
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
-    utils::error::RippleError,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -278,7 +277,7 @@ pub fn rpc_value_result_to_string_result(
     result: jsonrpsee::core::RpcResult<Value>,
 ) -> jsonrpsee::core::RpcResult<String> {
     match result {
-        Ok(v) => Ok(format!("{}", v.as_str().unwrap_or_default())),
+        Ok(v) => Ok(v.as_str().unwrap_or_default().to_string()),
         Err(e) => Err(e),
     }
 }
@@ -421,10 +420,10 @@ pub struct RpcRequest {
 }
 impl RpcRequest {
     pub fn internal(method: &str) -> Self {
-        let ctx = CallContext::internal(&method);
+        let ctx = CallContext::internal(method);
         RpcRequest {
             params_json: Self::prepend_ctx(None, &ctx),
-            ctx: ctx,
+            ctx,
             method: method.to_owned(),
             stats: RpcStats::default(),
         }
