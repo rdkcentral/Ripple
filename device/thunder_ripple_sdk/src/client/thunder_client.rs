@@ -53,14 +53,14 @@ use ripple_sdk::{
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::thunder_state::ThunderConnectionState;
-use crate::utils::get_error_value;
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 use super::thunder_client_pool::ThunderPoolCommand;
 use super::{
     jsonrpc_method_locator::JsonRpcMethodLocator,
     plugin_manager::{PluginActivatedResult, PluginManagerCommand},
 };
+use crate::thunder_state::ThunderConnectionState;
+use crate::utils::get_error_value;
 use std::{env, process::Command};
 #[cfg(not(feature = "thunderBroker_enabled"))]
 pub struct ThunderClientBuilder;

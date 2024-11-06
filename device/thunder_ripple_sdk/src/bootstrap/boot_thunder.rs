@@ -17,17 +17,18 @@
 
 use crate::{
     bootstrap::setup_thunder_processors::SetupThunderProcessor,
-    client::plugin_manager::ThunderPluginBootParam, thunder_state::ThunderBootstrapStateWithClient,
+    client::plugin_manager::ThunderPluginBootParam,
+    thunder_state::{ThunderBootstrapStateWithClient, ThunderBootstrapStateWithConfig},
 };
 
+use super::{get_config_step::ThunderGetConfigStep, setup_thunder_pool_step::ThunderPoolStep};
+// Ensure the correct path to SetupThunderComcastProcessor
 use crate::client::thunder_client2;
 use crate::thunder_state::ThunderState;
 use ripple_sdk::{
     extn::client::extn_client::ExtnClient,
     log::{error, info},
 };
-
-use super::{get_config_step::ThunderGetConfigStep, setup_thunder_pool_step::ThunderPoolStep};
 
 pub async fn boot_thunder(
     state: ExtnClient,
@@ -40,7 +41,17 @@ pub async fn boot_thunder(
         info!("thunderBroker_enabled feature is enabled");
         if let Ok(thndr_client) = thunder_client2::ThunderClientBuilder::get_client().await {
             let thunder_state = ThunderState::new(state.clone(), thndr_client);
-            SetupThunderProcessor::setup(thunder_state, state.clone()).await;
+            SetupThunderProcessor::setup(thunder_state.clone(), state.clone()).await;
+
+            let thndr_st_config = ThunderBootstrapStateWithConfig {
+                extn_client: state.clone(),
+            };
+
+            let thunder_bootstrap_state = ThunderBootstrapStateWithClient {
+                prev: thndr_st_config,
+                state: thunder_state,
+            };
+            return Some(thunder_bootstrap_state);
         } else {
             error!("Unable to connect to Thunder_Broker, error in ThunderClientBuilder");
         }

@@ -17,21 +17,21 @@
 
 use std::time::Duration;
 
-use ripple_sdk::{
-    api::status_update::ExtnStatus,
-    log::{error, info, warn},
-    utils::error::RippleError,
-};
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 use crate::{
     client::{plugin_manager::PluginManager, thunder_client_pool::ThunderClientPool},
     thunder_state::{
         ThunderBootstrapStateWithClient, ThunderBootstrapStateWithConfig, ThunderState,
     },
 };
+use ripple_sdk::{
+    api::status_update::ExtnStatus,
+    log::{error, info, warn},
+    utils::error::RippleError,
+};
 
 pub struct ThunderPoolStep;
-
+#[cfg(not(feature = "thunderBroker_enabled"))]
 impl ThunderPoolStep {
     pub fn get_name() -> String {
         "ThunderPoolStep".into()

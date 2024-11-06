@@ -59,7 +59,6 @@ use crate::thunder_state::ThunderConnectionState;
 use crate::utils::{get_error_value, get_next_id};
 
 use super::thunder_async_client::{ThunderAsyncClient, ThunderAsyncRequest, ThunderAsyncResponse};
-use super::thunder_client_pool::ThunderPoolCommand;
 
 use super::thunder_plugins_status_mgr::{BrokerCallback, BrokerSender};
 use super::{

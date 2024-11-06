@@ -17,6 +17,17 @@
 
 use std::sync::{Arc, RwLock};
 
+#[cfg(not(feature = "thunderBroker_enabled"))]
+use crate::{
+    client::{plugin_manager::ThunderPluginBootParam, thunder_client::ThunderClient},
+    events::thunder_event_processor::{ThunderEventHandler, ThunderEventProcessor},
+};
+#[cfg(not(feature = "thunderBroker_enabled"))]
+use url::Url;
+
+use crate::client::thunder_client2::ThunderClient;
+use crate::events::thunder_event_processor::{ThunderEventHandler, ThunderEventProcessor};
+
 use ripple_sdk::{
     api::device::device_operator::{
         DeviceOperator, DeviceResponseMessage, DeviceUnsubscribeRequest,
@@ -29,12 +40,6 @@ use ripple_sdk::{
     tokio::sync::mpsc,
     tokio::sync::{Mutex, Notify},
     utils::error::RippleError,
-};
-use url::Url;
-#[cfg(not(feature = "thunderBroker_enabled"))]
-use crate::{
-    client::{plugin_manager::ThunderPluginBootParam, thunder_client::ThunderClient},
-    events::thunder_event_processor::{ThunderEventHandler, ThunderEventProcessor},
 };
 
 #[derive(Debug)]
@@ -57,6 +62,7 @@ impl ThunderConnectionState {
         }
     }
 }
+#[cfg(not(feature = "thunderBroker_enabled"))]
 #[derive(Debug, Clone)]
 pub struct ThunderBootstrapStateWithConfig {
     pub extn_client: ExtnClient,
@@ -64,6 +70,11 @@ pub struct ThunderBootstrapStateWithConfig {
     pub pool_size: u32,
     pub plugin_param: ThunderPluginBootParam,
     pub thunder_connection_state: Arc<ThunderConnectionState>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ThunderBootstrapStateWithConfig {
+    pub extn_client: ExtnClient,
 }
 
 #[derive(Debug, Clone)]
