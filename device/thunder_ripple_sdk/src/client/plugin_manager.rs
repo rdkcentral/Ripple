@@ -496,7 +496,7 @@ mod tests {
         let controller_pool = ThunderClientPool::start(
             url.clone(),
             None,
-            Arc::new(ThunderConnectionState::new()),
+            Some(Arc::new(ThunderConnectionState::new())),
             1,
         )
         .await;
@@ -519,7 +519,7 @@ mod tests {
         let client = ThunderClientPool::start(
             url,
             Some(plugin_manager_tx_clone),
-            Arc::new(ThunderConnectionState::new()),
+            Some(Arc::new(ThunderConnectionState::new())),
             4,
         )
         .await;

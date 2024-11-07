@@ -57,7 +57,7 @@ impl ThunderClientPool {
     pub async fn start(
         url: Url,
         plugin_manager_tx: Option<mpsc::Sender<PluginManagerCommand>>,
-        thunder_connection_state: Arc<ThunderConnectionState>,
+        thunder_connection_state: Option<Arc<ThunderConnectionState>>,
         size: u32,
     ) -> Result<ThunderClient, RippleError> {
         debug!("Starting a Thunder connection pool of size {}", size);
@@ -66,11 +66,12 @@ impl ThunderClientPool {
         let mut clients = Vec::default();
         for _ in 0..size {
             let client = ThunderClientBuilder::get_client(
-                url.clone(),
+                Some(url.clone()),
                 plugin_manager_tx.clone(),
                 Some(s.clone()),
                 thunder_connection_state.clone(),
                 None,
+                false,
             )
             .await;
             if let Ok(c) = client {
@@ -128,14 +129,15 @@ impl ThunderClientPool {
                     ThunderPoolCommand::ResetThunderClient(client_id) => {
                         // Remove the given client and then start a new one to replace it
                         let mut itr = pool.clients.iter();
-                        let i = itr.position(|x| x.client.id == client_id);
+                        let i = itr.position(|x| x.client.id == Some(client_id));
                         if let Some(index) = i {
                             let client = ThunderClientBuilder::get_client(
-                                url.clone(),
+                                Some(url.clone()),
                                 plugin_manager_tx.clone(),
                                 Some(sender_for_thread.clone()),
                                 thunder_connection_state.clone(),
                                 pool.clients.get(index).map(|x| x.client.clone()),
+                                false,
                             )
                             .await;
                             if let Ok(client) = client {
@@ -156,9 +158,10 @@ impl ThunderClientPool {
         Ok(ThunderClient {
             sender: None,
             pooled_sender: Some(s),
-            id: Uuid::new_v4(),
+            id: Some(Uuid::new_v4()),
             plugin_manager_tx: pmtx_c,
             subscriptions: None,
+            thndr_asynclient: None,
         })
     }
 
