@@ -38,7 +38,7 @@ use ripple_sdk::{
                 SCREEN_RESOLUTION_CHANGED_EVENT, VIDEO_RESOLUTION_CHANGED_EVENT,
             },
             device_info_request::{DeviceInfoRequest, DeviceResponse, FirmwareInfo},
-            device_request::{AudioProfile, DeviceVersionResponse, HdcpProfile, NetworkResponse},
+            device_request::{AudioProfile, DeviceVersionResponse, HdcpProfile},
         },
         firebolt::fb_general::{ListenRequest, ListenerResponse},
         gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest, RpcStats},
