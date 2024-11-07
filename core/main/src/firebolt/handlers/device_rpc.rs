@@ -106,8 +106,7 @@ pub trait Device {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
-    #[method(name = "device.hdr")]
-    async fn hdr(&self, ctx: CallContext) -> RpcResult<HashMap<HdrProfile, bool>>;
+
     #[method(name = "device.onHdrChanged")]
     async fn on_hdr_changed(
         &self,
@@ -295,7 +294,6 @@ impl DeviceServer for DeviceImpl {
         Err(rpc_err("FB error response TBD"))
     }
 
-
     async fn hdcp(&self, _ctx: CallContext) -> RpcResult<HashMap<HdcpProfile, bool>> {
         let resp = self
             .state
@@ -348,29 +346,6 @@ impl DeviceServer for DeviceImpl {
             listening: listen,
             event: HDCP_CHANGED_EVENT.to_string(),
         })
-    }
-
-    async fn hdr(&self, _ctx: CallContext) -> RpcResult<HashMap<HdrProfile, bool>> {
-        let resp = self
-            .state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::Hdr)
-            .await;
-
-        match resp {
-            Ok(response) => match response.payload.extract().unwrap() {
-                DeviceResponse::HdrResponse(value) => Ok(value
-                    .into_iter()
-                    .filter(|&(p, _)| p != HdrProfile::Technicolor)
-                    .collect()),
-                _ => Err(jsonrpsee::core::Error::Custom(String::from(
-                    "Hdr capabilities error response TBD",
-                ))),
-            },
-            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-                "Hdr capabilities error response TBD",
-            ))),
-        }
     }
 
     async fn on_hdr_changed(
