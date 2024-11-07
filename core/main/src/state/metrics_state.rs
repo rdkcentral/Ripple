@@ -21,7 +21,7 @@ use std::{
 };
 
 use crate::broker::broker_utils::BrokerUtils;
-use jsonrpsee::{core::RpcResult, tracing::debug, types::error::CallError};
+use jsonrpsee::{tracing::debug, types::error::CallError};
 use ripple_sdk::{
     api::{
         context::RippleContextUpdateRequest,
