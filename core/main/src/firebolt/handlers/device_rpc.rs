@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{collections::HashMap, env, time::Duration};
+use std::{collections::HashMap, env};
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
@@ -38,10 +38,7 @@ use ripple_sdk::{
                 SCREEN_RESOLUTION_CHANGED_EVENT, VIDEO_RESOLUTION_CHANGED_EVENT,
             },
             device_info_request::{DeviceInfoRequest, DeviceResponse, FirmwareInfo},
-            device_operator::DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS,
-            device_request::{
-                AudioProfile, DeviceVersionResponse, HdcpProfile, HdrProfile, NetworkResponse,
-            },
+            device_request::{AudioProfile, DeviceVersionResponse, HdcpProfile, NetworkResponse},
         },
         firebolt::fb_general::{ListenRequest, ListenerResponse},
         gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest, RpcStats},
@@ -50,7 +47,6 @@ use ripple_sdk::{
     },
     extn::extn_client_message::{ExtnMessage, ExtnResponse},
     log::error,
-    tokio::time::timeout,
     utils::error::RippleError,
 };
 use serde_json::json;
@@ -58,25 +54,6 @@ use serde_json::json;
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
 const KEY_FIREBOLT_DEVICE_UID: &str = "fireboltDeviceUid";
-
-// #[derive(Serialize, Clone, Debug, Deserialize)]
-// #[serde(rename_all = "camelCase")]
-// pub struct ProvisionRequest {
-//     account_id: String,
-//     device_id: String,
-//     distributor_id: Option<String>,
-// }
-
-// impl ProvisionRequest {
-//     fn get_session(self) -> DistributorSession {
-//         DistributorSession {
-//             id: None,
-//             token: None,
-//             account_id: Some(self.account_id.clone()),
-//             device_id: Some(self.device_id.clone()),
-//         }
-//     }
-// }
 
 #[rpc(server)]
 pub trait Device {
@@ -119,8 +96,6 @@ pub trait Device {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
-    #[method(name = "device.videoResolution")]
-    async fn video_resolution(&self, ctx: CallContext) -> RpcResult<Vec<i32>>;
     #[method(name = "device.onVideoResolutionChanged")]
     async fn on_video_resolution_changed(
         &self,
@@ -137,8 +112,6 @@ pub trait Device {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
-    #[method(name = "device.network")]
-    async fn network(&self, ctx: CallContext) -> RpcResult<NetworkResponse>;
     #[method(name = "device.onNetworkChanged")]
     async fn on_network_changed(
         &self,
@@ -412,25 +385,6 @@ impl DeviceServer for DeviceImpl {
         })
     }
 
-    async fn video_resolution(&self, _ctx: CallContext) -> RpcResult<Vec<i32>> {
-        if let Ok(Ok(resp)) = timeout(
-            Duration::from_secs(DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS),
-            self.state
-                .get_client()
-                .send_extn_request(DeviceInfoRequest::VideoResolution),
-        )
-        .await
-        {
-            if let Some(DeviceResponse::VideoResolutionResponse(value)) = resp.payload.extract() {
-                return Ok(value);
-            }
-        }
-
-        Err(jsonrpsee::core::Error::Custom(String::from(
-            "video_resolution error response TBD",
-        )))
-    }
-
     async fn on_video_resolution_changed(
         &self,
         ctx: CallContext,
@@ -537,26 +491,6 @@ impl DeviceServer for DeviceImpl {
             listening: listen,
             event: AUDIO_CHANGED_EVENT.to_string(),
         })
-    }
-
-    async fn network(&self, _ctx: CallContext) -> RpcResult<NetworkResponse> {
-        let resp = self
-            .state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::Network)
-            .await;
-
-        match resp {
-            Ok(response) => match response.payload.extract().unwrap() {
-                ExtnResponse::NetworkResponse(value) => Ok(value),
-                _ => Err(jsonrpsee::core::Error::Custom(String::from(
-                    "Network Status error response TBD",
-                ))),
-            },
-            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-                "Network status error response TBD",
-            ))),
-        }
     }
 
     async fn on_network_changed(
