@@ -126,8 +126,7 @@ pub trait Device {
     ) -> RpcResult<()>;
     #[method(name = "device.distributor")]
     async fn distributor(&self, ctx: CallContext) -> RpcResult<String>;
-    #[method(name = "device.make")]
-    async fn make(&self, ctx: CallContext) -> RpcResult<String>;
+
     #[method(name = "device.platform")]
     async fn platform(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "device.version")]
@@ -416,20 +415,6 @@ impl DeviceServer for DeviceImpl {
             listening: listen,
             event: VIDEO_RESOLUTION_CHANGED_EVENT.to_string(),
         })
-    }
-
-    async fn make(&self, _ctx: CallContext) -> RpcResult<String> {
-        if let Ok(response) = self
-            .state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::Make)
-            .await
-        {
-            if let Some(ExtnResponse::String(v)) = response.payload.extract() {
-                return Ok(v);
-            }
-        }
-        Err(rpc_err("FB error response TBD"))
     }
 
     async fn typ(&self, _ctx: CallContext) -> RpcResult<String> {
