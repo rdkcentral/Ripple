@@ -113,8 +113,6 @@ pub trait Device {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
-    #[method(name = "device.screenResolution")]
-    async fn screen_resolution(&self, ctx: CallContext) -> RpcResult<Vec<i32>>;
     #[method(name = "device.onScreenResolutionChanged")]
     async fn on_screen_resolution_changed(
         &self,
@@ -379,25 +377,6 @@ impl DeviceServer for DeviceImpl {
             listening: listen,
             event: HDR_CHANGED_EVENT.to_string(),
         })
-    }
-
-    async fn screen_resolution(&self, _ctx: CallContext) -> RpcResult<Vec<i32>> {
-        if let Ok(Ok(resp)) = timeout(
-            Duration::from_secs(DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS),
-            self.state
-                .get_client()
-                .send_extn_request(DeviceInfoRequest::ScreenResolution),
-        )
-        .await
-        {
-            if let Some(DeviceResponse::ScreenResolutionResponse(value)) = resp.payload.extract() {
-                return Ok(value);
-            }
-        }
-
-        Err(jsonrpsee::core::Error::Custom(String::from(
-            "screen_resolution error response TBD",
-        )))
     }
 
     async fn on_screen_resolution_changed(
