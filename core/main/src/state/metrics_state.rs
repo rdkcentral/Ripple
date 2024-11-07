@@ -21,7 +21,7 @@ use std::{
 };
 
 use crate::broker::broker_utils::BrokerUtils;
-use jsonrpsee::tracing::debug;
+use jsonrpsee::{core::RpcResult, tracing::debug, types::error::CallError};
 use ripple_sdk::{
     api::{
         context::RippleContextUpdateRequest,
@@ -31,7 +31,6 @@ use ripple_sdk::{
             fb_metrics::{MetricsContext, MetricsEnvironment},
             fb_openrpc::FireboltSemanticVersion,
         },
-        gateway::rpc_gateway_api::{ApiProtocol, CallContext},
         manifest::device_manifest::DataGovernanceConfig,
         storage_property::StorageProperty,
     },
@@ -39,8 +38,8 @@ use ripple_sdk::{
     extn::extn_client_message::ExtnResponse,
     log::error,
     utils::error::RippleError,
-    uuid::Uuid,
 };
+use serde_json::from_value;
 
 use rand::Rng;
 
@@ -255,21 +254,18 @@ impl MetricsState {
             }
         }
 
-        let ctx = CallContext::new(
-            Uuid::new_v4().to_string(),
-            Uuid::new_v4().to_string(),
-            "internal".into(),
-            1,
-            ApiProtocol::Extn,
-            "localization.language".to_string(),
-            None,
-            false,
-        );
-
-        let language = BrokerUtils::get_language(&ctx, state)
+        let language = BrokerUtils::process_internal_main_request(state, "localization.language")
             .await
-            .unwrap_or("no.language.set".to_string());
-        debug!("got language={:?}", &language);
+            .and_then(|val| {
+                from_value::<String>(val).map_err(|_| {
+                    jsonrpsee::core::Error::Call(CallError::Custom {
+                        code: -32100,
+                        message: "Failed to parse language".into(),
+                        data: None,
+                    })
+                })
+            })
+            .unwrap_or_else(|_| "no.language.set".to_string());
 
         let os_info = match Self::get_os_info_from_firebolt(state).await {
             Ok(info) => info,
@@ -334,17 +330,10 @@ impl MetricsState {
 
         let coam = Self::get_persistent_store_bool(state, PERSISTENT_STORAGE_KEY_COAM).await;
 
-        let ctx = CallContext::new(
-            Uuid::new_v4().to_string(),
-            Uuid::new_v4().to_string(),
-            "internal".into(),
-            1,
-            ApiProtocol::Extn,
-            "localization.countryCode".to_string(),
-            None,
-            false,
-        );
-        let country = BrokerUtils::get_country_code(&ctx, state).await.ok();
+        let country = BrokerUtils::process_internal_main_request(state, "localization.countryCode")
+            .await
+            .ok()
+            .and_then(|val| from_value::<String>(val).ok());
         debug!("got country_code={:?}", &country);
 
         let region = StorageManager::get_string(state, StorageProperty::Locality)
