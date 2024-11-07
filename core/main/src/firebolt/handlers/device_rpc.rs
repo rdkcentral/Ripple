@@ -98,8 +98,6 @@ pub trait Device {
     ) -> RpcResult<ListenerResponse>;
     #[method(name = "device.model")]
     async fn model(&self, ctx: CallContext) -> RpcResult<String>;
-    #[method(name = "device.sku")]
-    async fn sku(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "device.hdcp")]
     async fn hdcp(&self, ctx: CallContext) -> RpcResult<HashMap<HdcpProfile, bool>>;
     #[method(name = "device.onHdcpChanged")]
@@ -297,19 +295,6 @@ impl DeviceServer for DeviceImpl {
         Err(rpc_err("FB error response TBD"))
     }
 
-    async fn sku(&self, _ctx: CallContext) -> RpcResult<String> {
-        if let Ok(response) = self
-            .state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::Model)
-            .await
-        {
-            if let Some(ExtnResponse::String(v)) = response.payload.extract() {
-                return Ok(v);
-            }
-        }
-        Err(rpc_err("FB error response TBD"))
-    }
 
     async fn hdcp(&self, _ctx: CallContext) -> RpcResult<HashMap<HdcpProfile, bool>> {
         let resp = self
