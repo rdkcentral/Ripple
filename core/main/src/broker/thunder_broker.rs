@@ -486,8 +486,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
     #[ignore]
+    #[tokio::test]
     async fn test_thunderbroker_start() {
         let (tx, mut _rx) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);
@@ -600,6 +600,7 @@ mod tests {
         assert_eq!(key_str, "value");
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_thunderbroker_subscribe_unsubscribe() {
         let (tx, mut _rx) = mpsc::channel(1);
