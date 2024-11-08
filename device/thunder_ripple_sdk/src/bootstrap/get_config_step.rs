@@ -52,7 +52,7 @@ fn gateway_default() -> String {
 fn pool_size_default() -> u32 {
     POOL_SIZE_DEFAULT
 }
-#[cfg(not(feature = "thunderBroker_enabled"))]
+
 impl ThunderGetConfigStep {
     pub fn get_name() -> String {
         "ThunderGetConfigStep".into()

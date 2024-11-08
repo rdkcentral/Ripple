@@ -16,17 +16,12 @@
 //
 
 use std::sync::{Arc, RwLock};
+use url::Url;
 
-#[cfg(not(feature = "thunderBroker_enabled"))]
 use crate::{
     client::{plugin_manager::ThunderPluginBootParam, thunder_client::ThunderClient},
     events::thunder_event_processor::{ThunderEventHandler, ThunderEventProcessor},
 };
-#[cfg(not(feature = "thunderBroker_enabled"))]
-use url::Url;
-
-use crate::client::thunder_client2::ThunderClient;
-use crate::events::thunder_event_processor::{ThunderEventHandler, ThunderEventProcessor};
 
 use ripple_sdk::{
     api::device::device_operator::{
@@ -62,7 +57,7 @@ impl ThunderConnectionState {
         }
     }
 }
-#[cfg(not(feature = "thunderBroker_enabled"))]
+
 #[derive(Debug, Clone)]
 pub struct ThunderBootstrapStateWithConfig {
     pub extn_client: ExtnClient,
@@ -73,13 +68,8 @@ pub struct ThunderBootstrapStateWithConfig {
 }
 
 #[derive(Debug, Clone)]
-pub struct ThunderBootstrapStateWithConfig {
-    pub extn_client: ExtnClient,
-}
-
-#[derive(Debug, Clone)]
 pub struct ThunderBootstrapStateWithClient {
-    pub prev: ThunderBootstrapStateWithConfig,
+    pub prev: Option<ThunderBootstrapStateWithConfig>,
     pub state: ThunderState,
 }
 
