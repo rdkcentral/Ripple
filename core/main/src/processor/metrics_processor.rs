@@ -59,6 +59,7 @@ pub async fn send_metric(
         debug!("drop data is true, not sending BI metrics");
         return Ok(());
     }
+
     if let Some(session) = platform_state.session_state.get_account_session() {
         let request = BehavioralMetricRequest {
             context: Some(platform_state.metrics.get_context()),
@@ -69,6 +70,7 @@ pub async fn send_metric(
             .get_client()
             .send_extn_request_transient(request);
     }
+
     Err(ripple_sdk::utils::error::RippleError::ProcessorError)
 }
 

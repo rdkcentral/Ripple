@@ -19,6 +19,7 @@ use std::vec;
 
 use hyper::{client::HttpConnector, Body, Client, Method, Request, Response, Uri};
 use ripple_sdk::{
+    api::gateway::rpc_gateway_api::JsonRpcApiError,
     log::{debug, error, trace},
     tokio::{self, sync::mpsc},
     utils::error::RippleError,
@@ -28,7 +29,7 @@ use tokio_tungstenite::tungstenite::http::uri::InvalidUri;
 
 use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerRequest,
-    BrokerSender, EndpointBroker,
+    BrokerSender, EndpointBroker, EndpointBrokerState,
 };
 
 pub struct HttpBroker {
@@ -54,9 +55,6 @@ async fn send_http_request(
     parts.method = method.clone();
     /*
     mix endpoint url with method
-    */
-    /*
-    TODONT: unwraps are bad, need to handle errors
     */
 
     let uri: Uri = format!("{}{}", uri, path)
@@ -116,7 +114,11 @@ async fn body_to_bytes(body: Body) -> Vec<u8> {
 }
 
 impl EndpointBroker for HttpBroker {
-    fn get_broker(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
+    fn get_broker(
+        request: BrokerConnectRequest,
+        callback: BrokerCallback,
+        _broker_state: &mut EndpointBrokerState,
+    ) -> Self {
         let endpoint = request.endpoint.clone();
         let (tx, mut tr) = mpsc::channel(10);
         let broker = BrokerSender { sender: tx };
@@ -151,7 +153,10 @@ impl EndpointBroker for HttpBroker {
                         } else {
                             let msg = format!("Error in http broker parsing response from http service at {}. status={:?}",uri, parts.status);
                             error!("{}",msg);
-                            send_broker_response(&callback, &request,  error_string_to_json(msg.as_str()).to_string().as_bytes()).await;
+                            Self::send_broker_failure_response(&callback,
+                                JsonRpcApiError::default()
+                                .with_id(request.rpc.ctx.call_id)
+                                .with_message(msg.to_string()).into());
                         }
                     }
                     Err(err) => {
