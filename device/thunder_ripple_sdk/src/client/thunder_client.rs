@@ -190,10 +190,11 @@ impl ThunderMessage {
 pub struct ThunderClient {
     pub sender: Option<MpscSender<ThunderMessage>>,
     pub pooled_sender: Option<MpscSender<ThunderPoolCommand>>,
-    pub id: Option<Uuid>,
+    pub id: Uuid,
     pub plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
     pub subscriptions: Option<Arc<Mutex<HashMap<String, ThunderSubscription>>>>,
     pub thndr_asynclient: Option<ThunderAsyncClient>,
+    pub use_thunderbroker: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -704,10 +705,11 @@ impl ThunderClientBuilder {
             Ok(ThunderClient {
                 sender: Some(s),
                 pooled_sender: None,
-                id: Some(id),
+                id: id,
                 plugin_manager_tx: pmtx_c,
                 subscriptions: Some(subscriptions),
                 thndr_asynclient: None,
+                use_thunderbroker: false,
             })
         } else {
             let (sender, tr) = mpsc::channel(10);
@@ -717,10 +719,11 @@ impl ThunderClientBuilder {
             let thunder_client = ThunderClient {
                 sender: None,
                 pooled_sender: None,
-                id: None,
+                id: Uuid::new_v4(),
                 plugin_manager_tx: None,
                 subscriptions: None,
                 thndr_asynclient: Some(client), // client,
+                use_thunderbroker: true,
             };
             ThunderClientManager::manage(thunder_client.clone(), broker_rx, tr);
             Ok(thunder_client)
@@ -732,10 +735,11 @@ impl ThunderClientBuilder {
         ThunderClient {
             sender: Some(sender),
             pooled_sender: None,
-            id: Some(Uuid::new_v4()),
+            id: Uuid::new_v4(),
             plugin_manager_tx: None,
             subscriptions: None,
             thndr_asynclient: None,
+            use_thunderbroker: false,
         }
     }
 }

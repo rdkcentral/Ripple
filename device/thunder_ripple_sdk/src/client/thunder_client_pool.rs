@@ -129,7 +129,7 @@ impl ThunderClientPool {
                     ThunderPoolCommand::ResetThunderClient(client_id) => {
                         // Remove the given client and then start a new one to replace it
                         let mut itr = pool.clients.iter();
-                        let i = itr.position(|x| x.client.id == Some(client_id));
+                        let i = itr.position(|x| x.client.id == client_id);
                         if let Some(index) = i {
                             let client = ThunderClientBuilder::get_client(
                                 Some(url.clone()),
@@ -158,10 +158,11 @@ impl ThunderClientPool {
         Ok(ThunderClient {
             sender: None,
             pooled_sender: Some(s),
-            id: Some(Uuid::new_v4()),
+            id: Uuid::new_v4(),
             plugin_manager_tx: pmtx_c,
             subscriptions: None,
             thndr_asynclient: None,
+            use_thunderbroker: false,
         })
     }
 
