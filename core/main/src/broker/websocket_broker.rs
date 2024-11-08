@@ -21,6 +21,7 @@ use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerRequest,
     BrokerSender, EndpointBroker,
 };
+use crate::broker::endpoint_broker::EndpointBrokerState;
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
     log::{debug, error},
@@ -30,7 +31,6 @@ use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
 };
-
 pub struct WebsocketBroker {
     sender: BrokerSender,
     cleaner: BrokerCleaner,
@@ -185,7 +185,11 @@ impl WSNotificationBroker {
 }
 
 impl EndpointBroker for WebsocketBroker {
-    fn get_broker(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
+    fn get_broker(
+        request: BrokerConnectRequest,
+        callback: BrokerCallback,
+        _broker_state: &mut EndpointBrokerState,
+    ) -> Self {
         Self::start(request, callback)
     }
 
@@ -250,7 +254,10 @@ mod tests {
                 transform: RuleTransform::default(),
                 endpoint: None,
                 filter: None,
+                event_handler: None,
+                sources: None,
             },
+            workflow_callback: None,
             subscription_processed: None,
         };
 
@@ -289,7 +296,10 @@ mod tests {
                 transform: RuleTransform::default(),
                 endpoint: None,
                 filter: None,
+                event_handler: None,
+                sources: None,
             },
+            workflow_callback: None,
             subscription_processed: None,
         };
         let id = request.get_id();

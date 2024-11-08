@@ -41,6 +41,7 @@ pub enum RippleError {
     ServiceNotReady,
     BrokerError(String),
 }
+
 impl std::fmt::Display for RippleError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

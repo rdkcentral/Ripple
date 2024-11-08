@@ -15,15 +15,19 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::time::Duration;
-
-use crate::utils::rpc_utils::extract_tcp_port;
+use crate::{state::platform_state::PlatformState, utils::rpc_utils::extract_tcp_port};
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::StreamExt;
+use jsonrpsee::{core::RpcResult, types::error::CallError};
 use ripple_sdk::{
+    api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest, RpcStats},
+    extn::extn_client_message::ExtnResponse,
     log::{error, info},
     tokio::{self, net::TcpStream},
+    uuid::Uuid,
 };
+use serde_json::Value;
+use std::time::Duration;
 use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
 
 pub struct BrokerUtils;
@@ -65,5 +69,46 @@ impl BrokerUtils {
             index += 1;
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
+    }
+
+    pub async fn process_internal_main_request<'a>(
+        state: &'a PlatformState,
+        method: &'a str,
+    ) -> RpcResult<Value> {
+        let ctx = CallContext::new(
+            Uuid::new_v4().to_string(),
+            Uuid::new_v4().to_string(),
+            "internal".into(),
+            1,
+            ApiProtocol::Extn,
+            method.to_string(),
+            None,
+            false,
+        );
+        let rpc_request = RpcRequest {
+            ctx: ctx.clone(),
+            method: method.to_string(),
+            params_json: RpcRequest::prepend_ctx(None, &ctx),
+            stats: RpcStats::default(),
+        };
+
+        let resp = state
+            .get_client()
+            .get_extn_client()
+            .main_internal_request(rpc_request.clone())
+            .await;
+
+        if let Ok(res) = resp {
+            if let Some(ExtnResponse::Value(val)) = res.payload.extract::<ExtnResponse>() {
+                return Ok(val);
+            }
+        }
+
+        // TODO: Update error handling
+        Err(jsonrpsee::core::Error::Call(CallError::Custom {
+            code: -32100,
+            message: format!("failed to get {}", method),
+            data: None,
+        }))
     }
 }
