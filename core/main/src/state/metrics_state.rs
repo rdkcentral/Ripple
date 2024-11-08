@@ -207,6 +207,9 @@ impl MetricsState {
             }
         }
     }
+    fn unset(s: &str) -> String {
+        format!("{}{}", s, ".unset")
+    }
 
     pub async fn initialize(state: &PlatformState) {
         let metrics_percentage = state
@@ -257,23 +260,23 @@ impl MetricsState {
 
         let language = match StorageManager::get_string(state, StorageProperty::Language).await {
             Ok(resp) => resp,
-            Err(_) => "no.language.set".to_string(),
+            Err(_) => Self::unset("language"),
         };
 
         let os_info = match Self::get_os_info_from_firebolt(state).await {
             Ok(info) => info,
             Err(_) => FirmwareInfo {
-                name: "no.os.name.set".into(),
-                version: FireboltSemanticVersion::new(0, 0, 0, "no.os.ver.set".into()),
+                name: Self::unset("os.name"),
+                version: FireboltSemanticVersion::new(0, 0, 0, Self::unset("os.ver")),
             },
         };
 
         debug!("got os_info={:?}", &os_info);
         let device_name = rpc_value_result_to_string_result(
-            BrokerUtils::process_internal_main_request(state, "no.device.name.set", None).await,
-            Some("device.name".into()),
+            BrokerUtils::process_internal_main_request(state, "device.name", None).await,
+            Some(Self::unset("device.name")),
         )
-        .unwrap_or("no.device.name.set".to_string());
+        .unwrap_or(Self::unset("device.name"));
 
         let mut timezone: Option<String> = None;
         if let Ok(resp) = state
@@ -459,7 +462,7 @@ impl MetricsState {
             } else {
                 context.account_id = None;
                 context.device_id = None;
-                context.distribution_tenant_id = "no.distribution_tenant_id.set".to_string();
+                context.distribution_tenant_id = Self::unset("distribution_tenant_id");
             }
         }
         Self::send_context_update_request(state);
