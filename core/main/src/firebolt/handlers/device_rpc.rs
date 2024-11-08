@@ -134,7 +134,11 @@ pub trait Device {
 }
 
 pub fn filter_mac(mac_address: String) -> String {
-    mac_address.replace(':', "")
+    let filtered = mac_address.replace(':', "");
+    if filtered.len() != 12 || !filtered.chars().all(|c| c.is_ascii_hexdigit()) {
+        error!("Invalid MAC address format for mac{}", mac_address);
+    }
+    filtered
 }
 
 pub async fn get_device_id(state: &PlatformState) -> RpcResult<String> {
@@ -156,11 +160,11 @@ pub async fn get_ll_mac_addr(state: PlatformState) -> RpcResult<String> {
         Ok(response) => match response.payload.extract().unwrap() {
             ExtnResponse::String(value) => Ok(filter_mac(value)),
             _ => Err(jsonrpsee::core::Error::Custom(String::from(
-                "MAC Info error response TBD",
+                "Unexpected response type when retrieving MAC address",
             ))),
         },
         Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-            "MAC Info error response TBD",
+            "Unexpected response type when retrieving MAC address",
         ))),
     }
 }
