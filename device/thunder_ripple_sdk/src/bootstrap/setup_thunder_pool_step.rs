@@ -85,7 +85,7 @@ impl ThunderPoolStep {
             );
             loop {
                 let failed_plugins = PluginManager::activate_mandatory_plugins(
-                    expected_plugins.unwrap(),
+                    expected_plugins.as_ref().unwrap().clone(),
                     plugin_manager_tx.clone(),
                 )
                 .await;
@@ -106,7 +106,7 @@ impl ThunderPoolStep {
             url.clone().unwrap(),
             Some(plugin_manager_tx),
             thunder_connection_state.clone(),
-            pool_size - Some(1),
+            pool_size.unwrap() - 1,
         )
         .await;
 

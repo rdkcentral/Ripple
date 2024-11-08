@@ -582,7 +582,7 @@ impl ThunderClientBuilder {
         if !use_thndbroker {
             let id = Uuid::new_v4();
 
-            if let Some(url) = url {
+            if let Some(ref url) = url {
                 info!("initiating thunder connection {}", url);
             } else {
                 error!("URL is None, cannot initiate thunder connection");
@@ -593,7 +593,7 @@ impl ThunderClientBuilder {
             let (s, mut r) = mpsc::channel::<ThunderMessage>(32);
             let pmtx_c = plugin_manager_tx.clone();
             let client = match url {
-                Some(ref url) => {
+                Some(url) => {
                     Self::create_client(url.clone(), thunder_connection_state.clone().unwrap())
                         .await
                 }
