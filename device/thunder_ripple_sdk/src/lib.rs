@@ -20,7 +20,6 @@ pub mod client {
     pub mod plugin_manager;
     pub mod thunder_async_client;
     pub mod thunder_client;
-    pub mod thunder_client2;
     pub mod thunder_client_pool;
     pub mod thunder_plugin;
     pub mod thunder_plugins_status_mgr;
