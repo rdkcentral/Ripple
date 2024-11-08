@@ -275,9 +275,13 @@ impl From<JsonRpcApiError> for JsonRpcApiResponse {
 
 pub fn rpc_value_result_to_string_result(
     result: jsonrpsee::core::RpcResult<Value>,
+    default: Option<String>,
 ) -> jsonrpsee::core::RpcResult<String> {
     match result {
-        Ok(v) => Ok(v.as_str().unwrap_or_default().to_string()),
+        Ok(v) => Ok(v
+            .as_str()
+            .unwrap_or(&default.unwrap_or_default())
+            .to_string()),
         Err(e) => Err(e),
     }
 }

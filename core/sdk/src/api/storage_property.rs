@@ -288,16 +288,6 @@ const PROPERTY_DATA_ADDITIONAL_INFO: PropertyData = PropertyData {
     event_names: Some(&[EVENT_ADDITIONAL_INFO]),
 };
 
-const PROPERTY_DATA_DEVICE_NAME: PropertyData = PropertyData {
-    key: KEY_NAME,
-    namespace: NAMESPACE_DEVICE_NAME,
-    event_names: Some(&[
-        EVENT_DEVICE_NAME_CHANGED,
-        EVENT_DEVICE_DEVICE_NAME_CHANGED,
-        EVENT_SECOND_SCREEN_FRIENDLY_NAME_CHANGED,
-    ]),
-};
-
 const PROPERTY_DATA_ALLOW_ACR_COLLECTION: PropertyData = PropertyData {
     key: KEY_ALLOW_ACR_COLLECTION,
     namespace: NAMESPACE_PRIVACY,
@@ -459,7 +449,6 @@ pub enum StorageProperty {
     Locale,
     LatLon,
     AdditionalInfo,
-    DeviceName,
     AllowAcrCollection,
     AllowAppContentAdTargeting,
     AllowBusinessAnalytics,
@@ -517,7 +506,6 @@ impl StorageProperty {
             StorageProperty::Locale => PROPERTY_DATA_LOCALE,
             StorageProperty::LatLon => PROPERTY_DATA_LATLON,
             StorageProperty::AdditionalInfo => PROPERTY_DATA_ADDITIONAL_INFO,
-            StorageProperty::DeviceName => PROPERTY_DATA_DEVICE_NAME,
             StorageProperty::AllowAcrCollection => PROPERTY_DATA_ALLOW_ACR_COLLECTION,
             StorageProperty::AllowAppContentAdTargeting => {
                 PROPERTY_DATA_ALLOW_APP_CONTENT_AD_TARGETING

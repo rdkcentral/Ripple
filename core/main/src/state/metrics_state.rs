@@ -30,6 +30,7 @@ use ripple_sdk::{
             fb_metrics::{MetricsContext, MetricsEnvironment},
             fb_openrpc::FireboltSemanticVersion,
         },
+        gateway::rpc_gateway_api::rpc_value_result_to_string_result,
         manifest::device_manifest::DataGovernanceConfig,
         storage_property::StorageProperty,
     },
@@ -41,7 +42,9 @@ use ripple_sdk::{
 
 use rand::Rng;
 
-use crate::processor::storage::storage_manager::StorageManager;
+use crate::{
+    broker::broker_utils::BrokerUtils, processor::storage::storage_manager::StorageManager,
+};
 
 use super::platform_state::PlatformState;
 
@@ -266,11 +269,11 @@ impl MetricsState {
         };
 
         debug!("got os_info={:?}", &os_info);
-
-        let mut device_name = "no.device.name.set".to_string();
-        if let Ok(resp) = StorageManager::get_string(state, StorageProperty::DeviceName).await {
-            device_name = resp;
-        }
+        let device_name = rpc_value_result_to_string_result(
+            BrokerUtils::process_internal_main_request(state, "no.device.name.set", None).await,
+            Some("device.name".into()),
+        )
+        .unwrap_or("no.device.name.set".to_string());
 
         let mut timezone: Option<String> = None;
         if let Ok(resp) = state

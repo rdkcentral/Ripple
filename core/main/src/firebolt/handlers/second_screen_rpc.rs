@@ -80,6 +80,7 @@ impl SecondScreenServer for SecondScreenImpl {
     async fn friendly_name(&self, _ctx: CallContext) -> RpcResult<String> {
         rpc_value_result_to_string_result(
             BrokerUtils::process_internal_main_request(&self.state, "device.name", None).await,
+            None,
         )
     }
 
