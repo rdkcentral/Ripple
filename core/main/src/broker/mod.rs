@@ -23,3 +23,4 @@ pub mod thunder;
 pub mod thunder_broker;
 pub mod websocket_broker;
 pub mod workflow_broker;
+pub mod provider_broker_state;

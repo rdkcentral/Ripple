@@ -321,9 +321,14 @@ impl MockWebSocketServer {
                 if self.config.activate_all_plugins
                     && request.method.contains("Controller.1.status")
                 {
+                    let callsign = match request.method.split('@').last() {
+                        Some(callsign) => callsign.trim_matches(|c| c == '"' || c == '}'),
+                        None => "",
+                    };
+
                     return Some(vec![ResponseSink {
                         delay: 0,
-                        data: json!({"jsonrpc": "2.0", "id": id, "result": [{"state": "activated"}]}),
+                        data: json!({"jsonrpc": "2.0", "id": id, "result": [{"state": "activated", "callsign": callsign}]}),
                     }]);
                 } else if let Some(v) = self.responses_for_key_v2(&request) {
                     if v.events.is_some() {
