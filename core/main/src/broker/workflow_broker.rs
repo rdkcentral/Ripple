@@ -12,7 +12,7 @@ mod tests {
                 stats: Stats::default(),
             },
             rule: Rule {
-                sources: Some(vec![]),
+                sources: vec![],
                 ..Default::default()
             },
             ..Default::default()
@@ -32,11 +32,11 @@ mod tests {
                 stats: Stats::default(),
             },
             rule: Rule {
-                sources: Some(vec![JsonDataSource {
+                sources: vec![JsonDataSource {
                     method: "sub_method_1".to_string(),
                     params: None,
                     namespace: Some("ns1".to_string()),
-                }]),
+                }],
                 ..Default::default()
             },
             ..Default::default()
@@ -56,7 +56,7 @@ mod tests {
                 stats: Stats::default(),
             },
             rule: Rule {
-                sources: Some(vec![
+                sources: vec![
                     JsonDataSource {
                         method: "sub_method_1".to_string(),
                         params: None,
@@ -67,7 +67,7 @@ mod tests {
                         params: None,
                         namespace: Some("ns2".to_string()),
                     },
-                ]),
+                ],
                 ..Default::default()
             },
             ..Default::default()
@@ -87,11 +87,11 @@ mod tests {
                 stats: Stats::default(),
             },
             rule: Rule {
-                sources: Some(vec![JsonDataSource {
+                sources: vec![JsonDataSource {
                     method: "failing_method".to_string(),
                     params: None,
                     namespace: Some("ns1".to_string()),
-                }]),
+                }],
                 ..Default::default()
             },
             ..Default::default()
