@@ -266,13 +266,17 @@ impl FireboltWs {
                     if msg.is_text() && !msg.is_empty() {
                         let req_text = String::from(msg.to_text().unwrap());
                         let req_id = Uuid::new_v4().to_string();
-                        if let Ok(mut request) = RpcRequest::parse(
+                        let context = {
+                            rpc_context.read().unwrap().clone()
+                        };
+                        if let Ok(request) = RpcRequest::parse(
                             req_text.clone(),
                             ctx.app_id.clone(),
                             ctx.session_id.clone(),
                             req_id.clone(),
                             Some(connection_id.clone()),
                             ctx.gateway_secure,
+                            context
                         ) {
                             info!("Received Firebolt request {}", request.params_json);
                             if request.method.contains("rpc.initialize") {
@@ -306,9 +310,6 @@ impl FireboltWs {
                                 }
 
                                 continue;
-                            } else {
-                                let context = rpc_context.read().unwrap().clone();
-                                request.add_context(context);
                             }
                             let msg = FireboltGatewayCommand::HandleRpc { request };
                             if let Err(e) = client.clone().send_gateway_command(msg) {

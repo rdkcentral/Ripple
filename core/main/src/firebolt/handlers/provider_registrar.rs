@@ -200,7 +200,7 @@ impl ProviderRegistrar {
         params: Params<'static>,
         context: Arc<RpcModuleContext>,
     ) -> Result<ListenerResponse, Error> {
-        info!("callback_app_event_listener: method={}", context.method);
+        info!("callback_app_event_listener: method={} params={:?}", context.method, params);
 
         let mut params_sequence = params.sequence();
 

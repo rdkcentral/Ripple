@@ -99,6 +99,10 @@ impl CallContext {
         }
         self.session_id.clone()
     }
+
+    pub fn is_event_based(&self) -> bool {
+        self.context.contains(&"eventBased".to_owned())
+    }
 }
 
 impl crate::Mockable for CallContext {
@@ -494,6 +498,7 @@ impl RpcRequest {
         request_id: String,
         cid: Option<String>,
         gateway_secure: bool,
+        context: Vec<String>
     ) -> Result<RpcRequest, RequestParseError> {
         let parsed =
             serde_json::from_str::<serde_json::Value>(&json).map_err(|_| RequestParseError {})?;
@@ -507,7 +512,7 @@ impl RpcRequest {
 
         let id = jsonrpc_req.id.unwrap_or(0);
         let method = FireboltOpenRpcMethod::name_with_lowercase_module(&jsonrpc_req.method);
-        let ctx = CallContext::new(
+        let mut ctx = CallContext::new(
             session_id,
             request_id,
             app_id,
@@ -517,6 +522,7 @@ impl RpcRequest {
             cid,
             gateway_secure,
         );
+        ctx.context = context;
         let ps = RpcRequest::prepend_ctx(jsonrpc_req.params, &ctx);
         Ok(RpcRequest::new(method, ps, ctx))
     }
@@ -572,7 +578,7 @@ impl RpcRequest {
     }
 
     pub fn is_event_based(&self) -> bool {
-        self.ctx.context.contains(&"eventBased".to_owned())
+        self.ctx.is_event_based()
     }
 
     pub fn add_context(&mut self, context: Vec<String>) {
