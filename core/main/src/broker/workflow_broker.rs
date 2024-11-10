@@ -314,3 +314,254 @@ pub mod tests {
         assert!(foo.is_err());
     }
 }
+#[cfg(test)]
+mod r_tests {
+    use super::*;
+    use crate::broker::endpoint_broker::{BrokerCallback, BrokerOutput};
+    use crate::broker::rules_engine::{JsonDataSource, Rule};
+    use ripple_sdk::api::gateway::rpc_gateway_api::{CallContext, JsonRpcApiError, JsonRpcApiResponse, RpcRequest, RpcStats};
+    use ripple_sdk::tokio;
+    use ripple_sdk::utils::error::RippleError;
+    use serde_json::{json, Value};
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+    use tokio::sync::mpsc;
+
+    // Mock implementation of EndpointBrokerState
+    #[derive(Clone)]
+    struct MockEndpointBrokerState {
+        responses: Arc<Mutex<HashMap<String, JsonRpcApiResponse>>>,
+    }
+
+    impl MockEndpointBrokerState {
+        fn new() -> Self {
+            Self {
+                responses: Arc::new(Mutex::new(HashMap::new())),
+            }
+        }
+
+        fn set_response(&self, method: &str, response: JsonRpcApiResponse) {
+            self.responses.lock().unwrap().insert(method.to_string(), response);
+        }
+
+        fn handle_brokerage(
+            &self,
+            rpc_request: RpcRequest,
+            _extn_id: Option<String>,
+            callback: Option<BrokerCallback>,
+        ) {
+            let method = rpc_request.method.clone();
+            let responses = self.responses.clone();
+            let callback = callback.expect("Callback should not be None");
+
+            tokio::spawn(async move {
+                let output = responses.lock().unwrap().get(&method).cloned();
+                if let Some(response) = output {
+                    let broker_output = BrokerOutput { data: response };
+                    let _ = callback.sender.send(broker_output).await;
+                } else {
+                    // Send an error response if method not found
+                    let error_response = JsonRpcApiResponse::error()
+                        .with_code(-32601)
+                        .with_message("Method not found".to_string())
+                        .with_id(rpc_request.ctx.call_id.clone());
+                    let broker_output = BrokerOutput { data: error_response };
+                    let _ = callback.sender.send(broker_output).await;
+                }
+            });
+        }
+    }
+
+    #[tokio::test]
+    async fn test_run_workflow_success() {
+        // Arrange
+        let endpoint_broker = MockEndpointBrokerState::new();
+
+        // Set up successful responses for sub-methods
+        endpoint_broker.set_response(
+            "sub_method_1",
+            JsonRpcApiResponse::success(
+                Some(json!({"key1": "value1"})),
+                Some("1".to_string()),
+            ),
+        );
+        endpoint_broker.set_response(
+            "sub_method_2",
+            JsonRpcApiResponse::success(
+                Some(json!({"key2": "value2"})),
+                Some("2".to_string()),
+            ),
+        );
+
+        // Create a BrokerRequest with valid sources
+        let broker_request = BrokerRequest {
+            rpc: RpcRequest {
+                method: "test_method".to_string(),
+                params_json: "[]".to_string(),
+                ctx: CallContext::default(),
+                stats: RpcStats::default(),
+            },
+            rule: Rule {
+                sources: Some(vec![
+                    JsonDataSource {
+                        method: "sub_method_1".to_string(),
+                        params: None,
+                        namespace: Some("ns1".to_string()),
+                    },
+                    JsonDataSource {
+                        method: "sub_method_2".to_string(),
+                        params: None,
+                        namespace: Some("ns2".to_string()),
+                    },
+                ]),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Act
+        let result = WorkflowBroker::run_workflow(&broker_request, endpoint_broker.clone()).await;
+
+        // Assert
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        // Verify that the response contains the composed results
+        let expected_result = json!({
+            "ns1": {"key1": "value1"},
+            "ns2": {"key2": "value2"}
+        });
+        assert_eq!(response.result, Some(expected_result));
+    }
+
+    #[tokio::test]
+    async fn test_run_workflow_subbroker_failure() {
+        // Arrange
+        let endpoint_broker = MockEndpointBrokerState::new();
+
+        // Set up responses where one sub-method fails
+        endpoint_broker.set_response(
+            "sub_method_1",
+            JsonRpcApiResponse::success(
+                Some(json!({"key1": "value1"})),
+                Some("1".to_string()),
+            ),
+        );
+        endpoint_broker.set_response(
+            "failing_method",
+            JsonRpcApiResponse::error()
+                .with_code(-32000)
+                .with_message("Some error occurred".to_string())
+                .with_id("2".to_string()),
+        );
+
+        // Create a BrokerRequest with a failing source
+        let broker_request = BrokerRequest {
+            rpc: RpcRequest {
+                method: "test_method".to_string(),
+                params_json: "[]".to_string(),
+                ctx: CallContext::default(),
+                stats: RpcStats::default(),
+            },
+            rule: Rule {
+                sources: Some(vec![
+                    JsonDataSource {
+                        method: "sub_method_1".to_string(),
+                        params: None,
+                        namespace: Some("ns1".to_string()),
+                    },
+                    JsonDataSource {
+                        method: "failing_method".to_string(),
+                        params: None,
+                        namespace: Some("ns_fail".to_string()),
+                    },
+                ]),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Act
+        let result = WorkflowBroker::run_workflow(&broker_request, endpoint_broker.clone()).await;
+
+        // Assert
+        assert!(result.is_err());
+        // You can further assert the type of error if needed
+    }
+
+    #[tokio::test]
+    async fn test_run_workflow_empty_sources() {
+        // Arrange
+        let endpoint_broker = MockEndpointBrokerState::new();
+
+        // Create a BrokerRequest with empty sources
+        let broker_request = BrokerRequest {
+            rpc: RpcRequest {
+                method: "test_method".to_string(),
+                params_json: "[]".to_string(),
+                ctx: CallContext::default(),
+                stats: RpcStats::default(),
+            },
+            rule: Rule {
+                sources: Some(vec![]),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Act
+        let result = WorkflowBroker::run_workflow(&broker_request, endpoint_broker.clone()).await;
+
+        // Assert
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        // Expected result should be an empty object
+        let expected_result = json!({});
+        assert_eq!(response.result, Some(expected_result));
+    }
+
+    #[tokio::test]
+    async fn test_run_workflow_merging_params() {
+        // Arrange
+        let endpoint_broker = MockEndpointBrokerState::new();
+
+        // Set up response for sub-method with specific parameters
+        endpoint_broker.set_response(
+            "sub_method_1",
+            JsonRpcApiResponse::success(
+                Some(json!({"result_key": "result_value"})),
+                Some("1".to_string()),
+            ),
+        );
+
+        // Create a BrokerRequest with global and source-specific parameters
+        let broker_request = BrokerRequest {
+            rpc: RpcRequest {
+                method: "test_method".to_string(),
+                params_json: r#"[{"global_param": "global_value"}]"#.to_string(),
+                ctx: CallContext::default(),
+                stats: RpcStats::default(),
+            },
+            rule: Rule {
+                sources: Some(vec![JsonDataSource {
+                    method: "sub_method_1".to_string(),
+                    params: Some(r#"{"param1": "value1"}"#.to_string()),
+                    namespace: Some("ns1".to_string()),
+                }]),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Act
+        let result = WorkflowBroker::run_workflow(&broker_request, endpoint_broker.clone()).await;
+
+        // Assert
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        // Verify that the response contains the composed results
+        let expected_result = json!({
+            "ns1": {"result_key": "result_value"}
+        });
+        assert_eq!(response.result, Some(expected_result));
+    }
+}
