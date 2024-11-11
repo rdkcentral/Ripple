@@ -41,7 +41,7 @@ async fn subbroker_call(
             sender: brokered_tx,
         }),
         Vec::new(),
-        None
+        None,
     );
 
     match brokered_rx.recv().await {

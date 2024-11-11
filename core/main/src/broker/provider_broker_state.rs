@@ -26,7 +26,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::{ApiMessage, ApiProtocol, RpcRequest},
     },
     log::{debug, error},
-    tokio
+    tokio,
 };
 
 use serde_json::json;
@@ -35,7 +35,7 @@ use crate::state::session_state::Session;
 
 use super::endpoint_broker::BrokerRequest;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ProvideBrokerState {
     capability_map: Arc<RwLock<HashMap<String, Session>>>,
 }
@@ -47,11 +47,6 @@ pub enum ProviderResult {
 }
 
 impl ProvideBrokerState {
-    pub fn new() -> Self {
-        Self {
-            capability_map: Arc::new(RwLock::new(HashMap::new())),
-        }
-    }
     pub fn check_provider_request(
         &self,
         request: &RpcRequest,
@@ -87,9 +82,9 @@ impl ProvideBrokerState {
         None
     }
 
-    fn get_permission(permission: &Vec<FireboltPermission>) -> Option<String> {
-        if permission.len() > 0 {
-            if let Some(p) = permission.get(0).cloned() {
+    fn get_permission(permission: &[FireboltPermission]) -> Option<String> {
+        if !permission.is_empty() {
+            if let Some(p) = permission.first() {
                 return Some(p.cap.as_str());
             }
         }

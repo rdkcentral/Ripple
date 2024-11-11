@@ -262,7 +262,7 @@ impl FireboltGateway {
                         extn_msg.clone(),
                         None,
                         p,
-                        session.clone()
+                        session.clone(),
                     ) {
                         // Route
                         match request.clone().ctx.protocol {
@@ -279,8 +279,7 @@ impl FireboltGateway {
                                 }
                             }
                             _ => {
-                                if let Some(session) = session
-                                {
+                                if let Some(session) = session {
                                     // if the websocket disconnects before the session is recieved this leads to an error
                                     RpcRouter::route(
                                         platform_state.clone(),

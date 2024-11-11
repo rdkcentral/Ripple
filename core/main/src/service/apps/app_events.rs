@@ -265,7 +265,10 @@ impl AppEvents {
         let mut event = JsonRpcApiResponse::default();
         if listener.call_ctx.is_event_based() {
             event.params = Some(data.clone());
-            event.method = Some(format!("{}.{}", listener.call_ctx.method, listener.call_ctx.call_id));
+            event.method = Some(format!(
+                "{}.{}",
+                listener.call_ctx.method, listener.call_ctx.call_id
+            ));
         } else {
             event.result = Some(data.clone());
             event.id = Some(listener.call_ctx.call_id);

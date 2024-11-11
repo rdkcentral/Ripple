@@ -1193,7 +1193,7 @@ mod tests {
             method: "some method".to_string(),
             cid: Some("test_cid".to_string()),
             gateway_secure: true,
-            context: Vec::new()
+            context: Vec::new(),
         };
 
         let metrics_request = MetricsRequest {

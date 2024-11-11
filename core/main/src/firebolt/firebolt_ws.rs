@@ -15,7 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{net::SocketAddr, sync::{Arc, RwLock}};
+use std::{
+    net::SocketAddr,
+    sync::{Arc, RwLock},
+};
 
 use super::firebolt_gateway::FireboltGatewayCommand;
 use crate::{
@@ -29,7 +32,9 @@ use futures::SinkExt;
 use futures::StreamExt;
 use jsonrpsee::types::{error::ErrorCode, ErrorResponse, Id};
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{ApiMessage, ApiProtocol, ClientContext, JsonRpcApiResponse, RpcRequest},
+    api::gateway::rpc_gateway_api::{
+        ApiMessage, ApiProtocol, ClientContext, JsonRpcApiResponse, RpcRequest,
+    },
     log::{error, info, trace},
     tokio::{
         net::{TcpListener, TcpStream},
@@ -266,9 +271,7 @@ impl FireboltWs {
                     if msg.is_text() && !msg.is_empty() {
                         let req_text = String::from(msg.to_text().unwrap());
                         let req_id = Uuid::new_v4().to_string();
-                        let context = {
-                            rpc_context.read().unwrap().clone()
-                        };
+                        let context = { rpc_context.read().unwrap().clone() };
                         if let Ok(request) = RpcRequest::parse(
                             req_text.clone(),
                             ctx.app_id.clone(),
@@ -276,7 +279,7 @@ impl FireboltWs {
                             req_id.clone(),
                             Some(connection_id.clone()),
                             ctx.gateway_secure,
-                            context
+                            context,
                         ) {
                             info!("Received Firebolt request {}", request.params_json);
                             if request.method.contains("rpc.initialize") {
@@ -300,9 +303,14 @@ impl FireboltWs {
                                     .session_state
                                     .get_session_for_connection_id(&connection_id)
                                 {
-                                    let mut r = JsonRpcApiResponse::default();
-                                    r.id = Some(request.ctx.call_id);
-                                    r.result = Some(serde_json::Value::Null);
+                                    let r = JsonRpcApiResponse {
+                                        id: Some(request.ctx.call_id),
+                                        result: Some(serde_json::Value::Null),
+                                        jsonrpc: "2.0".to_string(),
+                                        error: None,
+                                        method: None,
+                                        params: None,
+                                    };
                                     let msg = serde_json::to_string(&r).unwrap();
                                     let api_msg =
                                         ApiMessage::new(ApiProtocol::JsonRpc, msg, req_id.clone());

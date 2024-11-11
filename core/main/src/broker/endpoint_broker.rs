@@ -17,7 +17,9 @@
 
 use ripple_sdk::{
     api::{
-        firebolt::fb_capabilities::{FireboltPermission, CAPABILITY_NOT_AVAILABLE, JSON_RPC_STANDARD_ERROR_INVALID_PARAMS},
+        firebolt::fb_capabilities::{
+            FireboltPermission, CAPABILITY_NOT_AVAILABLE, JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+        },
         gateway::rpc_gateway_api::{
             ApiMessage, ApiProtocol, ApiStats, CallContext, JsonRpcApiRequest, JsonRpcApiResponse,
             RpcRequest,
@@ -55,7 +57,13 @@ use crate::{
 };
 
 use super::{
-    event_management_utility::EventManagementUtility, http_broker::HttpBroker, provider_broker_state::{ProvideBrokerState, ProviderResult}, rules_engine::{jq_compile, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine}, thunder_broker::ThunderBroker, websocket_broker::WebsocketBroker, workflow_broker::WorkflowBroker
+    event_management_utility::EventManagementUtility,
+    http_broker::HttpBroker,
+    provider_broker_state::{ProvideBrokerState, ProviderResult},
+    rules_engine::{jq_compile, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine},
+    thunder_broker::ThunderBroker,
+    websocket_broker::WebsocketBroker,
+    workflow_broker::WorkflowBroker,
 };
 
 #[derive(Clone, Debug)]
@@ -315,7 +323,7 @@ impl Default for EndpointBrokerState {
             rule_engine: RuleEngine::default(),
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx: mpsc::channel(2).0,
-            provider_broker_state: ProvideBrokerState::new()
+            provider_broker_state: ProvideBrokerState::default(),
         }
     }
 }
@@ -335,7 +343,7 @@ impl EndpointBrokerState {
             rule_engine,
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx,
-            provider_broker_state: ProvideBrokerState::new()
+            provider_broker_state: ProvideBrokerState::default(),
         };
         state.reconnect_thread(rec_tr, ripple_client);
         state
@@ -548,10 +556,16 @@ impl EndpointBrokerState {
             session.clone(),
         ) {
             Some(ProviderResult::Registered) => {
-                let mut data = JsonRpcApiResponse::default();
                 // return empty result and handle the rest with jq rule
-                data.result = Some(Value::Null);
-                data.id = Some(id);
+                let data = JsonRpcApiResponse {
+                    id: Some(id),
+                    jsonrpc: "2.0".to_string(),
+                    result: Some(Value::Null),
+                    error: None,
+                    method: None,
+                    params: None,
+                };
+
                 let output = BrokerOutput { data };
                 tokio::spawn(async move { callback.sender.send(output).await });
             }
@@ -560,25 +574,35 @@ impl EndpointBrokerState {
             }
             Some(ProviderResult::NotAvailable(p)) => {
                 // Not Available
-                let mut data = JsonRpcApiResponse::default();
-                // return empty result and handle the rest with jq rule
-                data.error = Some(json!({
-                    "error": CAPABILITY_NOT_AVAILABLE,
-                    "messsage": format!("{} not available", p)
-                }));
-                data.id = Some(id);
+                let data = JsonRpcApiResponse {
+                    jsonrpc: "2.0".to_string(),
+                    id: Some(id),
+                    result: None,
+                    error: Some(json!({
+                        "error": CAPABILITY_NOT_AVAILABLE,
+                        "messsage": format!("{} not available", p)
+                    })),
+                    method: None,
+                    params: None,
+                };
+
                 let output = BrokerOutput { data };
                 tokio::spawn(async move { callback.sender.send(output).await });
             }
             None => {
                 // Not Available
-                let mut data = JsonRpcApiResponse::default();
-                // return empty result and handle the rest with jq rule
-                data.error = Some(json!({
-                    "error": CAPABILITY_NOT_AVAILABLE,
-                    "messsage": "capability not available".to_string()
-                }));
-                data.id = Some(id);
+                let data = JsonRpcApiResponse {
+                    jsonrpc: "2.0".to_string(),
+                    id: Some(id),
+                    result: None,
+                    error: Some(json!({
+                        "error": CAPABILITY_NOT_AVAILABLE,
+                        "messsage": "capability not available".to_string()
+                    })),
+                    method: None,
+                    params: None,
+                };
+
                 let output = BrokerOutput { data };
                 tokio::spawn(async move { callback.sender.send(output).await });
             }
@@ -935,7 +959,7 @@ impl BrokerOutputForwarder {
                             if is_event {
                                 response.update_event_message(&rpc_request);
                             }
-                            
+
                             // Step 2: Create the message
                             let mut message = ApiMessage::new(
                                 rpc_request.ctx.protocol.clone(),
