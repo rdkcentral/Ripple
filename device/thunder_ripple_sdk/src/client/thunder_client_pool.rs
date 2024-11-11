@@ -262,9 +262,13 @@ mod tests {
 
         // Test cases
         // 1. create a client pool of size 4
-        let client =
-            ThunderClientPool::start(url, Some(tx), Arc::new(ThunderConnectionState::new()), 4)
-                .await;
+        let client = ThunderClientPool::start(
+            url,
+            Some(tx),
+            Some(Arc::new(ThunderConnectionState::new())),
+            4,
+        )
+        .await;
         assert!(client.is_ok());
         let client = client.unwrap();
 
