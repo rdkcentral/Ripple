@@ -69,6 +69,7 @@ use std::sync::RwLock;
 use std::{env, process::Command};
 
 pub type BrokerSubMap = HashMap<String, Vec<MpscSender<DeviceResponseMessage>>>;
+pub type BrokerCallbackMap = HashMap<u64, Option<OneShotSender<DeviceResponseMessage>>>;
 
 #[derive(Debug)]
 pub struct ThunderClientManager;
@@ -199,8 +200,7 @@ pub struct ThunderClient {
     pub subscriptions: Option<Arc<Mutex<HashMap<String, ThunderSubscription>>>>,
     pub thndr_asynclient: Option<ThunderAsyncClient>,
     pub broker_subscriptions: Option<Arc<RwLock<BrokerSubMap>>>,
-    pub broker_callbacks:
-        Option<Arc<RwLock<HashMap<u64, Option<OneShotSender<DeviceResponseMessage>>>>>>,
+    pub broker_callbacks: Option<Arc<RwLock<BrokerCallbackMap>>>,
     pub use_thunderbroker: bool,
 }
 
