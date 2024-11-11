@@ -20,7 +20,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use jsonrpsee::tracing::debug;
+use jsonrpsee::{tracing::debug, types::error::CallError};
 use ripple_sdk::{
     api::{
         context::RippleContextUpdateRequest,
@@ -41,6 +41,7 @@ use ripple_sdk::{
 };
 
 use rand::Rng;
+use serde_json::from_value;
 
 use crate::{
     broker::broker_utils::BrokerUtils, processor::storage::storage_manager::StorageManager,
@@ -258,10 +259,19 @@ impl MetricsState {
             }
         }
 
-        let language = match StorageManager::get_string(state, StorageProperty::Language).await {
-            Ok(resp) => resp,
-            Err(_) => Self::unset("language"),
-        };
+        let language =
+            BrokerUtils::process_internal_main_request(state, "localization.language", None)
+                .await
+                .and_then(|val| {
+                    from_value::<String>(val).map_err(|_| {
+                        jsonrpsee::core::Error::Call(CallError::Custom {
+                            code: -32100,
+                            message: "Failed to parse language".into(),
+                            data: None,
+                        })
+                    })
+                })
+                .unwrap_or_else(|_| Self::unset("language"));
 
         let os_info = match Self::get_os_info_from_firebolt(state).await {
             Ok(info) => info,
@@ -326,9 +336,12 @@ impl MetricsState {
 
         let coam = Self::get_persistent_store_bool(state, PERSISTENT_STORAGE_KEY_COAM).await;
 
-        let country = StorageManager::get_string(state, StorageProperty::CountryCode)
-            .await
-            .ok();
+        let country =
+            BrokerUtils::process_internal_main_request(state, "localization.countryCode", None)
+                .await
+                .ok()
+                .and_then(|val| from_value::<String>(val).ok());
+        debug!("got country_code={:?}", &country);
 
         let region = StorageManager::get_string(state, StorageProperty::Locality)
             .await
