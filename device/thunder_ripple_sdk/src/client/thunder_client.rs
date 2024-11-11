@@ -246,7 +246,7 @@ impl DeviceOperator for ThunderClient {
                 },
             }
         } else {
-            let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
+            let (_tx, rx) = oneshot::channel::<DeviceResponseMessage>();
             let async_request = ThunderAsyncRequest::new(DeviceChannelRequest::Call(request));
             self.add_to_callback(&async_request);
 
@@ -282,20 +282,18 @@ impl DeviceOperator for ThunderClient {
             let msg = ThunderMessage::ThunderSubscribeMessage(message);
             self.send_message(msg).await;
             rx.await.unwrap()
-        } else {
-            if let Some(subscribe_request) = self.check_sub(&request) {
-                let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
-                self.add_to_callback(&subscribe_request);
+        } else if let Some(subscribe_request) = self.check_sub(&request) {
+            let (_tx, rx) = oneshot::channel::<DeviceResponseMessage>();
+            self.add_to_callback(&subscribe_request);
 
-                if let Some(async_client) = &self.thndr_asynclient {
-                    async_client.send(subscribe_request).await;
-                }
-                rx.await.unwrap()
-            } else {
-                DeviceResponseMessage {
-                    message: Value::Null,
-                    sub_id: None,
-                }
+            if let Some(async_client) = &self.thndr_asynclient {
+                async_client.send(subscribe_request).await;
+            }
+            rx.await.unwrap()
+        } else {
+            DeviceResponseMessage {
+                message: Value::Null,
+                sub_id: None,
             }
         }
     }
@@ -639,7 +637,7 @@ impl ThunderClientBuilder {
         use_thndrbroker: bool,
     ) -> Result<ThunderClient, RippleError> {
         if !use_thndrbroker {
-            let id = Uuid::new_v4();
+            let uid = Uuid::new_v4();
 
             if let Some(ref url) = url {
                 info!("initiating thunder connection {}", url);
@@ -675,17 +673,17 @@ impl ThunderClientBuilder {
                         if let Some(ptx) = pool_tx {
                             warn!(
                                 "Client {} became disconnected, removing from pool message {:?}",
-                                id, message
+                                uid, message
                             );
                             // Remove the client and then try the message again with a new client
-                            let pool_msg = ThunderPoolCommand::ResetThunderClient(id);
+                            let pool_msg = ThunderPoolCommand::ResetThunderClient(uid);
                             mpsc_send_and_log(&ptx, pool_msg, "ResetThunderClient").await;
                             let pool_msg = ThunderPoolCommand::ThunderMessage(message);
                             mpsc_send_and_log(&ptx, pool_msg, "RetryThunderMessage").await;
                             return;
                         }
                     }
-                    info!("Client {} sending thunder message {:?}", id, message);
+                    info!("Client {} sending thunder message {:?}", uid, message);
                     match message {
                         ThunderMessage::ThunderCallMessage(thunder_message) => {
                             ThunderClient::call(
@@ -697,7 +695,7 @@ impl ThunderClientBuilder {
                         }
                         ThunderMessage::ThunderSubscribeMessage(thunder_message) => {
                             ThunderClient::subscribe(
-                                id,
+                                uid,
                                 &client,
                                 &subscriptions_c,
                                 thunder_message,
@@ -763,7 +761,7 @@ impl ThunderClientBuilder {
             Ok(ThunderClient {
                 sender: Some(s),
                 pooled_sender: None,
-                id: id,
+                id: uid,
                 plugin_manager_tx: pmtx_c,
                 subscriptions: Some(subscriptions),
                 thndr_asynclient: None,

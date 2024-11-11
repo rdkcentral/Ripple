@@ -129,7 +129,7 @@ async fn test_install_app(
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -260,7 +260,7 @@ async fn test_uninstall_app(
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -346,7 +346,7 @@ async fn test_get_installed_apps() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -499,7 +499,7 @@ async fn test_init() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -634,7 +634,7 @@ async fn test_get_firebolt_permissions() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 

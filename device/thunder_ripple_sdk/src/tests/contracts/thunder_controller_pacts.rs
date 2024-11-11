@@ -20,9 +20,14 @@ use std::sync::Arc;
 use url::Url;
 
 async fn initialize_thunder_client(server_url: Url) -> ThunderClient {
-    ThunderClientPool::start(server_url, None, Arc::new(ThunderConnectionState::new()), 1)
-        .await
-        .unwrap()
+    ThunderClientPool::start(
+        server_url,
+        None,
+        Some(Arc::new(ThunderConnectionState::new())),
+        1,
+    )
+    .await
+    .unwrap()
 }
 
 async fn perform_device_call_request(

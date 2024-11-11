@@ -16,10 +16,7 @@
 //
 use std::{
     collections::HashMap,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc, RwLock,
-    },
+    sync::{Arc, RwLock},
 };
 
 use ripple_sdk::{
@@ -63,7 +60,7 @@ pub struct BrokerCallback {
 
 impl BrokerCallback {
     pub async fn send(&self, response: ThunderAsyncResponse) {
-        if let Err(_) = self.sender.send(response).await {
+        if (self.sender.send(response).await).is_err() {
             error!("error returning callback for request")
         }
     }

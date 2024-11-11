@@ -34,7 +34,8 @@ pub async fn boot_thunder(
     plugin_param: ThunderPluginBootParam,
 ) -> Option<ThunderBootstrapStateWithClient> {
     info!("Booting thunder");
-    if ext_client.get_bool_config("use_with_thunder_broker") {
+    //by default enabling the thunderBroker
+    if !ext_client.get_bool_config("use_with_thunder_broker") {
         info!("Using thunder broker");
 
         if let Ok(thndr_client) =
@@ -57,7 +58,6 @@ pub async fn boot_thunder(
             SetupThunderProcessor::setup(thndr_boot_stateclient.clone()).await;
             return Some(thndr_boot_stateclient);
         }
-
         None
     } else {
         if let Ok(state) = ThunderGetConfigStep::setup(ext_client, plugin_param).await {
