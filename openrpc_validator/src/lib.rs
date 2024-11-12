@@ -129,7 +129,7 @@ impl FireboltOpenRpc {
         let mut result_map = Map::new();
         let result_value = result_schema_map.get("type").unwrap_or(&Value::Null);
         result_map.insert(rpc_method.result.name.clone(), result_value.clone());
-        return result_map;
+        result_map
     }
 
     pub fn get_result_properties_schema_by_name(&self, name: &str) -> Option<Map<String, Value>> {
@@ -139,11 +139,10 @@ impl FireboltOpenRpc {
                     // FIXME: This will always return the result schema for the first object in the anyOf array, because we don't have a way to determine
                     // the expected response object. This needs discussion and probably firebolt spec changes to support this for arbitrary response objects.
                     if let Some(any_of_array) = any_of_map.as_array() {
-                        for value in any_of_array.iter() {
-                            return Some(
-                                self.resolve_schema_properties(value.as_object().unwrap(), &method),
-                            );
-                        }
+                        return Some(self.resolve_schema_properties(
+                            any_of_array[0].as_object().unwrap(),
+                            &method,
+                        ));
                     } else {
                         return None;
                     }
