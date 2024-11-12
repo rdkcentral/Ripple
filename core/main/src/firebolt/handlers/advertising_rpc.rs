@@ -15,11 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 use crate::{
-    firebolt::rpc::RippleRPCProvider,
-    processor::storage::storage_manager::StorageManager,
-    service::apps::app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
-    state::platform_state::PlatformState,
-    utils::rpc_utils::{rpc_add_event_listener_with_decorator, rpc_err},
+    firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManager,
+    state::platform_state::PlatformState, utils::rpc_utils::rpc_err,
 };
 use base64::{engine::general_purpose::STANDARD as base64, Engine};
 use jsonrpsee::{
