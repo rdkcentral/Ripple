@@ -302,5 +302,9 @@ impl ThunderAsyncClient {
         }
     }
 
-    pub async fn send(&self, request: ThunderAsyncRequest) {}
+    pub async fn send(&self, request: ThunderAsyncRequest) {
+        if let Err(e) = self.sender.send(request).await {
+            error!("Failed to send thunder Async Request: {:?}", e);
+        }
+    }
 }

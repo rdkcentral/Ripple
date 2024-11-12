@@ -552,7 +552,11 @@ impl StatusManager {
 impl BrokerCallback {
     /// Default method used for sending errors via the BrokerCallback
     pub async fn send_error(&self, request: ThunderAsyncRequest, error: RippleError) {
-        // TODO
+        let response = ThunderAsyncResponse {
+            id: Some(request.id),
+            result: Err(error),
+        };
+        self.send(response).await;
     }
 }
 

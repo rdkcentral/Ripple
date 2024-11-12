@@ -552,11 +552,14 @@ impl ThunderClient {
         None
     }
 
-    fn add_to_callback(&self, request: &ThunderAsyncRequest) {}
+    fn add_to_callback(&self, request: &ThunderAsyncRequest) {
+        let mut callbacks = self.broker_callbacks.as_ref().unwrap().write().unwrap();
+        callbacks.insert(request.id, None);
+    }
 
     // if already subscibed updated handlers
     fn check_sub(&self, request: &DeviceSubscribeRequest) -> Option<ThunderAsyncRequest> {
-        None
+        let mut broker_subscriptions = self.broker_subscriptions.as_ref().unwrap().read().unwrap();
     }
 
     // if only one handler cleanup
