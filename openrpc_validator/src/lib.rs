@@ -130,6 +130,9 @@ impl FireboltOpenRpc {
         if let Some(method) = self.get_method_by_name(name) {
             if let Some(result_schema_map) = method.result.schema.as_object() {
                 if let Some(any_of_map) = result_schema_map.get("anyOf") {
+                    // Iterate the anyOf type array and get the first one that matches. With the current firebolt APIs it will happen
+                    // to be the correct type, but this is extremely fragile and should be addressed in future firbolt spec revisions.
+                    // Ripple needs a way to determine the explicit result type.
                     if let Some(any_of_array) = any_of_map.as_array() {
                         for value in any_of_array.iter() {
                             if let Some(result_properties_map) =
@@ -138,19 +141,19 @@ impl FireboltOpenRpc {
                                 return Some(result_properties_map);
                             }
                         }
-                        return Some(self.get_result_property(result_schema_map, &method));
                     } else {
+                        // This should never happen as it indicates a schema error.
                         return None;
                     }
-                } else {
-                    if let Some(result_properties_map) =
-                        self.get_result_ref_schemas(result_schema_map)
-                    {
-                        return Some(result_properties_map);
-                    } else {
-                        return Some(self.get_result_property(result_schema_map, &method));
-                    }
+                } else if let Some(result_properties_map) =
+                    self.get_result_ref_schemas(result_schema_map)
+                {
+                    // Return the resolved $ref properites.
+                    return Some(result_properties_map);
                 }
+
+                // The type is a non-object, just return it.
+                return Some(self.get_result_property(result_schema_map, &method));
             }
         }
         None
