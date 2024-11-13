@@ -139,10 +139,12 @@ impl FireboltOpenRpc {
                     // FIXME: This will always return the result schema for the first object in the anyOf array, because we don't have a way to determine
                     // the expected response object. This needs discussion and probably firebolt spec changes to support this for arbitrary response objects.
                     if let Some(any_of_array) = any_of_map.as_array() {
-                        return Some(self.resolve_schema_properties(
-                            any_of_array[0].as_object().unwrap(),
-                            &method,
-                        ));
+                        if let Some(any_of_object) = any_of_array[0].as_object() {
+                            return Some(self.resolve_schema_properties(any_of_object, &method));
+                        } else {
+                            // This should never happen, but if it does, return None.
+                            return None;
+                        }
                     } else {
                         return None;
                     }
