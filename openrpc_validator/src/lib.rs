@@ -115,17 +115,11 @@ impl FireboltOpenRpc {
         None
     }
 
-    fn resolve_schema_properties(
+    fn get_result_property(
         &self,
         result_schema_map: &Map<String, Value>,
         rpc_method: &RpcMethod,
     ) -> Map<String, Value> {
-        // Check if the result contains a $ref to an object type and if so, resolve it.
-        if let Some(result_ref_schema) = self.get_result_ref_schemas(result_schema_map) {
-            return result_ref_schema;
-        }
-
-        // The result wasn't an object reference, determine the type and return the result property.
         let mut result_map = Map::new();
         let result_value = result_schema_map.get("type").unwrap_or(&Value::Null);
         result_map.insert(rpc_method.result.name.clone(), result_value.clone());
@@ -136,20 +130,26 @@ impl FireboltOpenRpc {
         if let Some(method) = self.get_method_by_name(name) {
             if let Some(result_schema_map) = method.result.schema.as_object() {
                 if let Some(any_of_map) = result_schema_map.get("anyOf") {
-                    // FIXME: This will always return the result schema for the first object in the anyOf array, because we don't have a way to determine
-                    // the expected response object. This needs discussion and probably firebolt spec changes to support this for arbitrary response objects.
                     if let Some(any_of_array) = any_of_map.as_array() {
-                        if let Some(any_of_object) = any_of_array[0].as_object() {
-                            return Some(self.resolve_schema_properties(any_of_object, &method));
-                        } else {
-                            // This should never happen, but if it does, return None.
-                            return None;
+                        for value in any_of_array.iter() {
+                            if let Some(result_properties_map) =
+                                self.get_result_ref_schemas(value.as_object().unwrap())
+                            {
+                                return Some(result_properties_map);
+                            }
                         }
+                        return Some(self.get_result_property(result_schema_map, &method));
                     } else {
                         return None;
                     }
                 } else {
-                    return Some(self.resolve_schema_properties(result_schema_map, &method));
+                    if let Some(result_properties_map) =
+                        self.get_result_ref_schemas(result_schema_map)
+                    {
+                        return Some(result_properties_map);
+                    } else {
+                        return Some(self.get_result_property(result_schema_map, &method));
+                    }
                 }
             }
         }
