@@ -32,10 +32,9 @@ use ripple_sdk::{
                 AdvertisingFrameworkConfig, AdvertisingRequest, AdvertisingResponse, GetAdConfig,
             },
             fb_capabilities::{CapabilityRole, FireboltCap, RoleInfo},
-            fb_general::{ListenRequest, ListenerResponse},
         },
         gateway::rpc_gateway_api::CallContext,
-        storage_property::{StorageProperty, EVENT_ADVERTISING_POLICY_CHANGED},
+        storage_property::StorageProperty,
     },
     log::{debug, error},
 };
