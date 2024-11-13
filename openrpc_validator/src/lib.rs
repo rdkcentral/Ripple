@@ -131,7 +131,7 @@ impl FireboltOpenRpc {
             if let Some(result_schema_map) = method.result.schema.as_object() {
                 if let Some(any_of_map) = result_schema_map.get("anyOf") {
                     // Iterate the anyOf type array and get the first one that matches. With the current firebolt APIs it will happen
-                    // to be the correct type, but this is extremely fragile and should be addressed in future firbolt spec revisions.
+                    // to be the correct type, but this is extremely fragile and should be addressed in a future firebolt revision.
                     // Ripple needs a way to determine the explicit result type.
                     if let Some(any_of_array) = any_of_map.as_array() {
                         for value in any_of_array.iter() {
