@@ -285,6 +285,9 @@ impl ExtnClient {
                                 let mut ripple_context = self.ripple_context.write().unwrap();
                                 ripple_context.deep_copy(context);
                             }
+                            if !self.has_event_listener(&message.target.as_clear_string()) {
+                                continue;
+                            }
                         }
                     }
                     Self::handle_vec_stream(message, self.event_processors.clone());
@@ -376,6 +379,7 @@ impl ExtnClient {
         };
         let new_context = { self.ripple_context.read().unwrap().clone() };
         let message = new_context.get_event_message();
+
         if propagate {
             trace!("Formed Context update event: {:?}", message);
             let c_message: CExtnMessage = message.clone().into();
@@ -386,10 +390,18 @@ impl ExtnClient {
                     trace!("Send to other client result: {:?}", send_res);
                 }
             }
-            Self::handle_vec_stream(message, self.event_processors.clone());
+            //check for active listeners
+            if self.has_event_listener(&message.target.as_clear_string()) {
+                Self::handle_vec_stream(message, self.event_processors.clone());
+            }
         } else {
             trace!("Context information is already updated. Hence not propagating");
         }
+    }
+
+    fn has_event_listener(&self, input: &str) -> bool {
+        let processors = self.event_processors.read().unwrap();
+        processors.contains_key(input)
     }
 
     fn handle_no_processor_error(&self, message: ExtnMessage) {

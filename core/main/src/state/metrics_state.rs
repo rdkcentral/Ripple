@@ -20,7 +20,8 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use jsonrpsee::tracing::debug;
+use crate::broker::broker_utils::BrokerUtils;
+use jsonrpsee::{tracing::debug, types::error::CallError};
 use ripple_sdk::{
     api::{
         context::RippleContextUpdateRequest,
@@ -38,6 +39,7 @@ use ripple_sdk::{
     log::error,
     utils::error::RippleError,
 };
+use serde_json::from_value;
 
 use rand::Rng;
 
@@ -252,10 +254,18 @@ impl MetricsState {
             }
         }
 
-        let language = match StorageManager::get_string(state, StorageProperty::Language).await {
-            Ok(resp) => resp,
-            Err(_) => "no.language.set".to_string(),
-        };
+        let language = BrokerUtils::process_internal_main_request(state, "localization.language")
+            .await
+            .and_then(|val| {
+                from_value::<String>(val).map_err(|_| {
+                    jsonrpsee::core::Error::Call(CallError::Custom {
+                        code: -32100,
+                        message: "Failed to parse language".into(),
+                        data: None,
+                    })
+                })
+            })
+            .unwrap_or_else(|_| "no.language.set".to_string());
 
         let os_info = match Self::get_os_info_from_firebolt(state).await {
             Ok(info) => info,
@@ -320,9 +330,11 @@ impl MetricsState {
 
         let coam = Self::get_persistent_store_bool(state, PERSISTENT_STORAGE_KEY_COAM).await;
 
-        let country = StorageManager::get_string(state, StorageProperty::CountryCode)
+        let country = BrokerUtils::process_internal_main_request(state, "localization.countryCode")
             .await
-            .ok();
+            .ok()
+            .and_then(|val| from_value::<String>(val).ok());
+        debug!("got country_code={:?}", &country);
 
         let region = StorageManager::get_string(state, StorageProperty::Locality)
             .await
