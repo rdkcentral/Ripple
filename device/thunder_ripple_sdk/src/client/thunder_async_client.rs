@@ -19,6 +19,7 @@ use std::time::Duration;
 
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
+use ripple_sdk::api::device::device_operator::DeviceResponseMessage;
 use ripple_sdk::{
     api::{
         device::device_operator::DeviceChannelRequest, gateway::rpc_gateway_api::JsonRpcApiResponse,
@@ -31,7 +32,6 @@ use ripple_sdk::{
     },
     utils::{error::RippleError, rpc_utils::extract_tcp_port},
 };
-
 use serde_json::json;
 use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
 
@@ -80,6 +80,24 @@ impl ThunderAsyncResponse {
             id: Some(id),
             result: Err(e),
         }
+    }
+
+    pub fn get_event(&self) -> Option<String> {
+        if let Ok(e) = &self.result {
+            return e.method.clone();
+        }
+        None
+    }
+
+    pub fn get_device_resp_msg(&self) -> Option<DeviceResponseMessage> {
+        if let Ok(device_resp) = &self.result {
+            if let Ok(res) = serde_json::to_value(device_resp) {
+                if let Ok(device_resp_msg) = serde_json::from_value(res) {
+                    return device_resp_msg;
+                }
+            }
+        }
+        None
     }
 }
 

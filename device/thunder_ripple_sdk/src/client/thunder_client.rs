@@ -77,7 +77,7 @@ impl ThunderClientManager {
     fn manage(
         client: ThunderClient,
         request_tr: Receiver<ThunderAsyncRequest>,
-        _response_tr: Receiver<ThunderAsyncResponse>,
+        mut response_tr: Receiver<ThunderAsyncResponse>,
     ) {
         let client_c = client.clone();
 
@@ -86,6 +86,35 @@ impl ThunderClientManager {
                 thndr_asynclient.start("", request_tr).await;
             }
             error!("Thunder disconnected so reconnecting");
+        });
+
+        tokio::spawn(async move {
+            while let Some(response) = response_tr.recv().await {
+                if let Some(id) = response.id {
+                    if let Some(cb) = client.clone().broker_callbacks {
+                        let mut callback = cb.write().unwrap();
+                        if let Some(Some(c)) = callback.remove(&id) {
+                            if let Some(resp) = response.get_device_resp_msg() {
+                                oneshot_send_and_log(c, resp, "ThunderResponse");
+                            };
+                        }
+                    }
+                } else if let Some(event_name) = response.get_event() {
+                    if let Some(broker_subs) = client.clone().broker_subscriptions {
+                        let subs = {
+                            let mut br_subs = broker_subs.write().unwrap();
+                            br_subs.get_mut(&event_name).cloned()
+                        };
+                        if let Some(subs) = subs {
+                            for s in subs {
+                                if let Some(resp_msg) = response.get_device_resp_msg() {
+                                    mpsc_send_and_log(&s, resp_msg, "ThunderResponse").await;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         });
     }
 }
