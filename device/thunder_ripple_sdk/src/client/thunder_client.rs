@@ -95,7 +95,7 @@ impl ThunderClientManager {
                         let mut callback = cb.write().unwrap();
                         if let Some(Some(c)) = callback.remove(&id) {
                             if let Some(resp) = response.get_device_resp_msg() {
-                                oneshot_send_and_log(c, resp, "ThunderResponse").await;
+                                oneshot_send_and_log(c, resp, "ThunderResponse");
                             };
                         }
                     }

@@ -90,14 +90,20 @@ impl ThunderAsyncResponse {
     }
 
     pub fn get_device_resp_msg(&self) -> Option<DeviceResponseMessage> {
-        if let Ok(device_resp) = &self.result {
-            if let Ok(res) = serde_json::to_value(device_resp) {
-                if let Ok(device_resp_msg) = serde_json::from_value(res) {
-                    return device_resp_msg;
-                }
-            }
+        let device_resp = match &self.result {
+            Ok(resp) => resp,
+            _ => return None,
+        };
+
+        let serialized = match serde_json::to_value(device_resp) {
+            Ok(val) => val,
+            Err(_) => return None,
+        };
+
+        match serde_json::from_value(serialized) {
+            Ok(device_resp_msg) => Some(device_resp_msg),
+            Err(_) => None,
         }
-        None
     }
 }
 
