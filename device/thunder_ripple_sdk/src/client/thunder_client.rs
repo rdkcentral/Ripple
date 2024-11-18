@@ -83,7 +83,9 @@ impl ThunderClientManager {
 
         tokio::spawn(async move {
             if let Some(thndr_asynclient) = &client_c.thndr_asynclient {
-                thndr_asynclient.start("", request_tr).await;
+                thndr_asynclient
+                    .start("ws://127.0.0.1:9998/jsonrpc", request_tr)
+                    .await;
             }
             error!("Thunder disconnected so reconnecting");
         });
