@@ -156,15 +156,16 @@ pub async fn get_ll_mac_addr(state: PlatformState) -> RpcResult<String> {
         .get_client()
         .send_extn_request(DeviceInfoRequest::MacAddress)
         .await;
+
     match resp {
-        Ok(response) => match response.payload.extract().unwrap() {
-            ExtnResponse::String(value) => Ok(filter_mac(value)),
+        Ok(response) => match response.payload.extract() {
+            Some(ExtnResponse::String(value)) => Ok(filter_mac(value)),
             _ => Err(jsonrpsee::core::Error::Custom(String::from(
-                "Unexpected response type when retrieving MAC address",
+                "device.info.mac_address error",
             ))),
         },
         Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-            "Unexpected response type when retrieving MAC address",
+            "device.info.mac_address error",
         ))),
     }
 }
@@ -176,21 +177,19 @@ pub struct DeviceImpl {
 
 impl DeviceImpl {
     async fn firmware_info(&self, _ctx: CallContext) -> RpcResult<FirmwareInfo> {
-        let resp = self
+        match self
             .state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::FirmwareInfo)
-            .await;
-
-        match resp {
-            Ok(dab_payload) => match dab_payload.payload.extract().unwrap() {
-                DeviceResponse::FirmwareInfo(value) => Ok(value),
+            .extn_request(DeviceInfoRequest::FirmwareInfo)
+            .await
+        {
+            Ok(response) => match response.payload.extract() {
+                Some(DeviceResponse::FirmwareInfo(value)) => Ok(value),
                 _ => Err(jsonrpsee::core::Error::Custom(String::from(
-                    "Firmware Info error response TBD",
+                    "device.hdcp error",
                 ))),
             },
             Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-                "Firmware Info error response TBD",
+                "device.hdcp error",
             ))),
         }
     }
@@ -269,26 +268,21 @@ impl DeviceServer for DeviceImpl {
     }
 
     async fn hdcp(&self, _ctx: CallContext) -> RpcResult<HashMap<HdcpProfile, bool>> {
-        let resp = self
+        match self
             .state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::HdcpSupport)
-            .await;
-
-
-            match resp {
-                Ok(response) => match response.payload.extract() {
-                    Some( DeviceResponse::HdcpSupportResponse(value)) => {
-                        Ok(value)
-                    }
-                    _ => Err(jsonrpsee::core::Error::Custom(String::from(
-                        "device.hdcp error",
-                    ))),
-                },
-                Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
+            .extn_request(DeviceInfoRequest::HdcpSupport)
+            .await
+        {
+            Ok(response) => match response.payload.extract() {
+                Some(DeviceResponse::HdcpSupportResponse(value)) => Ok(value),
+                _ => Err(jsonrpsee::core::Error::Custom(String::from(
                     "device.hdcp error",
                 ))),
-            }
+            },
+            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
+                "device.hdcp error",
+            ))),
+        }
     }
 
     async fn on_hdcp_changed(

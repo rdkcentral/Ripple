@@ -27,7 +27,10 @@ use ripple_sdk::{
         protocol::BridgeProtocolRequest,
         session::SessionAdjective,
     },
-    extn::{extn_client_message::ExtnMessage, extn_id::ExtnId},
+    extn::{
+        extn_client_message::{ExtnMessage, ExtnPayloadProvider},
+        extn_id::ExtnId,
+    },
     framework::{ripple_contract::RippleContract, RippleResponse},
     utils::error::RippleError,
     uuid::Uuid,
@@ -229,6 +232,16 @@ impl PlatformState {
         self.get_client()
             .get_extn_client()
             .main_internal_request(rpc_request.to_owned())
+            .await
+    }
+    ///
+    /// Also war on dots
+    pub async fn extn_request(
+        &self,
+        rpc_request: impl ExtnPayloadProvider,
+    ) -> Result<ExtnMessage, RippleError> {
+        self.get_client()
+            .send_extn_request(rpc_request.to_owned())
             .await
     }
 }
