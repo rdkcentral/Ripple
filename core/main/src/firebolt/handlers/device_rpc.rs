@@ -275,17 +275,20 @@ impl DeviceServer for DeviceImpl {
             .send_extn_request(DeviceInfoRequest::HdcpSupport)
             .await;
 
-        match resp {
-            Ok(payload) => match payload.payload.extract().unwrap() {
-                DeviceResponse::HdcpSupportResponse(value) => Ok(value),
-                _ => Err(jsonrpsee::core::Error::Custom(String::from(
-                    "Hdcp capabilities error response TBD",
+
+            match resp {
+                Ok(response) => match response.payload.extract() {
+                    Some( DeviceResponse::HdcpSupportResponse(value)) => {
+                        Ok(value)
+                    }
+                    _ => Err(jsonrpsee::core::Error::Custom(String::from(
+                        "device.hdcp error",
+                    ))),
+                },
+                Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
+                    "device.hdcp error",
                 ))),
-            },
-            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-                "Hdcp capabilities error response TBD",
-            ))),
-        }
+            }
     }
 
     async fn on_hdcp_changed(
@@ -433,18 +436,17 @@ impl DeviceServer for DeviceImpl {
             .await;
 
         match resp {
-            Ok(response) => match response.payload.extract().unwrap() {
-                DeviceResponse::AudioProfileResponse(audio) => Ok(audio),
+            Ok(response) => match response.payload.extract() {
+                Some(DeviceResponse::AudioProfileResponse(audio)) => {
+                    return Ok(audio);
+                }
                 _ => Err(jsonrpsee::core::Error::Custom(String::from(
-                    "Audio error response TBD",
+                    "device.audio error",
                 ))),
             },
-            Err(_e) => {
-                // TODO: What do error responses look like?
-                Err(jsonrpsee::core::Error::Custom(String::from(
-                    "Audio error response TBD",
-                )))
-            }
+            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
+                "device.audio error",
+            ))),
         }
     }
 
