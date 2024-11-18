@@ -25,7 +25,7 @@ use ripple_sdk::{
         },
         gateway::{
             rpc_error::RpcError,
-            rpc_gateway_api::{ApiMessage, ApiProtocol, ApiStats, RpcRequest},
+            rpc_gateway_api::{ApiMessage, ApiProtocol, RpcRequest},
         },
     },
     extn::extn_client_message::ExtnMessage,
@@ -178,7 +178,10 @@ impl FireboltGateway {
                 }
             }
         }
-        let platform_state = self.state.platform_state.clone();
+        // <pca>
+        //let platform_state = self.state.platform_state.clone();
+        let mut platform_state = self.state.platform_state.clone();
+        // </pca>
 
         /*
          * The reason for spawning a new thread is that when request-1 comes, and it waits for
@@ -205,7 +208,10 @@ impl FireboltGateway {
         let open_rpc_state = self.state.platform_state.open_rpc_state.clone();
 
         tokio::spawn(async move {
-            capture_stage(&mut request_c, "context_ready");
+            // <pca>
+            //capture_stage(&mut request_c, "context_ready");
+            capture_stage(&platform_state, &mut request_c, "context_ready");
+            // </pca>
             // Validate incoming request parameters.
             if let Err(error_string) = validate_request(open_rpc_state, &request_c, fail_open) {
                 TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
@@ -221,10 +227,16 @@ impl FireboltGateway {
                     data: None,
                 };
 
-                send_json_rpc_error(&platform_state, &request, json_rpc_error).await;
+                // <pca>
+                //send_json_rpc_error(&platform_state, &request, json_rpc_error).await;
+                send_json_rpc_error(&mut platform_state, &request, json_rpc_error).await;
+                // </pca>
                 return;
             }
-            capture_stage(&mut request_c, "openrpc_val");
+            // <pca>
+            //capture_stage(&mut request_c, "openrpc_val");
+            capture_stage(&platform_state, &mut request_c, "openrpc_val");
+            // </pca>
 
             let result = if extn_request {
                 // extn protocol means its an internal Ripple request skip permissions.
@@ -232,7 +244,10 @@ impl FireboltGateway {
             } else {
                 FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await
             };
-            capture_stage(&mut request_c, "permission");
+            // <pca>
+            //capture_stage(&mut request_c, "permission");
+            capture_stage(&platform_state, &mut request_c, "permission");
+            // </pca>
 
             match result {
                 Ok(_) => {
@@ -246,7 +261,10 @@ impl FireboltGateway {
                             ApiProtocol::Extn => {
                                 if let Some(extn_msg) = extn_msg {
                                     RpcRouter::route_extn_protocol(
-                                        &platform_state,
+                                        // <pca>
+                                        //&platform_state,
+                                        &mut platform_state,
+                                        // </pca>
                                         request.clone(),
                                         extn_msg,
                                     )
@@ -298,7 +316,10 @@ impl FireboltGateway {
                         data: None,
                     };
 
-                    send_json_rpc_error(&platform_state, &request, json_rpc_error).await;
+                    // <pca>
+                    //send_json_rpc_error(&platform_state, &request, json_rpc_error).await;
+                    send_json_rpc_error(&mut platform_state, &request, json_rpc_error).await;
+                    // </pca>
                 }
             }
         });
@@ -373,7 +394,10 @@ fn validate_request(
 }
 
 async fn send_json_rpc_error(
-    platform_state: &PlatformState,
+    // <pca>
+    //platform_state: &PlatformState,
+    platform_state: &mut PlatformState,
+    // </pca>
     request: &RpcRequest,
     json_rpc_error: JsonRpcError,
 ) {
@@ -390,16 +414,25 @@ async fn send_json_rpc_error(
         };
 
         if let Ok(error_message) = serde_json::to_string(&error_message) {
-            let mut api_message = ApiMessage::new(
+            // <pca>
+            //let mut api_message = ApiMessage::new(
+            let api_message = ApiMessage::new(
+                //< /pca>
                 request.clone().ctx.protocol,
                 error_message,
                 request.clone().ctx.request_id,
             );
 
-            api_message.stats = Some(ApiStats {
-                stats_ref: get_rpc_header_with_status(request, status_code),
-                stats: request.stats.clone(),
-            });
+            // <pca>
+            // api_message.stats = Some(ApiStats {
+            //     stats_ref: get_rpc_header_with_status(request, status_code),
+            //     stats: request.stats.clone(),
+            // });
+            platform_state.metrics.update_api_stats_ref(
+                &request.ctx.request_id,
+                get_rpc_header_with_status(request, status_code),
+            );
+            // </pca>
 
             match session.get_transport() {
                 EffectiveTransport::Websocket => {

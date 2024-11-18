@@ -77,23 +77,51 @@ pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage) {
     }
 }
 
-pub fn get_rpc_header_with_status(request: &RpcRequest, status_code: i32) -> String {
-    format!(
+// <pca>
+// pub fn get_rpc_header_with_status(request: &RpcRequest, status_code: i32) -> String {
+//     format!(
+//         "{},{},{}",
+//         request.ctx.app_id, request.ctx.method, status_code
+//     )
+// }
+pub fn get_rpc_header_with_status(request: &RpcRequest, status_code: i32) -> Option<String> {
+    Some(format!(
         "{},{},{}",
         request.ctx.app_id, request.ctx.method, status_code
-    )
+    ))
 }
+// </pca>
 
 pub fn get_rpc_header(request: &RpcRequest) -> String {
     format!("{},{}", request.ctx.app_id, request.ctx.method)
 }
 
-pub fn add_telemetry_status_code(original_ref: &str, status_code: &str) -> String {
-    format!("{},{}", original_ref, status_code)
+// <pca>
+// pub fn add_telemetry_status_code(original_ref: &str, status_code: &str) -> String {
+//     format!("{},{}", original_ref, status_code)
+// }
+pub fn add_telemetry_status_code(original_ref: &str, status_code: &str) -> Option<String> {
+    Some(format!("{},{}", original_ref, status_code))
 }
+// </pca>
 
-pub fn capture_stage(request: &mut RpcRequest, stage: &str) {
-    let duration = request.stats.update_stage(stage);
+// <pca>
+// pub fn capture_stage(request: &mut RpcRequest, stage: &str) {
+//     let duration = request.stats.update_stage(stage);
+//     trace!(
+//         "Firebolt processing stage: {},{},{},{}",
+//         request.ctx.app_id,
+//         request.ctx.method,
+//         stage,
+//         duration
+//     )
+// }
+pub fn capture_stage(platform_state: &PlatformState, request: &mut RpcRequest, stage: &str) {
+    let mut state = platform_state.clone();
+    let duration = state
+        .metrics
+        .update_api_stage(&request.ctx.request_id, stage);
+
     trace!(
         "Firebolt processing stage: {},{},{},{}",
         request.ctx.app_id,
@@ -102,3 +130,4 @@ pub fn capture_stage(request: &mut RpcRequest, stage: &str) {
         duration
     )
 }
+// </pca>

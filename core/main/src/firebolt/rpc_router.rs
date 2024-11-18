@@ -30,7 +30,7 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         firebolt::fb_metrics::Timer,
-        gateway::rpc_gateway_api::{ApiMessage, ApiStats, RpcRequest},
+        gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
     },
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
@@ -83,6 +83,9 @@ impl Default for RouterState {
 }
 
 async fn resolve_route(
+    // <pca>
+    platform_state: &mut PlatformState,
+    // </pca>
     methods: Methods,
     resources: Resources,
     req: RpcRequest,
@@ -142,13 +145,20 @@ async fn resolve_route(
         } else {
             1
         };
-        capture_stage(&mut request_c, "routing");
-
-        let mut msg = ApiMessage::new(protocol, r, request_id);
-        msg.stats = Some(ApiStats {
-            stats_ref: add_telemetry_status_code(&rpc_header, status_code.to_string().as_str()),
-            stats: request_c.stats,
-        });
+        // <pca>
+        //capture_stage(&mut request_c, "routing");
+        capture_stage(platform_state, &mut request_c, "routing");
+        //let mut msg = ApiMessage::new(protocol, r, request_id);
+        let msg = ApiMessage::new(protocol, r, request_id.clone());
+        // msg.stats = Some(ApiStats {
+        //     stats_ref: add_telemetry_status_code(&rpc_header, status_code.to_string().as_str()),
+        //     stats: request_c.stats,
+        // });
+        platform_state.metrics.update_api_stats_ref(
+            &request_id,
+            add_telemetry_status_code(&rpc_header, status_code.to_string().as_str()),
+        );
+        // </pca>
 
         return Ok(msg);
     }
@@ -157,7 +167,10 @@ async fn resolve_route(
 
 impl RpcRouter {
     pub async fn route(
-        state: PlatformState,
+        // <pca>
+        //state: PlatformState,
+        mut state: PlatformState,
+        // </pca>
         mut req: RpcRequest,
         session: Session,
         timer: Option<Timer>,
@@ -171,7 +184,10 @@ impl RpcRouter {
 
         tokio::spawn(async move {
             let start = Utc::now().timestamp_millis();
-            let resp = resolve_route(methods, resources, req.clone()).await;
+            // <pca>
+            //let resp = resolve_route(methods, resources, req.clone()).await;
+            let resp = resolve_route(&mut state, methods, resources, req.clone()).await;
+            // </pca>
 
             let status = match resp.clone() {
                 Ok(msg) => {
@@ -203,8 +219,13 @@ impl RpcRouter {
     ) {
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
+
+        let mut platform_state = state.clone();
         tokio::spawn(async move {
-            if let Ok(msg) = resolve_route(methods, resources, req).await {
+            // <pca>
+            //if let Ok(msg) = resolve_route(methods, resources, req).await {
+            if let Ok(msg) = resolve_route(&mut platform_state, methods, resources, req).await {
+                // </pca>
                 return_extn_response(msg, extn_msg);
             }
         });

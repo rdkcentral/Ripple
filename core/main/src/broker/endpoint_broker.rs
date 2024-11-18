@@ -19,8 +19,7 @@ use ripple_sdk::{
     api::{
         firebolt::fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
         gateway::rpc_gateway_api::{
-            ApiMessage, ApiProtocol, ApiStats, CallContext, JsonRpcApiRequest, JsonRpcApiResponse,
-            RpcRequest,
+            ApiMessage, ApiProtocol, CallContext, JsonRpcApiRequest, JsonRpcApiResponse, RpcRequest,
         },
         session::AccountSession,
     },
@@ -721,7 +720,10 @@ pub trait EndpointBroker {
 pub struct BrokerOutputForwarder;
 
 impl BrokerOutputForwarder {
-    pub fn start_forwarder(platform_state: PlatformState, mut rx: Receiver<BrokerOutput>) {
+    // <pca>
+    //pub fn start_forwarder(platform_state: PlatformState, mut rx: Receiver<BrokerOutput>) {
+    pub fn start_forwarder(mut platform_state: PlatformState, mut rx: Receiver<BrokerOutput>) {
+        // </pca>
         // set up the event utility
         let event_utility = Arc::new(EventManagementUtility::new());
         event_utility.register_custom_functions();
@@ -872,7 +874,10 @@ impl BrokerOutputForwarder {
                         } else {
                             let tm_str = get_rpc_header(&rpc_request);
                             // Step 2: Create the message
-                            let mut message = ApiMessage::new(
+                            // <pca>
+                            //let mut message = ApiMessage::new(
+                            let message = ApiMessage::new(
+                                // </pca>
                                 rpc_request.ctx.protocol.clone(),
                                 serde_json::to_string(&response).unwrap(),
                                 request_id.to_string(),
@@ -886,13 +891,22 @@ impl BrokerOutputForwarder {
                                 }
                             }
 
-                            message.stats = Some(ApiStats {
-                                stats_ref: add_telemetry_status_code(
+                            // <pca>
+                            // message.stats = Some(ApiStats {
+                            //     stats_ref: add_telemetry_status_code(
+                            //         &tm_str,
+                            //         status_code.to_string().as_str(),
+                            //     ),
+                            //     stats: rpc_request.stats,
+                            // });
+                            platform_state.metrics.update_api_stats_ref(
+                                &rpc_request.ctx.request_id,
+                                add_telemetry_status_code(
                                     &tm_str,
                                     status_code.to_string().as_str(),
                                 ),
-                                stats: rpc_request.stats,
-                            });
+                            );
+                            // </pca>
 
                             // Step 3: Handle Non Extension
                             if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
@@ -950,8 +964,15 @@ impl BrokerOutputForwarder {
         let protocol = rpc_request.ctx.protocol.clone();
         let platform_state_c = &platform_state;
 
+        // <pca>
+        let mut state = platform_state.clone();
+        // </pca>
+
         if let Ok(res) =
-            BrokerUtils::process_internal_main_request(platform_state_c, method.as_str()).await
+            // <pca>
+            //BrokerUtils::process_internal_main_request(&platform_state_c, method.as_str()).await
+            BrokerUtils::process_internal_main_request(&mut state, method.as_str()).await
+        // </pca>
         {
             response.result = Some(serde_json::to_value(res.clone()).unwrap());
         }

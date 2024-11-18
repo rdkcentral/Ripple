@@ -22,7 +22,7 @@ use jsonrpsee::{
 };
 use ripple_sdk::{
     api::{
-        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest, RpcStats},
+        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
         session::AccountSessionTokenRequest,
     },
     extn::extn_client_message::{ExtnMessage, ExtnResponse},
@@ -63,6 +63,12 @@ impl AccountServer for AccountImpl {
             .session_state
             .insert_session_token(a_t_r.token.clone());
         _ctx.protocol = ApiProtocol::Extn;
+
+        // <pca>
+        let mut platform_state = self.platform_state.clone();
+        platform_state.metrics.add_api_stats(&_ctx.request_id);
+        // </pca>
+
         let success = rpc_request_setter(
             self.platform_state
                 .get_client()
@@ -74,7 +80,9 @@ impl AccountServer for AccountImpl {
                         Some(json!({"token": a_t_r.token, "expires": a_t_r.expires_in})),
                         &_ctx,
                     ),
-                    stats: RpcStats::default(),
+                    // <pca>
+                    //stats: RpcStats::default(),
+                    // </pca>
                 })
                 .await,
         );

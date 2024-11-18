@@ -860,7 +860,7 @@ pub mod tests {
                 device_info_request::DeviceInfoRequest,
                 device_request::{AccountToken, DeviceRequest},
             },
-            gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest, RpcStats},
+            gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
             session::SessionAdjective,
         },
         extn::{
@@ -1247,6 +1247,7 @@ pub mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_main_internal_request(cap: ExtnId, exp_response: &str) {
         // test case: main <=> main
+
         let (mock_sender, mock_rx) =
             ExtnSender::mock_with_params(cap.clone(), Vec::new(), Vec::new(), Some(HashMap::new()));
         let mut extn_client = ExtnClient::new(mock_rx.clone(), mock_sender.clone());
@@ -1267,11 +1268,15 @@ pub mod tests {
             true,
         );
         let new_ctx = ctx.clone();
+
         let rpc_request = RpcRequest {
             ctx: new_ctx.clone(),
             method: "some.method".into(),
             params_json: RpcRequest::prepend_ctx(None, &new_ctx),
-            stats: RpcStats::default(),
+            // <pca>: Do we need to pass state in here? </pca>
+            // <pca>
+            //stats: RpcStats::default(),
+            // </pca>
         };
 
         tokio::spawn(async move {

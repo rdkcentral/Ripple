@@ -19,7 +19,7 @@ use std::{collections::HashMap, pin::Pin};
 
 use futures::Future;
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest, RpcStats},
+    api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
     extn::extn_client_message::ExtnResponse,
     log::info,
     utils::error::RippleError,
@@ -58,8 +58,14 @@ impl EventManagementUtility {
         self.register_function(
             "AdvertisingPolicyEventDecorator".to_string(),
             Arc::new(|state, ctx, value| {
+                // <pca>
+                let s = state.clone();
+                // </pca>
                 Box::pin(EventManagementUtility::advertising_policy_event_decorator(
-                    state, ctx, value,
+                    // <pca>
+                    //state, ctx, value,
+                    s, ctx, value,
+                    // </pca>
                 ))
             }),
         );
@@ -73,7 +79,10 @@ impl EventManagementUtility {
     }
 
     pub async fn advertising_policy_event_decorator(
-        platform_state: PlatformState,
+        // <pca>
+        //platform_state: PlatformState,
+        mut platform_state: PlatformState,
+        // </pca>
         ctx: CallContext,
         value: Option<Value>,
     ) -> Result<Option<Value>, RippleError> {
@@ -85,9 +94,15 @@ impl EventManagementUtility {
         let rpc_request = RpcRequest {
             ctx: new_ctx.clone(),
             method: "advertising.policy".into(),
-            stats: RpcStats::default(),
+            // <pca>
+            //stats: RpcStats::default(),
+            // </pca>
             params_json: RpcRequest::prepend_ctx(None, &new_ctx),
         };
+
+        // <pca>
+        platform_state.metrics.add_api_stats(&ctx.request_id);
+        // </pca>
 
         let resp = platform_state
             .get_client()

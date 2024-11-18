@@ -33,9 +33,12 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
     }
 
     async fn setup(&self, s: BootstrapState) -> RippleResponse {
-        let ps = s.platform_state.clone();
+        // <pca>
+        //let ps = s.platform_state.clone();
+        let mut ps = s.platform_state.clone();
+        // </pca>
         tokio::spawn(async move {
-            MetricsState::initialize(&ps).await;
+            MetricsState::initialize(&mut ps).await;
         });
 
         MainContextProcessor::remove_expired_and_inactive_entries(&s.platform_state);

@@ -20,7 +20,7 @@ use futures::stream::{SplitSink, SplitStream};
 use futures_util::StreamExt;
 use jsonrpsee::{core::RpcResult, types::error::CallError};
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest, RpcStats},
+    api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
     extn::extn_client_message::ExtnResponse,
     log::{error, info},
     tokio::{self, net::TcpStream},
@@ -72,7 +72,10 @@ impl BrokerUtils {
     }
 
     pub async fn process_internal_main_request<'a>(
-        state: &'a PlatformState,
+        // <pca>
+        //state: &'a PlatformState,
+        state: &mut PlatformState,
+        // </pca>
         method: &'a str,
     ) -> RpcResult<Value> {
         let ctx = CallContext::new(
@@ -89,8 +92,14 @@ impl BrokerUtils {
             ctx: ctx.clone(),
             method: method.to_string(),
             params_json: RpcRequest::prepend_ctx(None, &ctx),
-            stats: RpcStats::default(),
+            // <pca>
+            //stats: RpcStats::default(),
+            // </pca>
         };
+
+        // <pca>
+        state.metrics.add_api_stats(&ctx.request_id);
+        // </pca>
 
         let resp = state
             .get_client()

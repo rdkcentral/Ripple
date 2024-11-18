@@ -16,7 +16,7 @@
 //
 
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     sync::{Arc, RwLock},
 };
 
@@ -32,6 +32,7 @@ use ripple_sdk::{
             fb_openrpc::FireboltSemanticVersion,
         },
         manifest::device_manifest::DataGovernanceConfig,
+        observability::metrics_util::ApiStats,
         storage_property::StorageProperty,
     },
     chrono::{DateTime, Utc},
@@ -65,6 +66,9 @@ pub struct MetricsState {
     pub start_time: DateTime<Utc>,
     pub context: Arc<RwLock<MetricsContext>>,
     operational_telemetry_listeners: Arc<RwLock<HashSet<String>>>,
+    // <pca>
+    api_stats_map: Arc<RwLock<HashMap<String, ApiStats>>>,
+    // </pca>
 }
 
 impl MetricsState {
@@ -207,7 +211,10 @@ impl MetricsState {
         }
     }
 
-    pub async fn initialize(state: &PlatformState) {
+    // <pca>
+    //pub async fn initialize(state: &PlatformState) {
+    pub async fn initialize(state: &mut PlatformState) {
+        // </pca>
         let metrics_percentage = state
             .get_device_manifest()
             .configuration
@@ -500,4 +507,51 @@ impl MetricsState {
         }
         Self::send_context_update_request(&platform_state);
     }
+
+    // <pca>
+    pub fn add_api_stats(&mut self, request_id: &str) {
+        let mut api_stats_map = self.api_stats_map.write().unwrap();
+        api_stats_map.insert(request_id.to_string(), ApiStats::default());
+    }
+
+    pub fn remove_api_stats(&mut self, request_id: &str) {
+        let mut api_stats_map = self.api_stats_map.write().unwrap();
+        api_stats_map.remove(request_id);
+    }
+
+    pub fn update_api_stats_ref(&mut self, request_id: &str, stats_ref: Option<String>) {
+        let mut api_stats_map = self.api_stats_map.write().unwrap();
+        if let Some(stats) = api_stats_map.get_mut(request_id) {
+            stats.stats_ref = stats_ref;
+        } else {
+            error!(
+                "update_api_stats_ref: request_id not found: request_id={}",
+                request_id
+            );
+        }
+    }
+
+    pub fn update_api_stage(&mut self, request_id: &str, stage: &str) -> i64 {
+        let mut api_stats_map = self.api_stats_map.write().unwrap();
+        if let Some(stats) = api_stats_map.get_mut(request_id) {
+            stats.stats.update_stage(stage)
+        } else {
+            error!(
+                "update_api_stage: request_id not found: request_id={}",
+                request_id
+            );
+            -1
+        }
+    }
+
+    pub fn get_api_stats(&self, request_id: &str) -> Option<ApiStats> {
+        let api_stats_map = self.api_stats_map.read().unwrap();
+        api_stats_map.get(request_id).cloned()
+    }
+
+    pub fn dump_api_stats(&self) {
+        let api_stats_map = self.api_stats_map.read().unwrap();
+        println!("dump_api_stats: api_stats_map={:?}", api_stats_map);
+    }
+    // </pca>
 }
