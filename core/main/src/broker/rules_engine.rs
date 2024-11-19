@@ -157,6 +157,23 @@ pub struct RuleEngine {
 }
 
 impl RuleEngine {
+    // // pub fn get_protocol_endpoint(&self, protocol: &str) -> RuleEndpoint {
+    // //     self.rules
+    // //         .endpoints
+    // //         .get(protocol)
+    // //         .cloned()
+    // //         .expect("protocol rule_endpoint not found!")
+    // // }
+
+    // pub fn get_protocol_endpoint(&self, protocol: &str) -> Option<RuleEndpoint> {
+    //     if let Some(endpoint) = self.rules.endpoints.get(protocol) {
+    //         Some(endpoint.clone())
+    //     } else {
+    //         error!("Error: Endpoint with protocol '{}' not found", protocol);
+    //         None
+    //     }
+    // }
+
     fn build_path(path: &str, default_path: &str) -> String {
         if path.starts_with('/') {
             path.to_owned()

@@ -78,13 +78,14 @@ impl ThunderClientManager {
         client: ThunderClient,
         request_tr: Receiver<ThunderAsyncRequest>,
         mut response_tr: Receiver<ThunderAsyncResponse>,
+        thndr_endpoint_url: String,
     ) {
         let client_c = client.clone();
 
         tokio::spawn(async move {
             if let Some(thndr_asynclient) = &client_c.thndr_asynclient {
                 thndr_asynclient
-                    .start("ws://127.0.0.1:9998/jsonrpc", request_tr)
+                    .start(&thndr_endpoint_url, request_tr)
                     .await;
             }
             error!("Thunder disconnected so reconnecting");
@@ -827,7 +828,12 @@ impl ThunderClientBuilder {
                 use_thunderbroker: true,
             };
 
-            ThunderClientManager::manage(thunder_client.clone(), broker_rx, tr);
+            ThunderClientManager::manage(
+                thunder_client.clone(),
+                broker_rx,
+                tr,
+                url.unwrap().to_string(),
+            );
 
             Ok(thunder_client)
         }
