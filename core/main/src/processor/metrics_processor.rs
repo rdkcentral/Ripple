@@ -38,11 +38,10 @@ use ripple_sdk::{
     log::debug,
     tokio::sync::mpsc::{Receiver as MReceiver, Sender as MSender},
 };
-
+include!(concat!(env!("OUT_DIR"), "/version.rs"));
 use crate::{
     service::{data_governance::DataGovernance, telemetry_builder::TelemetryBuilder},
     state::platform_state::PlatformState,
-    SEMVER_LIGHTWEIGHT,
 };
 
 pub async fn send_metric(

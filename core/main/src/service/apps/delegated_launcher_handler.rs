@@ -72,7 +72,7 @@ use ripple_sdk::{
     tokio::{self, sync::mpsc::Receiver},
 };
 use serde_json::{json, Value};
-
+include!(concat!(env!("OUT_DIR"), "/version.rs"));
 use crate::{
     processor::metrics_processor::send_metric_for_app_state_change,
     service::{
@@ -90,7 +90,6 @@ use crate::{
         session_state::{PendingSessionInfo, Session},
     },
     utils::rpc_utils::rpc_await_oneshot,
-    SEMVER_LIGHTWEIGHT,
 };
 
 const APP_ID_TITLE_FILE_NAME: &str = "appInfo.json";
