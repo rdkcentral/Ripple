@@ -25,7 +25,9 @@ use ripple_sdk::{
     utils::error::RippleError,
 };
 
-use crate::state::{platform_state::PlatformState, session_state::Session};
+use crate::state::{
+    metrics_state::MetricsState, platform_state::PlatformState, session_state::Session,
+};
 
 pub async fn return_api_message_for_transport(
     session: Session,
@@ -116,11 +118,9 @@ pub fn add_telemetry_status_code(original_ref: &str, status_code: &str) -> Optio
 //         duration
 //     )
 // }
-pub fn capture_stage(platform_state: &PlatformState, request: &mut RpcRequest, stage: &str) {
-    let mut state = platform_state.clone();
-    let duration = state
-        .metrics
-        .update_api_stage(&request.ctx.request_id, &request.method, stage);
+pub fn capture_stage(metrics_state: &MetricsState, request: &RpcRequest, stage: &str) {
+    let mut state = metrics_state.clone();
+    let duration = state.update_api_stage(&request.ctx.request_id, stage);
 
     trace!(
         "Firebolt processing stage: {},{},{},{}",

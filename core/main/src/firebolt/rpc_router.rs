@@ -147,12 +147,11 @@ async fn resolve_route(
         };
         // <pca>
         //capture_stage(&mut request_c, "routing");
-        capture_stage(platform_state, &mut request_c, "routing");
+        capture_stage(&platform_state.metrics, &mut request_c, "routing");
         //let mut msg = ApiMessage::new(protocol, r, request_id);
         println!("*** _DEBUG: Mark 3");
         platform_state.metrics.update_api_stats_ref(
             &request_id,
-            &request_c.method,
             add_telemetry_status_code(&rpc_header, status_code.to_string().as_str()),
         );
 

@@ -218,7 +218,7 @@ impl FireboltGateway {
         tokio::spawn(async move {
             // <pca>
             //capture_stage(&mut request_c, "context_ready");
-            capture_stage(&platform_state, &mut request_c, "context_ready");
+            capture_stage(&platform_state.metrics, &mut request_c, "context_ready");
             // </pca>
             // Validate incoming request parameters.
             if let Err(error_string) = validate_request(open_rpc_state, &request_c, fail_open) {
@@ -243,7 +243,7 @@ impl FireboltGateway {
             }
             // <pca>
             //capture_stage(&mut request_c, "openrpc_val");
-            capture_stage(&platform_state, &mut request_c, "openrpc_val");
+            capture_stage(&platform_state.metrics, &mut request_c, "openrpc_val");
             // </pca>
 
             let result = if extn_request {
@@ -254,7 +254,7 @@ impl FireboltGateway {
             };
             // <pca>
             //capture_stage(&mut request_c, "permission");
-            capture_stage(&platform_state, &mut request_c, "permission");
+            capture_stage(&platform_state.metrics, &mut request_c, "permission");
             // </pca>
 
             match result {
@@ -446,7 +446,6 @@ async fn send_json_rpc_error(
             println!("*** _DEBUG: Mark 2");
             platform_state.metrics.update_api_stats_ref(
                 &request.ctx.request_id,
-                &request.method,
                 get_rpc_header_with_status(request, status_code),
             );
             // </pca>

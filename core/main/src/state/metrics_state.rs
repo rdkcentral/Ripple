@@ -533,11 +533,11 @@ impl MetricsState {
         api_stats_map.remove(request_id);
     }
 
-    pub fn update_api_stats_ref(&mut self, request_id: &str, api: &str, stats_ref: Option<String>) {
+    pub fn update_api_stats_ref(&mut self, request_id: &str, stats_ref: Option<String>) {
         let mut api_stats_map = self.api_stats_map.write().unwrap();
         println!(
-            "*** _DEBUG: update_api_stats_ref: request_id={}, api={}, stats_ref={:?}",
-            request_id, api, stats_ref
+            "*** _DEBUG: update_api_stats_ref: request_id={}, stats_ref={:?}",
+            request_id, stats_ref
         );
         if let Some(stats) = api_stats_map.get_mut(request_id) {
             stats.stats_ref = stats_ref;
@@ -549,11 +549,11 @@ impl MetricsState {
         }
     }
 
-    pub fn update_api_stage(&mut self, request_id: &str, api: &str, stage: &str) -> i64 {
+    pub fn update_api_stage(&mut self, request_id: &str, stage: &str) -> i64 {
         let mut api_stats_map = self.api_stats_map.write().unwrap();
         println!(
-            "*** _DEBUG: update_api_stage: request_id={}, api={}, stage={}",
-            request_id, api, stage
+            "*** _DEBUG: update_api_stage: request_id={}, stage={}",
+            request_id, stage
         );
         if let Some(stats) = api_stats_map.get_mut(request_id) {
             stats.stats.update_stage(stage)
@@ -574,14 +574,6 @@ impl MetricsState {
         let api_stats_map = self.api_stats_map.read().unwrap();
         println!("*** _DEBUG: get_api_stats: request_id={}", request_id);
         api_stats_map.get(request_id).cloned()
-    }
-
-    pub fn dump_api_stats(&self) {
-        let api_stats_map = self.api_stats_map.read().unwrap();
-        println!(
-            "*** _DEBUG: dump_api_stats: api_stats_map={:?}",
-            api_stats_map
-        );
     }
     // </pca>
 }

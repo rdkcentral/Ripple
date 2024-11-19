@@ -46,9 +46,9 @@ use crate::{
     broker::broker_utils::BrokerUtils,
     firebolt::firebolt_gateway::{FireboltGatewayCommand, JsonRpcError},
     service::extn::ripple_client::RippleClient,
-    state::platform_state::PlatformState,
+    state::{metrics_state::MetricsState, platform_state::PlatformState},
     utils::router_utils::{
-        add_telemetry_status_code, get_rpc_header, return_api_message_for_transport,
+        add_telemetry_status_code, capture_stage, get_rpc_header, return_api_message_for_transport,
         return_extn_response,
     },
 };
@@ -307,6 +307,9 @@ pub struct EndpointBrokerState {
     rule_engine: RuleEngine,
     cleaner_list: Arc<RwLock<Vec<BrokerCleaner>>>,
     reconnect_tx: Sender<BrokerConnectRequest>,
+    // <pca>
+    metrics_state: MetricsState,
+    // </pca>
 }
 impl Default for EndpointBrokerState {
     fn default() -> Self {
@@ -318,12 +321,18 @@ impl Default for EndpointBrokerState {
             rule_engine: RuleEngine::default(),
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx: mpsc::channel(2).0,
+            // <pca>
+            metrics_state: MetricsState::default(),
+            // </pca>
         }
     }
 }
 
 impl EndpointBrokerState {
     pub fn new(
+        // <pca>
+        metrics_state: MetricsState,
+        // </pca>
         tx: Sender<BrokerOutput>,
         rule_engine: RuleEngine,
         ripple_client: RippleClient,
@@ -337,6 +346,9 @@ impl EndpointBrokerState {
             rule_engine,
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx,
+            // <pca>
+            metrics_state,
+            // </pca>
         };
         state.reconnect_thread(rec_tr, ripple_client);
         state
@@ -531,7 +543,17 @@ impl EndpointBrokerState {
         data.result = Some(jv);
         data.id = Some(id);
         let output = BrokerOutput { data };
-        tokio::spawn(async move { callback.sender.send(output).await });
+
+        // <pca>
+        //tokio::spawn(async move { callback.sender.send(output).await });
+        let metrics_state = self.metrics_state.clone();
+        capture_stage(&metrics_state, &rpc_request, "static_rule_request");
+        tokio::spawn(async move {
+            let resp = callback.sender.send(output).await;
+            capture_stage(&metrics_state, &rpc_request, "static_rule_response");
+            resp
+        });
+        // </pca>
     }
 
     fn get_sender(&self, hash: &str) -> Option<BrokerSender> {
@@ -580,10 +602,16 @@ impl EndpointBrokerState {
                 let broker = broker_sender.unwrap();
                 let (_, updated_request) =
                     self.update_request(&rpc_request, rule, extn_message, requestor_callback);
+                // <pca>
+                let metrics_state = self.metrics_state.clone();
+                // </pca>
                 tokio::spawn(async move {
                     if let Err(e) = broker.send(updated_request.clone()).await {
                         callback.send_error(updated_request, e).await
                     }
+                    // <pca>
+                    capture_stage(&metrics_state, &rpc_request, "broker_request");
+                    // </pca>
                 });
             } else {
                 handled = false;
@@ -749,6 +777,7 @@ impl BrokerOutputForwarder {
                         let workflow_callback = broker_request.clone().workflow_callback;
                         let sub_processed = broker_request.is_subscription_processed();
                         let rpc_request = broker_request.rpc.clone();
+                        println!("*** _DEBUG: Mark A: rpc_request={:?}", rpc_request);
                         let session_id = rpc_request.ctx.get_id();
                         let is_subscription = rpc_request.is_subscription();
                         let mut apply_response_needed = false;
@@ -808,11 +837,20 @@ impl BrokerOutputForwarder {
                                             }
                                             response.id = Some(request_id);
 
+                                            // <pca> debug -- This could screw up everything
+                                            // let message = ApiMessage::new(
+                                            //     protocol,
+                                            //     serde_json::to_string(&response).unwrap(),
+                                            //     request_id.to_string(),
+                                            // );
                                             let message = ApiMessage::new(
                                                 protocol,
                                                 serde_json::to_string(&response).unwrap(),
-                                                request_id.to_string(),
+                                                rpc_request.ctx.request_id.clone(),
                                             );
+                                            // </pca>
+
+                                            println!("*** _DEBUG: Mark 2: message={:?}", message);
 
                                             if let Some(session) = platform_state_c
                                                 .session_state
@@ -875,11 +913,19 @@ impl BrokerOutputForwarder {
                         } else {
                             let tm_str = get_rpc_header(&rpc_request);
                             // Step 2: Create the message
+                            // <pca> debug
+                            // let mut message = ApiMessage::new(
+                            //     rpc_request.ctx.protocol.clone(),
+                            //     serde_json::to_string(&response).unwrap(),
+                            //     request_id.to_string(),
+                            // );
                             let mut message = ApiMessage::new(
                                 rpc_request.ctx.protocol.clone(),
                                 serde_json::to_string(&response).unwrap(),
-                                request_id.to_string(),
+                                rpc_request.ctx.request_id.clone(),
                             );
+                            // </pca>
+                            println!("*** _DEBUG: Mark 3: message={:?}", message);
                             let mut status_code: i64 = 1;
                             if let Some(e) = &response.error {
                                 if let Some(Value::Number(n)) = e.get("code") {
@@ -900,7 +946,6 @@ impl BrokerOutputForwarder {
                             println!("*** _DEBUG: Mark 1");
                             platform_state.metrics.update_api_stats_ref(
                                 &rpc_request.ctx.request_id,
-                                &rpc_request.method,
                                 add_telemetry_status_code(
                                     &tm_str,
                                     status_code.to_string().as_str(),
@@ -912,6 +957,13 @@ impl BrokerOutputForwarder {
                                 .get_api_stats(&rpc_request.ctx.request_id)
                             {
                                 message.stats = Some(api_stats);
+
+                                if rpc_request.ctx.app_id.eq_ignore_ascii_case("internal") {
+                                    println!("*** _DEBUG: start_forwarder: Removing API stats for internal");
+                                    platform_state
+                                        .metrics
+                                        .remove_api_stats(&rpc_request.ctx.request_id);
+                                }
                             }
                             // </pca>
 
@@ -944,9 +996,9 @@ impl BrokerOutputForwarder {
                             }
                         }
                         // <pca>
-                        platform_state
-                            .metrics
-                            .remove_api_stats(&rpc_request.ctx.request_id);
+                        // platform_state
+                        //     .metrics
+                        //     .remove_api_stats(&rpc_request.ctx.request_id);
                         // <pca>
                     } else {
                         error!(
@@ -955,10 +1007,6 @@ impl BrokerOutputForwarder {
                             response
                         );
                     }
-
-                    // <pca>
-                    platform_state.metrics.dump_api_stats();
-                    // </pca>
                 } else {
                     error!(
                         "Error couldnt broker the event {:?} due to a missing request id",
@@ -994,11 +1042,19 @@ impl BrokerOutputForwarder {
         }
         response.id = Some(request_id);
 
+        // <pca> debug
+        // let message = ApiMessage::new(
+        //     protocol,
+        //     serde_json::to_string(&response).unwrap(),
+        //     request_id.to_string(),
+        // );
         let message = ApiMessage::new(
             protocol,
             serde_json::to_string(&response).unwrap(),
-            request_id.to_string(),
+            rpc_request.ctx.request_id.clone(),
         );
+        // </pca>
+        println!("*** _DEBUG: Mark 4: message={:?}", message);
 
         if let Some(session) = platform_state_c
             .session_state

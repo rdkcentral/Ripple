@@ -239,6 +239,11 @@ impl FireboltWs {
                     Ok(_) => {
                         // <pca>
                         //if let Some(stats) = rs.stats {
+                        platform_state
+                            .metrics
+                            .update_api_stage(&rs.request_id, "response");
+
+                        println!("*** _DEBUG: MARK: rs={:?}", rs);
                         if let Some(stats) = platform_state.metrics.get_api_stats(&rs.request_id) {
                             // </pca>
                             info!(
@@ -253,7 +258,6 @@ impl FireboltWs {
                             );
                             // <pca>
                             platform_state.metrics.remove_api_stats(&rs.request_id);
-                            platform_state.metrics.dump_api_stats();
                             // </pca>
                         }
                         info!(
