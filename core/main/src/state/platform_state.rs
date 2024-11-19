@@ -55,12 +55,12 @@ use super::{
 /// Platform state encapsulates the internal state of the Ripple Main application.
 ///
 /// # Examples
-/// 
+///
 /// let state = PlatformState::default();
 ///
 /// let manifest = state.get_device_manifest();
 /// println!("{}", manifest.unwrap().configuration.platform);
-/// 
+///
 ///
 
 #[derive(Debug, Clone)]

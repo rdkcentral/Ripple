@@ -54,13 +54,13 @@ use crate::{
 /// 4. Usergrants
 ///
 /// # Examples
-/// # 
+/// #
 /// # fn send_gateway_command(msg: firebolt::firebolt_gateway:FireboltGatewayCommand) {
 /// #    
 /// #    client.send_gateway_command()
 /// # }
 ///
-/// 
+///
 #[derive(Debug, Clone)]
 pub struct RippleClient {
     client: Arc<RwLock<ExtnClient>>,

@@ -1,21 +1,21 @@
 pub mod broker {
     pub mod broker_utils;
     pub mod endpoint_broker;
+    pub mod event_management_utility;
     pub mod http_broker;
     pub mod rules_engine;
     pub mod thunder;
     pub mod thunder_broker;
     pub mod websocket_broker;
-    pub mod event_management_utility;
     pub mod workflow_broker;
 }
 
 pub mod utils {
+    pub mod common;
     pub mod router_utils;
     pub mod rpc_utils;
     #[cfg(test)]
     pub mod test_utils;
-    pub mod common;
 }
 pub mod state {
     pub mod bootstrap_state;

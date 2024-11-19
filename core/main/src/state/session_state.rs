@@ -82,10 +82,10 @@ impl Session {
 /// # Examples
 ///
 /// ### To add an App Id
-/// 
+///
 /// let session_state = SessionState::default();
 /// session_state("1234-1234".into(), "SomeCoolAppId".into());
-/// 
+///
 
 #[derive(Debug, Clone, Default)]
 pub struct SessionState {
