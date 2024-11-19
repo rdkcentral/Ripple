@@ -902,6 +902,7 @@ impl BrokerOutputForwarder {
                         let request_id = rpc_request.ctx.call_id;
                         response.id = Some(request_id);
 
+                        // <pca> YAH: Losing time in workflow, debug </pca>
                         if let Some(workflow_callback) = workflow_callback {
                             debug!("sending to workflow callback {:?}", response);
                             let _ = workflow_callback
