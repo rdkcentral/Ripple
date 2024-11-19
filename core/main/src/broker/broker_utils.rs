@@ -98,7 +98,7 @@ impl BrokerUtils {
         };
 
         // <pca>
-        state.metrics.add_api_stats(&ctx.request_id);
+        state.metrics.add_api_stats(&ctx.request_id, method);
         // </pca>
 
         let resp = state

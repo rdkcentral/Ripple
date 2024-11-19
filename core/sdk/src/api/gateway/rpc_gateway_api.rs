@@ -22,7 +22,10 @@ use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
 use crate::{
-    api::firebolt::{fb_general::ListenRequest, fb_openrpc::FireboltOpenRpcMethod},
+    api::{
+        firebolt::{fb_general::ListenRequest, fb_openrpc::FireboltOpenRpcMethod},
+        observability::metrics_util::ApiStats,
+    },
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
 };
@@ -126,9 +129,7 @@ pub struct ApiMessage {
     pub protocol: ApiProtocol,
     pub jsonrpc_msg: String,
     pub request_id: String,
-    // <pca>
-    //pub stats: Option<ApiStats>,
-    // </pca>
+    pub stats: Option<ApiStats>,
 }
 
 // <pca>
@@ -149,9 +150,7 @@ impl ApiMessage {
             protocol,
             jsonrpc_msg,
             request_id,
-            // <pca>
-            //stats: None,
-            // </pca>
+            stats: None,
         }
     }
 

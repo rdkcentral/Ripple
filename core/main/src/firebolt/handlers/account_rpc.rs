@@ -66,7 +66,9 @@ impl AccountServer for AccountImpl {
 
         // <pca>
         let mut platform_state = self.platform_state.clone();
-        platform_state.metrics.add_api_stats(&_ctx.request_id);
+        platform_state
+            .metrics
+            .add_api_stats(&_ctx.request_id, "account.setServiceAccessToken");
         // </pca>
 
         let success = rpc_request_setter(

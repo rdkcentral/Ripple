@@ -120,7 +120,7 @@ pub fn capture_stage(platform_state: &PlatformState, request: &mut RpcRequest, s
     let mut state = platform_state.clone();
     let duration = state
         .metrics
-        .update_api_stage(&request.ctx.request_id, stage);
+        .update_api_stage(&request.ctx.request_id, &request.method, stage);
 
     trace!(
         "Firebolt processing stage: {},{},{},{}",

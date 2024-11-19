@@ -27,6 +27,7 @@ use ripple_sdk::{
             rpc_error::RpcError,
             rpc_gateway_api::{ApiMessage, ApiProtocol, RpcRequest},
         },
+        observability::metrics_util::ApiStats,
     },
     extn::extn_client_message::ExtnMessage,
     log::{debug, error, info, trace, warn},
@@ -192,6 +193,13 @@ impl FireboltGateway {
          */
         let mut request_c = request.clone();
         request_c.method = FireboltOpenRpcMethod::name_with_lowercase_module(&request.method);
+
+        // <pca>
+        platform_state
+            .metrics
+            .add_api_stats(&request_c.ctx.request_id, &request_c.method);
+        // </pca>
+
         let metrics_timer = TelemetryBuilder::start_firebolt_metrics_timer(
             &platform_state.get_client().get_extn_client(),
             request_c.method.clone(),
@@ -414,10 +422,7 @@ async fn send_json_rpc_error(
         };
 
         if let Ok(error_message) = serde_json::to_string(&error_message) {
-            // <pca>
-            //let mut api_message = ApiMessage::new(
-            let api_message = ApiMessage::new(
-                //< /pca>
+            let mut api_message = ApiMessage::new(
                 request.clone().ctx.protocol,
                 error_message,
                 request.clone().ctx.request_id,
@@ -428,8 +433,20 @@ async fn send_json_rpc_error(
             //     stats_ref: get_rpc_header_with_status(request, status_code),
             //     stats: request.stats.clone(),
             // });
+            if let Some(api_stats) = platform_state
+                .metrics
+                .get_api_stats(&request.ctx.request_id)
+            {
+                api_message.stats = Some(ApiStats {
+                    api: request.method.clone(),
+                    stats_ref: get_rpc_header_with_status(request, status_code),
+                    stats: api_stats.stats.clone(),
+                });
+            }
+            println!("*** _DEBUG: Mark 2");
             platform_state.metrics.update_api_stats_ref(
                 &request.ctx.request_id,
+                &request.method,
                 get_rpc_header_with_status(request, status_code),
             );
             // </pca>

@@ -149,15 +149,17 @@ async fn resolve_route(
         //capture_stage(&mut request_c, "routing");
         capture_stage(platform_state, &mut request_c, "routing");
         //let mut msg = ApiMessage::new(protocol, r, request_id);
-        let msg = ApiMessage::new(protocol, r, request_id.clone());
-        // msg.stats = Some(ApiStats {
-        //     stats_ref: add_telemetry_status_code(&rpc_header, status_code.to_string().as_str()),
-        //     stats: request_c.stats,
-        // });
+        println!("*** _DEBUG: Mark 3");
         platform_state.metrics.update_api_stats_ref(
             &request_id,
+            &request_c.method,
             add_telemetry_status_code(&rpc_header, status_code.to_string().as_str()),
         );
+
+        let mut msg = ApiMessage::new(protocol, r, request_id.clone());
+        if let Some(api_stats) = platform_state.metrics.get_api_stats(&request_id) {
+            msg.stats = Some(api_stats);
+        }
         // </pca>
 
         return Ok(msg);

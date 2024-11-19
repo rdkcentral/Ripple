@@ -101,7 +101,9 @@ impl EventManagementUtility {
         };
 
         // <pca>
-        platform_state.metrics.add_api_stats(&ctx.request_id);
+        platform_state
+            .metrics
+            .add_api_stats(&ctx.request_id, "advertising.policy");
         // </pca>
 
         let resp = platform_state

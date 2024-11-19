@@ -733,6 +733,7 @@ impl BrokerOutputForwarder {
             while let Some(output) = rx.recv().await {
                 let output_c = output.clone();
                 let mut response = output.data.clone();
+                println!("*** _DEBUG: start_forwarder: response: {:?}", response);
                 let mut is_event = false;
                 // First validate the id check if it could be an event
                 let id = if let Some(e) = output_c.get_event() {
@@ -874,10 +875,7 @@ impl BrokerOutputForwarder {
                         } else {
                             let tm_str = get_rpc_header(&rpc_request);
                             // Step 2: Create the message
-                            // <pca>
-                            //let mut message = ApiMessage::new(
-                            let message = ApiMessage::new(
-                                // </pca>
+                            let mut message = ApiMessage::new(
                                 rpc_request.ctx.protocol.clone(),
                                 serde_json::to_string(&response).unwrap(),
                                 request_id.to_string(),
@@ -899,13 +897,22 @@ impl BrokerOutputForwarder {
                             //     ),
                             //     stats: rpc_request.stats,
                             // });
+                            println!("*** _DEBUG: Mark 1");
                             platform_state.metrics.update_api_stats_ref(
                                 &rpc_request.ctx.request_id,
+                                &rpc_request.method,
                                 add_telemetry_status_code(
                                     &tm_str,
                                     status_code.to_string().as_str(),
                                 ),
                             );
+
+                            if let Some(api_stats) = platform_state
+                                .metrics
+                                .get_api_stats(&rpc_request.ctx.request_id)
+                            {
+                                message.stats = Some(api_stats);
+                            }
                             // </pca>
 
                             // Step 3: Handle Non Extension
@@ -936,6 +943,11 @@ impl BrokerOutputForwarder {
                                 .await
                             }
                         }
+                        // <pca>
+                        platform_state
+                            .metrics
+                            .remove_api_stats(&rpc_request.ctx.request_id);
+                        // <pca>
                     } else {
                         error!(
                             "start_forwarder:{} request not found for {:?}",
@@ -943,6 +955,10 @@ impl BrokerOutputForwarder {
                             response
                         );
                     }
+
+                    // <pca>
+                    platform_state.metrics.dump_api_stats();
+                    // </pca>
                 } else {
                     error!(
                         "Error couldnt broker the event {:?} due to a missing request id",

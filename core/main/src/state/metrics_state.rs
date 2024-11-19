@@ -37,7 +37,7 @@ use ripple_sdk::{
     },
     chrono::{DateTime, Utc},
     extn::extn_client_message::ExtnResponse,
-    log::error,
+    log::{error, warn},
     utils::error::RippleError,
 };
 use serde_json::from_value;
@@ -60,6 +60,10 @@ const PERSISTENT_STORAGE_KEY_OPERATOR: &str = "operator";
 const PERSISTENT_STORAGE_ACCOUNT_DETAIL_TYPE: &str = "detailType";
 const PERSISTENT_STORAGE_ACCOUNT_DEVICE_TYPE: &str = "deviceType";
 const PERSISTENT_STORAGE_ACCOUNT_DEVICE_MANUFACTURER: &str = "deviceManufacturer";
+
+// <pca>
+const API_STATS_MAP_SIZE_WARNING: usize = 10;
+// </pca>
 
 #[derive(Debug, Clone, Default)]
 pub struct MetricsState {
@@ -509,29 +513,31 @@ impl MetricsState {
     }
 
     // <pca>
-    pub fn add_api_stats(&mut self, request_id: &str) {
+    pub fn add_api_stats(&mut self, request_id: &str, api: &str) {
         let mut api_stats_map = self.api_stats_map.write().unwrap();
         println!(
-            "*** _DEBUG: add_api_stats: request_id={}, api_stats_map={:?}",
-            request_id, api_stats_map
+            "*** _DEBUG: add_api_stats: request_id={}, api={}",
+            request_id, api
         );
-        api_stats_map.insert(request_id.to_string(), ApiStats::default());
+        api_stats_map.insert(request_id.to_string(), ApiStats::new(api.into()));
+
+        let size = api_stats_map.len();
+        if size >= API_STATS_MAP_SIZE_WARNING {
+            warn!("add_api_stats: api_stats_map size warning: {}", size);
+        }
     }
 
     pub fn remove_api_stats(&mut self, request_id: &str) {
+        println!("*** _DEBUG: remove_api_stats: request_id={}", request_id);
         let mut api_stats_map = self.api_stats_map.write().unwrap();
-        println!(
-            "*** _DEBUG: remove_api_stats: request_id={}, api_stats_map={:?}",
-            request_id, api_stats_map
-        );
         api_stats_map.remove(request_id);
     }
 
-    pub fn update_api_stats_ref(&mut self, request_id: &str, stats_ref: Option<String>) {
+    pub fn update_api_stats_ref(&mut self, request_id: &str, api: &str, stats_ref: Option<String>) {
         let mut api_stats_map = self.api_stats_map.write().unwrap();
         println!(
-            "*** _DEBUG: update_api_stats_ref: request_id={}, stats_ref={:?}, api_stats_map={:?}",
-            request_id, stats_ref, api_stats_map
+            "*** _DEBUG: update_api_stats_ref: request_id={}, api={}, stats_ref={:?}",
+            request_id, api, stats_ref
         );
         if let Some(stats) = api_stats_map.get_mut(request_id) {
             stats.stats_ref = stats_ref;
@@ -543,11 +549,11 @@ impl MetricsState {
         }
     }
 
-    pub fn update_api_stage(&mut self, request_id: &str, stage: &str) -> i64 {
+    pub fn update_api_stage(&mut self, request_id: &str, api: &str, stage: &str) -> i64 {
         let mut api_stats_map = self.api_stats_map.write().unwrap();
         println!(
-            "*** _DEBUG: update_api_stage: request_id={}, stage={}, api_stats_map={:?}",
-            request_id, stage, api_stats_map
+            "*** _DEBUG: update_api_stage: request_id={}, api={}, stage={}",
+            request_id, api, stage
         );
         if let Some(stats) = api_stats_map.get_mut(request_id) {
             stats.stats.update_stage(stage)
@@ -566,10 +572,7 @@ impl MetricsState {
 
     pub fn get_api_stats(&self, request_id: &str) -> Option<ApiStats> {
         let api_stats_map = self.api_stats_map.read().unwrap();
-        println!(
-            "*** _DEBUG: get_api_stats: request_id={}, api_stats_map={:?}",
-            request_id, api_stats_map
-        );
+        println!("*** _DEBUG: get_api_stats: request_id={}", request_id);
         api_stats_map.get(request_id).cloned()
     }
 

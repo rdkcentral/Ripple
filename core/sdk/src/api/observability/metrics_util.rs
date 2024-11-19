@@ -62,8 +62,19 @@ impl RpcStats {
 
 #[derive(Clone, PartialEq, Default, Debug, Serialize, Deserialize)]
 pub struct ApiStats {
+    pub api: String,
     pub stats_ref: Option<String>,
     pub stats: RpcStats,
+}
+
+impl ApiStats {
+    pub fn new(api: String) -> Self {
+        Self {
+            api,
+            stats_ref: None,
+            stats: RpcStats::default(),
+        }
+    }
 }
 // </pca>
 

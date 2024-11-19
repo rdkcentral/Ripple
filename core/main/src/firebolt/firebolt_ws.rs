@@ -247,13 +247,13 @@ impl FireboltWs {
                                 stats.stats.get_total_time()
                             );
                             debug!(
-                                "Full Firebolt SplitZ: {:?},{}",
+                                "Full Firebolt Split: {:?},{}",
                                 stats.stats_ref,
                                 stats.stats.get_stage_durations()
                             );
                             // <pca>
-                            platform_state.metrics.dump_api_stats();
                             platform_state.metrics.remove_api_stats(&rs.request_id);
+                            platform_state.metrics.dump_api_stats();
                             // </pca>
                         }
                         info!(

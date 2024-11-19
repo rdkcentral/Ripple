@@ -704,7 +704,9 @@ impl DeviceServer for DeviceImpl {
 
         // <pca>
         let mut platform_state = self.state.clone();
-        platform_state.metrics.add_api_stats(&_ctx.request_id);
+        platform_state
+            .metrics
+            .add_api_stats(&_ctx.request_id, "account.setServiceAccountId");
         // </pca>
 
         let success = rpc_request_setter(
