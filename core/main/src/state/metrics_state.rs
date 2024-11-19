@@ -511,20 +511,32 @@ impl MetricsState {
     // <pca>
     pub fn add_api_stats(&mut self, request_id: &str) {
         let mut api_stats_map = self.api_stats_map.write().unwrap();
+        println!(
+            "*** _DEBUG: add_api_stats: request_id={}, api_stats_map={:?}",
+            request_id, api_stats_map
+        );
         api_stats_map.insert(request_id.to_string(), ApiStats::default());
     }
 
     pub fn remove_api_stats(&mut self, request_id: &str) {
         let mut api_stats_map = self.api_stats_map.write().unwrap();
+        println!(
+            "*** _DEBUG: remove_api_stats: request_id={}, api_stats_map={:?}",
+            request_id, api_stats_map
+        );
         api_stats_map.remove(request_id);
     }
 
     pub fn update_api_stats_ref(&mut self, request_id: &str, stats_ref: Option<String>) {
         let mut api_stats_map = self.api_stats_map.write().unwrap();
+        println!(
+            "*** _DEBUG: update_api_stats_ref: request_id={}, stats_ref={:?}, api_stats_map={:?}",
+            request_id, stats_ref, api_stats_map
+        );
         if let Some(stats) = api_stats_map.get_mut(request_id) {
             stats.stats_ref = stats_ref;
         } else {
-            error!(
+            println!(
                 "update_api_stats_ref: request_id not found: request_id={}",
                 request_id
             );
@@ -533,6 +545,10 @@ impl MetricsState {
 
     pub fn update_api_stage(&mut self, request_id: &str, stage: &str) -> i64 {
         let mut api_stats_map = self.api_stats_map.write().unwrap();
+        println!(
+            "*** _DEBUG: update_api_stage: request_id={}, stage={}, api_stats_map={:?}",
+            request_id, stage, api_stats_map
+        );
         if let Some(stats) = api_stats_map.get_mut(request_id) {
             stats.stats.update_stage(stage)
         } else {
@@ -540,18 +556,29 @@ impl MetricsState {
                 "update_api_stage: request_id not found: request_id={}",
                 request_id
             );
+            println!(
+                "*** _DEBUG: update_api_stage: request_id not found: request_id={}, api_stats_map={:?}",
+                request_id, api_stats_map
+            );
             -1
         }
     }
 
     pub fn get_api_stats(&self, request_id: &str) -> Option<ApiStats> {
         let api_stats_map = self.api_stats_map.read().unwrap();
+        println!(
+            "*** _DEBUG: get_api_stats: request_id={}, api_stats_map={:?}",
+            request_id, api_stats_map
+        );
         api_stats_map.get(request_id).cloned()
     }
 
     pub fn dump_api_stats(&self) {
         let api_stats_map = self.api_stats_map.read().unwrap();
-        println!("dump_api_stats: api_stats_map={:?}", api_stats_map);
+        println!(
+            "*** _DEBUG: dump_api_stats: api_stats_map={:?}",
+            api_stats_map
+        );
     }
     // </pca>
 }
