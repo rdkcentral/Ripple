@@ -71,6 +71,19 @@ pub struct MetricsState {
     api_stats_map: Arc<RwLock<HashMap<String, ApiStats>>>,
 }
 
+// <pca>
+// impl crate::Mockable for MetricsState {
+//     fn mock() -> Self {
+//         MetricsState {
+//             start_time: DateTime::default(),
+//             context: Arc::new(RwLock::new(MetricsContext::default())),
+//             operational_telemetry_listeners: Arc::new(RwLock::new(HashSet::new())),
+//             api_stats_map: Arc::new(RwLock::new(HashMap::new())),
+//         }
+//     }
+// }
+// </pca>
+
 impl MetricsState {
     fn send_context_update_request(platform_state: &PlatformState) {
         let extn_client = platform_state.get_client().get_extn_client();

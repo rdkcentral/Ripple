@@ -90,7 +90,7 @@ async fn resolve_route(
 ) -> Result<ApiMessage, RippleError> {
     info!("Routing {}", req.method);
     let id = Id::Number(req.ctx.call_id);
-    let mut request_c = req.clone();
+    let request_c = req.clone();
     let (sink_tx, mut sink_rx) = futures_channel::mpsc::unbounded::<String>();
     let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES);
     let mut method_executors = Vec::new();
@@ -144,7 +144,7 @@ async fn resolve_route(
             1
         };
 
-        capture_stage(&platform_state.metrics, &mut request_c, "routing");
+        capture_stage(&platform_state.metrics, &request_c, "routing");
 
         platform_state.metrics.update_api_stats_ref(
             &request_id,

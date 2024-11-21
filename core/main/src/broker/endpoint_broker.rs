@@ -538,10 +538,7 @@ impl EndpointBrokerState {
 
         let metrics_state = self.metrics_state.clone();
         capture_stage(&metrics_state, &rpc_request, "static_rule_request");
-        tokio::spawn(async move {
-            let resp = callback.sender.send(output).await;
-            resp
-        });
+        tokio::spawn(async move { callback.sender.send(output).await });
     }
 
     fn get_sender(&self, hash: &str) -> Option<BrokerSender> {
@@ -1223,7 +1220,7 @@ mod tests {
                 endpoint_broker::tests::RippleClient,
                 rules_engine::{Rule, RuleEngine, RuleSet, RuleTransform},
             },
-            state::bootstrap_state::ChannelsState,
+            state::{bootstrap_state::ChannelsState, metrics_state::MetricsState},
         };
 
         use super::EndpointBrokerState;
@@ -1233,6 +1230,9 @@ mod tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let state = EndpointBrokerState::new(
+                // <pca>
+                MetricsState::default(),
+                // </pca>
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),

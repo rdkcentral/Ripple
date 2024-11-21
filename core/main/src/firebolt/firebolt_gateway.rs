@@ -211,7 +211,7 @@ impl FireboltGateway {
         let open_rpc_state = self.state.platform_state.open_rpc_state.clone();
 
         tokio::spawn(async move {
-            capture_stage(&platform_state.metrics, &mut request_c, "context_ready");
+            capture_stage(&platform_state.metrics, &request_c, "context_ready");
             // Validate incoming request parameters.
             if let Err(error_string) = validate_request(open_rpc_state, &request_c, fail_open) {
                 TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
@@ -231,7 +231,7 @@ impl FireboltGateway {
                 return;
             }
 
-            capture_stage(&platform_state.metrics, &mut request_c, "openrpc_val");
+            capture_stage(&platform_state.metrics, &request_c, "openrpc_val");
 
             let result = if extn_request {
                 // extn protocol means its an internal Ripple request skip permissions.
@@ -240,7 +240,7 @@ impl FireboltGateway {
                 FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await
             };
 
-            capture_stage(&platform_state.metrics, &mut request_c, "permission");
+            capture_stage(&platform_state.metrics, &request_c, "permission");
 
             match result {
                 Ok(_) => {
@@ -254,7 +254,7 @@ impl FireboltGateway {
                             ApiProtocol::Extn => {
                                 if let Some(extn_msg) = extn_msg {
                                     RpcRouter::route_extn_protocol(
-                                        &mut platform_state,
+                                        &platform_state,
                                         request.clone(),
                                         extn_msg,
                                     )
