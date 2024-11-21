@@ -574,12 +574,20 @@ impl EndpointBrokerState {
         let mut found_rule = None;
         if let Some(rule) = self.rule_engine.get_rule(&rpc_request) {
             found_rule = Some(rule.clone());
+            println!(
+                "*** _DEBUG: handle_brokerage: rule.endpoint={:?}, found_rule={:?}",
+                rule.endpoint, found_rule
+            );
             if let Some(endpoint) = rule.endpoint {
+                println!("*** _DEBUG: handle_brokerage: Mark 1");
                 if let Some(endpoint) = self.get_sender(&endpoint) {
+                    println!("*** _DEBUG: handle_brokerage: Mark 2");
                     broker_sender = Some(endpoint);
                 }
             } else if rule.alias != "static" {
+                println!("*** _DEBUG: handle_brokerage: Mark 3");
                 if let Some(endpoint) = self.get_sender("thunder") {
+                    println!("*** _DEBUG: handle_brokerage: Mark 1");
                     broker_sender = Some(endpoint);
                 }
             }
@@ -902,7 +910,6 @@ impl BrokerOutputForwarder {
                         let request_id = rpc_request.ctx.call_id;
                         response.id = Some(request_id);
 
-                        // <pca> YAH: Losing time in workflow, debug </pca>
                         if let Some(workflow_callback) = workflow_callback {
                             debug!("sending to workflow callback {:?}", response);
                             let _ = workflow_callback
@@ -1148,6 +1155,10 @@ pub fn apply_response(
     method: &str,
     response: &mut JsonRpcApiResponse,
 ) {
+    println!(
+        "*** _DEBUG: apply_response: method={}, result_response_filter={:?}, response={:?}",
+        method, result_response_filter, response
+    );
     match serde_json::to_value(response.clone()) {
         Ok(input) => {
             match jq_compile(
@@ -1175,6 +1186,7 @@ pub fn apply_response(
                 Err(e) => {
                     response.error = Some(json!(e.to_string()));
                     error!("jq_compile error {:?}", e);
+                    error!("*** _DEBUG: jq_compile error {:?}", e);
                 }
             }
         }

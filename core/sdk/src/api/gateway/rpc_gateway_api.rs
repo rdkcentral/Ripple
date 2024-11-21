@@ -499,7 +499,7 @@ impl RpcRequest {
             gateway_secure,
         );
         let ps = RpcRequest::prepend_ctx(jsonrpc_req.params, &ctx);
-        Ok(RpcRequest::new(method, ps, ctx)) // <pca> YAH: Add to map whenever new is called </pca>
+        Ok(RpcRequest::new(method, ps, ctx))
     }
 
     pub fn is_subscription(&self) -> bool {

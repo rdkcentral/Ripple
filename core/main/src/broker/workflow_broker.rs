@@ -33,6 +33,10 @@ async fn subbroker_call(
     rpc_request: RpcRequest,
     source: JsonDataSource,
 ) -> Result<serde_json::Value, SubBrokerErr> {
+    println!(
+        "*** _DEBUG: subbroker_call: method={}, rpc_request: {:?}",
+        source.method, rpc_request
+    );
     let (brokered_tx, mut brokered_rx) = mpsc::channel::<BrokerOutput>(10);
     endpoint_broker.handle_brokerage(
         rpc_request,
@@ -124,6 +128,10 @@ impl WorkflowBroker {
         broker_request: &BrokerRequest,
         endpoint_broker: EndpointBrokerState,
     ) -> SubBrokerResult {
+        println!(
+            "*** _DEBUG: run_workflow: broker_request: {:?}",
+            broker_request
+        );
         let mut futures = Self::create_the_futures(
             broker_request.rule.sources.clone().unwrap_or_default(),
             broker_request.rpc.clone(),
