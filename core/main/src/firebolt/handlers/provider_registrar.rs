@@ -46,6 +46,7 @@ use ripple_sdk::{
     },
     log::{error, info, warn},
     tokio::{sync::oneshot, time::timeout},
+    utils::serde_utils::SerdeClearString,
 };
 use serde_json::{Map, Value};
 
@@ -200,7 +201,10 @@ impl ProviderRegistrar {
         params: Params<'static>,
         context: Arc<RpcModuleContext>,
     ) -> Result<ListenerResponse, Error> {
-        info!("callback_app_event_listener: method={}", context.method);
+        info!(
+            "callback_app_event_listener: method={} params={:?}",
+            context.method, params
+        );
 
         let mut params_sequence = params.sequence();
 
@@ -300,6 +304,8 @@ impl ProviderRegistrar {
                 }
             };
 
+            let is_app_event = event_data.get("appId").cloned();
+
             if let Some(event_data_map) = event_data.as_object_mut() {
                 if let Some(event_schema_map) = context
                     .platform_state
@@ -330,12 +336,23 @@ impl ProviderRegistrar {
                         }
                     }
 
-                    AppEvents::emit(
-                        &context.platform_state,
-                        &FireboltOpenRpcMethod::name_with_lowercase_module(event),
-                        &Value::Object(result_map),
-                    )
-                    .await;
+                    if let Some(app_event) = is_app_event {
+                        let app_id = SerdeClearString::as_clear_string(&app_event);
+                        AppEvents::emit_to_app(
+                            &context.platform_state,
+                            app_id,
+                            &FireboltOpenRpcMethod::name_with_lowercase_module(event),
+                            &Value::Object(result_map),
+                        )
+                        .await;
+                    } else {
+                        AppEvents::emit(
+                            &context.platform_state,
+                            &FireboltOpenRpcMethod::name_with_lowercase_module(event),
+                            &Value::Object(result_map),
+                        )
+                        .await;
+                    }
                 } else {
                     error!("callback_app_event_emitter: Result schema not found");
                     return Err(Error::Custom(String::from("Result schema not found")));
