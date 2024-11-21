@@ -540,7 +540,6 @@ impl EndpointBrokerState {
         capture_stage(&metrics_state, &rpc_request, "static_rule_request");
         tokio::spawn(async move {
             let resp = callback.sender.send(output).await;
-            capture_stage(&metrics_state, &rpc_request, "static_rule_response");
             resp
         });
     }
@@ -592,11 +591,11 @@ impl EndpointBrokerState {
                 let (_, updated_request) =
                     self.update_request(&rpc_request, rule, extn_message, requestor_callback);
                 let metrics_state = self.metrics_state.clone();
+                capture_stage(&metrics_state, &rpc_request, "broker_request");
                 tokio::spawn(async move {
                     if let Err(e) = broker.send(updated_request.clone()).await {
                         callback.send_error(updated_request, e).await
                     }
-                    capture_stage(&metrics_state, &rpc_request, "broker_request");
                 });
             } else {
                 handled = false;
