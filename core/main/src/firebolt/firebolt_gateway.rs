@@ -25,7 +25,7 @@ use ripple_sdk::{
         },
         gateway::{
             rpc_error::RpcError,
-            rpc_gateway_api::{ApiMessage, ApiProtocol, ApiStats, RpcRequest},
+            rpc_gateway_api::{ApiMessage, ApiProtocol, ApiStats, JsonRpcApiResponse, RpcRequest},
         },
     },
     extn::extn_client_message::ExtnMessage,
@@ -85,6 +85,9 @@ pub enum FireboltGatewayCommand {
     HandleRpcForExtn {
         msg: ExtnMessage,
     },
+    HandleResponse {
+        response: JsonRpcApiResponse,
+    },
     StopServer,
 }
 
@@ -136,12 +139,22 @@ impl FireboltGateway {
                         error!("Not a valid RPC Request {:?}", msg);
                     }
                 }
+                HandleResponse { response } => {
+                    self.handle_response(response);
+                }
                 StopServer => {
                     error!("Stopping server");
                     break;
                 }
             }
         }
+    }
+
+    pub fn handle_response(&self, response: JsonRpcApiResponse) {
+        self.state
+            .platform_state
+            .endpoint_state
+            .handle_broker_response(response);
     }
 
     pub async fn handle(&self, request: RpcRequest, extn_msg: Option<ExtnMessage>) {
@@ -228,18 +241,28 @@ impl FireboltGateway {
 
             let result = if extn_request {
                 // extn protocol means its an internal Ripple request skip permissions.
-                Ok(())
+                Ok(Vec::new())
             } else {
                 FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await
             };
             capture_stage(&mut request_c, "permission");
 
             match result {
-                Ok(_) => {
+                Ok(p) => {
+                    let session = if matches!(&request.ctx.protocol, ApiProtocol::JsonRpc) {
+                        platform_state
+                            .clone()
+                            .session_state
+                            .get_session(&request_c.ctx)
+                    } else {
+                        None
+                    };
                     if !platform_state.endpoint_state.handle_brokerage(
                         request_c.clone(),
                         extn_msg.clone(),
                         None,
+                        p,
+                        session.clone(),
                     ) {
                         // Route
                         match request.clone().ctx.protocol {
@@ -256,11 +279,7 @@ impl FireboltGateway {
                                 }
                             }
                             _ => {
-                                if let Some(session) = platform_state
-                                    .clone()
-                                    .session_state
-                                    .get_session(&request_c.ctx)
-                                {
+                                if let Some(session) = session {
                                     // if the websocket disconnects before the session is recieved this leads to an error
                                     RpcRouter::route(
                                         platform_state.clone(),

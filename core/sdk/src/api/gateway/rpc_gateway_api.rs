@@ -64,6 +64,7 @@ pub struct CallContext {
     pub method: String,
     pub cid: Option<String>,
     pub gateway_secure: bool,
+    pub context: Vec<String>,
 }
 
 impl CallContext {
@@ -88,6 +89,7 @@ impl CallContext {
             method,
             cid,
             gateway_secure,
+            context: Vec::new(),
         }
     }
 
@@ -96,6 +98,10 @@ impl CallContext {
             return cid.clone();
         }
         self.session_id.clone()
+    }
+
+    pub fn is_event_based(&self) -> bool {
+        self.context.contains(&"eventBased".to_owned())
     }
 }
 
@@ -110,6 +116,7 @@ impl crate::Mockable for CallContext {
             method: "module.method".to_owned(),
             cid: Some("cid".to_owned()),
             gateway_secure: true,
+            context: Vec::new(),
         }
     }
 }
@@ -255,14 +262,15 @@ impl From<JsonRpcApiError> for JsonRpcApiResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcApiResponse {
     pub jsonrpc: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<Value>,
-    #[serde(skip_serializing)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub method: Option<String>,
-    #[serde(skip_serializing)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub params: Option<Value>,
 }
 
@@ -280,6 +288,17 @@ impl Default for JsonRpcApiResponse {
 }
 
 impl JsonRpcApiResponse {
+    pub fn update_event_message(&mut self, request: &RpcRequest) {
+        if request.is_event_based() {
+            self.params = self.result.take();
+            self.id = None;
+            self.method = Some(format!("{}.{}", request.ctx.method, request.ctx.call_id))
+        } else {
+            self.method = None;
+            self.params = None;
+        }
+    }
+
     pub fn error(error: &JsonRpcApiError) -> Self {
         JsonRpcApiResponse {
             jsonrpc: "2.0".to_owned(),
@@ -321,6 +340,22 @@ impl JsonRpcApiResponse {
     }
     pub fn is_success(&self) -> bool {
         self.result.is_some()
+    }
+
+    pub fn is_response(&self) -> bool {
+        self.params.is_none()
+            && self.method.is_none()
+            && self.id.is_some()
+            && (self.result.is_some() || self.error.is_some())
+    }
+
+    pub fn get_response(request: &str) -> Option<JsonRpcApiResponse> {
+        if let Ok(response) = serde_json::from_str::<JsonRpcApiResponse>(request) {
+            if response.is_response() {
+                return Some(response);
+            }
+        }
+        None
     }
 }
 
@@ -462,6 +497,7 @@ impl RpcRequest {
         request_id: String,
         cid: Option<String>,
         gateway_secure: bool,
+        context: Vec<String>,
     ) -> Result<RpcRequest, RequestParseError> {
         let parsed =
             serde_json::from_str::<serde_json::Value>(&json).map_err(|_| RequestParseError {})?;
@@ -475,7 +511,7 @@ impl RpcRequest {
 
         let id = jsonrpc_req.id.unwrap_or(0);
         let method = FireboltOpenRpcMethod::name_with_lowercase_module(&jsonrpc_req.method);
-        let ctx = CallContext::new(
+        let mut ctx = CallContext::new(
             session_id,
             request_id,
             app_id,
@@ -485,6 +521,7 @@ impl RpcRequest {
             cid,
             gateway_secure,
         );
+        ctx.context = context;
         let ps = RpcRequest::prepend_ctx(jsonrpc_req.params, &ctx);
         Ok(RpcRequest::new(method, ps, ctx))
     }
@@ -538,6 +575,14 @@ impl RpcRequest {
             stats: RpcStats::default(),
         }
     }
+
+    pub fn is_event_based(&self) -> bool {
+        self.ctx.is_event_based()
+    }
+
+    pub fn add_context(&mut self, context: Vec<String>) {
+        self.ctx.context.extend(context)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -586,6 +631,7 @@ mod tests {
             method: "method123".to_string(),
             cid: Some("cid123".to_string()),
             gateway_secure: true,
+            context: Vec::new(),
         };
 
         let caller_session: CallerSession = ctx.into();
@@ -605,6 +651,7 @@ mod tests {
             method: "method123".to_string(),
             cid: Some("cid123".to_string()),
             gateway_secure: true,
+            context: Vec::new(),
         };
 
         let app_identification: AppIdentification = ctx.into();
@@ -807,6 +854,7 @@ mod tests {
             method: "some_method".to_string(),
             cid: Some("some_cid".to_string()),
             gateway_secure: true,
+            context: Vec::new(),
         };
 
         let rpc_request = RpcRequest {

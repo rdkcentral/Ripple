@@ -15,18 +15,15 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use jsonrpsee::{
-    core::async_trait,
-    types::{Id, Response, TwoPointZero},
-};
+use jsonrpsee::core::async_trait;
 use ripple_sdk::{
     api::{
         apps::{AppEventRequest, EffectiveTransport},
         firebolt::fb_general::ListenRequest,
-        gateway::rpc_gateway_api::{ApiMessage, CallContext},
+        gateway::rpc_gateway_api::{ApiMessage, CallContext, JsonRpcApiResponse},
         protocol::BridgeProtocolRequest,
     },
-    log::error,
+    log::{debug, error},
     serde_json::{json, Value},
     tokio::sync::mpsc,
     utils::channel_utils::mpsc_send_and_log,
@@ -264,11 +261,23 @@ impl AppEvents {
 
     pub async fn send_event(state: &PlatformState, listener: &EventListener, data: &Value) {
         let protocol = listener.call_ctx.protocol.clone();
-        let event = Response {
-            jsonrpc: TwoPointZero,
-            result: data,
-            id: Id::Number(listener.call_ctx.call_id),
-        };
+        debug!("Sending event for call context {:?}", listener.call_ctx);
+        let mut event = JsonRpcApiResponse::default();
+        if listener.call_ctx.is_event_based() {
+            event.params = Some(data.clone());
+            event.method = Some(format!(
+                "{}.{}",
+                listener.call_ctx.method, listener.call_ctx.call_id
+            ));
+        } else {
+            event.result = Some(data.clone());
+            event.id = Some(listener.call_ctx.call_id);
+        }
+        // let event = Response {
+        //     jsonrpc: TwoPointZero,
+        //     result: data,
+        //     id: Id::Number(listener.call_ctx.call_id),
+        // };
 
         // Events are pass through no stats
         let api_message = ApiMessage::new(
