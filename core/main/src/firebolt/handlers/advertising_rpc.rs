@@ -16,6 +16,7 @@
 //
 use crate::{
     firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManager,
+    service::apps::app_events::{AppEventDecorationError, AppEventDecorator},
     state::platform_state::PlatformState, utils::rpc_utils::rpc_err,
 };
 use base64::{engine::general_purpose::STANDARD as base64, Engine};
@@ -146,6 +147,24 @@ async fn get_advertisting_policy(platform_state: &PlatformState) -> AdvertisingP
             platform_state,
         )
         .await,
+    }
+}
+
+#[derive(Clone)]
+struct AdvertisingPolicyEventDecorator {}
+#[async_trait]
+impl AppEventDecorator for AdvertisingPolicyEventDecorator {
+    async fn decorate(
+        &self,
+        ps: &PlatformState,
+        _ctx: &CallContext,
+        _event_name: &str,
+        _val_in: &Value,
+    ) -> Result<Value, AppEventDecorationError> {
+        Ok(serde_json::to_value(get_advertisting_policy(ps).await)?)
+    }
+    fn dec_clone(&self) -> Box<dyn AppEventDecorator + Send + Sync> {
+        Box::new(self.clone())
     }
 }
 
