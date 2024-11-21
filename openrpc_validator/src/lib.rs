@@ -37,8 +37,10 @@ impl RpcMethodValidator {
 
     pub fn get_result_properties_schema(&self, name: &str) -> Option<Map<String, Value>> {
         for validator in &self.validators {
-            if let Some(method) = validator.get_result_properties_schema_by_name(name) {
-                return Some(method);
+            if let Some(result_properties_schema) =
+                validator.get_result_properties_schema_by_name(name)
+            {
+                return Some(result_properties_schema);
             }
         }
         None
@@ -115,17 +117,6 @@ impl FireboltOpenRpc {
         None
     }
 
-    fn get_result_property(
-        &self,
-        result_schema_map: &Map<String, Value>,
-        rpc_method: &RpcMethod,
-    ) -> Map<String, Value> {
-        let mut result_map = Map::new();
-        let result_value = result_schema_map.get("type").unwrap_or(&Value::Null);
-        result_map.insert(rpc_method.result.name.clone(), result_value.clone());
-        result_map
-    }
-
     pub fn get_result_properties_schema_by_name(&self, name: &str) -> Option<Map<String, Value>> {
         if let Some(method) = self.get_method_by_name(name) {
             if let Some(result_schema_map) = method.result.schema.as_object() {
@@ -151,9 +142,6 @@ impl FireboltOpenRpc {
                     // Return the resolved $ref properites.
                     return Some(result_properties_map);
                 }
-
-                // The type is a non-object, just return it.
-                return Some(self.get_result_property(result_schema_map, &method));
             }
         }
         None
