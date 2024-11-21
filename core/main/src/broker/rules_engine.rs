@@ -225,7 +225,6 @@ impl RuleEngine {
     }
 
     pub fn get_rule(&self, rpc_request: &RpcRequest) -> Option<Rule> {
-        println!("*** _DEBUG: get_rule: method={}", rpc_request.method);
         if let Some(mut rule) = self
             .rules
             .rules
@@ -233,15 +232,10 @@ impl RuleEngine {
             .cloned()
         {
             rule.transform.apply_context(rpc_request);
-            println!("*** _DEBUG: get_rule: rule={:?}", rule);
             return Some(rule);
         } else {
             trace!(
                 "Rule not available for {}, hence falling back to extension handler",
-                rpc_request.method
-            );
-            println!(
-                "*** _DEBUG: Rule not available for {}, hence falling back to extension handler",
                 rpc_request.method
             );
         }

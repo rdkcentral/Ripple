@@ -82,28 +82,20 @@ impl AllowAppContentAdTargetingSettings {
 
     pub async fn get_allow_app_content_ad_targeting_settings(
         &self,
-        // <pca>
-        //platform_state: &PlatformState,
         platform_state: &mut PlatformState,
-        // </pca>
         ctx: &CallContext,
     ) -> HashMap<String, String> {
         let mut new_ctx = ctx.clone();
         new_ctx.protocol = ApiProtocol::Extn;
 
-        // <pca>
         platform_state
             .metrics
             .add_api_stats(&ctx.request_id, "localization.countryCode");
-        // </pca>
 
         let rpc_request = RpcRequest {
             ctx: new_ctx.clone(),
             method: "localization.countryCode".into(),
             params_json: RpcRequest::prepend_ctx(None, &new_ctx),
-            // <pca>
-            //stats: RpcStats::default(),
-            // </pca>
         };
 
         let resp = platform_state
@@ -330,10 +322,7 @@ pub trait Privacy {
 }
 
 pub async fn get_allow_app_content_ad_targeting_settings(
-    // <pca>
-    //platform_state: &PlatformState,
     platform_state: &mut PlatformState,
-    // </pca>
     scope_option: Option<&ScopeOption>,
     caller_app: &String,
     ctx: &CallContext,

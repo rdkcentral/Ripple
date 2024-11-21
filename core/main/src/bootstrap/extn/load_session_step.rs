@@ -33,10 +33,7 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
     }
 
     async fn setup(&self, s: BootstrapState) -> RippleResponse {
-        // <pca>
-        //let ps = s.platform_state.clone();
         let mut ps = s.platform_state.clone();
-        // </pca>
         tokio::spawn(async move {
             MetricsState::initialize(&mut ps).await;
         });

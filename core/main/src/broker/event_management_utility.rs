@@ -58,14 +58,9 @@ impl EventManagementUtility {
         self.register_function(
             "AdvertisingPolicyEventDecorator".to_string(),
             Arc::new(|state, ctx, value| {
-                // <pca>
                 let s = state.clone();
-                // </pca>
                 Box::pin(EventManagementUtility::advertising_policy_event_decorator(
-                    // <pca>
-                    //state, ctx, value,
                     s, ctx, value,
-                    // </pca>
                 ))
             }),
         );
@@ -79,10 +74,7 @@ impl EventManagementUtility {
     }
 
     pub async fn advertising_policy_event_decorator(
-        // <pca>
-        //platform_state: PlatformState,
         mut platform_state: PlatformState,
-        // </pca>
         ctx: CallContext,
         value: Option<Value>,
     ) -> Result<Option<Value>, RippleError> {
@@ -94,17 +86,12 @@ impl EventManagementUtility {
         let rpc_request = RpcRequest {
             ctx: new_ctx.clone(),
             method: "advertising.policy".into(),
-            // <pca>
-            //stats: RpcStats::default(),
-            // </pca>
             params_json: RpcRequest::prepend_ctx(None, &new_ctx),
         };
 
-        // <pca>
         platform_state
             .metrics
             .add_api_stats(&ctx.request_id, "advertising.policy");
-        // </pca>
 
         let resp = platform_state
             .get_client()

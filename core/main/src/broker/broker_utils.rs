@@ -72,10 +72,7 @@ impl BrokerUtils {
     }
 
     pub async fn process_internal_main_request<'a>(
-        // <pca>
-        //state: &'a PlatformState,
         state: &mut PlatformState,
-        // </pca>
         method: &'a str,
     ) -> RpcResult<Value> {
         let ctx = CallContext::new(
@@ -92,14 +89,9 @@ impl BrokerUtils {
             ctx: ctx.clone(),
             method: method.to_string(),
             params_json: RpcRequest::prepend_ctx(None, &ctx),
-            // <pca>
-            //stats: RpcStats::default(),
-            // </pca>
         };
 
-        // <pca>
         state.metrics.add_api_stats(&ctx.request_id, method);
-        // </pca>
 
         let resp = state
             .get_client()

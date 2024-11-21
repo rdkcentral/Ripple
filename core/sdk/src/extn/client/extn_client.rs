@@ -1273,10 +1273,6 @@ pub mod tests {
             ctx: new_ctx.clone(),
             method: "some.method".into(),
             params_json: RpcRequest::prepend_ctx(None, &new_ctx),
-            // <pca>: Do we need to pass state in here? </pca>
-            // <pca>
-            //stats: RpcStats::default(),
-            // </pca>
         };
 
         tokio::spawn(async move {

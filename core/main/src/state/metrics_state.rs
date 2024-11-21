@@ -61,18 +61,14 @@ const PERSISTENT_STORAGE_ACCOUNT_DETAIL_TYPE: &str = "detailType";
 const PERSISTENT_STORAGE_ACCOUNT_DEVICE_TYPE: &str = "deviceType";
 const PERSISTENT_STORAGE_ACCOUNT_DEVICE_MANUFACTURER: &str = "deviceManufacturer";
 
-// <pca>
 const API_STATS_MAP_SIZE_WARNING: usize = 10;
-// </pca>
 
 #[derive(Debug, Clone, Default)]
 pub struct MetricsState {
     pub start_time: DateTime<Utc>,
     pub context: Arc<RwLock<MetricsContext>>,
     operational_telemetry_listeners: Arc<RwLock<HashSet<String>>>,
-    // <pca>
     api_stats_map: Arc<RwLock<HashMap<String, ApiStats>>>,
-    // </pca>
 }
 
 impl MetricsState {
@@ -215,10 +211,7 @@ impl MetricsState {
         }
     }
 
-    // <pca>
-    //pub async fn initialize(state: &PlatformState) {
     pub async fn initialize(state: &mut PlatformState) {
-        // </pca>
         let metrics_percentage = state
             .get_device_manifest()
             .configuration
@@ -512,13 +505,8 @@ impl MetricsState {
         Self::send_context_update_request(&platform_state);
     }
 
-    // <pca>
     pub fn add_api_stats(&mut self, request_id: &str, api: &str) {
         let mut api_stats_map = self.api_stats_map.write().unwrap();
-        println!(
-            "*** _DEBUG: add_api_stats: request_id={}, api={}",
-            request_id, api
-        );
         api_stats_map.insert(request_id.to_string(), ApiStats::new(api.into()));
 
         let size = api_stats_map.len();
@@ -528,17 +516,12 @@ impl MetricsState {
     }
 
     pub fn remove_api_stats(&mut self, request_id: &str) {
-        println!("*** _DEBUG: remove_api_stats: request_id={}", request_id);
         let mut api_stats_map = self.api_stats_map.write().unwrap();
         api_stats_map.remove(request_id);
     }
 
     pub fn update_api_stats_ref(&mut self, request_id: &str, stats_ref: Option<String>) {
         let mut api_stats_map = self.api_stats_map.write().unwrap();
-        println!(
-            "*** _DEBUG: update_api_stats_ref: request_id={}, stats_ref={:?}",
-            request_id, stats_ref
-        );
         if let Some(stats) = api_stats_map.get_mut(request_id) {
             stats.stats_ref = stats_ref;
         } else {
@@ -551,10 +534,6 @@ impl MetricsState {
 
     pub fn update_api_stage(&mut self, request_id: &str, stage: &str) -> i64 {
         let mut api_stats_map = self.api_stats_map.write().unwrap();
-        println!(
-            "*** _DEBUG: update_api_stage: request_id={}, stage={}",
-            request_id, stage
-        );
         if let Some(stats) = api_stats_map.get_mut(request_id) {
             stats.stats.update_stage(stage)
         } else {
@@ -562,18 +541,12 @@ impl MetricsState {
                 "update_api_stage: request_id not found: request_id={}",
                 request_id
             );
-            println!(
-                "*** _DEBUG: update_api_stage: request_id not found: request_id={}, api_stats_map={:?}",
-                request_id, api_stats_map
-            );
             -1
         }
     }
 
     pub fn get_api_stats(&self, request_id: &str) -> Option<ApiStats> {
         let api_stats_map = self.api_stats_map.read().unwrap();
-        println!("*** _DEBUG: get_api_stats: request_id={}", request_id);
         api_stats_map.get(request_id).cloned()
     }
-    // </pca>
 }

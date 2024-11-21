@@ -702,12 +702,10 @@ impl DeviceServer for DeviceImpl {
         };
         _ctx.protocol = ApiProtocol::Extn;
 
-        // <pca>
         let mut platform_state = self.state.clone();
         platform_state
             .metrics
             .add_api_stats(&_ctx.request_id, "account.setServiceAccountId");
-        // </pca>
 
         let success = rpc_request_setter(
             self.state
@@ -720,9 +718,6 @@ impl DeviceServer for DeviceImpl {
                         Some(json!({"serviceAccountId": provision_request.account_id})),
                         &_ctx,
                     ),
-                    // <pca>
-                    //stats: RpcStats::default(),
-                    // </pca>
                 })
                 .await,
         ) && rpc_request_setter(
@@ -736,9 +731,6 @@ impl DeviceServer for DeviceImpl {
                         Some(json!({"xDeviceId": provision_request.device_id})),
                         &_ctx,
                     ),
-                    // <pca>
-                    //stats: RpcStats::default(),
-                    // </pca>
                 })
                 .await,
         ) && rpc_request_setter(
@@ -752,9 +744,6 @@ impl DeviceServer for DeviceImpl {
                         Some(json!({"partnerId": provision_request.distributor_id })),
                         &_ctx,
                     ),
-                    // <pca>
-                    //stats: RpcStats::default(),
-                    // </pca>
                 })
                 .await,
         );

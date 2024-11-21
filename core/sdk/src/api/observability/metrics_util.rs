@@ -15,7 +15,6 @@ use chrono::Utc;
 use log::{debug, error};
 use serde::{Deserialize, Serialize};
 
-// <pca>
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct RpcStats {
     pub start_time: i64,
@@ -76,7 +75,6 @@ impl ApiStats {
         }
     }
 }
-// </pca>
 
 #[cfg(test)]
 use {println as debug, println as error};

@@ -64,12 +64,10 @@ impl AccountServer for AccountImpl {
             .insert_session_token(a_t_r.token.clone());
         _ctx.protocol = ApiProtocol::Extn;
 
-        // <pca>
         let mut platform_state = self.platform_state.clone();
         platform_state
             .metrics
             .add_api_stats(&_ctx.request_id, "account.setServiceAccessToken");
-        // </pca>
 
         let success = rpc_request_setter(
             self.platform_state
@@ -82,9 +80,6 @@ impl AccountServer for AccountImpl {
                         Some(json!({"token": a_t_r.token, "expires": a_t_r.expires_in})),
                         &_ctx,
                     ),
-                    // <pca>
-                    //stats: RpcStats::default(),
-                    // </pca>
                 })
                 .await,
         );

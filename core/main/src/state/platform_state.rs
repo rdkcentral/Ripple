@@ -122,9 +122,7 @@ impl PlatformState {
         let rule_engine = RuleEngine::build(&extn_manifest);
         let extn_sdks = extn_manifest.extn_sdks.clone();
         let provider_registations = extn_manifest.provider_registrations.clone();
-        // <pca>
         let metrics_state = MetricsState::default();
-        // </pca>
         Self {
             extn_manifest,
             cap_state: CapState::new(manifest.clone()),
@@ -138,22 +136,16 @@ impl PlatformState {
             open_rpc_state: OpenRpcState::new(Some(exclusory), extn_sdks, provider_registations),
             router_state: RouterState::new(),
             data_governance: DataGovernanceState::default(),
-            // <pca>
-            //metrics: MetricsState::default(),
             metrics: metrics_state.clone(),
-            // </pca>
             device_session_id: DeviceSessionIdentifier::default(),
             ripple_cache: RippleCache::default(),
             version,
-            // <pca>
-            //endpoint_state: EndpointBrokerState::new(broker_sender, rule_engine, client),
             endpoint_state: EndpointBrokerState::new(
                 metrics_state,
                 broker_sender,
                 rule_engine,
                 client,
             ),
-            // </pca>
         }
     }
 
