@@ -15,7 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::net::SocketAddr;
+use std::{
+    net::SocketAddr,
+    sync::{Arc, RwLock},
+};
 
 use super::firebolt_gateway::FireboltGatewayCommand;
 use crate::{
@@ -29,7 +32,9 @@ use futures::SinkExt;
 use futures::StreamExt;
 use jsonrpsee::types::{error::ErrorCode, ErrorResponse, Id};
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{ApiMessage, ApiProtocol, ClientContext, RpcRequest},
+    api::gateway::rpc_gateway_api::{
+        ApiMessage, ApiProtocol, ClientContext, JsonRpcApiResponse, RpcRequest,
+    },
     log::{error, info, trace},
     tokio::{
         net::{TcpListener, TcpStream},
@@ -227,6 +232,7 @@ impl FireboltWs {
         {
             error!("Couldnt pre cache permissions");
         }
+        let rpc_context: Arc<RwLock<Vec<String>>> = Arc::new(RwLock::new(Vec::new()));
 
         let (mut sender, mut receiver) = ws_stream.split();
         tokio::spawn(async move {
@@ -265,6 +271,7 @@ impl FireboltWs {
                     if msg.is_text() && !msg.is_empty() {
                         let req_text = String::from(msg.to_text().unwrap());
                         let req_id = Uuid::new_v4().to_string();
+                        let context = { rpc_context.read().unwrap().clone() };
                         if let Ok(request) = RpcRequest::parse(
                             req_text.clone(),
                             ctx.app_id.clone(),
@@ -272,9 +279,52 @@ impl FireboltWs {
                             req_id.clone(),
                             Some(connection_id.clone()),
                             ctx.gateway_secure,
+                            context,
                         ) {
                             info!("Received Firebolt request {}", request.params_json);
+                            if request.method.contains("rpc.initialize") {
+                                if let Some(p) = request.get_params() {
+                                    if let Some(c) = p.get("context") {
+                                        if let Some(c1) = c.as_array() {
+                                            let mut context = rpc_context.write().unwrap();
+                                            let v: Vec<String> = c1
+                                                .iter()
+                                                .map(|x| {
+                                                    let s = x.to_string();
+                                                    s[1..s.len() - 1].into()
+                                                })
+                                                .collect();
+                                            context.extend(v);
+                                            debug!("Added Call Context {:?}", context)
+                                        }
+                                    }
+                                }
+                                if let Some(session) = &state
+                                    .session_state
+                                    .get_session_for_connection_id(&connection_id)
+                                {
+                                    let r = JsonRpcApiResponse {
+                                        id: Some(request.ctx.call_id),
+                                        result: Some(serde_json::Value::Null),
+                                        jsonrpc: "2.0".to_string(),
+                                        error: None,
+                                        method: None,
+                                        params: None,
+                                    };
+                                    let msg = serde_json::to_string(&r).unwrap();
+                                    let api_msg =
+                                        ApiMessage::new(ApiProtocol::JsonRpc, msg, req_id.clone());
+                                    let _ = session.send_json_rpc(api_msg).await;
+                                }
+
+                                continue;
+                            }
                             let msg = FireboltGatewayCommand::HandleRpc { request };
+                            if let Err(e) = client.clone().send_gateway_command(msg) {
+                                error!("failed to send request {:?}", e);
+                            }
+                        } else if let Some(response) = JsonRpcApiResponse::get_response(&req_text) {
+                            let msg = FireboltGatewayCommand::HandleResponse { response };
                             if let Err(e) = client.clone().send_gateway_command(msg) {
                                 error!("failed to send request {:?}", e);
                             }
