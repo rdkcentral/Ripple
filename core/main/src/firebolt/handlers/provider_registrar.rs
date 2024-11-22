@@ -300,54 +300,6 @@ impl ProviderRegistrar {
                 }
             };
 
-            // <pca>
-            // if let Some(event_data_map) = event_data.as_object_mut() {
-            //     if let Some(event_schema_map) = context
-            //         .platform_state
-            //         .open_rpc_state
-            //         .get_openrpc_validator()
-            //         .get_result_properties_schema(event)
-            //     {
-            //         // Populate the event result, injecting the app ID if the field exists in the event schema
-
-            //         let mut result_map = Map::new();
-
-            //         for key in event_schema_map.keys() {
-            //             if let Some(event_value) = event_data_map.get(key) {
-            //                 result_map.insert(key.clone(), event_value.clone());
-            //             } else if key.eq("appId") {
-            //                 if let Some(context) = call_context.clone() {
-            //                     result_map.insert(key.clone(), Value::String(context.app_id));
-            //                 } else {
-            //                     error!("callback_app_event_emitter: Missing call context, could not determine app ID");
-            //                     result_map.insert(key.clone(), Value::Null);
-            //                 }
-            //             } else {
-            //                 error!(
-            //                     "callback_app_event_emitter: Missing field in event data: field={}",
-            //                     key
-            //                 );
-            //                 result_map.insert(key.clone(), Value::Null);
-            //             }
-            //         }
-
-            //         AppEvents::emit(
-            //             &context.platform_state,
-            //             &FireboltOpenRpcMethod::name_with_lowercase_module(event),
-            //             &Value::Object(result_map),
-            //         )
-            //         .await;
-            //     } else {
-            //         error!("callback_app_event_emitter: Result schema not found");
-            //         return Err(Error::Custom(String::from("Result schema not found")));
-            //     }
-            // } else {
-            //     warn!(
-            //         "callback_app_event_emitter: event data is not an object: event_data={:?}",
-            //         event_data
-            //     );
-            //     return Err(Error::Custom(String::from("Event data is not an object")));
-            // }
             let result_value = match event_data {
                 Value::Object(ref event_data_map) => {
                     if let Some(event_schema_map) = context
@@ -387,23 +339,12 @@ impl ProviderRegistrar {
                 _ => event_data.clone(),
             };
 
-            if let Some(app_event) = event_data.get("appId") {
-                let app_id = SerdeClearString::as_clear_string(&app_event);
-                AppEvents::emit_to_app(
-                    &context.platform_state,
-                    app_id,
-                    &FireboltOpenRpcMethod::name_with_lowercase_module(event),
-                    &result_value,
-                )
-                .await;
-            } else {
-                AppEvents::emit(
-                    &context.platform_state,
-                    &FireboltOpenRpcMethod::name_with_lowercase_module(event),
-                    &result_value,
-                )
-                .await;
-            }
+            AppEvents::emit(
+                &context.platform_state,
+                &FireboltOpenRpcMethod::name_with_lowercase_module(event),
+                &result_value,
+            )
+            .await;
         } else {
             return Err(Error::Custom(String::from(
                 "Unexpected schema configuration",
@@ -539,13 +480,10 @@ impl ProviderRegistrar {
                                             }
                                         }
                                         return Ok(Value::Object(response_map));
-                                        // <pca>
-                                        //}
                                     } else {
                                         // Method returns a non-object type, just return it.
                                         return Ok(provider_response_value);
                                     }
-                                    // </pca>
                                 }
                                 ProviderResponsePayload::GenericError(e) => {
                                     return Err(Error::Call(CallError::Custom {

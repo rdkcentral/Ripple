@@ -37,16 +37,11 @@ impl RpcMethodValidator {
 
     pub fn get_result_properties_schema(&self, name: &str) -> Option<Map<String, Value>> {
         for validator in &self.validators {
-            // <pca>
-            // if let Some(method) = validator.get_result_properties_schema_by_name(name) {
-            //     return Some(method);
-            // }
             if let Some(result_properties_schema) =
                 validator.get_result_properties_schema_by_name(name)
             {
                 return Some(result_properties_schema);
             }
-            // </pca>
         }
         None
     }
@@ -158,9 +153,6 @@ impl FireboltOpenRpc {
                     // Return the resolved $ref properites.
                     return Some(result_properties_map);
                 }
-
-                // The type is a non-object, just return it.
-                return Some(self.get_result_property(result_schema_map, &method));
             }
         }
         None
