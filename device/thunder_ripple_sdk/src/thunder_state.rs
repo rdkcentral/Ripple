@@ -16,6 +16,12 @@
 //
 
 use std::sync::{Arc, RwLock};
+use url::Url;
+
+use crate::{
+    client::{plugin_manager::ThunderPluginBootParam, thunder_client::ThunderClient},
+    events::thunder_event_processor::{ThunderEventHandler, ThunderEventProcessor},
+};
 
 use ripple_sdk::{
     api::device::device_operator::{
@@ -29,12 +35,6 @@ use ripple_sdk::{
     tokio::sync::mpsc,
     tokio::sync::{Mutex, Notify},
     utils::error::RippleError,
-};
-use url::Url;
-
-use crate::{
-    client::{plugin_manager::ThunderPluginBootParam, thunder_client::ThunderClient},
-    events::thunder_event_processor::{ThunderEventHandler, ThunderEventProcessor},
 };
 
 #[derive(Debug)]
@@ -57,6 +57,7 @@ impl ThunderConnectionState {
         }
     }
 }
+
 #[derive(Debug, Clone)]
 pub struct ThunderBootstrapStateWithConfig {
     pub extn_client: ExtnClient,
@@ -68,7 +69,7 @@ pub struct ThunderBootstrapStateWithConfig {
 
 #[derive(Debug, Clone)]
 pub struct ThunderBootstrapStateWithClient {
-    pub prev: ThunderBootstrapStateWithConfig,
+    pub prev: Option<ThunderBootstrapStateWithConfig>,
     pub state: ThunderState,
 }
 

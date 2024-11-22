@@ -21,8 +21,10 @@ use std::{
     time::Duration,
 };
 
+use crate::client::thunder_client2::ThunderClient;
 use crate::{
-    client::{thunder_client::ThunderClient, thunder_plugin::ThunderPlugin},
+    //client::{thunder_client::ThunderClient, thunder_plugin::ThunderPlugin},
+    client::thunder_plugin::ThunderPlugin,
     ripple_sdk::{
         api::device::{device_info_request::DeviceCapabilities, device_request::AudioProfile},
         chrono::NaiveDateTime,

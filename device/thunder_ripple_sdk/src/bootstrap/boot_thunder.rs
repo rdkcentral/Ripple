@@ -17,29 +17,56 @@
 
 use crate::{
     bootstrap::setup_thunder_processors::SetupThunderProcessor,
-    client::plugin_manager::ThunderPluginBootParam, thunder_state::ThunderBootstrapStateWithClient,
+    client::plugin_manager::ThunderPluginBootParam,
+    thunder_state::{ThunderBootstrapStateWithClient, ThunderBootstrapStateWithConfig},
 };
+
+use super::{get_config_step::ThunderGetConfigStep, setup_thunder_pool_step::ThunderPoolStep};
+// Ensure the correct path to SetupThunderComcastProcessor
+// use crate::client::thunder_client2;
+use crate::thunder_state::ThunderState;
 use ripple_sdk::{
     extn::client::extn_client::ExtnClient,
     log::{error, info},
 };
 
-use super::{get_config_step::ThunderGetConfigStep, setup_thunder_pool_step::ThunderPoolStep};
-
 pub async fn boot_thunder(
-    state: ExtnClient,
+    client: ExtnClient,
     plugin_param: ThunderPluginBootParam,
 ) -> Option<ThunderBootstrapStateWithClient> {
     info!("Booting thunder");
-    if let Ok(state) = ThunderGetConfigStep::setup(state, plugin_param).await {
-        if let Ok(state) = ThunderPoolStep::setup(state).await {
-            SetupThunderProcessor::setup(state.clone()).await;
-            return Some(state);
+
+    if client.get_bool_config("use_with_thunder_broker") {
+        info!("thunderBroker_enabled feature is enabled");
+        if let Ok(thndr_client) = thunder_client2::ThunderClientBuilder::get_client().await {
+            let thunder_state = ThunderState::new(client.clone(), thndr_client);
+            SetupThunderProcessor::setup(thunder_state.clone(), client.clone()).await;
+
+            let thndr_st_config = ThunderBootstrapStateWithConfig {
+                extn_client: client.clone(),
+            };
+
+            let thunder_bootstrap_state = ThunderBootstrapStateWithClient {
+                prev: thndr_st_config,
+                state: thunder_state,
+            };
+            return Some(thunder_bootstrap_state);
         } else {
-            error!("Unable to connect to Thunder, error in ThunderPoolStep");
+            error!("Unable to connect to Thunder_Broker, error in ThunderClientBuilder");
         }
+        None
     } else {
-        error!("Unable to connect to Thunder, error in ThunderGetConfigStep");
+        info!("thunderBroker_enabled feature is not enabled, go for thunderclient");
+        if let Ok(state) = ThunderGetConfigStep::setup(client, plugin_param).await {
+            if let Ok(state) = ThunderPoolStep::setup(state).await {
+                SetupThunderProcessor::setup(state.state.clone(), client.clone()).await;
+                return Some(state);
+            } else {
+                error!("Unable to connect to Thunder, error in ThunderPoolStep");
+            }
+        } else {
+            error!("Unable to connect to Thunder, error in ThunderGetConfigStep");
+        };
+        None
     }
-    None
 }

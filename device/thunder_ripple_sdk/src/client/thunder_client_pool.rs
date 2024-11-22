@@ -15,9 +15,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
+use super::{
+    plugin_manager::PluginManagerCommand,
+    thunder_client::{ThunderClient, ThunderMessage},
 };
 
 use crate::{client::thunder_client::ThunderClientBuilder, thunder_state::ThunderConnectionState};
@@ -29,12 +29,11 @@ use ripple_sdk::{
     uuid::Uuid,
 };
 use ripple_sdk::{tokio, utils::error::RippleError};
-use url::Url;
-
-use super::{
-    plugin_manager::PluginManagerCommand,
-    thunder_client::{ThunderClient, ThunderMessage},
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
 };
+use url::Url;
 
 #[derive(Debug)]
 pub struct ThunderClientPool {

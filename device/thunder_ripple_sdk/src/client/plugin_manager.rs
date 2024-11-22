@@ -33,6 +33,7 @@ use ripple_sdk::{
 use serde::{Deserialize, Serialize};
 
 use super::thunder_plugin::ThunderPlugin::Controller;
+
 use super::{thunder_client::ThunderClient, thunder_plugin::ThunderPlugin};
 
 pub struct ActivationSubscriber {

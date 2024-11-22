@@ -35,6 +35,8 @@ contract_tests = [
     "tree_magic_mini",
     "rstest"
 ]
+thunderBroker_enabled = []
+default = ["thunderBroker_enabled"]
 
 [dependencies]
 base64.workspace = true
@@ -44,6 +46,9 @@ regex.workspace = true
 jsonrpsee = { workspace = true, features = ["macros", "ws-client"] }
 serde.workspace = true
 url.workspace = true
+serde_json.workspace = true
+futures-channel.workspace = true
+futures.workspace = true
 
 strum = { version = "0.24", default-features = false }
 strum_macros = "0.24"
@@ -56,8 +61,9 @@ csv = "1.1"  # Allowing minor updates
 home = { version = "=0.5.5", optional = true }
 tree_magic_mini = { version = "=3.0.3", optional = true }
 rstest = { version = "0.18.2", optional = true, default-features = false }
+tokio-tungstenite = { workspace = true, features = ["handshake"] }
+futures-util = { version = "0.3.28", features = ["sink", "std"], default-features = false}
 
 [dev-dependencies]
-tokio-tungstenite = { workspace = true, features = ["native-tls"] }
 ripple_sdk = { path = "../../core/sdk", features = ["tdk"] }
 

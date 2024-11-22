@@ -15,9 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use crate::client::thunder_client2::ThunderClient;
 use crate::{
     client::{
-        thunder_client::ThunderClient,
+        //thunder_client::ThunderClient,
         thunder_plugin::ThunderPlugin::{self, RemoteControl},
     },
     ripple_sdk::{
