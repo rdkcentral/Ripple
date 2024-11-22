@@ -154,6 +154,7 @@ mod tests {
             method: "POST".to_string(),
             cid: Some("cid".to_string()),
             gateway_secure: true,
+            context: Vec::new(),
         };
 
         let pin_challenge_request_with_context = PinChallengeRequestWithContext {
@@ -198,6 +199,7 @@ mod tests {
                 method: "POST".to_string(),
                 cid: Some("test_cid".to_string()),
                 gateway_secure: true,
+                context: Vec::new(),
             },
         };
         let contract_type: RippleContract = RippleContract::PinChallenge;
