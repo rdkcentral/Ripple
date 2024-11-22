@@ -37,9 +37,16 @@ impl RpcMethodValidator {
 
     pub fn get_result_properties_schema(&self, name: &str) -> Option<Map<String, Value>> {
         for validator in &self.validators {
-            if let Some(method) = validator.get_result_properties_schema_by_name(name) {
-                return Some(method);
+            // <pca>
+            // if let Some(method) = validator.get_result_properties_schema_by_name(name) {
+            //     return Some(method);
+            // }
+            if let Some(result_properties_schema) =
+                validator.get_result_properties_schema_by_name(name)
+            {
+                return Some(result_properties_schema);
             }
+            // </pca>
         }
         None
     }
