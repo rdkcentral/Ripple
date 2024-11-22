@@ -558,7 +558,7 @@ impl RpcRequest {
 
         let id = jsonrpc_req.id.unwrap_or(0);
         let method = FireboltOpenRpcMethod::name_with_lowercase_module(&jsonrpc_req.method);
-        let ctx = CallContext::new(
+        let mut ctx = CallContext::new(
             session_id,
             request_id,
             app_id,
