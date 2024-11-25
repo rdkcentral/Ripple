@@ -76,10 +76,7 @@ impl FireboltGatekeeper {
         ))
     }
     // TODO return Deny Reason into ripple error
-    pub async fn gate(
-        state: PlatformState,
-        request: RpcRequest,
-    ) -> Result<Vec<FireboltPermission>, DenyReasonWithCap> {
+    pub async fn gate(state: PlatformState, request: RpcRequest) -> Result<(), DenyReasonWithCap> {
         let caps =
             Self::get_resolved_caps_for_method(&state, &request.method, request.ctx.gateway_secure)
                 .ok_or(DenyReasonWithCap {
@@ -105,7 +102,7 @@ impl FireboltGatekeeper {
             .clear_non_negotiable_permission(&state, &caps);
         if filtered_perm_list.is_empty() {
             trace!("Role/Capability is cleared based on non-negotiable policy");
-            return Ok(caps);
+            return Ok(());
         }
         // Supported and Availability checks
         trace!(
@@ -124,7 +121,7 @@ impl FireboltGatekeeper {
         }
         // permission checks
         Self::permissions_check(state, request, filtered_perm_list).await?;
-        Ok(caps)
+        Ok(())
     }
 
     async fn permissions_check(
