@@ -44,7 +44,7 @@ use ripple_sdk::{
         },
         gateway::rpc_gateway_api::{CallContext, CallerSession},
     },
-    log::{error, info, warn},
+    log::{error, info},
     tokio::{sync::oneshot, time::timeout},
 };
 use serde_json::{Map, Value};
@@ -292,7 +292,7 @@ impl ProviderRegistrar {
             let mut params_sequence = params.sequence();
             let call_context: Option<CallContext> = params_sequence.next().ok();
 
-            let mut event_data: Value = match params_sequence.next() {
+            let event_data: Value = match params_sequence.next() {
                 Ok(r) => r,
                 Err(e) => {
                     error!("callback_app_event_emitter: Error: {:?}", e);
@@ -300,53 +300,51 @@ impl ProviderRegistrar {
                 }
             };
 
-            if let Some(event_data_map) = event_data.as_object_mut() {
-                if let Some(event_schema_map) = context
-                    .platform_state
-                    .open_rpc_state
-                    .get_openrpc_validator()
-                    .get_result_properties_schema(event)
-                {
-                    // Populate the event result, injecting the app ID if the field exists in the event schema
+            let result_value = match event_data {
+                Value::Object(ref event_data_map) => {
+                    if let Some(event_schema_map) = context
+                        .platform_state
+                        .open_rpc_state
+                        .get_openrpc_validator()
+                        .get_result_properties_schema(event)
+                    {
+                        // Populate the event result, injecting the app ID if the field exists in the event schema
 
-                    let mut result_map = Map::new();
+                        let mut result_map = Map::new();
 
-                    for key in event_schema_map.keys() {
-                        if let Some(event_value) = event_data_map.get(key) {
-                            result_map.insert(key.clone(), event_value.clone());
-                        } else if key.eq("appId") {
-                            if let Some(context) = call_context.clone() {
-                                result_map.insert(key.clone(), Value::String(context.app_id));
+                        for key in event_schema_map.keys() {
+                            if let Some(event_value) = event_data_map.get(key) {
+                                result_map.insert(key.clone(), event_value.clone());
+                            } else if key.eq("appId") {
+                                if let Some(context) = call_context.clone() {
+                                    result_map.insert(key.clone(), Value::String(context.app_id));
+                                } else {
+                                    error!("callback_app_event_emitter: Missing call context, could not determine app ID");
+                                    result_map.insert(key.clone(), Value::Null);
+                                }
                             } else {
-                                error!("callback_app_event_emitter: Missing call context, could not determine app ID");
-                                result_map.insert(key.clone(), Value::Null);
-                            }
-                        } else {
-                            error!(
+                                error!(
                                 "callback_app_event_emitter: Missing field in event data: field={}",
                                 key
                             );
-                            result_map.insert(key.clone(), Value::Null);
+                                result_map.insert(key.clone(), Value::Null);
+                            }
                         }
-                    }
 
-                    AppEvents::emit(
-                        &context.platform_state,
-                        &FireboltOpenRpcMethod::name_with_lowercase_module(event),
-                        &Value::Object(result_map),
-                    )
-                    .await;
-                } else {
-                    error!("callback_app_event_emitter: Result schema not found");
-                    return Err(Error::Custom(String::from("Result schema not found")));
+                        Value::Object(result_map)
+                    } else {
+                        event_data.clone()
+                    }
                 }
-            } else {
-                warn!(
-                    "callback_app_event_emitter: event data is not an object: event_data={:?}",
-                    event_data
-                );
-                return Err(Error::Custom(String::from("Event data is not an object")));
-            }
+                _ => event_data.clone(),
+            };
+
+            AppEvents::emit(
+                &context.platform_state,
+                &FireboltOpenRpcMethod::name_with_lowercase_module(event),
+                &result_value,
+            )
+            .await;
         } else {
             return Err(Error::Custom(String::from(
                 "Unexpected schema configuration",
@@ -482,6 +480,9 @@ impl ProviderRegistrar {
                                             }
                                         }
                                         return Ok(Value::Object(response_map));
+                                    } else {
+                                        // Method returns a non-object type, just return it.
+                                        return Ok(provider_response_value);
                                     }
                                 }
                                 ProviderResponsePayload::GenericError(e) => {
