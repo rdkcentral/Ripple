@@ -46,11 +46,7 @@ use crate::{
     broker::broker_utils::BrokerUtils,
     firebolt::firebolt_gateway::{FireboltGatewayCommand, JsonRpcError},
     service::extn::ripple_client::RippleClient,
-<<<<<<< HEAD
-    state::{metrics_state::MetricsState, platform_state::PlatformState, session_state::Session},
-=======
-    state::platform_state::PlatformState,
->>>>>>> main
+    state::{metrics_state::MetricsState, platform_state::PlatformState},
     utils::router_utils::{
         add_telemetry_status_code, capture_stage, get_rpc_header, return_api_message_for_transport,
         return_extn_response,
@@ -311,11 +307,7 @@ pub struct EndpointBrokerState {
     rule_engine: RuleEngine,
     cleaner_list: Arc<RwLock<Vec<BrokerCleaner>>>,
     reconnect_tx: Sender<BrokerConnectRequest>,
-<<<<<<< HEAD
     metrics_state: MetricsState,
-    provider_broker_state: ProvideBrokerState,
-=======
->>>>>>> main
 }
 impl Default for EndpointBrokerState {
     fn default() -> Self {
@@ -327,11 +319,7 @@ impl Default for EndpointBrokerState {
             rule_engine: RuleEngine::default(),
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx: mpsc::channel(2).0,
-<<<<<<< HEAD
             metrics_state: MetricsState::default(),
-            provider_broker_state: ProvideBrokerState::default(),
-=======
->>>>>>> main
         }
     }
 }
@@ -352,11 +340,7 @@ impl EndpointBrokerState {
             rule_engine,
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx,
-<<<<<<< HEAD
             metrics_state,
-            provider_broker_state: ProvideBrokerState::default(),
-=======
->>>>>>> main
         };
         state.reconnect_thread(rec_tr, ripple_client);
         state

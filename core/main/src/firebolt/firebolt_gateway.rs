@@ -25,7 +25,7 @@ use ripple_sdk::{
         },
         gateway::{
             rpc_error::RpcError,
-            rpc_gateway_api::{ApiMessage, ApiProtocol, ApiStats, RpcRequest},
+            rpc_gateway_api::{ApiMessage, ApiProtocol, RpcRequest},
         },
         observability::metrics_util::ApiStats,
     },
