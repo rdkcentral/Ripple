@@ -951,7 +951,8 @@ impl BrokerOutputForwarder {
         let platform_state_c = &platform_state;
 
         if let Ok(res) =
-            BrokerUtils::process_internal_main_request(platform_state_c, method.as_str()).await
+            BrokerUtils::process_internal_main_request(platform_state_c, method.as_str(), None)
+                .await
         {
             response.result = Some(serde_json::to_value(res.clone()).unwrap());
         }

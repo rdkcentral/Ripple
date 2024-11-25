@@ -1023,7 +1023,7 @@ pub fn get_metrics_tags(
     Some(tags)
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct BehavioralMetricsEvent {
     pub event_name: String,

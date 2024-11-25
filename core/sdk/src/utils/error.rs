@@ -77,6 +77,7 @@ impl From<RippleError> for jsonrpsee::core::Error {
         jsonrpsee::core::Error::Custom(format!("{}", value))
     }
 }
+
 #[cfg(all(test, feature = "rpc"))]
 mod tests {
     use super::*;

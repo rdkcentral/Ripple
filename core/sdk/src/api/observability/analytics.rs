@@ -10,7 +10,12 @@ use crate::{
 pub enum AnalyticsRequest {
     SendMetrics(BehavioralMetricsEvent),
 }
-
+#[cfg(test)]
+impl Default for AnalyticsRequest {
+    fn default() -> Self {
+        AnalyticsRequest::SendMetrics(BehavioralMetricsEvent::default())
+    }
+}
 impl ExtnPayloadProvider for AnalyticsRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Request(ExtnRequest::Analytics(self.clone()))
