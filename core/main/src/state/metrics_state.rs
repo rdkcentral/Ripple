@@ -20,7 +20,6 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::broker::broker_utils::BrokerUtils;
 use jsonrpsee::{tracing::debug, types::error::CallError};
 use ripple_sdk::{
     api::{
@@ -31,6 +30,7 @@ use ripple_sdk::{
             fb_metrics::{MetricsContext, MetricsEnvironment},
             fb_openrpc::FireboltSemanticVersion,
         },
+        gateway::rpc_gateway_api::rpc_value_result_to_string_result,
         manifest::device_manifest::DataGovernanceConfig,
         storage_property::StorageProperty,
     },
@@ -39,11 +39,13 @@ use ripple_sdk::{
     log::error,
     utils::error::RippleError,
 };
-use serde_json::from_value;
 
 use rand::Rng;
+use serde_json::from_value;
 
-use crate::processor::storage::storage_manager::StorageManager;
+use crate::{
+    broker::broker_utils::BrokerUtils, processor::storage::storage_manager::StorageManager,
+};
 
 use super::platform_state::PlatformState;
 
@@ -206,6 +208,9 @@ impl MetricsState {
             }
         }
     }
+    fn unset(s: &str) -> String {
+        format!("{}{}", s, ".unset")
+    }
 
     pub async fn initialize(state: &PlatformState) {
         let metrics_percentage = state
@@ -254,33 +259,34 @@ impl MetricsState {
             }
         }
 
-        let language = BrokerUtils::process_internal_main_request(state, "localization.language")
-            .await
-            .and_then(|val| {
-                from_value::<String>(val).map_err(|_| {
-                    jsonrpsee::core::Error::Call(CallError::Custom {
-                        code: -32100,
-                        message: "Failed to parse language".into(),
-                        data: None,
+        let language =
+            BrokerUtils::process_internal_main_request(state, "localization.language", None)
+                .await
+                .and_then(|val| {
+                    from_value::<String>(val).map_err(|_| {
+                        jsonrpsee::core::Error::Call(CallError::Custom {
+                            code: -32100,
+                            message: "Failed to parse language".into(),
+                            data: None,
+                        })
                     })
                 })
-            })
-            .unwrap_or_else(|_| "no.language.set".to_string());
+                .unwrap_or_else(|_| Self::unset("language"));
 
         let os_info = match Self::get_os_info_from_firebolt(state).await {
             Ok(info) => info,
             Err(_) => FirmwareInfo {
-                name: "no.os.name.set".into(),
-                version: FireboltSemanticVersion::new(0, 0, 0, "no.os.ver.set".into()),
+                name: Self::unset("os.name"),
+                version: FireboltSemanticVersion::new(0, 0, 0, Self::unset("os.ver")),
             },
         };
 
         debug!("got os_info={:?}", &os_info);
-
-        let mut device_name = "no.device.name.set".to_string();
-        if let Ok(resp) = StorageManager::get_string(state, StorageProperty::DeviceName).await {
-            device_name = resp;
-        }
+        let device_name = rpc_value_result_to_string_result(
+            BrokerUtils::process_internal_main_request(state, "device.name", None).await,
+            Some(Self::unset("device.name")),
+        )
+        .unwrap_or(Self::unset("device.name"));
 
         let mut timezone: Option<String> = None;
         if let Ok(resp) = state
@@ -330,10 +336,11 @@ impl MetricsState {
 
         let coam = Self::get_persistent_store_bool(state, PERSISTENT_STORAGE_KEY_COAM).await;
 
-        let country = BrokerUtils::process_internal_main_request(state, "localization.countryCode")
-            .await
-            .ok()
-            .and_then(|val| from_value::<String>(val).ok());
+        let country =
+            BrokerUtils::process_internal_main_request(state, "localization.countryCode", None)
+                .await
+                .ok()
+                .and_then(|val| from_value::<String>(val).ok());
         debug!("got country_code={:?}", &country);
 
         let region = StorageManager::get_string(state, StorageProperty::Locality)
@@ -468,7 +475,7 @@ impl MetricsState {
             } else {
                 context.account_id = None;
                 context.device_id = None;
-                context.distribution_tenant_id = "no.distribution_tenant_id.set".to_string();
+                context.distribution_tenant_id = Self::unset("distribution_tenant_id");
             }
         }
         Self::send_context_update_request(state);

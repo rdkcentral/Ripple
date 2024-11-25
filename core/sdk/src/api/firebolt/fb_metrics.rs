@@ -1023,7 +1023,7 @@ pub fn get_metrics_tags(
     Some(tags)
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct BehavioralMetricsEvent {
     pub event_name: String,
@@ -1193,7 +1193,6 @@ mod tests {
             method: "some method".to_string(),
             cid: Some("test_cid".to_string()),
             gateway_secure: true,
-            context: Vec::new(),
         };
 
         let metrics_request = MetricsRequest {
