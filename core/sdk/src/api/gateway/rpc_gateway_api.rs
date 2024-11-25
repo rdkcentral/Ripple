@@ -97,6 +97,19 @@ impl CallContext {
         }
         self.session_id.clone()
     }
+
+    pub fn internal(method: &str) -> Self {
+        CallContext::new(
+            Uuid::new_v4().to_string(),
+            Uuid::new_v4().to_string(),
+            "internal".into(),
+            1,
+            ApiProtocol::Extn,
+            method.to_owned(),
+            None,
+            false,
+        )
+    }
 }
 
 impl crate::Mockable for CallContext {
@@ -246,9 +259,31 @@ impl JsonRpcApiError {
         JsonRpcApiResponse::error(self)
     }
 }
+impl From<JsonRpcApiError> for jsonrpsee::core::Error {
+    fn from(error: JsonRpcApiError) -> Self {
+        jsonrpsee::core::Error::Call(jsonrpsee::types::error::CallError::Custom {
+            code: error.code,
+            message: error.message,
+            data: None,
+        })
+    }
+}
 impl From<JsonRpcApiError> for JsonRpcApiResponse {
     fn from(error: JsonRpcApiError) -> Self {
         JsonRpcApiResponse::error(&error)
+    }
+}
+
+pub fn rpc_value_result_to_string_result(
+    result: jsonrpsee::core::RpcResult<Value>,
+    default: Option<String>,
+) -> jsonrpsee::core::RpcResult<String> {
+    match result {
+        Ok(v) => Ok(v
+            .as_str()
+            .unwrap_or(&default.unwrap_or_default())
+            .to_string()),
+        Err(e) => Err(e),
     }
 }
 
@@ -322,6 +357,22 @@ impl JsonRpcApiResponse {
     pub fn is_success(&self) -> bool {
         self.result.is_some()
     }
+
+    pub fn is_response(&self) -> bool {
+        self.params.is_none()
+            && self.method.is_none()
+            && self.id.is_some()
+            && (self.result.is_some() || self.error.is_some())
+    }
+
+    pub fn get_response(request: &str) -> Option<JsonRpcApiResponse> {
+        if let Ok(response) = serde_json::from_str::<JsonRpcApiResponse>(request) {
+            if response.is_response() {
+                return Some(response);
+            }
+        }
+        None
+    }
 }
 
 impl crate::Mockable for JsonRpcApiResponse {
@@ -388,7 +439,21 @@ pub struct RpcRequest {
     pub ctx: CallContext,
     pub stats: RpcStats,
 }
-
+impl RpcRequest {
+    pub fn internal(method: &str) -> Self {
+        let ctx = CallContext::internal(method);
+        RpcRequest {
+            params_json: Self::prepend_ctx(None, &ctx),
+            ctx,
+            method: method.to_owned(),
+            stats: RpcStats::default(),
+        }
+    }
+    pub fn with_params(mut self, params: Option<Value>) -> Self {
+        self.params_json = Self::prepend_ctx(params, &self.ctx);
+        self
+    }
+}
 impl ExtnPayloadProvider for RpcRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Request(ExtnRequest::Rpc(self.clone()))
