@@ -133,6 +133,7 @@ async fn resolve_route(
         let rpc_header = get_rpc_header(&req);
         let protocol = req.ctx.protocol.clone();
         let request_id = req.ctx.request_id;
+
         let status_code = if let Ok(r) = serde_json::from_str::<JsonRpcMessage>(&r) {
             if let Some(ec) = r.error {
                 ec.code

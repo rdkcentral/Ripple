@@ -171,4 +171,14 @@ mod tests {
         assert!(cfg.activate_at_boot);
         assert!(!cfg.expect_activated);
     }
+    #[test]
+    fn test_thunder_plugin_analytics() {
+        assert_eq!(ThunderPlugin::Analytics.callsign(), "org.rdk.Analytics");
+        assert_eq!(
+            ThunderPlugin::Analytics.callsign_and_version(),
+            "org.rdk.Analytics.1"
+        );
+        assert!(!ThunderPlugin::Analytics.activate_at_boot());
+        assert!(!ThunderPlugin::Analytics.expect_activated());
+    }
 }
