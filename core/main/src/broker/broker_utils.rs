@@ -18,13 +18,12 @@
 use crate::{state::platform_state::PlatformState, utils::rpc_utils::extract_tcp_port};
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::StreamExt;
-use jsonrpsee::{core::RpcResult, types::error::CallError};
+use jsonrpsee::core::RpcResult;
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
+    api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, JsonRpcApiError, RpcRequest},
     extn::extn_client_message::ExtnResponse,
     log::{error, info},
     tokio::{self, net::TcpStream},
-    uuid::Uuid,
 };
 use serde_json::Value;
 use std::time::Duration;
@@ -74,6 +73,7 @@ impl BrokerUtils {
     pub async fn process_internal_main_request<'a>(
         state: &mut PlatformState,
         method: &'a str,
+        params: Option<Value>,
     ) -> RpcResult<Value> {
         let ctx = CallContext::new(
             Uuid::new_v4().to_string(),
@@ -93,23 +93,21 @@ impl BrokerUtils {
 
         state.metrics.add_api_stats(&ctx.request_id, method);
 
-        let resp = state
-            .get_client()
-            .get_extn_client()
-            .main_internal_request(rpc_request.clone())
-            .await;
-
-        if let Ok(res) = resp {
-            if let Some(ExtnResponse::Value(val)) = res.payload.extract::<ExtnResponse>() {
-                return Ok(val);
-            }
+        match state
+            .internal_rpc_request(&RpcRequest::internal(method).with_params(params))
+            .await
+        {
+            Ok(res) => match res.as_value() {
+                Some(v) => Ok(v),
+                None => Err(JsonRpcApiError::default()
+                    .with_code(-32100)
+                    .with_message(format!("failed to get {} : {:?}", method, res))
+                    .into()),
+            },
+            Err(e) => Err(JsonRpcApiError::default()
+                .with_code(-32100)
+                .with_message(format!("failed to get {} : {}", method, e))
+                .into()),
         }
-
-        // TODO: Update error handling
-        Err(jsonrpsee::core::Error::Call(CallError::Custom {
-            code: -32100,
-            message: format!("failed to get {}", method),
-            data: None,
-        }))
     }
 }

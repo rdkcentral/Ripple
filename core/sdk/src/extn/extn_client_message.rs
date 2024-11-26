@@ -159,6 +159,12 @@ impl ExtnMessage {
             ts: None,
         }
     }
+    pub fn as_value(&self) -> Option<Value> {
+        if let Some(ExtnResponse::Value(val)) = self.payload.extract::<ExtnResponse>() {
+            return Some(val);
+        }
+        None
+    }
 }
 
 impl TryFrom<String> for ExtnPayload {
@@ -618,5 +624,14 @@ mod tests {
         let extn_event_payload = ExtnPayload::Event(event_payload);
         assert!(value.id.eq_ignore_ascii_case("test_id"));
         assert!(value.payload.eq(&extn_event_payload));
+    }
+    #[test]
+    fn test_analytics_request_serialization() {
+        let analytics_request = ExtnRequest::Analytics(AnalyticsRequest::default());
+        let payload = ExtnPayload::Request(analytics_request.clone());
+
+        // Test extraction
+        let extracted: Option<ExtnRequest> = payload.extract();
+        assert_eq!(extracted, Some(analytics_request));
     }
 }

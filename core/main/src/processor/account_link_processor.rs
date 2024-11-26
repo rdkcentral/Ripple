@@ -272,7 +272,7 @@ impl AccountLinkProcessor {
                 MediaEventRequest::MediaEventAccountLink(MediaEventsAccountLinkRequestParams {
                     media_event: MediaEvent {
                         content_id: watched_info.entity_id.to_owned(),
-                        completed: watched_info.completed.unwrap_or(true),
+                        completed: watched_info.completed.unwrap_or(false),
                         progress: watched_info.progress,
                         progress_unit: request.unit.clone(),
                         watched_on: watched_info.watched_on.clone(),
