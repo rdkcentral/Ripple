@@ -17,9 +17,9 @@
 use crate::{
     firebolt::rpc::RippleRPCProvider,
     processor::storage::storage_manager::StorageManager,
-    service::apps::app_events::{AppEventDecorationError, AppEventDecorator},
+    service::apps::app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
     state::platform_state::PlatformState,
-    utils::rpc_utils::rpc_err,
+    utils::rpc_utils::{rpc_add_event_listener_with_decorator, rpc_err},
 };
 use base64::{engine::general_purpose::STANDARD as base64, Engine};
 use jsonrpsee::{
@@ -35,9 +35,13 @@ use ripple_sdk::{
                 AdvertisingFrameworkConfig, AdvertisingRequest, AdvertisingResponse, GetAdConfig,
             },
             fb_capabilities::{CapabilityRole, FireboltCap, RoleInfo},
+            fb_general::{ListenRequest, ListenerResponse},
         },
         gateway::rpc_gateway_api::CallContext,
-        storage_property::StorageProperty,
+        storage_property::{
+            StorageProperty, EVENT_ADVERTISING_POLICY_CHANGED,
+            EVENT_ADVERTISING_SKIP_RESTRICTION_CHANGED,
+        },
     },
     log::{debug, error},
 };
@@ -78,6 +82,31 @@ impl Serialize for AdvertisingId {
 pub struct AdvertisingPolicy {
     pub skip_restriction: String,
     pub limit_ad_tracking: bool,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub enum SkipRestriction {
+    None,
+    AdsUnwatched,
+    AdsAll,
+    All,
+}
+
+impl SkipRestriction {
+    pub fn as_string(&self) -> &'static str {
+        match self {
+            SkipRestriction::None => NONE,
+            SkipRestriction::AdsUnwatched => "adsUnwatched",
+            SkipRestriction::AdsAll => "adsAll",
+            SkipRestriction::All => "all",
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct SetSkipRestrictionRequest {
+    pub value: SkipRestriction,
 }
 
 #[derive(Debug, Deserialize, Clone, Default)]
@@ -133,6 +162,26 @@ pub trait Advertising {
     async fn device_attributes(&self, ctx: CallContext) -> RpcResult<Value>;
     #[method(name = "advertising.policy")]
     async fn policy(&self, ctx: CallContext) -> RpcResult<AdvertisingPolicy>;
+    #[method(name = "advertising.setSkipRestriction")]
+    async fn advertising_set_skip_restriction(
+        &self,
+        ctx: CallContext,
+        set_request: SetSkipRestrictionRequest,
+    ) -> RpcResult<()>;
+    #[method(name = "advertising.skipRestriction")]
+    async fn advertising_skip_restriction(&self, ctx: CallContext) -> RpcResult<String>;
+    #[method(name = "advertising.onSkipRestrictionChanged")]
+    async fn advertising_on_skip_restriction_changed(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
+    #[method(name = "advertising.onPolicyChanged")]
+    async fn advertising_on_policy_changed(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
     #[method(name = "advertising.resetIdentifier")]
     async fn reset_identifier(&self, ctx: CallContext) -> RpcResult<()>;
 }
@@ -151,7 +200,6 @@ async fn get_advertisting_policy(platform_state: &PlatformState) -> AdvertisingP
         .await,
     }
 }
-
 #[derive(Clone)]
 struct AdvertisingPolicyEventDecorator {}
 #[async_trait]
@@ -164,6 +212,29 @@ impl AppEventDecorator for AdvertisingPolicyEventDecorator {
         _val_in: &Value,
     ) -> Result<Value, AppEventDecorationError> {
         Ok(serde_json::to_value(get_advertisting_policy(ps).await)?)
+    }
+    fn dec_clone(&self) -> Box<dyn AppEventDecorator + Send + Sync> {
+        Box::new(self.clone())
+    }
+}
+
+#[derive(Clone)]
+struct AdvertisingSetRestrictionEventDecorator {}
+use std::convert::From;
+#[async_trait]
+impl AppEventDecorator for AdvertisingSetRestrictionEventDecorator {
+    async fn decorate(
+        &self,
+        ps: &PlatformState,
+        _ctx: &CallContext,
+        _event_name: &str,
+        _val_in: &Value,
+    ) -> Result<Value, AppEventDecorationError> {
+        Ok(serde_json::to_value(
+            StorageManager::get_string(ps, StorageProperty::SkipRestriction)
+                .await
+                .unwrap_or_else(|_| String::from(NONE)),
+        )?)
     }
     fn dec_clone(&self) -> Box<dyn AppEventDecorator + Send + Sync> {
         Box::new(self.clone())
@@ -403,6 +474,62 @@ impl AdvertisingServer for AdvertisingImpl {
 
     async fn policy(&self, _ctx: CallContext) -> RpcResult<AdvertisingPolicy> {
         Ok(get_advertisting_policy(&self.state).await)
+    }
+
+    async fn advertising_on_policy_changed(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        rpc_add_event_listener_with_decorator(
+            &self.state,
+            ctx,
+            request,
+            EVENT_ADVERTISING_POLICY_CHANGED,
+            Some(Box::new(AdvertisingPolicyEventDecorator {})),
+        )
+        .await
+    }
+
+    async fn advertising_set_skip_restriction(
+        &self,
+        _ctx: CallContext,
+        set_request: SetSkipRestrictionRequest,
+    ) -> RpcResult<()> {
+        StorageManager::set_string(
+            &self.state,
+            StorageProperty::SkipRestriction,
+            String::from(set_request.value.as_string()),
+            None,
+        )
+        .await
+    }
+
+    async fn advertising_skip_restriction(&self, _ctx: CallContext) -> RpcResult<String> {
+        Ok(
+            StorageManager::get_string(&self.state, StorageProperty::SkipRestriction)
+                .await
+                .unwrap_or_else(|_| String::from(NONE)),
+        )
+    }
+
+    async fn advertising_on_skip_restriction_changed(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        let listen = request.listen;
+        AppEvents::add_listener_with_decorator(
+            &self.state,
+            EVENT_ADVERTISING_SKIP_RESTRICTION_CHANGED.to_string(),
+            ctx,
+            request,
+            Some(Box::new(AdvertisingSetRestrictionEventDecorator {})),
+        );
+        Ok(ListenerResponse {
+            listening: listen,
+            event: EVENT_ADVERTISING_SKIP_RESTRICTION_CHANGED.to_string(),
+        })
     }
 }
 
