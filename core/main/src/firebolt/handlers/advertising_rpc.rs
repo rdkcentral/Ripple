@@ -211,9 +211,10 @@ impl AdvertisingServer for AdvertisingImpl {
                 Some(r) => r.options,
                 None => None,
             };
+            let mut platform_state = self.state.clone();
             let payload = AdvertisingRequest::GetAdIdObject(AdIdRequestParams {
                 privacy_data: privacy_rpc::get_allow_app_content_ad_targeting_settings(
-                    &self.state,
+                    &mut platform_state,
                     opts.as_ref(),
                     &ctx.app_id,
                     &ctx,
@@ -282,8 +283,10 @@ impl AdvertisingServer for AdvertisingImpl {
 
         let ad_opt_out = !PrivacyImpl::get_allow_app_content_ad_targeting(&self.state).await;
 
+        let mut platform_state = self.state.clone();
+
         let mut privacy_data = privacy_rpc::get_allow_app_content_ad_targeting_settings(
-            &self.state,
+            &mut platform_state,
             None,
             &durable_app_id,
             &ctx,

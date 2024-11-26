@@ -25,7 +25,9 @@ use ripple_sdk::{
     utils::error::RippleError,
 };
 
-use crate::state::{platform_state::PlatformState, session_state::Session};
+use crate::state::{
+    metrics_state::MetricsState, platform_state::PlatformState, session_state::Session,
+};
 
 pub async fn return_api_message_for_transport(
     session: Session,
@@ -77,23 +79,25 @@ pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage) {
     }
 }
 
-pub fn get_rpc_header_with_status(request: &RpcRequest, status_code: i32) -> String {
-    format!(
+pub fn get_rpc_header_with_status(request: &RpcRequest, status_code: i32) -> Option<String> {
+    Some(format!(
         "{},{},{}",
         request.ctx.app_id, request.ctx.method, status_code
-    )
+    ))
 }
 
 pub fn get_rpc_header(request: &RpcRequest) -> String {
     format!("{},{}", request.ctx.app_id, request.ctx.method)
 }
 
-pub fn add_telemetry_status_code(original_ref: &str, status_code: &str) -> String {
-    format!("{},{}", original_ref, status_code)
+pub fn add_telemetry_status_code(original_ref: &str, status_code: &str) -> Option<String> {
+    Some(format!("{},{}", original_ref, status_code))
 }
 
-pub fn capture_stage(request: &mut RpcRequest, stage: &str) {
-    let duration = request.stats.update_stage(stage);
+pub fn capture_stage(metrics_state: &MetricsState, request: &RpcRequest, stage: &str) {
+    let mut state = metrics_state.clone();
+    let duration = state.update_api_stage(&request.ctx.request_id, stage);
+
     trace!(
         "Firebolt processing stage: {},{},{},{}",
         request.ctx.app_id,
