@@ -24,7 +24,6 @@ use ripple_sdk::{
     log::{error, info},
     tokio::{self, net::TcpStream},
     utils::rpc_utils::extract_tcp_port,
-    uuid::Uuid,
 };
 use serde_json::Value;
 use std::time::Duration;
