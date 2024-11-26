@@ -126,16 +126,19 @@ impl SettingsProcessor {
                     AllowPersonalization => Some(SettingValue::bool(cp.enable_recommendations)),
                     AllowWatchHistory => Some(SettingValue::bool(cp.remember_watched_programs)),
                     ShareWatchHistory => Some(SettingValue::bool(cp.share_watch_history)),
-                    DeviceName => Some(SettingValue::string(
-                        broker_utils::BrokerUtils::process_internal_main_request(
-                            state,
-                            "device.name",
-                            None,
-                        )
-                        .await
-                        .unwrap_or_else(|_| "".into())
-                        .to_string(),
-                    )),
+                    DeviceName => {
+                        let mut s = state.clone();
+                        Some(SettingValue::string(
+                            broker_utils::BrokerUtils::process_internal_main_request(
+                                &mut s,
+                                "device.name",
+                                None,
+                            )
+                            .await
+                            .unwrap_or_else(|_| "".into())
+                            .to_string(),
+                        ))
+                    }
                     PowerSaving => Some(SettingValue::bool(true)),
                     LegacyMiniGuide => Some(SettingValue::bool(false)),
                 };

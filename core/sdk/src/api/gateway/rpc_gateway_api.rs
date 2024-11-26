@@ -397,7 +397,6 @@ impl RpcRequest {
             params_json: Self::prepend_ctx(None, &ctx),
             ctx,
             method: method.to_owned(),
-            stats: RpcStats::default(),
         }
     }
     pub fn with_params(mut self, params: Option<Value>) -> Self {

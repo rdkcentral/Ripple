@@ -20,8 +20,7 @@ use futures::stream::{SplitSink, SplitStream};
 use futures_util::StreamExt;
 use jsonrpsee::core::RpcResult;
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, JsonRpcApiError, RpcRequest},
-    extn::extn_client_message::ExtnResponse,
+    api::gateway::rpc_gateway_api::{JsonRpcApiError, RpcRequest},
     log::{error, info},
     tokio::{self, net::TcpStream},
 };
@@ -75,28 +74,12 @@ impl BrokerUtils {
         method: &'a str,
         params: Option<Value>,
     ) -> RpcResult<Value> {
-        let ctx = CallContext::new(
-            Uuid::new_v4().to_string(),
-            Uuid::new_v4().to_string(),
-            "internal".into(),
-            1,
-            ApiProtocol::Extn,
-            method.to_string(),
-            None,
-            false,
-        );
-        let rpc_request = RpcRequest {
-            ctx: ctx.clone(),
-            method: method.to_string(),
-            params_json: RpcRequest::prepend_ctx(None, &ctx),
-        };
+        let rpc_request = RpcRequest::internal(method).with_params(params);
+        state
+            .metrics
+            .add_api_stats(&rpc_request.ctx.request_id, method);
 
-        state.metrics.add_api_stats(&ctx.request_id, method);
-
-        match state
-            .internal_rpc_request(&RpcRequest::internal(method).with_params(params))
-            .await
-        {
+        match state.internal_rpc_request(&rpc_request).await {
             Ok(res) => match res.as_value() {
                 Some(v) => Ok(v),
                 None => Err(JsonRpcApiError::default()

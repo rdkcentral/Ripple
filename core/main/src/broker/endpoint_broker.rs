@@ -969,9 +969,7 @@ impl BrokerOutputForwarder {
         let session_id = rpc_request.ctx.get_id();
         let request_id = rpc_request.ctx.call_id;
         let protocol = rpc_request.ctx.protocol.clone();
-        let platform_state_c = &platform_state;
-
-        let mut state = platform_state.clone();
+        let mut platform_state_c = platform_state.clone();
 
         if let Ok(res) =
             BrokerUtils::process_internal_main_request(&mut platform_state_c, method.as_str(), None)
@@ -1231,9 +1229,7 @@ mod tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let state = EndpointBrokerState::new(
-                // <pca>
                 MetricsState::default(),
-                // </pca>
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
