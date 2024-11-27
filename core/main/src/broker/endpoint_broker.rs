@@ -458,6 +458,10 @@ impl EndpointBrokerState {
 
     pub fn build_other_endpoints(&mut self, session: Option<AccountSession>) {
         for (key, endpoint) in self.rule_engine.rules.endpoints.clone() {
+            // skip thunder endpoint as it is already built using build_thunder_endpoint
+            if key == "thunder" {
+                continue;
+            }
             let request = BrokerConnectRequest::new_with_sesssion(
                 key,
                 endpoint.clone(),
