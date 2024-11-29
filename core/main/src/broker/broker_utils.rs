@@ -70,14 +70,16 @@ impl BrokerUtils {
     }
 
     pub async fn process_internal_main_request<'a>(
-        state: &'a PlatformState,
+        state: &mut PlatformState,
         method: &'a str,
         params: Option<Value>,
     ) -> RpcResult<Value> {
-        match state
-            .internal_rpc_request(&RpcRequest::internal(method).with_params(params))
-            .await
-        {
+        let rpc_request = RpcRequest::internal(method).with_params(params);
+        state
+            .metrics
+            .add_api_stats(&rpc_request.ctx.request_id, method);
+
+        match state.internal_rpc_request(&rpc_request).await {
             Ok(res) => match res.as_value() {
                 Some(v) => Ok(v),
                 None => Err(JsonRpcApiError::default()

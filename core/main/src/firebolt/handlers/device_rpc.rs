@@ -40,7 +40,7 @@ use ripple_sdk::{
             device_request::{AudioProfile, DeviceVersionResponse, HdcpProfile},
         },
         firebolt::fb_general::{ListenRequest, ListenerResponse},
-        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest, RpcStats},
+        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
         session::ProvisionRequest,
         storage_property::{EVENT_DEVICE_DEVICE_NAME_CHANGED, EVENT_DEVICE_NAME_CHANGED},
     },
@@ -370,6 +370,12 @@ impl DeviceServer for DeviceImpl {
             ));
         };
         _ctx.protocol = ApiProtocol::Extn;
+
+        let mut platform_state = self.state.clone();
+        platform_state
+            .metrics
+            .add_api_stats(&_ctx.request_id, "account.setServiceAccountId");
+
         let success = rpc_request_setter(
             self.state
                 .get_client()
@@ -381,7 +387,6 @@ impl DeviceServer for DeviceImpl {
                         Some(json!({"serviceAccountId": provision_request.account_id})),
                         &_ctx,
                     ),
-                    stats: RpcStats::default(),
                 })
                 .await,
         ) && rpc_request_setter(
@@ -395,7 +400,6 @@ impl DeviceServer for DeviceImpl {
                         Some(json!({"xDeviceId": provision_request.device_id})),
                         &_ctx,
                     ),
-                    stats: RpcStats::default(),
                 })
                 .await,
         ) && rpc_request_setter(
@@ -409,7 +413,6 @@ impl DeviceServer for DeviceImpl {
                         Some(json!({"partnerId": provision_request.distributor_id })),
                         &_ctx,
                     ),
-                    stats: RpcStats::default(),
                 })
                 .await,
         );

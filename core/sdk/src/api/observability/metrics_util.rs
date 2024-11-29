@@ -10,8 +10,71 @@ use crate::{
     utils::error::RippleError,
 };
 
+use chrono::Utc;
 #[cfg(not(test))]
 use log::{debug, error};
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct RpcStats {
+    pub start_time: i64,
+    pub last_stage: i64,
+    stage_durations: String,
+}
+
+impl Default for RpcStats {
+    fn default() -> Self {
+        Self {
+            start_time: Utc::now().timestamp_millis(),
+            last_stage: 0,
+            stage_durations: String::new(),
+        }
+    }
+}
+
+impl RpcStats {
+    pub fn update_stage(&mut self, stage: &str) -> i64 {
+        let current_time = Utc::now().timestamp_millis();
+        let mut last_stage = self.last_stage;
+        if last_stage == 0 {
+            last_stage = self.start_time;
+        }
+        self.last_stage = current_time;
+        let duration = current_time - last_stage;
+        if self.stage_durations.is_empty() {
+            self.stage_durations = format!("{}={}", stage, duration);
+        } else {
+            self.stage_durations = format!("{},{}={}", self.stage_durations, stage, duration);
+        }
+        duration
+    }
+
+    pub fn get_total_time(&self) -> i64 {
+        let current_time = Utc::now().timestamp_millis();
+        current_time - self.start_time
+    }
+
+    pub fn get_stage_durations(&self) -> String {
+        self.stage_durations.clone()
+    }
+}
+
+#[derive(Clone, PartialEq, Default, Debug, Serialize, Deserialize)]
+pub struct ApiStats {
+    pub api: String,
+    pub stats_ref: Option<String>,
+    pub stats: RpcStats,
+}
+
+impl ApiStats {
+    pub fn new(api: String) -> Self {
+        Self {
+            api,
+            stats_ref: None,
+            stats: RpcStats::default(),
+        }
+    }
+}
 
 #[cfg(test)]
 use {println as debug, println as error};
