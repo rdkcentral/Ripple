@@ -25,8 +25,9 @@ use ripple_sdk::{
         },
         gateway::{
             rpc_error::RpcError,
-            rpc_gateway_api::{ApiMessage, ApiProtocol, ApiStats, RpcRequest},
+            rpc_gateway_api::{ApiMessage, ApiProtocol, RpcRequest},
         },
+        observability::metrics_util::ApiStats,
     },
     extn::extn_client_message::ExtnMessage,
     log::{debug, error, info, trace, warn},
@@ -178,7 +179,7 @@ impl FireboltGateway {
                 }
             }
         }
-        let platform_state = self.state.platform_state.clone();
+        let mut platform_state = self.state.platform_state.clone();
 
         /*
          * The reason for spawning a new thread is that when request-1 comes, and it waits for
@@ -189,6 +190,11 @@ impl FireboltGateway {
          */
         let mut request_c = request.clone();
         request_c.method = FireboltOpenRpcMethod::name_with_lowercase_module(&request.method);
+
+        platform_state
+            .metrics
+            .add_api_stats(&request_c.ctx.request_id, &request_c.method);
+
         let metrics_timer = TelemetryBuilder::start_firebolt_metrics_timer(
             &platform_state.get_client().get_extn_client(),
             request_c.method.clone(),
@@ -205,7 +211,7 @@ impl FireboltGateway {
         let open_rpc_state = self.state.platform_state.open_rpc_state.clone();
 
         tokio::spawn(async move {
-            capture_stage(&mut request_c, "context_ready");
+            capture_stage(&platform_state.metrics, &request_c, "context_ready");
             // Validate incoming request parameters.
             if let Err(error_string) = validate_request(open_rpc_state, &request_c, fail_open) {
                 TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
@@ -221,10 +227,11 @@ impl FireboltGateway {
                     data: None,
                 };
 
-                send_json_rpc_error(&platform_state, &request, json_rpc_error).await;
+                send_json_rpc_error(&mut platform_state, &request, json_rpc_error).await;
                 return;
             }
-            capture_stage(&mut request_c, "openrpc_val");
+
+            capture_stage(&platform_state.metrics, &request_c, "openrpc_val");
 
             let result = if extn_request {
                 // extn protocol means its an internal Ripple request skip permissions.
@@ -232,7 +239,8 @@ impl FireboltGateway {
             } else {
                 FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await
             };
-            capture_stage(&mut request_c, "permission");
+
+            capture_stage(&platform_state.metrics, &request_c, "permission");
 
             match result {
                 Ok(_) => {
@@ -298,7 +306,7 @@ impl FireboltGateway {
                         data: None,
                     };
 
-                    send_json_rpc_error(&platform_state, &request, json_rpc_error).await;
+                    send_json_rpc_error(&mut platform_state, &request, json_rpc_error).await;
                 }
             }
         });
@@ -373,7 +381,7 @@ fn validate_request(
 }
 
 async fn send_json_rpc_error(
-    platform_state: &PlatformState,
+    platform_state: &mut PlatformState,
     request: &RpcRequest,
     json_rpc_error: JsonRpcError,
 ) {
@@ -396,10 +404,20 @@ async fn send_json_rpc_error(
                 request.clone().ctx.request_id,
             );
 
-            api_message.stats = Some(ApiStats {
-                stats_ref: get_rpc_header_with_status(request, status_code),
-                stats: request.stats.clone(),
-            });
+            if let Some(api_stats) = platform_state
+                .metrics
+                .get_api_stats(&request.ctx.request_id)
+            {
+                api_message.stats = Some(ApiStats {
+                    api: request.method.clone(),
+                    stats_ref: get_rpc_header_with_status(request, status_code),
+                    stats: api_stats.stats.clone(),
+                });
+            }
+            platform_state.metrics.update_api_stats_ref(
+                &request.ctx.request_id,
+                get_rpc_header_with_status(request, status_code),
+            );
 
             match session.get_transport() {
                 EffectiveTransport::Websocket => {
