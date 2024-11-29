@@ -40,10 +40,8 @@ use crate::{
 };
 
 use super::events::thunder_event_handlers::{
-    AudioChangedEvent, HDCPEventHandler, HDREventHandler, InternetEventHandler,
-    NetworkEventHandler, ScreenResolutionEventHandler, SystemPowerStateChangeEventHandler,
-    TimezoneChangedEventHandler, VideoResolutionEventHandler,
-    VoiceGuidanceEnabledChangedEventHandler,
+    AudioChangedEvent, HDCPEventHandler, InternetEventHandler, SystemPowerStateChangeEventHandler,
+    TimezoneChangedEventHandler, VoiceGuidanceEnabledChangedEventHandler,
 };
 
 #[derive(Debug)]
@@ -79,11 +77,7 @@ impl ExtnStreamProcessor for ThunderOpenEventsProcessor {
     fn fulfills_mutiple(&self) -> Option<Vec<RippleContract>> {
         Some(vec![
             RippleContract::DeviceEvents(EventAdjective::Input),
-            RippleContract::DeviceEvents(EventAdjective::Hdr),
-            RippleContract::DeviceEvents(EventAdjective::ScreenResolution),
-            RippleContract::DeviceEvents(EventAdjective::VideoResolution),
             RippleContract::DeviceEvents(EventAdjective::VoiceGuidance),
-            RippleContract::DeviceEvents(EventAdjective::Network),
             RippleContract::DeviceEvents(EventAdjective::Internet),
             RippleContract::DeviceEvents(EventAdjective::Audio),
             RippleContract::DeviceEvents(EventAdjective::SystemPowerState),
@@ -113,30 +107,10 @@ impl ExtnRequestProcessor for ThunderOpenEventsProcessor {
                 id.clone(),
                 AudioChangedEvent::provide(id, callback_type),
             )),
-            DeviceEvent::HdrChanged => Some(state.handle_listener(
-                listen,
-                id.clone(),
-                HDREventHandler::provide(id, callback_type),
-            )),
             DeviceEvent::InputChanged => Some(state.handle_listener(
                 listen,
                 id.clone(),
                 HDCPEventHandler::provide(id, callback_type),
-            )),
-            DeviceEvent::NetworkChanged => Some(state.handle_listener(
-                listen,
-                id.clone(),
-                NetworkEventHandler::provide(id, callback_type),
-            )),
-            DeviceEvent::ScreenResolutionChanged => Some(state.handle_listener(
-                listen,
-                id.clone(),
-                ScreenResolutionEventHandler::provide(id, callback_type),
-            )),
-            DeviceEvent::VideoResolutionChanged => Some(state.handle_listener(
-                listen,
-                id.clone(),
-                VideoResolutionEventHandler::provide(id, callback_type),
             )),
             DeviceEvent::SystemPowerStateChanged => Some(state.handle_listener(
                 listen,

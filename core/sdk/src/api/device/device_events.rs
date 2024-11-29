@@ -29,10 +29,6 @@ pub trait DeviceEventProvider {
 }
 
 pub const HDCP_CHANGED_EVENT: &str = "device.onHdcpChanged";
-pub const HDR_CHANGED_EVENT: &str = "device.onHdrChanged";
-pub const SCREEN_RESOLUTION_CHANGED_EVENT: &str = "device.onScreenResolutionChanged";
-pub const VIDEO_RESOLUTION_CHANGED_EVENT: &str = "device.onVideoResolutionChanged";
-pub const NETWORK_CHANGED_EVENT: &str = "device.onNetworkChanged";
 pub const INTERNET_CHANGED_EVENT: &str = "device.onInternetStatusChange";
 pub const AUDIO_CHANGED_EVENT: &str = "device.onAudioChanged";
 pub const VOICE_GUIDANCE_SETTINGS_CHANGED: &str = "accessibility.onVoiceGuidanceSettingsChanged";
@@ -45,11 +41,7 @@ pub const TIME_ZONE_CHANGED: &str = "localization.onTimeZoneChanged";
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum DeviceEvent {
     InputChanged,
-    HdrChanged,
-    ScreenResolutionChanged,
-    VideoResolutionChanged,
     VoiceGuidanceEnabledChanged,
-    NetworkChanged,
     AudioChanged,
     SystemPowerStateChanged,
     InternetConnectionStatusChanged,
@@ -62,11 +54,7 @@ impl FromStr for DeviceEvent {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "device.onHdcpChanged" => Ok(Self::InputChanged),
-            "device.onHdrChanged" => Ok(Self::HdrChanged),
-            "device.onScreenResolutionChanged" => Ok(Self::ScreenResolutionChanged),
-            "device.onVideoResolutionChanged" => Ok(Self::VideoResolutionChanged),
             "voiceguidance.onEnabledChanged" => Ok(Self::VoiceGuidanceEnabledChanged),
-            "device.onNetworkChanged" => Ok(Self::NetworkChanged),
             "device.onAudioChanged" => Ok(Self::AudioChanged),
             "device.onPowerStateChanged" => Ok(Self::SystemPowerStateChanged),
             "device.onInternetStatusChange" => Ok(Self::InternetConnectionStatusChanged),
@@ -113,17 +101,9 @@ impl ExtnPayloadProvider for DeviceEventRequest {
     fn get_contract(&self) -> RippleContract {
         match self.event {
             DeviceEvent::InputChanged => RippleContract::DeviceEvents(EventAdjective::Input),
-            DeviceEvent::HdrChanged => RippleContract::DeviceEvents(EventAdjective::Hdr),
-            DeviceEvent::ScreenResolutionChanged => {
-                RippleContract::DeviceEvents(EventAdjective::ScreenResolution)
-            }
-            DeviceEvent::VideoResolutionChanged => {
-                RippleContract::DeviceEvents(EventAdjective::VideoResolution)
-            }
             DeviceEvent::VoiceGuidanceEnabledChanged => {
                 RippleContract::DeviceEvents(EventAdjective::VoiceGuidance)
             }
-            DeviceEvent::NetworkChanged => RippleContract::DeviceEvents(EventAdjective::Network),
             DeviceEvent::AudioChanged => RippleContract::DeviceEvents(EventAdjective::Audio),
             DeviceEvent::SystemPowerStateChanged => {
                 RippleContract::DeviceEvents(EventAdjective::SystemPowerState)
