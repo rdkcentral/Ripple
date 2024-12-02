@@ -119,6 +119,8 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
         .level_for("jsonrpsee_core", log::LevelFilter::Off)
         .level_for("tokio_tungstenite", log::LevelFilter::Off)
         .level_for("tungstenite", log::LevelFilter::Off)
+        .level_for("soketto", log::LevelFilter::Off)
+        .level_for("tracing", log::LevelFilter::Off)
         .chain(std::io::stdout())
         .apply()?;
     Ok(())
