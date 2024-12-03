@@ -407,10 +407,6 @@ impl EndpointBroker for ThunderBroker {
                     .to_string(),
                 )
             }
-            // if rpc_request.rpc.is_unlisten() {
-            //     let request = Self::update_request(rpc_request)?;
-            //     requests.push(request)
-            // }
         } else {
             // Simple request and response handling
             requests.push(Self::update_request(rpc_request)?)
