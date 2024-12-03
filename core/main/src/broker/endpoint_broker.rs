@@ -543,8 +543,7 @@ impl EndpointBrokerState {
         data.id = Some(id);
         let output = BrokerOutput { data };
 
-        let metrics_state = self.metrics_state.clone();
-        capture_stage(&metrics_state, &rpc_request, "static_rule_request");
+        capture_stage(&self.metrics_state, &rpc_request, "static_rule_request");
         tokio::spawn(async move { callback.sender.send(output).await });
     }
 
@@ -594,8 +593,7 @@ impl EndpointBrokerState {
                 let broker_sender = broker_sender.unwrap();
                 let (_, updated_request) =
                     self.update_request(&rpc_request, rule, extn_message, requestor_callback);
-                let metrics_state = self.metrics_state.clone();
-                capture_stage(&metrics_state, &rpc_request, "broker_request");
+                capture_stage(&self.metrics_state, &rpc_request, "broker_request");
                 tokio::spawn(async move {
                     /*
                     process "unlisten" requests here - the broker layers require state, which does not exist , as the
