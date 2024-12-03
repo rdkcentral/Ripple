@@ -207,6 +207,12 @@ impl Default for BrokerCallback {
 static ATOMIC_ID: AtomicU64 = AtomicU64::new(0);
 
 impl BrokerCallback {
+    pub async fn send_json_rpc_api_response(&self, response: JsonRpcApiResponse) {
+        let output = BrokerOutput { data: response };
+        if let Err(e) = self.sender.send(output).await {
+            error!("couldnt send response for {:?}", e);
+        }
+    }
     /// Default method used for sending errors via the BrokerCallback
     pub async fn send_error(&self, request: BrokerRequest, error: RippleError) {
         let value = serde_json::to_value(JsonRpcError {
@@ -223,10 +229,7 @@ impl BrokerCallback {
             method: None,
             params: None,
         };
-        let output = BrokerOutput { data };
-        if let Err(e) = self.sender.send(output).await {
-            error!("couldnt send error for {:?}", e);
-        }
+        self.send_json_rpc_api_response(data).await;
     }
 }
 
@@ -588,13 +591,20 @@ impl EndpointBrokerState {
                 );
             } else if broker_sender.is_some() {
                 trace!("handling not static request for {:?}", rpc_request);
-                let broker = broker_sender.unwrap();
+                let broker_sender = broker_sender.unwrap();
                 let (_, updated_request) =
                     self.update_request(&rpc_request, rule, extn_message, requestor_callback);
                 let metrics_state = self.metrics_state.clone();
                 capture_stage(&metrics_state, &rpc_request, "broker_request");
                 tokio::spawn(async move {
-                    if let Err(e) = broker.send(updated_request.clone()).await {
+                    /*
+                    process "unlisten" requests here - the broker layers require state, which does not exist , as the
+                    state has already been deleted by the time the unlisten request is processed.
+                    */
+                    if updated_request.rpc.is_unlisten() {
+                        let result: JsonRpcApiResponse = updated_request.rpc.into();
+                        callback.send_json_rpc_api_response(result).await
+                    } else if let Err(e) = broker_sender.send(updated_request.clone()).await {
                         callback.send_error(updated_request, e).await
                     }
                 });
