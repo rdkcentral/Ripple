@@ -53,7 +53,7 @@ pub async fn boot_thunder(
 ) -> Option<ThunderBootstrapStateWithClient> {
     info!("Booting thunder");
     //by default enabling the thunderBroker
-    if !ext_client.get_bool_config("use_with_thunder_broker") {
+    if ext_client.get_bool_config("use_with_thunder_broker") {
         info!("Using thunder broker");
         let mut extn_client = ext_client.clone();
         let mut gateway_url = url::Url::parse(GATEWAY_DEFAULT).unwrap();
