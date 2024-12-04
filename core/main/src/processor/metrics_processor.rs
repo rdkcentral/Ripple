@@ -87,6 +87,11 @@ pub async fn update_app_context(
             .version
             .clone()
             .unwrap_or(String::from(SEMVER_LIGHTWEIGHT));
+
+        // TODO: Meeting 12/11/24 to discuss where version from Metrics.appInfo call should be used.
+        //       If part of BehavioralMetricContext, un/comment below/above.
+
+        //context.app_version = app.app_metrics_version.unwrap_or(String::default());
     }
     if let Some(session) = ps.session_state.get_account_session() {
         context.partner_id = session.id;
