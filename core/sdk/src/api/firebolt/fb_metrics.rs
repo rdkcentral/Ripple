@@ -250,7 +250,7 @@ pub struct MetricsError {
     pub code: String,
     pub description: String,
     pub visible: bool,
-    pub parameters: Option<Vec<Param>>,
+    pub parameters: Option<HashMap<String, FlatMapValue>>,
     pub durable_app_id: String,
     pub third_party_error: bool,
 }
@@ -932,7 +932,7 @@ pub struct ErrorParams {
     pub code: String,
     pub description: String,
     pub visible: bool,
-    pub parameters: Option<Vec<Param>>,
+    pub parameters: Option<HashMap<String, FlatMapValue>>,
 }
 
 impl From<ErrorParams> for ErrorType {
