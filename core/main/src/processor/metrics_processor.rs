@@ -89,7 +89,8 @@ pub async fn update_app_context(
             .unwrap_or(String::from(SEMVER_LIGHTWEIGHT));
 
         // TODO: Meeting 12/11/24 to discuss where version from Metrics.appInfo call should be used.
-        //       If part of BehavioralMetricContext, un/comment below/above.
+        //       If part of BehavioralMetricContext, un/comment below/above and modify send_behavioral
+        //       to NOT populate app_ver using the context, get per above instead.
 
         //context.app_version = app.app_metrics_version.unwrap_or(String::default());
     }
