@@ -285,6 +285,9 @@ impl ExtnClient {
                                 let mut ripple_context = self.ripple_context.write().unwrap();
                                 ripple_context.deep_copy(context);
                             }
+                            if !self.has_event_listener(&message.target.as_clear_string()) {
+                                continue;
+                            }
                         }
                     }
                     Self::handle_vec_stream(message, self.event_processors.clone());
@@ -326,7 +329,6 @@ impl ExtnClient {
                             if let Some(sender) = req_sender {
                                 let _ = new_message.callback.insert(sender);
                             }
-                            Self::handle_vec_stream(message, self.event_processors.clone());
                         }
 
                         tokio::spawn(async move {
@@ -377,6 +379,7 @@ impl ExtnClient {
         };
         let new_context = { self.ripple_context.read().unwrap().clone() };
         let message = new_context.get_event_message();
+
         if propagate {
             trace!("Formed Context update event: {:?}", message);
             let c_message: CExtnMessage = message.clone().into();
@@ -387,10 +390,18 @@ impl ExtnClient {
                     trace!("Send to other client result: {:?}", send_res);
                 }
             }
+            //check for active listeners
+            if self.has_event_listener(&message.target.as_clear_string()) {
+                Self::handle_vec_stream(message, self.event_processors.clone());
+            }
         } else {
             trace!("Context information is already updated. Hence not propagating");
         }
-        Self::handle_vec_stream(message, self.event_processors.clone());
+    }
+
+    fn has_event_listener(&self, input: &str) -> bool {
+        let processors = self.event_processors.read().unwrap();
+        processors.contains_key(input)
     }
 
     fn handle_no_processor_error(&self, message: ExtnMessage) {
@@ -849,7 +860,7 @@ pub mod tests {
                 device_info_request::DeviceInfoRequest,
                 device_request::{AccountToken, DeviceRequest},
             },
-            gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest, RpcStats},
+            gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
             session::SessionAdjective,
         },
         extn::{
@@ -1236,6 +1247,7 @@ pub mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_main_internal_request(cap: ExtnId, exp_response: &str) {
         // test case: main <=> main
+
         let (mock_sender, mock_rx) =
             ExtnSender::mock_with_params(cap.clone(), Vec::new(), Vec::new(), Some(HashMap::new()));
         let mut extn_client = ExtnClient::new(mock_rx.clone(), mock_sender.clone());
@@ -1256,11 +1268,11 @@ pub mod tests {
             true,
         );
         let new_ctx = ctx.clone();
+
         let rpc_request = RpcRequest {
             ctx: new_ctx.clone(),
             method: "some.method".into(),
             params_json: RpcRequest::prepend_ctx(None, &new_ctx),
-            stats: RpcStats::default(),
         };
 
         tokio::spawn(async move {

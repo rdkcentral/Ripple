@@ -30,7 +30,7 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         firebolt::fb_metrics::Timer,
-        gateway::rpc_gateway_api::{ApiMessage, ApiStats, RpcRequest},
+        gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
     },
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
@@ -83,13 +83,14 @@ impl Default for RouterState {
 }
 
 async fn resolve_route(
+    platform_state: &mut PlatformState,
     methods: Methods,
     resources: Resources,
     req: RpcRequest,
 ) -> Result<ApiMessage, RippleError> {
     info!("Routing {}", req.method);
     let id = Id::Number(req.ctx.call_id);
-    let mut request_c = req.clone();
+    let request_c = req.clone();
     let (sink_tx, mut sink_rx) = futures_channel::mpsc::unbounded::<String>();
     let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES);
     let mut method_executors = Vec::new();
@@ -133,6 +134,7 @@ async fn resolve_route(
         let rpc_header = get_rpc_header(&req);
         let protocol = req.ctx.protocol.clone();
         let request_id = req.ctx.request_id;
+
         let status_code = if let Ok(r) = serde_json::from_str::<JsonRpcMessage>(&r) {
             if let Some(ec) = r.error {
                 ec.code
@@ -142,13 +144,18 @@ async fn resolve_route(
         } else {
             1
         };
-        capture_stage(&mut request_c, "routing");
 
-        let mut msg = ApiMessage::new(protocol, r, request_id);
-        msg.stats = Some(ApiStats {
-            stats_ref: add_telemetry_status_code(&rpc_header, status_code.to_string().as_str()),
-            stats: request_c.stats,
-        });
+        capture_stage(&platform_state.metrics, &request_c, "routing");
+
+        platform_state.metrics.update_api_stats_ref(
+            &request_id,
+            add_telemetry_status_code(&rpc_header, status_code.to_string().as_str()),
+        );
+
+        let mut msg = ApiMessage::new(protocol, r, request_id.clone());
+        if let Some(api_stats) = platform_state.metrics.get_api_stats(&request_id) {
+            msg.stats = Some(api_stats);
+        }
 
         return Ok(msg);
     }
@@ -157,7 +164,7 @@ async fn resolve_route(
 
 impl RpcRouter {
     pub async fn route(
-        state: PlatformState,
+        mut state: PlatformState,
         mut req: RpcRequest,
         session: Session,
         timer: Option<Timer>,
@@ -171,7 +178,7 @@ impl RpcRouter {
 
         tokio::spawn(async move {
             let start = Utc::now().timestamp_millis();
-            let resp = resolve_route(methods, resources, req.clone()).await;
+            let resp = resolve_route(&mut state, methods, resources, req.clone()).await;
 
             let status = match resp.clone() {
                 Ok(msg) => {
@@ -203,8 +210,10 @@ impl RpcRouter {
     ) {
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
+
+        let mut platform_state = state.clone();
         tokio::spawn(async move {
-            if let Ok(msg) = resolve_route(methods, resources, req).await {
+            if let Ok(msg) = resolve_route(&mut platform_state, methods, resources, req).await {
                 return_extn_response(msg, extn_msg);
             }
         });

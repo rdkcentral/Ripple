@@ -7,6 +7,61 @@ use serde_json::{json, Map, Value};
 pub extern crate jsonschema;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RpcMethodValidator {
+    pub validators: Vec<FireboltOpenRpc>,
+}
+
+impl Default for RpcMethodValidator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl RpcMethodValidator {
+    pub fn new() -> RpcMethodValidator {
+        RpcMethodValidator { validators: vec![] }
+    }
+
+    pub fn add_schema(&mut self, schema: FireboltOpenRpc) {
+        self.validators.push(schema);
+    }
+
+    pub fn get_method(&self, name: &str) -> Option<RpcMethod> {
+        for validator in &self.validators {
+            if let Some(method) = validator.get_method_by_name(name) {
+                return Some(method);
+            }
+        }
+        None
+    }
+
+    pub fn get_result_properties_schema(&self, name: &str) -> Option<Map<String, Value>> {
+        for validator in &self.validators {
+            if let Some(result_properties_schema) =
+                validator.get_result_properties_schema_by_name(name)
+            {
+                return Some(result_properties_schema);
+            }
+        }
+        None
+    }
+
+    pub fn params_validator(
+        &self,
+        version: String,
+        method: &str,
+    ) -> Result<JSONSchema, ValidationError> {
+        for validator in &self.validators {
+            let validator = validator.params_validator(version.clone(), method);
+            if validator.is_ok() {
+                return validator;
+            }
+        }
+        Err(ValidationError::SpecVersionNotFound)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FireboltOpenRpc {
     pub apis: HashMap<String, FireboltOpenRpcSpec>,
 }
@@ -66,6 +121,9 @@ impl FireboltOpenRpc {
         if let Some(method) = self.get_method_by_name(name) {
             if let Some(result_schema_map) = method.result.schema.as_object() {
                 if let Some(any_of_map) = result_schema_map.get("anyOf") {
+                    // Iterate the anyOf type array and get the first one that matches. With the current firebolt APIs it will happen
+                    // to be the correct type, but this is extremely fragile and should be addressed in a future firebolt revision.
+                    // Ripple needs a way to determine the explicit result type.
                     if let Some(any_of_array) = any_of_map.as_array() {
                         for value in any_of_array.iter() {
                             if let Some(result_properties_map) =
@@ -75,10 +133,14 @@ impl FireboltOpenRpc {
                             }
                         }
                     } else {
+                        // This should never happen as it indicates a schema error.
                         return None;
                     }
-                } else {
-                    return self.get_result_ref_schemas(result_schema_map);
+                } else if let Some(result_properties_map) =
+                    self.get_result_ref_schemas(result_schema_map)
+                {
+                    // Return the resolved $ref properites.
+                    return Some(result_properties_map);
                 }
             }
         }

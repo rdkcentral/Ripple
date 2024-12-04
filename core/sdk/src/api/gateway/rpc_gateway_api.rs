@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use chrono::Utc;
 use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -23,7 +22,10 @@ use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
 use crate::{
-    api::firebolt::{fb_general::ListenRequest, fb_openrpc::FireboltOpenRpcMethod},
+    api::{
+        firebolt::{fb_general::ListenRequest, fb_openrpc::FireboltOpenRpcMethod},
+        observability::metrics_util::ApiStats,
+    },
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::RippleContract,
 };
@@ -54,7 +56,7 @@ impl From<CallContext> for AppIdentification {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct CallContext {
     pub session_id: String,
     pub request_id: String,
@@ -97,6 +99,19 @@ impl CallContext {
         }
         self.session_id.clone()
     }
+
+    pub fn internal(method: &str) -> Self {
+        CallContext::new(
+            Uuid::new_v4().to_string(),
+            Uuid::new_v4().to_string(),
+            "internal".into(),
+            1,
+            ApiProtocol::Extn,
+            method.to_owned(),
+            None,
+            false,
+        )
+    }
 }
 
 impl crate::Mockable for CallContext {
@@ -114,10 +129,11 @@ impl crate::Mockable for CallContext {
     }
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
 pub enum ApiProtocol {
     Bridge,
     Extn,
+    #[default]
     JsonRpc,
 }
 
@@ -127,12 +143,6 @@ pub struct ApiMessage {
     pub jsonrpc_msg: String,
     pub request_id: String,
     pub stats: Option<ApiStats>,
-}
-
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-pub struct ApiStats {
-    pub stats_ref: String,
-    pub stats: RpcStats,
 }
 
 /// Holds a message in jsonrpc protocol format and the protocol that it should be converted into
@@ -197,6 +207,82 @@ impl JsonRpcApiRequest {
     }
 }
 
+#[derive(Clone, Default, Debug)]
+pub struct JsonRpcApiError {
+    pub code: i32,
+    pub id: Option<u64>,
+    pub message: String,
+    pub method: Option<String>,
+    pub params: Option<Value>,
+}
+impl JsonRpcApiError {
+    pub fn new(
+        code: i32,
+        id: Option<u64>,
+        message: String,
+        method: Option<String>,
+        params: Option<Value>,
+    ) -> Self {
+        JsonRpcApiError {
+            code,
+            id,
+            message,
+            method,
+            params,
+        }
+    }
+    pub fn with_method(mut self, method: String) -> Self {
+        self.method = Some(method);
+        self
+    }
+    pub fn with_params(mut self, params: Option<Value>) -> Self {
+        self.params = params;
+        self
+    }
+    pub fn with_id(mut self, id: u64) -> Self {
+        self.id = Some(id);
+        self
+    }
+    pub fn with_message(mut self, message: String) -> Self {
+        self.message = message;
+        self
+    }
+    pub fn with_code(mut self, code: i32) -> Self {
+        self.code = code;
+        self
+    }
+    pub fn to_response(&self) -> JsonRpcApiResponse {
+        JsonRpcApiResponse::error(self)
+    }
+}
+impl From<JsonRpcApiError> for jsonrpsee::core::Error {
+    fn from(error: JsonRpcApiError) -> Self {
+        jsonrpsee::core::Error::Call(jsonrpsee::types::error::CallError::Custom {
+            code: error.code,
+            message: error.message,
+            data: None,
+        })
+    }
+}
+impl From<JsonRpcApiError> for JsonRpcApiResponse {
+    fn from(error: JsonRpcApiError) -> Self {
+        JsonRpcApiResponse::error(&error)
+    }
+}
+
+pub fn rpc_value_result_to_string_result(
+    result: jsonrpsee::core::RpcResult<Value>,
+    default: Option<String>,
+) -> jsonrpsee::core::RpcResult<String> {
+    match result {
+        Ok(v) => Ok(v
+            .as_str()
+            .unwrap_or(&default.unwrap_or_default())
+            .to_string()),
+        Err(e) => Err(e),
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcApiResponse {
     pub jsonrpc: String,
@@ -224,6 +310,67 @@ impl Default for JsonRpcApiResponse {
     }
 }
 
+impl JsonRpcApiResponse {
+    pub fn error(error: &JsonRpcApiError) -> Self {
+        JsonRpcApiResponse {
+            jsonrpc: "2.0".to_owned(),
+            id: error.id,
+            result: None,
+            error: Some(json!({"code": error.code, "message": error.message})),
+            method: error.method.clone(),
+            params: error.params.clone(),
+        }
+    }
+
+    pub fn as_bytes(&self) -> Vec<u8> {
+        serde_json::to_string(self).unwrap().as_bytes().to_vec()
+    }
+    pub fn with_result(mut self, result: Option<Value>) -> Self {
+        self.result = result;
+        self.error = None;
+        self
+    }
+    pub fn with_method(mut self, method: Option<String>) -> Self {
+        self.method = method;
+        self
+    }
+    pub fn with_params(mut self, params: Option<Value>) -> Self {
+        self.params = params;
+        self
+    }
+    pub fn with_id(mut self, id: u64) -> Self {
+        self.id = Some(id);
+        self
+    }
+    pub fn with_error(mut self, error: Value) -> Self {
+        self.error = Some(error);
+        self.result = None;
+        self
+    }
+    pub fn is_error(&self) -> bool {
+        self.error.is_some()
+    }
+    pub fn is_success(&self) -> bool {
+        self.result.is_some()
+    }
+
+    pub fn is_response(&self) -> bool {
+        self.params.is_none()
+            && self.method.is_none()
+            && self.id.is_some()
+            && (self.result.is_some() || self.error.is_some())
+    }
+
+    pub fn get_response(request: &str) -> Option<JsonRpcApiResponse> {
+        if let Ok(response) = serde_json::from_str::<JsonRpcApiResponse>(request) {
+            if response.is_response() {
+                return Some(response);
+            }
+        }
+        None
+    }
+}
+
 impl crate::Mockable for JsonRpcApiResponse {
     fn mock() -> Self {
         JsonRpcApiResponse {
@@ -237,58 +384,26 @@ impl crate::Mockable for JsonRpcApiResponse {
     }
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-pub struct RpcStats {
-    pub start_time: i64,
-    pub last_stage: i64,
-    stage_durations: String,
-}
-
-impl Default for RpcStats {
-    fn default() -> Self {
-        Self {
-            start_time: Utc::now().timestamp_millis(),
-            last_stage: 0,
-            stage_durations: String::new(),
-        }
-    }
-}
-
-impl RpcStats {
-    pub fn update_stage(&mut self, stage: &str) -> i64 {
-        let current_time = Utc::now().timestamp_millis();
-        let mut last_stage = self.last_stage;
-        if last_stage == 0 {
-            last_stage = self.start_time;
-        }
-        self.last_stage = current_time;
-        let duration = current_time - last_stage;
-        if self.stage_durations.is_empty() {
-            self.stage_durations = format!("{}={}", stage, duration);
-        } else {
-            self.stage_durations = format!("{},{}={}", self.stage_durations, stage, duration);
-        }
-        duration
-    }
-
-    pub fn get_total_time(&self) -> i64 {
-        let current_time = Utc::now().timestamp_millis();
-        current_time - self.start_time
-    }
-
-    pub fn get_stage_durations(&self) -> String {
-        self.stage_durations.clone()
-    }
-}
-
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
 pub struct RpcRequest {
     pub method: String,
     pub params_json: String,
     pub ctx: CallContext,
-    pub stats: RpcStats,
 }
-
+impl RpcRequest {
+    pub fn internal(method: &str) -> Self {
+        let ctx = CallContext::internal(method);
+        RpcRequest {
+            params_json: Self::prepend_ctx(None, &ctx),
+            ctx,
+            method: method.to_owned(),
+        }
+    }
+    pub fn with_params(mut self, params: Option<Value>) -> Self {
+        self.params_json = Self::prepend_ctx(params, &self.ctx);
+        self
+    }
+}
 impl ExtnPayloadProvider for RpcRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Request(ExtnRequest::Rpc(self.clone()))
@@ -312,7 +427,6 @@ impl crate::Mockable for RpcRequest {
             method: "module.method".to_owned(),
             params_json: "{}".to_owned(),
             ctx: CallContext::mock(),
-            stats: RpcStats::default(),
         }
     }
 }
@@ -326,7 +440,6 @@ impl RpcRequest {
             method,
             params_json,
             ctx,
-            stats: RpcStats::default(),
         }
     }
     /// Serializes a parameter so that the given ctx becomes the first list in a json array of
@@ -435,7 +548,6 @@ impl RpcRequest {
             params_json: Self::prepend_ctx(Some(request), &ctx),
             ctx,
             method,
-            stats: RpcStats::default(),
         }
     }
 }
@@ -713,7 +825,6 @@ mod tests {
             method: "some_method".to_string(),
             params_json: r#"{"key": "value"}"#.to_string(),
             ctx: call_context,
-            stats: RpcStats::default(),
         };
         let contract_type: RippleContract = RippleContract::Rpc;
         test_extn_payload_provider(rpc_request, contract_type);

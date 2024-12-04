@@ -35,6 +35,7 @@ pub enum ThunderPlugin {
     Hdcp,
     Telemetry,
     PackageManager,
+    Analytics,
 }
 const CONTROLLER_CFG: Cfg = Cfg::new("Controller", false, true);
 const DEVICE_INFO_CFG: Cfg = Cfg::new("DeviceInfo", true, false);
@@ -50,6 +51,7 @@ const LOCATION_SYNC: Cfg = Cfg::new("LocationSync", false, false);
 const TTS_CFG: Cfg = Cfg::new("org.rdk.TextToSpeech", false, true);
 const TELEMETRY_CFG: Cfg = Cfg::new("org.rdk.Telemetry", false, false);
 const PACKAGE_MANAGER_CFG: Cfg = Cfg::new("org.rdk.PackageManager", false, false);
+const ANALYTICS_CFG: Cfg = Cfg::new("org.rdk.Analytics", false, false);
 
 impl ThunderPlugin {
     pub fn cfg(&self) -> Cfg {
@@ -69,6 +71,7 @@ impl ThunderPlugin {
             TextToSpeech => TTS_CFG,
             Telemetry => TELEMETRY_CFG,
             PackageManager => PACKAGE_MANAGER_CFG,
+            Analytics => ANALYTICS_CFG,
         }
     }
     pub fn callsign(&self) -> &str {
@@ -167,5 +170,15 @@ mod tests {
         assert_eq!(cfg.callsign, "org.test.plugin");
         assert!(cfg.activate_at_boot);
         assert!(!cfg.expect_activated);
+    }
+    #[test]
+    fn test_thunder_plugin_analytics() {
+        assert_eq!(ThunderPlugin::Analytics.callsign(), "org.rdk.Analytics");
+        assert_eq!(
+            ThunderPlugin::Analytics.callsign_and_version(),
+            "org.rdk.Analytics.1"
+        );
+        assert!(!ThunderPlugin::Analytics.activate_at_boot());
+        assert!(!ThunderPlugin::Analytics.expect_activated());
     }
 }

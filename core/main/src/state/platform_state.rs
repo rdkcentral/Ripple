@@ -17,7 +17,7 @@
 
 use ripple_sdk::{
     api::{
-        gateway::rpc_gateway_api::ApiMessage,
+        gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
         manifest::{
             app_library::AppLibraryState,
             device_manifest::{AppLibraryEntry, DeviceManifest},
@@ -27,7 +27,10 @@ use ripple_sdk::{
         protocol::BridgeProtocolRequest,
         session::SessionAdjective,
     },
-    extn::{extn_client_message::ExtnMessage, extn_id::ExtnId},
+    extn::{
+        extn_client_message::{ExtnMessage, ExtnPayloadProvider},
+        extn_id::ExtnId,
+    },
     framework::{ripple_contract::RippleContract, RippleResponse},
     utils::error::RippleError,
     uuid::Uuid,
@@ -122,6 +125,7 @@ impl PlatformState {
         let rule_engine = RuleEngine::build(&extn_manifest);
         let extn_sdks = extn_manifest.extn_sdks.clone();
         let provider_registations = extn_manifest.provider_registrations.clone();
+        let metrics_state = MetricsState::default();
         Self {
             extn_manifest,
             cap_state: CapState::new(manifest.clone()),
@@ -135,11 +139,16 @@ impl PlatformState {
             open_rpc_state: OpenRpcState::new(Some(exclusory), extn_sdks, provider_registations),
             router_state: RouterState::new(),
             data_governance: DataGovernanceState::default(),
-            metrics: MetricsState::default(),
+            metrics: metrics_state.clone(),
             device_session_id: DeviceSessionIdentifier::default(),
             ripple_cache: RippleCache::default(),
             version,
-            endpoint_state: EndpointBrokerState::new(broker_sender, rule_engine, client),
+            endpoint_state: EndpointBrokerState::new(
+                metrics_state,
+                broker_sender,
+                rule_engine,
+                client,
+            ),
         }
     }
 
@@ -219,6 +228,27 @@ impl PlatformState {
     pub fn supports_rfc(&self) -> bool {
         let contract = RippleContract::RemoteFeatureControl.as_clear_string();
         self.extn_manifest.required_contracts.contains(&contract)
+    }
+    ///
+    /// War on dots
+    pub async fn internal_rpc_request(
+        &self,
+        rpc_request: &RpcRequest,
+    ) -> Result<ExtnMessage, RippleError> {
+        self.get_client()
+            .get_extn_client()
+            .main_internal_request(rpc_request.to_owned())
+            .await
+    }
+    ///
+    /// Also war on dots
+    pub async fn extn_request(
+        &self,
+        rpc_request: impl ExtnPayloadProvider,
+    ) -> Result<ExtnMessage, RippleError> {
+        self.get_client()
+            .send_extn_request(rpc_request.to_owned())
+            .await
     }
 }
 

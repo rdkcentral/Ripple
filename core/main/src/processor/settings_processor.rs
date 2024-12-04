@@ -45,10 +45,10 @@ use ripple_sdk::{
 use serde_json::{json, Value};
 
 use crate::{
+    broker::broker_utils,
     firebolt::handlers::{
         capabilities_rpc::is_permitted,
         closed_captions_rpc::ClosedcaptionsImpl,
-        device_rpc::get_device_name,
         discovery_rpc::DiscoveryImpl,
         privacy_rpc::PrivacyImpl,
         voice_guidance_rpc::{
@@ -126,9 +126,19 @@ impl SettingsProcessor {
                     AllowPersonalization => Some(SettingValue::bool(cp.enable_recommendations)),
                     AllowWatchHistory => Some(SettingValue::bool(cp.remember_watched_programs)),
                     ShareWatchHistory => Some(SettingValue::bool(cp.share_watch_history)),
-                    DeviceName => Some(SettingValue::string(
-                        get_device_name(state).await.unwrap_or_else(|_| "".into()),
-                    )),
+                    DeviceName => {
+                        let mut s = state.clone();
+                        Some(SettingValue::string(
+                            broker_utils::BrokerUtils::process_internal_main_request(
+                                &mut s,
+                                "device.name",
+                                None,
+                            )
+                            .await
+                            .unwrap_or_else(|_| "".into())
+                            .to_string(),
+                        ))
+                    }
                     PowerSaving => Some(SettingValue::bool(true)),
                     LegacyMiniGuide => Some(SettingValue::bool(false)),
                 };

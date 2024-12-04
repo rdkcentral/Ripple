@@ -29,7 +29,7 @@ use ripple_sdk::{
             },
             device_info_request::DeviceInfoRequest,
             device_peristence::SetStringProperty,
-            device_request::{LanguageProperty, TimezoneProperty},
+            device_request::TimezoneProperty,
         },
         firebolt::{
             fb_general::{ListenRequest, ListenerResponse},
@@ -40,7 +40,6 @@ use ripple_sdk::{
     },
     extn::extn_client_message::ExtnResponse,
 };
-use std::collections::HashMap;
 
 use crate::utils::rpc_utils::{rpc_add_event_listener, rpc_err};
 use crate::{
@@ -67,30 +66,6 @@ pub trait Localization {
         -> RpcResult<()>;
     #[method(name = "localization.onLocalityChanged")]
     async fn on_locality_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
-    #[method(name = "localization.countryCode")]
-    async fn country_code(&self, ctx: CallContext) -> RpcResult<String>;
-    #[method(name = "localization.setCountryCode")]
-    async fn country_code_set(
-        &self,
-        ctx: CallContext,
-        set_request: SetStringProperty,
-    ) -> RpcResult<()>;
-    #[method(name = "localization.onCountryCodeChanged")]
-    async fn on_country_code_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
-    #[method(name = "localization.language")]
-    async fn language(&self, ctx: CallContext) -> RpcResult<String>;
-    #[method(name = "localization.setLanguage")]
-    async fn language_set(&self, ctx: CallContext, set_request: LanguageProperty) -> RpcResult<()>;
-    #[method(name = "localization.onLanguageChanged")]
-    async fn on_language_changed(
         &self,
         ctx: CallContext,
         request: ListenRequest,
@@ -129,14 +104,6 @@ pub trait Localization {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
-    #[method(name = "localization.additionalInfo")]
-    async fn additional_info(&self, _ctx: CallContext) -> RpcResult<HashMap<String, String>>;
-    #[method(name = "localization.setAdditionalInfo")]
-    async fn additional_info_set(
-        &self,
-        ctx: CallContext,
-        set_request: SetStringProperty,
-    ) -> RpcResult<()>;
     #[method(name = "localization.addAdditionalInfo")]
     async fn add_additional_info(
         &self,
@@ -149,13 +116,6 @@ pub trait Localization {
         ctx: CallContext,
         remove_map_entry_property: RemoveMapEntryProperty,
     ) -> RpcResult<()>;
-
-    #[method(name = "localization.onAdditionalInfoChanged")]
-    async fn on_additional_info_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
     #[method(name = "localization.setTimeZone")]
     async fn timezone_set(&self, ctx: CallContext, set_request: TimezoneProperty) -> RpcResult<()>;
     #[method(name = "localization.timeZone")]
@@ -268,70 +228,6 @@ impl LocalizationServer for LocalizationImpl {
         .await
     }
 
-    async fn country_code(&self, _ctx: CallContext) -> RpcResult<String> {
-        StorageManager::get_string(&self.platform_state, StorageProperty::CountryCode).await
-    }
-
-    async fn country_code_set(
-        &self,
-        _ctx: CallContext,
-        set_request: SetStringProperty,
-    ) -> RpcResult<()> {
-        StorageManager::set_string(
-            &self.platform_state,
-            StorageProperty::CountryCode,
-            set_request.value,
-            None,
-        )
-        .await
-    }
-
-    async fn on_country_code_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
-            ctx,
-            request,
-            "LocalizationCountryCodeChanged",
-            "localization.onCountryCodeChanged",
-        )
-        .await
-    }
-
-    async fn language(&self, _ctx: CallContext) -> RpcResult<String> {
-        StorageManager::get_string(&self.platform_state, StorageProperty::Language).await
-    }
-
-    async fn language_set(
-        &self,
-        _ctx: CallContext,
-        set_request: LanguageProperty,
-    ) -> RpcResult<()> {
-        StorageManager::set_string(
-            &self.platform_state,
-            StorageProperty::Language,
-            set_request.value,
-            None,
-        )
-        .await
-    }
-
-    async fn on_language_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
-            ctx,
-            request,
-            "LocalizationLanguageChanged",
-            "localization.onLanguageChanged",
-        )
-        .await
-    }
-
     async fn postal_code(&self, ctx: CallContext) -> RpcResult<String> {
         match LocalizationImpl::postal_code(&self.platform_state, ctx.app_id).await {
             Some(postal_code) => Ok(postal_code),
@@ -425,32 +321,6 @@ impl LocalizationServer for LocalizationImpl {
         .await
     }
 
-    async fn additional_info(&self, _ctx: CallContext) -> RpcResult<HashMap<String, String>> {
-        let json_str =
-            StorageManager::get_string(&self.platform_state, StorageProperty::AdditionalInfo).await;
-        match json_str {
-            Ok(s) => {
-                let deserialized = serde_json::from_str::<HashMap<String, String>>(&s).unwrap();
-                return Ok(deserialized);
-            }
-            Err(_e) => return Ok(HashMap::new()),
-        }
-    }
-
-    async fn additional_info_set(
-        &self,
-        _ctx: CallContext,
-        set_request: SetStringProperty,
-    ) -> RpcResult<()> {
-        StorageManager::set_string(
-            &self.platform_state,
-            StorageProperty::AdditionalInfo,
-            set_request.value,
-            None,
-        )
-        .await
-    }
-
     // #[instrument(skip(self))]
     async fn add_additional_info(
         &self,
@@ -480,20 +350,6 @@ impl LocalizationServer for LocalizationImpl {
             &self.platform_state,
             StorageProperty::AdditionalInfo,
             remove_map_entry_property.key,
-        )
-        .await
-    }
-
-    async fn on_additional_info_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
-            ctx,
-            request,
-            "LocalizationAdditionalInfoChanged",
-            "localization.onAdditionalInfoChanged",
         )
         .await
     }

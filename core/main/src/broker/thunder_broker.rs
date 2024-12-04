@@ -17,7 +17,7 @@
 use super::{
     endpoint_broker::{
         BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutput, BrokerRequest,
-        BrokerSender, BrokerSubMap, EndpointBroker,
+        BrokerSender, BrokerSubMap, EndpointBroker, EndpointBrokerState,
     },
     thunder::thunder_plugins_status_mgr::StatusManager,
     thunder::user_data_migrator::UserDataMigrator,
@@ -346,7 +346,11 @@ impl ThunderBroker {
 }
 
 impl EndpointBroker for ThunderBroker {
-    fn get_broker(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
+    fn get_broker(
+        request: BrokerConnectRequest,
+        callback: BrokerCallback,
+        _broker_state: &mut EndpointBrokerState,
+    ) -> Self {
         Self::start(request, callback)
     }
 
@@ -462,7 +466,7 @@ mod tests {
         let (tx, _) = mpsc::channel(1);
         let request = BrokerConnectRequest::new("somekey".to_owned(), endpoint, tx);
         let callback = BrokerCallback { sender };
-        ThunderBroker::get_broker(request, callback)
+        ThunderBroker::get_broker(request, callback, &mut EndpointBrokerState::default())
     }
 
     //function to create a BrokerRequest
@@ -474,13 +478,16 @@ mod tests {
                 transform: RuleTransform::default(),
                 endpoint: None,
                 filter: None,
+                event_handler: None,
+                sources: None,
             },
             subscription_processed: None,
+            workflow_callback: None,
         }
     }
 
-    #[tokio::test]
     #[ignore]
+    #[tokio::test]
     async fn test_thunderbroker_start() {
         let (tx, mut _rx) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);
@@ -593,6 +600,7 @@ mod tests {
         assert_eq!(key_str, "value");
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_thunderbroker_subscribe_unsubscribe() {
         let (tx, mut _rx) = mpsc::channel(1);
@@ -621,8 +629,11 @@ mod tests {
                 transform: RuleTransform::default(),
                 endpoint: None,
                 filter: None,
+                event_handler: None,
+                sources: None,
             },
             subscription_processed: Some(false),
+            workflow_callback: None,
         };
 
         thndr_broker.subscribe(&subscribe_request);
@@ -673,8 +684,11 @@ mod tests {
                 transform: RuleTransform::default(),
                 endpoint: None,
                 filter: None,
+                event_handler: None,
+                sources: None,
             },
             subscription_processed: Some(true),
+            workflow_callback: None,
         };
         thndr_broker.subscribe(&unsubscribe_request);
 

@@ -62,6 +62,7 @@ use crate::{
         },
         gateway::rpc_gateway_api::RpcRequest,
         manifest::device_manifest::AppLibraryEntry,
+        observability::analytics::AnalyticsRequest,
         protocol::BridgeProtocolRequest,
         pubsub::{PubSubEvents, PubSubRequest, PubSubResponse},
         session::{AccountSessionRequest, AccountSessionResponse, SessionTokenRequest},
@@ -91,7 +92,7 @@ use super::{extn_id::ExtnId, ffi::ffi_message::CExtnMessage};
 ///
 /// `callback` |Async Channel [async_channel::Sender<CExtnMessage>] | Usually added by `Main` to the `target` to respond back to the `requestor`|
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ExtnMessage {
     pub id: String,
     pub requestor: ExtnId,
@@ -158,6 +159,12 @@ impl ExtnMessage {
             ts: None,
         }
     }
+    pub fn as_value(&self) -> Option<Value> {
+        if let Some(ExtnResponse::Value(val)) = self.payload.extract::<ExtnResponse>() {
+            return Some(val);
+        }
+        None
+    }
 }
 
 impl TryFrom<String> for ExtnPayload {
@@ -182,6 +189,11 @@ pub enum ExtnPayload {
     Request(ExtnRequest),
     Response(ExtnResponse),
     Event(ExtnEvent),
+}
+impl Default for ExtnPayload {
+    fn default() -> Self {
+        ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName))
+    }
 }
 
 impl ExtnPayload {
@@ -314,6 +326,7 @@ pub enum ExtnRequest {
     DistributorToken(DistributorTokenRequest),
     Context(RippleContextUpdateRequest),
     AppCatalog(AppCatalogRequest),
+    Analytics(AnalyticsRequest),
 }
 
 impl ExtnPayloadProvider for ExtnRequest {
@@ -611,5 +624,14 @@ mod tests {
         let extn_event_payload = ExtnPayload::Event(event_payload);
         assert!(value.id.eq_ignore_ascii_case("test_id"));
         assert!(value.payload.eq(&extn_event_payload));
+    }
+    #[test]
+    fn test_analytics_request_serialization() {
+        let analytics_request = ExtnRequest::Analytics(AnalyticsRequest::default());
+        let payload = ExtnPayload::Request(analytics_request.clone());
+
+        // Test extraction
+        let extracted: Option<ExtnRequest> = payload.extract();
+        assert_eq!(extracted, Some(analytics_request));
     }
 }

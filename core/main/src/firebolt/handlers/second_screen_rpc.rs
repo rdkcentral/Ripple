@@ -18,8 +18,8 @@
 use std::collections::HashMap;
 
 use crate::{
-    firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState,
-    utils::rpc_utils::rpc_add_event_listener,
+    broker::broker_utils::BrokerUtils, firebolt::rpc::RippleRPCProvider,
+    state::platform_state::PlatformState, utils::rpc_utils::rpc_add_event_listener,
 };
 use jsonrpsee::{
     core::{async_trait, RpcResult},
@@ -31,10 +31,10 @@ use ripple_sdk::api::{
         fb_general::{ListenRequest, ListenerResponse},
         fb_secondscreen::{SecondScreenDeviceInfo, SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST},
     },
-    gateway::rpc_gateway_api::CallContext,
+    gateway::rpc_gateway_api::{rpc_value_result_to_string_result, CallContext},
 };
 
-use super::device_rpc::{get_device_id, get_device_name};
+use super::device_rpc::get_device_id;
 
 pub const EVENT_SECOND_SCREEN_ON_CLOSE_REQUEST: &str = "secondscreen.onCloseRequest";
 pub const EVENT_SECOND_SCREEN_ON_FRIENDLY_NAME_CHANGED: &str = "secondscreen.onFriendlyNameChanged";
@@ -78,7 +78,11 @@ impl SecondScreenServer for SecondScreenImpl {
     }
 
     async fn friendly_name(&self, _ctx: CallContext) -> RpcResult<String> {
-        get_device_name(&self.state).await
+        let mut s = self.state.clone();
+        rpc_value_result_to_string_result(
+            BrokerUtils::process_internal_main_request(&mut s, "device.name", None).await,
+            None,
+        )
     }
 
     async fn protocols(&self, _ctx: CallContext) -> RpcResult<HashMap<String, bool>> {
