@@ -208,8 +208,11 @@ impl MockWebSocketServer {
                         .insert("Sec-WebSocket-Protocol", "jsonrpc".parse().unwrap());
                     debug!("Upgrading connection to WebSocket");
                 } else {
-                    *response.status_mut() = StatusCode::NOT_FOUND;
-                    debug!("Connection response {:?} to request: {:?} for non existent path: {} which is not: {}", response, request, path,self.conn_path.clone());
+                    debug!(
+                        "Connection response {:?} for non-upgrade request {:?}",
+                        response, request
+                    );
+                    *response.status_mut() = StatusCode::OK;
                 }
             }
 
