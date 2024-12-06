@@ -594,14 +594,21 @@ impl EndpointBrokerState {
                 let (_, updated_request) =
                     self.update_request(&rpc_request, rule, extn_message, requestor_callback);
                 capture_stage(&self.metrics_state, &rpc_request, "broker_request");
+                let thunder = self.get_sender("thunder");
                 tokio::spawn(async move {
                     /*
                     process "unlisten" requests here - the broker layers require state, which does not exist , as the
                     state has already been deleted by the time the unlisten request is processed.
                     */
                     if updated_request.rpc.is_unlisten() {
-                        let result: JsonRpcApiResponse = updated_request.rpc.into();
-                        callback.send_json_rpc_api_response(result).await
+                        let result: JsonRpcApiResponse = updated_request.clone().rpc.into();
+
+                        if let Some(thunder) = thunder {
+                            match thunder.send(updated_request.clone()).await {
+                                Ok(_) => callback.send_json_rpc_api_response(result).await,
+                                Err(e) => callback.send_error(updated_request, e).await,
+                            }
+                        }
                     } else if let Err(e) = broker_sender.send(updated_request.clone()).await {
                         callback.send_error(updated_request, e).await
                     }
