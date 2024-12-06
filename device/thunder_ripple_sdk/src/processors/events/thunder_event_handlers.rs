@@ -38,14 +38,8 @@ use crate::{
     processors::thunder_device_info::CachedState,
     ripple_sdk::{
         api::device::{
-            device_events::{
-                DeviceEventCallback, HDCP_CHANGED_EVENT, HDR_CHANGED_EVENT, NETWORK_CHANGED_EVENT,
-                POWER_STATE_CHANGED, SCREEN_RESOLUTION_CHANGED_EVENT,
-                VIDEO_RESOLUTION_CHANGED_EVENT,
-            },
-            device_request::{
-                AudioProfile, HdcpProfile, HdrProfile, NetworkResponse, SystemPowerState,
-            },
+            device_events::{DeviceEventCallback, HDCP_CHANGED_EVENT, POWER_STATE_CHANGED},
+            device_request::{AudioProfile, HdcpProfile, SystemPowerState},
         },
         extn::extn_client_message::ExtnEvent,
         log::debug,
@@ -55,9 +49,7 @@ use crate::{
     thunder_state::ThunderState,
 };
 
-use super::super::thunder_device_info::{
-    get_dimension_from_resolution, ThunderDeviceInfoRequestProcessor,
-};
+use super::super::thunder_device_info::ThunderDeviceInfoRequestProcessor;
 
 pub fn is_active_input(value: ThunderEventMessage) -> bool {
     if let ThunderEventMessage::ActiveInput(_) = value {
@@ -125,150 +117,6 @@ impl ThunderEventHandlerProvider for HDCPEventHandler {
 }
 
 // -----------------------
-// HDR Changed
-
-pub struct HDREventHandler;
-
-impl HDREventHandler {
-    pub fn handle(
-        state: ThunderState,
-        value: ThunderEventMessage,
-        callback_type: DeviceEventCallback,
-    ) {
-        if let ThunderEventMessage::ActiveInput(input) = value {
-            if input.active_input {
-                debug!("activeInput changed");
-            }
-        }
-        let state_c = state.clone();
-        tokio::spawn(async move {
-            let map = ThunderDeviceInfoRequestProcessor::get_hdr(state).await;
-            if let Ok(v) = Self::get_extn_event(map, callback_type) {
-                ThunderEventHandler::callback_device_event(state_c, Self::get_mapped_event(), v)
-            }
-        });
-    }
-}
-
-impl ThunderEventHandlerProvider for HDREventHandler {
-    type EVENT = HashMap<HdrProfile, bool>;
-
-    fn provide(id: String, callback_type: DeviceEventCallback) -> ThunderEventHandler {
-        ThunderEventHandler {
-            request: Self::get_device_request(),
-            handle: Self::handle,
-            is_valid: is_active_input,
-            listeners: vec![id],
-            id: Self::get_mapped_event(),
-            callback_type,
-        }
-    }
-
-    fn get_mapped_event() -> String {
-        HDR_CHANGED_EVENT.into()
-    }
-
-    fn event_name() -> String {
-        "activeInputChanged".into()
-    }
-
-    fn module() -> String {
-        ThunderPlugin::DisplaySettings.callsign_string()
-    }
-}
-
-// -----------------------
-// ScreenResolution Changed
-
-pub struct ScreenResolutionEventHandler;
-
-impl ScreenResolutionEventHandler {
-    pub fn handle(
-        state: ThunderState,
-        value: ThunderEventMessage,
-        callback_type: DeviceEventCallback,
-    ) {
-        if let ThunderEventMessage::Resolution(v) = value {
-            let value: Vec<i32> = vec![v.width, v.height];
-            if let Ok(v) = Self::get_extn_event(value, callback_type) {
-                ThunderEventHandler::callback_device_event(state, Self::get_mapped_event(), v)
-            }
-        }
-    }
-}
-
-impl ThunderEventHandlerProvider for ScreenResolutionEventHandler {
-    type EVENT = Vec<i32>;
-    fn provide(id: String, callback_type: DeviceEventCallback) -> ThunderEventHandler {
-        ThunderEventHandler {
-            request: Self::get_device_request(),
-            handle: Self::handle,
-            is_valid: is_resolution,
-            listeners: vec![id],
-            id: Self::get_mapped_event(),
-            callback_type,
-        }
-    }
-
-    fn event_name() -> String {
-        "resolutionChanged".into()
-    }
-
-    fn get_mapped_event() -> String {
-        SCREEN_RESOLUTION_CHANGED_EVENT.into()
-    }
-
-    fn module() -> String {
-        ThunderPlugin::DisplaySettings.callsign_string()
-    }
-}
-
-// -----------------------
-// VideoResolution Changed
-pub struct VideoResolutionEventHandler;
-
-impl VideoResolutionEventHandler {
-    pub fn handle(
-        state: ThunderState,
-        value: ThunderEventMessage,
-        callback_type: DeviceEventCallback,
-    ) {
-        if let ThunderEventMessage::Resolution(v) = value {
-            let value = get_dimension_from_resolution(&v.resolution);
-            if let Ok(v) = Self::get_extn_event(value, callback_type) {
-                ThunderEventHandler::callback_device_event(state, Self::get_mapped_event(), v)
-            }
-        }
-    }
-}
-
-impl ThunderEventHandlerProvider for VideoResolutionEventHandler {
-    type EVENT = Vec<i32>;
-    fn provide(id: String, callback_type: DeviceEventCallback) -> ThunderEventHandler {
-        ThunderEventHandler {
-            request: Self::get_device_request(),
-            handle: Self::handle,
-            is_valid: is_resolution,
-            listeners: vec![id],
-            id: Self::get_mapped_event(),
-            callback_type,
-        }
-    }
-
-    fn event_name() -> String {
-        "resolutionChanged".into()
-    }
-
-    fn get_mapped_event() -> String {
-        VIDEO_RESOLUTION_CHANGED_EVENT.into()
-    }
-
-    fn module() -> String {
-        ThunderPlugin::DisplaySettings.callsign_string()
-    }
-}
-
-// -----------------------
 // Internet Changed
 
 pub struct InternetEventHandler;
@@ -326,58 +174,6 @@ impl ThunderEventHandlerProvider for InternetEventHandler {
         _callback_type: DeviceEventCallback,
     ) -> Result<ExtnEvent, RippleError> {
         Err(RippleError::InvalidOutput)
-    }
-}
-
-// -----------------------
-// Network Changed
-
-pub struct NetworkEventHandler;
-
-impl NetworkEventHandler {
-    pub fn handle(
-        state: ThunderState,
-        value: ThunderEventMessage,
-        callback_type: DeviceEventCallback,
-    ) {
-        if let ThunderEventMessage::Network(v) = value {
-            if let Ok(v) = Self::get_extn_event(v, callback_type) {
-                ThunderEventHandler::callback_device_event(state, Self::get_mapped_event(), v)
-            }
-        }
-    }
-
-    pub fn is_valid(message: ThunderEventMessage) -> bool {
-        if let ThunderEventMessage::Network(_) = message {
-            return true;
-        }
-        false
-    }
-}
-
-impl ThunderEventHandlerProvider for NetworkEventHandler {
-    type EVENT = NetworkResponse;
-    fn provide(id: String, callback_type: DeviceEventCallback) -> ThunderEventHandler {
-        ThunderEventHandler {
-            request: Self::get_device_request(),
-            handle: Self::handle,
-            is_valid: Self::is_valid,
-            listeners: vec![id],
-            id: Self::get_mapped_event(),
-            callback_type,
-        }
-    }
-
-    fn event_name() -> String {
-        "onConnectionStatusChanged".into()
-    }
-
-    fn get_mapped_event() -> String {
-        NETWORK_CHANGED_EVENT.into()
-    }
-
-    fn module() -> String {
-        ThunderPlugin::Network.callsign_string()
     }
 }
 
