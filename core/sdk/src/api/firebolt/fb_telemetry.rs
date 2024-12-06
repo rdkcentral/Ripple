@@ -73,13 +73,13 @@ impl From<ErrorParams> for TelemetryAppError {
             code: error.code.clone(),
             description: error.description.clone(),
             visible: error.visible,
-            parameters: get_params(error.parameters),
+            parameters: error.parameters,
             ripple_session_id: String::from(""),
         }
     }
 }
 
-fn get_params(error_params: Option<Vec<Param>>) -> Option<HashMap<String, FlatMapValue>> {
+pub fn get_params(error_params: Option<Vec<Param>>) -> Option<HashMap<String, FlatMapValue>> {
     error_params.map(|params| {
         params
             .into_iter()
@@ -218,7 +218,7 @@ mod tests {
             code: String::from("123"),
             description: String::from("Network error"),
             visible: true,
-            parameters: Some(vec![
+            parameters: get_params(Some(vec![
                 Param {
                     name: String::from("param1"),
                     value: FlatMapValue::String(String::from("value1")),
@@ -227,7 +227,7 @@ mod tests {
                     name: String::from("param2"),
                     value: FlatMapValue::Boolean(true),
                 },
-            ]),
+            ])),
         };
 
         let expected = TelemetryAppError {
@@ -256,7 +256,7 @@ mod tests {
 
     #[test]
     fn test_get_params() {
-        let error_params = Some(vec![
+        let error_params = get_params(Some(vec![
             Param {
                 name: String::from("param1"),
                 value: FlatMapValue::String(String::from("value1")),
@@ -265,7 +265,7 @@ mod tests {
                 name: String::from("param2"),
                 value: FlatMapValue::Boolean(true),
             },
-        ]);
+        ]));
 
         let expected = Some(
             vec![
@@ -278,9 +278,7 @@ mod tests {
             .into_iter()
             .collect(),
         );
-
-        let result = get_params(error_params);
-        assert_eq!(result, expected);
+        assert_eq!(error_params, expected);
     }
 
     #[test]
