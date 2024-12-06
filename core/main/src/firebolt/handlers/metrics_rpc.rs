@@ -188,6 +188,12 @@ pub struct MediaEndedParams {
     #[serde(rename = "entityId")]
     pub entity_id: String,
 }
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct AppInfoParams {
+    pub build: String,
+}
+
 //https://developer.comcast.com/firebolt/core/sdk/latest/api/metrics
 #[rpc(server)]
 pub trait Metrics {
@@ -287,6 +293,8 @@ pub trait Metrics {
         ctx: CallContext,
         media_ended_params: MediaEndedParams,
     ) -> RpcResult<bool>;
+    #[method(name = "metrics.appInfo")]
+    async fn app_info(&self, ctx: CallContext, app_info_params: AppInfoParams) -> RpcResult<()>;
 }
 
 #[derive(Debug, Clone)]
@@ -643,6 +651,14 @@ impl MetricsServer for MetricsImpl {
             Ok(_) => Ok(true),
             Err(_) => Err(rpc_err("parse error")),
         }
+    }
+    async fn app_info(&self, ctx: CallContext, app_info_params: AppInfoParams) -> RpcResult<()> {
+        trace!("metrics.app_info: app_info_params={:?}", app_info_params);
+        self.state
+            .app_manager_state
+            .set_app_metrics_version(&ctx.app_id, app_info_params.build);
+
+        Ok(())
     }
 }
 

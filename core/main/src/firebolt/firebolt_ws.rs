@@ -229,22 +229,28 @@ impl FireboltWs {
         }
 
         let (mut sender, mut receiver) = ws_stream.split();
+        let mut platform_state = state.clone();
         tokio::spawn(async move {
             while let Some(rs) = resp_rx.recv().await {
                 let send_result = sender.send(Message::Text(rs.jsonrpc_msg.clone())).await;
                 match send_result {
                     Ok(_) => {
-                        if let Some(stats) = rs.stats {
+                        platform_state
+                            .metrics
+                            .update_api_stage(&rs.request_id, "response");
+
+                        if let Some(stats) = platform_state.metrics.get_api_stats(&rs.request_id) {
                             info!(
-                                "Sending Firebolt response: {},{}",
+                                "Sending Firebolt response: {:?},{}",
                                 stats.stats_ref,
                                 stats.stats.get_total_time()
                             );
                             debug!(
-                                "Full Firebolt Split: {},{}",
+                                "Full Firebolt Split: {:?},{}",
                                 stats.stats_ref,
                                 stats.stats.get_stage_durations()
-                            )
+                            );
+                            platform_state.metrics.remove_api_stats(&rs.request_id);
                         }
                         info!(
                             "Sent Firebolt response cid={} msg={}",
