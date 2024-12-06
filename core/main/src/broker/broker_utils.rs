@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::{state::platform_state::PlatformState, utils::rpc_utils::extract_tcp_port};
+use crate::state::platform_state::PlatformState;
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::StreamExt;
 use jsonrpsee::core::RpcResult;
@@ -23,6 +23,7 @@ use ripple_sdk::{
     api::gateway::rpc_gateway_api::{JsonRpcApiError, RpcRequest},
     log::{error, info},
     tokio::{self, net::TcpStream},
+    utils::rpc_utils::extract_tcp_port,
 };
 use serde_json::Value;
 use std::time::Duration;

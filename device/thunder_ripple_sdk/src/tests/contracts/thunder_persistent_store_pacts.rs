@@ -131,7 +131,7 @@ async fn test_device_set_persistent_value(with_scope: bool) {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -218,7 +218,7 @@ async fn test_device_get_persistent_value(with_scope: bool) {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -303,7 +303,7 @@ async fn test_device_delete_persistent_value_by_key(with_scope: bool) {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
