@@ -602,7 +602,9 @@ impl EndpointBrokerState {
                     */
                     if updated_request.rpc.is_unlisten() {
                         let result: JsonRpcApiResponse = updated_request.clone().rpc.into();
-
+                        /*
+                        This is suboptimal, but the only way to handle this is to send the unlisten request to the thunder, and then
+                        */
                         if let Some(thunder) = thunder {
                             match thunder.send(updated_request.clone()).await {
                                 Ok(_) => callback.send_json_rpc_api_response(result).await,
