@@ -53,7 +53,8 @@ fn try_app_library_files() -> Result<Vec<AppLibraryEntry>, RippleError> {
             return Ok(al);
         }
     }
-    Err(RippleError::BootstrapError)
+    // Return an empty Vec<AppLibraryEntry>
+    Ok(Vec::new())
 }
 
 fn load_from_env() -> Result<(String, Vec<AppLibraryEntry>), RippleError> {
@@ -92,6 +93,6 @@ fn load(path: String) -> Result<(String, Vec<AppLibraryEntry>), RippleError> {
             }
         }
     } else {
-        Err(RippleError::BootstrapError)
+        Err(RippleError::ParseError)
     }
 }
