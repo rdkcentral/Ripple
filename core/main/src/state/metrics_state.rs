@@ -292,6 +292,7 @@ impl MetricsState {
         )
         .unwrap_or(Self::unset("device.name"));
 
+        /* Removing the call to get timezone from Thunder as this is not used in ontology.
         let mut timezone: Option<String> = None;
         if let Ok(resp) = state
             .get_client()
@@ -302,6 +303,7 @@ impl MetricsState {
                 timezone = Some(format!("{} {}", tz, offset));
             }
         }
+        */
 
         let mut firmware = String::default();
         let mut env = None;
@@ -422,9 +424,10 @@ impl MetricsState {
                 .clone()
                 .unwrap_or(String::from(SEMVER_LIGHTWEIGHT));
 
-            if let Some(t) = timezone {
+            // Removing the call to get timezone from Thunder as this is not used in ontology.
+            /*if let Some(t) = timezone {
                 context.device_timezone = t;
-            }
+            }*/
 
             context.env = env;
             context.activated = activated;
