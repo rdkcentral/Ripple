@@ -327,7 +327,9 @@ impl ProviderRegistrar {
                                 "callback_app_event_emitter: Missing field in event data: field={}",
                                 key
                             );
-                                result_map.insert(key.clone(), Value::Null);
+                                // Assume the field in the schema holds the contents of the event. This
+                                // is the fragile part that should probably be addressed by a schema change.
+                                result_map.insert(key.clone(), event_data.clone());
                             }
                         }
 
@@ -457,29 +459,44 @@ impl ProviderRegistrar {
                                         .get_openrpc_validator()
                                         .get_result_properties_schema(&context.method)
                                     {
-                                        // Inject the provider app ID if the field exists in the provided-to response schema, the other field will be
-                                        // the provider response. The firebolt spec is not ideal in that the provider response data is captured
-                                        // within a field of the provided-to's response object, hence the somewhat arbritrary logic here. Ideally
-                                        // the provided-to response object would be identical to the provider response object aside from an optional
-                                        // appId field.
+                                        if let Some(provider_response_value_map) =
+                                            provider_response_value.as_object()
+                                        {
+                                            // Inject the provider app ID if the field exists in the provided-to response schema, the other field will be
+                                            // the provider response. The firebolt spec is not ideal in that the provider response data is captured
+                                            // within a field of the provided-to's response object, hence the somewhat arbritrary logic here. Ideally
+                                            // the provided-to response object would be identical to the provider response object aside from an optional
+                                            // appId field.
 
-                                        let mut response_map = Map::new();
-                                        for key in result_properties_map.keys() {
-                                            if key.eq("appId") {
-                                                response_map.insert(
-                                                    key.clone(),
-                                                    Value::String(
-                                                        provider_app_id.clone().unwrap_or_default(),
-                                                    ),
-                                                );
-                                            } else {
-                                                response_map.insert(
-                                                    key.clone(),
-                                                    provider_response_value.clone(),
-                                                );
+                                            let mut response_map = Map::new();
+                                            for key in result_properties_map.keys() {
+                                                if let Some(field) =
+                                                    provider_response_value_map.get(key)
+                                                {
+                                                    response_map.insert(key.clone(), field.clone());
+                                                } else if key.eq("appId") {
+                                                    response_map.insert(
+                                                        key.clone(),
+                                                        Value::String(
+                                                            provider_app_id
+                                                                .clone()
+                                                                .unwrap_or_default(),
+                                                        ),
+                                                    );
+                                                } else {
+                                                    // Assume the field in the schema holds the contents of the provider response. This
+                                                    // is the fragile part that should probably be addressed by a spec change.
+                                                    response_map.insert(
+                                                        key.clone(),
+                                                        provider_response_value.clone(),
+                                                    );
+                                                }
                                             }
+                                            return Ok(Value::Object(response_map));
+                                        } else {
+                                            error!("callback_provider_invoker: Provider response does not match schema");
+                                            return Ok(provider_response_value);
                                         }
-                                        return Ok(Value::Object(response_map));
                                     } else {
                                         // Method returns a non-object type, just return it.
                                         return Ok(provider_response_value);
