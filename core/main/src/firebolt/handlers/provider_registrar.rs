@@ -495,7 +495,9 @@ impl ProviderRegistrar {
                                             return Ok(Value::Object(response_map));
                                         } else {
                                             error!("callback_provider_invoker: Provider response does not match schema");
-                                            return Ok(provider_response_value);
+                                            return Err(Error::Custom(String::from(
+                                                "Provider response does not match schema",
+                                            )));
                                         }
                                     } else {
                                         // Method returns a non-object type, just return it.
