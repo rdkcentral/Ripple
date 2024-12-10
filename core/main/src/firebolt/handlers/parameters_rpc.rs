@@ -94,23 +94,32 @@ impl ParametersServer for ParametersImpl {
             .platform_state
             .get_client()
             .send_app_request(app_request);
-        let resp = rpc_await_oneshot(app_resp_rx).await?;
-        if let AppManagerResponse::LaunchRequest(launch_req) = resp? {
-            return Ok(AppInitParameters {
-                us_privacy: privacy_data.get(privacy_rpc::US_PRIVACY_KEY).cloned(),
-                lmt: privacy_data
-                    .get(privacy_rpc::LMT_KEY)
-                    .and_then(|x| x.parse::<u16>().ok()),
-                discovery: Some(DiscoveryEvent {
-                    navigate_to: launch_req.get_intent(),
-                }),
-                second_screen: None,
-            });
+        match rpc_await_oneshot(app_resp_rx).await? {
+            Ok(AppManagerResponse::LaunchRequest(launch_req)) => {
+                return Ok(AppInitParameters {
+                    us_privacy: privacy_data.get(privacy_rpc::US_PRIVACY_KEY).cloned(),
+                    lmt: privacy_data
+                        .get(privacy_rpc::LMT_KEY)
+                        .and_then(|x| x.parse::<u16>().ok()),
+                    discovery: Some(DiscoveryEvent {
+                        navigate_to: launch_req.get_intent(),
+                    }),
+                    second_screen: None,
+                });
+            }
+            Ok(other) => {
+                return Err(jsonrpsee::core::Error::Custom(format!(
+                    "Internal Error: Got unexpected from app manager={:?}",
+                    other
+                )));
+            }
+            Err(app_error) => {
+                return Err(jsonrpsee::core::Error::Custom(format!(
+                    "Internal Error: Got AppError={:?}",
+                    app_error
+                )));
+            }
         }
-
-        Err(jsonrpsee::core::Error::Custom(String::from(
-            "Internal Error",
-        )))
     }
 }
 

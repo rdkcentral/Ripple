@@ -106,19 +106,12 @@ type WSConnection = Arc<Mutex<HashMap<String, SplitSink<WebSocketStream<TcpStrea
 #[derive(Debug)]
 pub struct MockWebSocketServer {
     mock_data_v2: Arc<RwLock<MockData>>,
-
     listener: TcpListener,
-
     conn_path: String,
-
     conn_headers: HeaderMap,
-
     conn_query_params: HashMap<String, String>,
-
     port: u16,
-
     connected_peer_sinks: WSConnection,
-
     config: MockConfig,
 }
 
@@ -171,14 +164,12 @@ impl MockWebSocketServer {
 
     pub async fn start_server(self: Arc<Self>) {
         debug!("Waiting for connections");
-
         while let Ok((stream, peer_addr)) = self.listener.accept().await {
             let server = self.clone();
             tokio::spawn(async move {
                 server.accept_connection(peer_addr, stream).await;
             });
         }
-
         debug!("Shutting down");
     }
 
@@ -198,6 +189,9 @@ impl MockWebSocketServer {
         let callback = |request: &handshake::client::Request,
                         mut response: handshake::server::Response| {
             let path = request.uri().path();
+            if request.headers().contains_key("sec-websocket-protocol") {
+                debug!("got sec-websocket-protocol header");
+            }
             if path != self.conn_path {
                 if request.headers().contains_key("sec-websocket-accept")
                     || request.headers().contains_key("sec-websocket-protocol")
@@ -212,7 +206,7 @@ impl MockWebSocketServer {
                         "Connection response {:?} for non-upgrade request {:?}",
                         response, request
                     );
-                    *response.status_mut() = StatusCode::OK;
+                    //*response.status_mut() = StatusCode::ACCEPTED;
                 }
             }
 
@@ -244,7 +238,7 @@ impl MockWebSocketServer {
             }
 
             Ok(response)
-        };
+        }; //End of callback
         let ws_stream = accept_hdr_async(stream, callback)
             .await
             .expect("Failed to accept");
@@ -276,14 +270,19 @@ impl MockWebSocketServer {
 
                 debug!("Parsed message: {:?}", request_message);
 
-                let responses = match self.find_responses(request_message).await {
+                let responses = match self.find_responses(request_message.clone()).await {
                     Some(value) => value,
-                    None => continue,
+                    None => {
+                        warn!("No mock response found for request: {msg}");
+                        continue;
+                    }
                 };
                 let connected_peer = self.connected_peer_sinks.clone();
+                let context = request_message.clone();
                 tokio::spawn(async move {
                     if let Err(e) =
-                        Self::send_to_sink(connected_peer, &peer.to_string(), responses).await
+                        Self::send_to_sink(connected_peer, &peer.to_string(), responses, context)
+                            .await
                     {
                         error!("Error sending data back to sink {}", e.to_string());
                     }
@@ -301,6 +300,7 @@ impl MockWebSocketServer {
         connection: WSConnection,
         peer: &str,
         responses: Vec<ResponseSink>,
+        request: Value,
     ) -> Result<()> {
         let mut clients = connection.lock().await;
         let sink = clients.get_mut(peer);
@@ -311,9 +311,9 @@ impl MockWebSocketServer {
                     tokio::time::sleep(Duration::from_millis(resp.delay)).await
                 }
                 if let Err(e) = sink.send(Message::Text(response.clone())).await {
-                    error!("Error sending response. resp={e:?}");
+                    error!("Error sending response={e:?} for request={request}");
                 } else {
-                    debug!("sent response. resp={response:?}");
+                    debug!("sent response={response:?} for request={request}");
                 }
             }
         } else {
@@ -330,13 +330,18 @@ impl MockWebSocketServer {
         );
         if let Ok(request) = serde_json::from_value::<JsonRpcApiRequest>(request_message.clone()) {
             if let Some(id) = request.id {
-                debug!("{}", self.config.activate_all_plugins);
+                debug!("activate_all_plugins={}", self.config.activate_all_plugins);
                 if self.config.activate_all_plugins
                     && request.method.contains("Controller.1.status")
                 {
+                    let callsign = request.method.split('@').last().unwrap();
+                    let classname = callsign.split('.').last().unwrap();
+                    debug!("activating plugin: {}, with params: {:?} for callsign: {classname} and callsign: {callsign}", request.method, request.params);
                     return Some(vec![ResponseSink {
                         delay: 0,
-                        data: json!({"jsonrpc": "2.0", "id": id, "result": [{"state": "activated"}]}),
+                        data: json!({"jsonrpc":"2.0","id":id,"result":[{"callsign": callsign,"classname":classname,"state":"activated", "locator": "mock_thunder"}]}),
+                        // data: json!({"jsonrpc":"2.0","id":id,"result":[{"callsign":"org.rdk.System","locator":"libWPEFrameworkSystemServices.so","classname":"SystemServices","state":"activated","observers":0,"version":{"hash":"mock from mock_thunder","major":3,"minor":2,"patch":1}}]}),
+                        // data: json!({"jsonrpc": "2.0", "id": id, "result": [{"state": "activated", "callsign" : "org.rdk.System", "locator"}]}),
                     }]);
                 } else if let Some(v) = self.responses_for_key_v2(&request) {
                     if v.events.is_some() {
@@ -352,7 +357,7 @@ impl MockWebSocketServer {
                 }
                 return Some(vec![ResponseSink {
                     delay: 0,
-                    data: json!({"jsonrpc": "2.0", "id": id, "error": {"code": -32001, "message":"not found"}}),
+                    data: json!({"jsonrpc": "2.0", "id": id, "error": {"code": -32001, "message":format!("mock data for request:{} , params: {:?} not found",request.method,request.params)}}),
                 }]);
             } else {
                 error!("Failed to get id from request {:?}", request_message);

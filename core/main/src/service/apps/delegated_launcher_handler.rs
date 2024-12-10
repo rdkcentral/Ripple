@@ -1090,7 +1090,10 @@ impl DelegatedLauncherHandler {
                     .insert(app_id.to_string(), app);
                 Ok(AppManagerResponse::LaunchRequest(launch_request))
             }
-            None => Err(AppError::NotFound),
+            None => {
+                error!("get_launch_request failed for app_id={}, Notfound", app_id);
+                Err(AppError::NotFound)
+            }
         }
     }
 

@@ -278,7 +278,7 @@ impl FireboltGateway {
                                     )
                                     .await;
                                 } else {
-                                    error!("session is missing request is not forwarded");
+                                    error!("session is missing request is not forwarded for request {:?}", request_c.ctx);
                                 }
                             }
                         }
