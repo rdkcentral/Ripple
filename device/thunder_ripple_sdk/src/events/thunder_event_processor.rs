@@ -29,8 +29,8 @@ use ripple_sdk::{
             device_events::{DeviceEvent, DeviceEventCallback},
             device_operator::DeviceSubscribeRequest,
             device_request::{
-                AudioProfile, InternetConnectionStatus, NetworkResponse, NetworkState, NetworkType,
-                PowerState, SystemPowerState, VoiceGuidanceState,
+                AudioProfile, InternetConnectionStatus, NetworkResponse, PowerState,
+                SystemPowerState, VoiceGuidanceState,
             },
         },
     },
@@ -83,28 +83,9 @@ impl ThunderEventMessage {
     pub fn get(event: &str, value: &Value) -> Option<Self> {
         if let Ok(device_event) = DeviceEvent::from_str(event) {
             match device_event {
-                DeviceEvent::InputChanged | DeviceEvent::HdrChanged => {
+                DeviceEvent::InputChanged => {
                     if let Ok(v) = serde_json::from_value(value.clone()) {
                         return Some(ThunderEventMessage::ActiveInput(v));
-                    }
-                }
-                DeviceEvent::ScreenResolutionChanged | DeviceEvent::VideoResolutionChanged => {
-                    if let Ok(v) = serde_json::from_value(value.clone()) {
-                        return Some(ThunderEventMessage::Resolution(v));
-                    }
-                }
-                DeviceEvent::NetworkChanged => {
-                    if let Some(v) = value["interface"].as_str() {
-                        if let Ok(network_type) = NetworkType::from_str(v) {
-                            if let Some(v) = value["status"].as_str() {
-                                if let Ok(network_status) = NetworkState::from_str(v) {
-                                    return Some(ThunderEventMessage::Network(NetworkResponse {
-                                        _type: network_type,
-                                        state: network_status,
-                                    }));
-                                }
-                            }
-                        }
                     }
                 }
                 DeviceEvent::SystemPowerStateChanged => {

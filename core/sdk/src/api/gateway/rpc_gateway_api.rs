@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::sync::{mpsc, oneshot};
@@ -309,6 +308,18 @@ impl Default for JsonRpcApiResponse {
         }
     }
 }
+impl From<RpcRequest> for JsonRpcApiResponse {
+    fn from(request: RpcRequest) -> Self {
+        JsonRpcApiResponse {
+            jsonrpc: "2.0".to_owned(),
+            id: Some(request.ctx.call_id),
+            result: Some(json!({"result": "success"})),
+            error: None,
+            method: Some(request.clone().method),
+            params: request.get_params(),
+        }
+    }
+}
 
 impl JsonRpcApiResponse {
     pub fn error(error: &JsonRpcApiError) -> Self {
@@ -503,20 +514,24 @@ impl RpcRequest {
     }
 
     pub fn is_subscription(&self) -> bool {
-        self.method.contains(".on") && self.params_json.contains("listen")
+        self.method.contains(".on")
+            && if let Some(params) = self.get_params() {
+                return serde_json::from_value::<ListenRequest>(params.clone()).is_ok();
+            } else {
+                return false;
+            }
+    }
+    pub fn is_unlisten(&self) -> bool {
+        self.is_subscription() && !self.is_listening()
     }
 
     pub fn is_listening(&self) -> bool {
-        if let Some(params) = self.get_params() {
-            debug!("Successfully got params {:?}", params);
-            if let Ok(v) = serde_json::from_value::<ListenRequest>(params) {
-                debug!("Successfully got listen request {:?}", v);
-                return v.listen;
-            }
-        }
-        false
+        serde_json::from_value::<ListenRequest>(
+            self.get_params().unwrap_or(json!({"listen": false})),
+        )
+        .unwrap_or(ListenRequest { listen: false })
+        .listen
     }
-
     pub fn get_unsubscribe(&self) -> RpcRequest {
         let mut rpc_request = self.clone();
         rpc_request.params_json = serde_json::to_string(&ListenRequest { listen: false }).unwrap();
