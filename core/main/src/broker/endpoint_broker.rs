@@ -207,6 +207,12 @@ impl Default for BrokerCallback {
 static ATOMIC_ID: AtomicU64 = AtomicU64::new(0);
 
 impl BrokerCallback {
+    pub async fn send_json_rpc_api_response(&self, response: JsonRpcApiResponse) {
+        let output = BrokerOutput { data: response };
+        if let Err(e) = self.sender.send(output).await {
+            error!("couldnt send response for {:?}", e);
+        }
+    }
     /// Default method used for sending errors via the BrokerCallback
     pub async fn send_error(&self, request: BrokerRequest, error: RippleError) {
         let value = serde_json::to_value(JsonRpcError {
@@ -223,10 +229,7 @@ impl BrokerCallback {
             method: None,
             params: None,
         };
-        let output = BrokerOutput { data };
-        if let Err(e) = self.sender.send(output).await {
-            error!("couldnt send error for {:?}", e);
-        }
+        self.send_json_rpc_api_response(data).await;
     }
 }
 
@@ -540,8 +543,7 @@ impl EndpointBrokerState {
         data.id = Some(id);
         let output = BrokerOutput { data };
 
-        let metrics_state = self.metrics_state.clone();
-        capture_stage(&metrics_state, &rpc_request, "static_rule_request");
+        capture_stage(&self.metrics_state, &rpc_request, "static_rule_request");
         tokio::spawn(async move { callback.sender.send(output).await });
     }
 
@@ -588,13 +590,28 @@ impl EndpointBrokerState {
                 );
             } else if broker_sender.is_some() {
                 trace!("handling not static request for {:?}", rpc_request);
-                let broker = broker_sender.unwrap();
+                let broker_sender = broker_sender.unwrap();
                 let (_, updated_request) =
                     self.update_request(&rpc_request, rule, extn_message, requestor_callback);
-                let metrics_state = self.metrics_state.clone();
-                capture_stage(&metrics_state, &rpc_request, "broker_request");
+                capture_stage(&self.metrics_state, &rpc_request, "broker_request");
+                let thunder = self.get_sender("thunder");
                 tokio::spawn(async move {
-                    if let Err(e) = broker.send(updated_request.clone()).await {
+                    /*
+                    process "unlisten" requests here - the broker layers require state, which does not exist , as the
+                    state has already been deleted by the time the unlisten request is processed.
+                    */
+                    if updated_request.rpc.is_unlisten() {
+                        let result: JsonRpcApiResponse = updated_request.clone().rpc.into();
+                        /*
+                        This is suboptimal, but the only way to handle this is to send the unlisten request to the thunder, and then
+                        */
+                        if let Some(thunder) = thunder {
+                            match thunder.send(updated_request.clone()).await {
+                                Ok(_) => callback.send_json_rpc_api_response(result).await,
+                                Err(e) => callback.send_error(updated_request, e).await,
+                            }
+                        }
+                    } else if let Err(e) = broker_sender.send(updated_request.clone()).await {
                         callback.send_error(updated_request, e).await
                     }
                 });

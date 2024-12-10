@@ -281,11 +281,7 @@ impl ContractAdjective for SessionAdjective {
 #[serde(rename_all = "snake_case")]
 pub enum EventAdjective {
     Input,
-    Hdr,
-    ScreenResolution,
-    VideoResolution,
     VoiceGuidance,
-    Network,
     Internet,
     Audio,
     SystemPowerState,

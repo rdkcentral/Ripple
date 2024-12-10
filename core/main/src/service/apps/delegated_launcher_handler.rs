@@ -108,6 +108,7 @@ pub struct App {
     pub active_session_id: Option<String>,
     pub internal_state: Option<AppMethod>,
     pub app_id: String,
+    pub app_metrics_version: Option<String>, // Provided by app via call to Metrics.appInfo
     pub is_app_init_params_invoked: bool,
 }
 
@@ -341,6 +342,13 @@ impl AppManagerState {
     fn take_intent(&self, app_id: &str) -> Option<NavigationIntent> {
         let mut intents = self.intents.write().unwrap();
         intents.remove(app_id)
+    }
+
+    pub fn set_app_metrics_version(&self, app_id: &str, version: String) {
+        let mut apps = self.apps.write().unwrap();
+        if let Some(app) = apps.get_mut(app_id) {
+            app.app_metrics_version = Some(version);
+        }
     }
 }
 
@@ -927,6 +935,7 @@ impl DelegatedLauncherHandler {
             state: LifecycleState::Initializing,
             internal_state: None,
             app_id: app_id.clone(),
+            app_metrics_version: None,
             is_app_init_params_invoked: false,
         };
         platform_state
