@@ -189,9 +189,6 @@ impl MockWebSocketServer {
         let callback = |request: &handshake::client::Request,
                         mut response: handshake::server::Response| {
             let path = request.uri().path();
-            if request.headers().contains_key("sec-websocket-protocol") {
-                debug!("got sec-websocket-protocol header");
-            }
             if path != self.conn_path {
                 if request.headers().contains_key("sec-websocket-accept")
                     || request.headers().contains_key("sec-websocket-protocol")
@@ -202,11 +199,7 @@ impl MockWebSocketServer {
                         .insert("Sec-WebSocket-Protocol", "jsonrpc".parse().unwrap());
                     debug!("Upgrading connection to WebSocket");
                 } else {
-                    debug!(
-                        "Connection response {:?} for non-upgrade request {:?}",
-                        response, request
-                    );
-                    //*response.status_mut() = StatusCode::ACCEPTED;
+                    *response.status_mut() = StatusCode::ACCEPTED;
                 }
             }
 
@@ -340,8 +333,6 @@ impl MockWebSocketServer {
                     return Some(vec![ResponseSink {
                         delay: 0,
                         data: json!({"jsonrpc":"2.0","id":id,"result":[{"callsign": callsign,"classname":classname,"state":"activated", "locator": "mock_thunder"}]}),
-                        // data: json!({"jsonrpc":"2.0","id":id,"result":[{"callsign":"org.rdk.System","locator":"libWPEFrameworkSystemServices.so","classname":"SystemServices","state":"activated","observers":0,"version":{"hash":"mock from mock_thunder","major":3,"minor":2,"patch":1}}]}),
-                        // data: json!({"jsonrpc": "2.0", "id": id, "result": [{"state": "activated", "callsign" : "org.rdk.System", "locator"}]}),
                     }]);
                 } else if let Some(v) = self.responses_for_key_v2(&request) {
                     if v.events.is_some() {
@@ -476,17 +467,6 @@ mod tests {
 
     use super::*;
 
-    fn json_response_validator(lhs: &Message, rhs: &Value) -> bool {
-        if let Message::Text(t) = lhs {
-            if let Ok(v) = serde_json::from_str::<Value>(t) {
-                println!("{:?} = {:?}", v, rhs);
-                return v.eq(rhs);
-            }
-        }
-
-        false
-    }
-
     async fn start_server(mock_data: MockData) -> Arc<MockWebSocketServer> {
         let server = MockWebSocketServer::new(
             mock_data,
@@ -610,15 +590,16 @@ mod tests {
         .expect("connection to server was closed")
         .expect("error in server response");
 
-        let expected = json!({
+        let expected = Message::Text(json!({
             "id":1,
             "jsonrpc":"2.0".to_owned(),
             "error":{
                 "code":-32001,
-                "message":"not found".to_owned()
+                "message":format!("mock data for request:SomeOthermethod , params: {:?} not found", Some(params))
             }
-        });
-        assert!(json_response_validator(&response, &expected));
+        }).to_string());
+
+        assert_eq!(&response, &expected);
 
         let response =
             request_response_with_timeout(server, Message::Text(json!({"jsonrpc": "2.0", "id":1,"method": "Controller.1.status@org.rdk.SomeThunderApi" }).to_string()))
@@ -627,13 +608,19 @@ mod tests {
                 .expect("connection to server was closed")
                 .expect("error in server response");
 
-        let expected = json!({
-            "id":1,
-            "jsonrpc":"2.0".to_owned(),
-            "result":[{
-                "state":"activated".to_owned()
-            }]
-        });
-        assert!(json_response_validator(&response, &expected));
+        let expected = Message::Text(
+            json!({
+                "id":1,
+                "jsonrpc":"2.0".to_owned(),
+                "result":[{
+                    "callsign": "org.rdk.SomeThunderApi",
+                    "classname":"SomeThunderApi",
+                    "locator": "mock_thunder".to_owned(),
+                    "state":"activated".to_owned(),
+                }]
+            })
+            .to_string(),
+        );
+        assert_eq!(&response, &expected);
     }
 }

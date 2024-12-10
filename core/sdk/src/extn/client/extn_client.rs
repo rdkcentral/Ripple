@@ -679,13 +679,6 @@ impl ExtnClient {
                 Err(RippleError::ExtnError)
             }
         }
-        // self.sender
-        //     .send_request(id, payload, other_sender, Some(self.sender.tx.clone()))?;
-        // if let Ok(r) = rx.await {
-        //     return Ok(r);
-        // }
-
-        // Err(RippleError::ExtnError)
     }
 
     ///
