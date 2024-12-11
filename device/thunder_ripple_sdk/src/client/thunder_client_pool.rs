@@ -57,7 +57,7 @@ impl ThunderClientPool {
     pub async fn start(
         url: Url,
         plugin_manager_tx: Option<mpsc::Sender<PluginManagerCommand>>,
-        thunder_connection_state: Arc<ThunderConnectionState>,
+        thunder_connection_state: Option<Arc<ThunderConnectionState>>,
         size: u32,
     ) -> Result<ThunderClient, RippleError> {
         debug!("Starting a Thunder connection pool of size {}", size);
@@ -66,11 +66,12 @@ impl ThunderClientPool {
         let mut clients = Vec::default();
         for _ in 0..size {
             let client = ThunderClientBuilder::get_client(
-                url.clone(),
+                Some(url.clone()),
                 plugin_manager_tx.clone(),
                 Some(s.clone()),
                 thunder_connection_state.clone(),
                 None,
+                false,
             )
             .await;
             if let Ok(c) = client {
@@ -131,11 +132,12 @@ impl ThunderClientPool {
                         let i = itr.position(|x| x.client.id == client_id);
                         if let Some(index) = i {
                             let client = ThunderClientBuilder::get_client(
-                                url.clone(),
+                                Some(url.clone()),
                                 plugin_manager_tx.clone(),
                                 Some(sender_for_thread.clone()),
                                 thunder_connection_state.clone(),
                                 pool.clients.get(index).map(|x| x.client.clone()),
+                                false,
                             )
                             .await;
                             if let Ok(client) = client {
@@ -159,6 +161,10 @@ impl ThunderClientPool {
             id: Uuid::new_v4(),
             plugin_manager_tx: pmtx_c,
             subscriptions: None,
+            thndr_asynclient: None,
+            broker_subscriptions: None,
+            broker_callbacks: None,
+            use_thunderbroker: false,
         })
     }
 
@@ -256,9 +262,13 @@ mod tests {
 
         // Test cases
         // 1. create a client pool of size 4
-        let client =
-            ThunderClientPool::start(url, Some(tx), Arc::new(ThunderConnectionState::new()), 4)
-                .await;
+        let client = ThunderClientPool::start(
+            url,
+            Some(tx),
+            Some(Arc::new(ThunderConnectionState::new())),
+            4,
+        )
+        .await;
         assert!(client.is_ok());
         let client = client.unwrap();
 

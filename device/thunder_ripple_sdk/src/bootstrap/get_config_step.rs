@@ -92,10 +92,10 @@ impl ThunderGetConfigStep {
                 }
                 return Ok(ThunderBootstrapStateWithConfig {
                     extn_client: state,
-                    url: gateway_url,
-                    pool_size,
-                    plugin_param: expected_plugins,
-                    thunder_connection_state: Arc::new(ThunderConnectionState::new()),
+                    url: Some(gateway_url),
+                    pool_size: Some(pool_size),
+                    plugin_param: Some(expected_plugins),
+                    thunder_connection_state: Some(Arc::new(ThunderConnectionState::new())),
                 });
             }
         }
