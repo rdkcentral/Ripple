@@ -22,6 +22,7 @@ use std::{
 };
 
 use http::{HeaderMap, StatusCode};
+use jsonrpsee::tracing::info;
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiRequest,
     futures::{stream::SplitSink, SinkExt, StreamExt},
@@ -116,7 +117,68 @@ pub struct MockWebSocketServer {
     /*
     track thunder methods called and their count per method
     */
+    stats_channel: ripple_sdk::tokio::sync::mpsc::Sender<String>,
+}
+pub struct StatsCollector {
     thunder_histogram: Arc<RwLock<HashMap<String, u32>>>,
+    messages: ripple_sdk::tokio::sync::mpsc::Receiver<String>,
+    stats_file: String,
+}
+#[derive(Debug, Serialize, Deserialize)]
+struct ApiStat {
+    method: String,
+    count: u32,
+}
+#[derive(Debug, Serialize, Deserialize)]
+struct ApiStats {
+    stats: Vec<ApiStat>,
+    total: u32,
+}
+impl StatsCollector {
+    pub fn new(
+        messages: ripple_sdk::tokio::sync::mpsc::Receiver<String>,
+        stats_file: String,
+    ) -> Self {
+        info!(
+            "starting mock StatsCollector with stats file: {}",
+            stats_file
+        );
+        Self {
+            thunder_histogram: Arc::new(RwLock::new(HashMap::new())),
+            messages,
+            stats_file,
+        }
+    }
+    pub async fn start(mut self) {
+        while let Some(method) = self.messages.recv().await {
+            let _ = self.update_thunder_histogram(method.clone()).await;
+        }
+    }
+    async fn update_thunder_histogram(&self, method: String) {
+        let mut thunder_histogram = self.thunder_histogram.write().unwrap();
+        let count = thunder_histogram.entry(method).or_insert(0);
+        *count += 1;
+        let f = thunder_histogram.clone();
+        let mut total = 0;
+        let mut entries: Vec<ApiStat> = Vec::new();
+        for (_method, method_count) in f.iter() {
+            entries.push(ApiStat {
+                method: _method.clone(),
+                count: *method_count,
+            });
+            total += *method_count;
+        }
+        let stats = ApiStats {
+            stats: entries,
+            total,
+        };
+        use std::fs::File;
+        use std::io::{BufWriter, Write};
+        let file = File::create(self.stats_file.clone()).unwrap();
+        let mut writer = BufWriter::new(file);
+        let _ = serde_json::to_writer(&mut writer, &stats);
+        let _ = writer.flush();
+    }
 }
 
 impl MockWebSocketServer {
@@ -130,7 +192,9 @@ impl MockWebSocketServer {
             .local_addr()
             .map_err(|_| MockServerWebSocketError::CantListen)?
             .port();
-        let thunder_histogram = Arc::new(RwLock::new(HashMap::new()));
+        let (stats_tx, stats_rx) = tokio::sync::mpsc::channel(10);
+        tokio::spawn(StatsCollector::new(stats_rx, config.clone().stats_file).start());
+
         Ok(Self {
             listener,
             port,
@@ -145,7 +209,7 @@ impl MockWebSocketServer {
                     .map(|(k, v)| (k.to_lowercase(), v))
                     .collect(),
             )),
-            thunder_histogram,
+            stats_channel: stats_tx,
         })
     }
 
@@ -165,26 +229,6 @@ impl MockWebSocketServer {
 
     pub fn into_arc(self) -> Arc<Self> {
         Arc::new(self)
-    }
-    async fn update_thunder_histogram(&self, method: String) {
-        let mut thunder_histogram = self.thunder_histogram.write().unwrap();
-        let count = thunder_histogram.entry(method).or_insert(0);
-        *count += 1;
-        let f = thunder_histogram.clone();
-        let mut total = 0;
-        for (_method, count) in f.iter() {
-            total += count;
-        }
-
-        if total % 25 == 0 {
-            debug!("--------------------------------------------------------------------------------------");
-            debug!("------------------------------Thunder calls-------------------------------------------");
-            for (method, count) in thunder_histogram.iter() {
-                debug!("----------Method: {}, Count: {}", method, count);
-            }
-            debug!("--------------Total Thunder calls (so far): {}", total);
-            debug!("--------------------------------------------------------------------------------------");
-        }
     }
 
     pub async fn start_server(self: Arc<Self>) {
@@ -347,7 +391,7 @@ impl MockWebSocketServer {
             is_value_jsonrpc(&request_message)
         );
         if let Ok(request) = serde_json::from_value::<JsonRpcApiRequest>(request_message.clone()) {
-            let _ = self.update_thunder_histogram(request.method.clone()).await;
+            let _ = self.stats_channel.send(request.method.clone()).await;
             if let Some(id) = request.id {
                 debug!("activate_all_plugins={}", self.config.activate_all_plugins);
                 if self.config.activate_all_plugins
