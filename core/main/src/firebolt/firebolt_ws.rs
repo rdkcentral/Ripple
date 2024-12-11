@@ -94,7 +94,7 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
     fn on_request(
         self,
         request: &tungstenite::handshake::server::Request,
-        response: tungstenite::handshake::server::Response,
+        mut response: tungstenite::handshake::server::Response,
     ) -> Result<
         tungstenite::handshake::server::Response,
         tungstenite::handshake::server::ErrorResponse,
@@ -126,13 +126,30 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
                             session_id
                         )))
                         .unwrap();
-                    error!("No application session found for app_id={}", session_id);
+                    error!("No application session found for app_id={}", &session_id);
                     return Err(err);
                 }
             }
         };
-        let cid = ClientIdentity { session_id, app_id };
+        let cid = ClientIdentity {
+            session_id: session_id.clone(),
+            app_id,
+        };
         oneshot_send_and_log(cfg.next, cid, "ResolveClientIdentity");
+        /*
+        add Sec-WebSocket-Protocol header to the response to indicate we suport jsonrpc
+        this was breaking FCA as it tried to use standard websocket protocol and do the upgrade,
+        but ripple was not sending the header
+        */
+        if request.headers().get("Sec-WebSocket-Protocol").is_some() {
+            /*
+            jsonrpc is the only answer...
+            */
+            response.headers_mut().insert(
+                "Sec-WebSocket-Protocol",
+                tungstenite::http::header::HeaderValue::from_str("jsonrpc").unwrap(),
+            );
+        }
         Ok(response)
     }
 }
@@ -207,9 +224,14 @@ impl FireboltWs {
 
         let connection_id = Uuid::new_v4().to_string();
         info!(
-            "Creating new connection_id={} app_id={} session_id={}",
-            connection_id, app_id_c, session_id_c
+            "Creating new connection_id={} app_id={} session_id={}, gateway_secure={}, port={}",
+            connection_id,
+            app_id_c,
+            session_id_c,
+            gateway_secure,
+            _client_addr.port()
         );
+
         let connection_id_c = connection_id.clone();
 
         let msg = FireboltGatewayCommand::RegisterSession {
