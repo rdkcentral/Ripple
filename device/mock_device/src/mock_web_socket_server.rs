@@ -113,6 +113,10 @@ pub struct MockWebSocketServer {
     port: u16,
     connected_peer_sinks: WSConnection,
     config: MockConfig,
+    /*
+    track thunder methods called and their count per method
+    */
+    thunder_histogram: Arc<RwLock<HashMap<String, u32>>>,
 }
 
 impl MockWebSocketServer {
@@ -126,7 +130,7 @@ impl MockWebSocketServer {
             .local_addr()
             .map_err(|_| MockServerWebSocketError::CantListen)?
             .port();
-
+        let thunder_histogram = Arc::new(RwLock::new(HashMap::new()));
         Ok(Self {
             listener,
             port,
@@ -141,6 +145,7 @@ impl MockWebSocketServer {
                     .map(|(k, v)| (k.to_lowercase(), v))
                     .collect(),
             )),
+            thunder_histogram,
         })
     }
 
@@ -160,6 +165,26 @@ impl MockWebSocketServer {
 
     pub fn into_arc(self) -> Arc<Self> {
         Arc::new(self)
+    }
+    async fn update_thunder_histogram(&self, method: String) {
+        let mut thunder_histogram = self.thunder_histogram.write().unwrap();
+        let count = thunder_histogram.entry(method).or_insert(0);
+        *count += 1;
+        let f = thunder_histogram.clone();
+        let mut total = 0;
+        for (_method, count) in f.iter() {
+            total += count;
+        }
+
+        if total % 25 == 0 {
+            debug!("--------------------------------------------------------------------------------------");
+            debug!("------------------------------Thunder calls-------------------------------------------");
+            for (method, count) in thunder_histogram.iter() {
+                debug!("----------Method: {}, Count: {}", method, count);
+            }
+            debug!("--------------Total Thunder calls (so far): {}", total);
+            debug!("--------------------------------------------------------------------------------------");
+        }
     }
 
     pub async fn start_server(self: Arc<Self>) {
@@ -322,6 +347,7 @@ impl MockWebSocketServer {
             is_value_jsonrpc(&request_message)
         );
         if let Ok(request) = serde_json::from_value::<JsonRpcApiRequest>(request_message.clone()) {
+            let _ = self.update_thunder_histogram(request.method.clone()).await;
             if let Some(id) = request.id {
                 debug!("activate_all_plugins={}", self.config.activate_all_plugins);
                 if self.config.activate_all_plugins
