@@ -367,7 +367,7 @@ fn country_postal_code_default() -> HashMap<String, String> {
 }
 
 pub fn data_governance_default() -> DataGovernanceConfig {
-    DataGovernanceConfig::default()
+    DataGovernanceConfig { policies: vec![] }
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
@@ -562,14 +562,6 @@ impl DataGovernanceConfig {
     }
 }
 
-impl Default for DataGovernanceConfig {
-    fn default() -> Self {
-        DataGovernanceConfig {
-            policies: vec![],
-        }
-    }
-}
-
 impl Default for RippleFeatures {
     fn default() -> Self {
         RippleFeatures {
@@ -657,7 +649,7 @@ impl Default for RippleConfiguration {
             features: Default::default(),
             internal_app_id: None,
             saved_dir: default_saved_dir(),
-            data_governance: Default::default(),
+            data_governance: data_governance_default(),
             partner_exclusion_refresh_timeout: partner_exclusion_refresh_timeout_default(),
             metrics_logging_percentage: metrics_logging_percentage_default(),
         }
