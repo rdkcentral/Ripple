@@ -656,7 +656,7 @@ impl ExtnClient {
         if !self.sender.get_cap().is_main() {
             return Err(RippleError::InvalidAccess);
         }
-        debug!("Main internal request with payload: {:?}", payload);
+        trace!("Main internal request with payload: {:?}", payload);
 
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = oneshot::channel();
