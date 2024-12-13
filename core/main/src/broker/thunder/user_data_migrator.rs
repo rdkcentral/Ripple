@@ -54,6 +54,7 @@ use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 // TBD get the storage dir from manifest or other Ripple config file
 const RIPPLE_STORAGE_DIR: &str = "/opt/persistent/ripple";
+const RIPPLE_RULES_DIR: &str = "/etc/ripple/rules";
 const USER_DATA_MIGRATION_CONFIG_FILE_NAME: &str = "user_data_migration_config.json";
 const USER_DATA_MIGRATION_STATUS_FILE_NAME: &str = "user_data_migration_status.json";
 
@@ -118,7 +119,10 @@ pub struct UserDataMigrator {
 impl UserDataMigrator {
     pub fn create() -> Option<Self> {
         let possible_config_file_paths = vec![
-            format!("/etc/{}", USER_DATA_MIGRATION_CONFIG_FILE_NAME),
+            format!(
+                "{}/{}",
+                RIPPLE_RULES_DIR, USER_DATA_MIGRATION_CONFIG_FILE_NAME
+            ),
             format!(
                 "{}/{}",
                 RIPPLE_STORAGE_DIR, USER_DATA_MIGRATION_CONFIG_FILE_NAME
