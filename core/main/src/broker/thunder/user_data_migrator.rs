@@ -991,10 +991,10 @@ mod tests {
         };
 
         let status = migrator.get_migration_status("namespace", "key").await;
-        assert_eq!(status, true);
+        assert!(status);
 
         let status = migrator.get_migration_status("namespace", "key1").await;
-        assert_eq!(status, false);
+        assert!(!status);
     }
 
     #[tokio::test]
