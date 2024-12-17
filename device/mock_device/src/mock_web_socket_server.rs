@@ -390,8 +390,18 @@ impl MockWebSocketServer {
                 if self.config.activate_all_plugins
                     && request.method.contains("Controller.1.status")
                 {
-                    let callsign = request.method.split('@').last().unwrap();
-                    let classname = callsign.split('.').last().unwrap();
+                    let callsign = if let Some(callsign) = request.method.split('@').last() {
+                        callsign
+                    } else {
+                        error!("Failed to parse callsign from method: {}", request.method);
+                        return None;
+                    };
+                    let classname = if let Some(classname) = callsign.split('.').last() {
+                        classname
+                    } else {
+                        error!("Failed to parse classname from callsign: {}", callsign);
+                        return None;
+                    };
                     debug!("activating plugin: {}, with params: {:?} for callsign: {classname} and callsign: {callsign}", request.method, request.params);
                     return Some(vec![ResponseSink {
                         delay: 0,
