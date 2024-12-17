@@ -125,6 +125,7 @@ impl ExtnSender {
             target_id: "".to_owned(),
             ts: Utc::now().timestamp_millis(),
         };
+        println!("**** extn_sender: ExtnSender::send_request: msg: {:?}", msg);
         self.send(msg, other_sender)
     }
 

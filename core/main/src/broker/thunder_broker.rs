@@ -22,7 +22,7 @@ use super::{
     thunder::thunder_plugins_status_mgr::StatusManager,
     thunder::user_data_migrator::UserDataMigrator,
 };
-use crate::broker::broker_utils::BrokerUtils;
+use crate::{broker::broker_utils::BrokerUtils, state::platform_state::PlatformState};
 use futures_util::{SinkExt, StreamExt};
 
 use ripple_sdk::{
@@ -102,6 +102,7 @@ impl ThunderBroker {
 
     fn start(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
         let endpoint = request.endpoint.clone();
+        println!("**** Endpoint {:?}", endpoint);
         let (tx, mut tr) = mpsc::channel(10);
         let (c_tx, mut c_tr) = mpsc::channel(2);
         let sender = BrokerSender { sender: tx };
@@ -159,6 +160,7 @@ impl ThunderBroker {
 
                     },
                     Some(mut request) = tr.recv() => {
+                        println!("**** thunder_broker: Request {:?}", request);
                         debug!("Got request from receiver for broker {:?}", request);
 
                         match broker_c.check_and_generate_plugin_activation_request(&request) {
@@ -166,6 +168,7 @@ impl ThunderBroker {
                                 if !requests.is_empty() {
                                     let mut ws_tx = ws_tx_wrap.lock().await;
                                     for r in requests {
+                                        println!("**** thunder_broker: Request r1: {:?}", r);
                                         let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
                                         let _flush = ws_tx.flush().await;
                                     }
@@ -186,6 +189,7 @@ impl ThunderBroker {
                                                 let binding = ws_tx_wrap.clone();
                                                 let mut ws_tx = binding.lock().await;
                                                 for r in updated_request {
+                                                    println!("**** thunder_broker: Request r2: {:?}", r);
                                                     let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
                                                     let _flush = ws_tx.flush().await;
                                                 }
@@ -369,6 +373,7 @@ impl ThunderBroker {
 
 impl EndpointBroker for ThunderBroker {
     fn get_broker(
+        _ps: Option<PlatformState>,
         request: BrokerConnectRequest,
         callback: BrokerCallback,
         _broker_state: &mut EndpointBrokerState,
@@ -476,6 +481,7 @@ impl EndpointBroker for ThunderBroker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::platform_state::PlatformState;
     use crate::{
         broker::{
             endpoint_broker::{
@@ -486,6 +492,7 @@ mod tests {
         utils::test_utils::{MockWebsocket, WSMockData},
     };
     use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
+    use ripple_tdk::utils::test_utils::Mockable;
     use serde_json::json;
     use std::time::Duration;
     use tokio::sync::mpsc;
@@ -507,7 +514,7 @@ mod tests {
         let (tx, _) = mpsc::channel(1);
         let request = BrokerConnectRequest::new("somekey".to_owned(), endpoint, tx);
         let callback = BrokerCallback { sender };
-        ThunderBroker::get_broker(request, callback, &mut EndpointBrokerState::default())
+        ThunderBroker::get_broker(None, request, callback, &mut EndpointBrokerState::default())
     }
 
     //function to create a BrokerRequest

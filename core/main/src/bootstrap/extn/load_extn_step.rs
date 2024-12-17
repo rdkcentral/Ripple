@@ -46,6 +46,7 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
         "LoadExtensionsStep".into()
     }
     async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
+        println!("**** load_extn_step: setup ");
         let loaded_extensions = state.extn_state.loaded_libraries.read().unwrap();
         let mut deferred_channels: Vec<PreLoadedExtnChannel> = Vec::new();
         let mut device_channels: Vec<PreLoadedExtnChannel> = Vec::new();
@@ -64,9 +65,14 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                 let channels = extn.get_channels();
                 let extensions = extn.get_extns();
                 for channel in channels {
+                    println!("**** load_extn_step: setup: channel {:?}", channel.id);
                     debug!("loading channel builder for {}", channel.id);
                     if let Ok(extn_id) = ExtnId::try_from(channel.id.clone()) {
                         if let Ok(builder) = load_channel_builder(library) {
+                            println!(
+                                "**** load_extn_step: setup: building channel {:?}",
+                                channel.id
+                            );
                             debug!("building channel {}", channel.id);
                             if let Ok(extn_channel) = (builder.build)(extn_id.to_string()) {
                                 let preloaded_channel = PreLoadedExtnChannel {
@@ -93,6 +99,10 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                     }
                 }
                 for extension in extensions {
+                    println!(
+                        "**** load_extn_step: setup: loading extension {}",
+                        extension.id
+                    );
                     debug!("loading extension {}", extension.id);
                     if let Ok(extn_id) = ExtnId::try_from(extension.id.clone()) {
                         let builder = load_jsonrpsee_methods(library);

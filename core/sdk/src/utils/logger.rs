@@ -58,6 +58,7 @@ pub fn init_logger(name: String) -> Result<(), fern::InitError> {
 }
 
 pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern::InitError> {
+    println!("**** logger: init_and_configure_logger: Initializing logger");
     let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".into());
     println!("log level {}", log_string);
     let _version_string = version.to_string();

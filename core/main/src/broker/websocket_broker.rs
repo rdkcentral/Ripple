@@ -15,13 +15,13 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::broker::broker_utils::BrokerUtils;
-
 use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerRequest,
     BrokerSender, EndpointBroker,
 };
+use crate::broker::broker_utils::BrokerUtils;
 use crate::broker::endpoint_broker::EndpointBrokerState;
+use crate::state::platform_state::PlatformState;
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
     log::{debug, error},
@@ -186,6 +186,7 @@ impl WSNotificationBroker {
 
 impl EndpointBroker for WebsocketBroker {
     fn get_broker(
+        _ps: Option<PlatformState>,
         request: BrokerConnectRequest,
         callback: BrokerCallback,
         _broker_state: &mut EndpointBrokerState,

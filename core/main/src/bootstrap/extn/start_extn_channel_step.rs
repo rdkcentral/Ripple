@@ -30,6 +30,10 @@ fn start_preloaded_channel(
     state: &BootstrapState,
     channel: PreLoadedExtnChannel,
 ) -> RippleResponse {
+    println!(
+        "**** start_extn_channel_step: start_preloaded_channel {:?}",
+        channel.extn_id
+    );
     let client = state.platform_state.get_client();
 
     if let Err(e) = state.extn_state.clone().start_channel(channel, client) {
@@ -51,6 +55,7 @@ impl Bootstep<BootstrapState> for StartExtnChannelsStep {
         "StartExtnChannelsStep".into()
     }
     async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
+        println!("**** start_extn_channel_step: setup ");
         let mut extn_ids = Vec::new();
         {
             let mut device_channels = state.extn_state.device_channels.write().unwrap();
@@ -76,6 +81,7 @@ impl Bootstep<BootstrapState> for StartExtnChannelsStep {
             }
         }
         for extn_id in extn_ids {
+            println!("**** start_extn_channel_step: setup: extn_id {:?}", extn_id);
             let (tx, mut tr) = mpsc::channel(1);
             if !state
                 .extn_state

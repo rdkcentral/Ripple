@@ -82,12 +82,15 @@ impl Default for RouterState {
     }
 }
 
+// only resolve_route is needed, no need for telemetrics
 async fn resolve_route(
     platform_state: &mut PlatformState,
     methods: Methods,
     resources: Resources,
     req: RpcRequest,
 ) -> Result<ApiMessage, RippleError> {
+    println!("**** rpc_router: resolve_route: routing req: {:?}", req);
+    println!("**** rpc_router: resolve_route: routing {}", req.method);
     info!("Routing {}", req.method);
     let id = Id::Number(req.ctx.call_id);
     let request_c = req.clone();
@@ -102,6 +105,7 @@ async fn resolve_route(
         Some((name, method)) => match &method.inner() {
             MethodKind::Sync(callback) => match method.claim(name, &resources) {
                 Ok(_guard) => {
+                    println!("**** rpc_router: resolve_route: MethodKind::Sync");
                     (callback)(id, params, &sink);
                 }
                 Err(_) => {
@@ -110,10 +114,12 @@ async fn resolve_route(
             },
             MethodKind::Async(callback) => match method.claim(name, &resources) {
                 Ok(guard) => {
+                    println!("**** rpc_router: resolve_route: MethodKind::ASync");
                     let sink = sink.clone();
                     let id = id.into_owned();
                     let params = params.into_owned();
                     let fut = async move {
+                        println!("**** rpc_router: resolve_route: MethodKind::ASync fut");
                         (callback)(id, params, sink, 1, Some(guard)).await;
                     };
                     method_executors.push(fut);
@@ -153,6 +159,10 @@ async fn resolve_route(
         );
 
         let mut msg = ApiMessage::new(protocol, r, request_id.clone());
+        println!(
+            "**** rpc_router: resolve_route: returning msg: {:?}",
+            msg.clone()
+        );
         if let Some(api_stats) = platform_state.metrics.get_api_stats(&request_id) {
             msg.stats = Some(api_stats);
         }
@@ -169,22 +179,33 @@ impl RpcRouter {
         session: Session,
         timer: Option<Timer>,
     ) {
+        println!("**** rpc_router: route: routing {}", req.method);
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
 
         if let Some(overridden_method) = state.get_manifest().has_rpc_override_method(&req.method) {
+            println!(
+                "**** rpc_router: route: routing req method: {} overridden to: {}",
+                req.method, overridden_method
+            );
             req.method = overridden_method;
         }
 
         tokio::spawn(async move {
+            println!("**** rpc_router: route: routing req method: {}", req.method);
             let start = Utc::now().timestamp_millis();
             let resp = resolve_route(&mut state, methods, resources, req.clone()).await;
 
             let status = match resp.clone() {
                 Ok(msg) => {
+                    println!("**** rpc_router: route: routing req method: {}", req.method);
                     if msg.is_error() {
                         msg.jsonrpc_msg
                     } else {
+                        println!(
+                            "**** rpc_router: route: routing req method: {} status: 0",
+                            req.method
+                        );
                         "0".into()
                     }
                 }
@@ -194,6 +215,12 @@ impl RpcRouter {
             TelemetryBuilder::stop_and_send_firebolt_metrics_timer(&state, timer, status).await;
 
             if let Ok(msg) = resp {
+                println!(
+                    "**** rpc_router: route: routing req method: {} msg: {:?} success: {}",
+                    req.method,
+                    msg.clone(),
+                    !msg.is_error()
+                );
                 let now = Utc::now().timestamp_millis();
                 let success = !msg.is_error();
                 TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success, &msg);
@@ -208,6 +235,10 @@ impl RpcRouter {
         req: RpcRequest,
         extn_msg: ExtnMessage,
     ) {
+        println!(
+            "**** rpc_router: route: route_extn_protocol: req: {}",
+            req.method
+        );
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
 
