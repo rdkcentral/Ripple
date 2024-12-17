@@ -263,7 +263,6 @@ impl MockWebSocketServer {
                 debug!("Connection response {:?}", response);
             }
 
-
             if !self.conn_headers.iter().all(|(header_name, header_value)| {
                 request.headers().get(header_name) == Some(header_value)
             }) {
