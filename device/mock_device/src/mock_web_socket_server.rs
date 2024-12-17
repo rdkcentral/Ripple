@@ -259,18 +259,10 @@ impl MockWebSocketServer {
                         mut response: handshake::server::Response| {
             let path = request.uri().path();
             if path != self.conn_path {
-                if request.headers().contains_key("sec-websocket-accept")
-                    || request.headers().contains_key("sec-websocket-protocol")
-                {
-                    *response.status_mut() = StatusCode::SWITCHING_PROTOCOLS;
-                    response
-                        .headers_mut()
-                        .insert("Sec-WebSocket-Protocol", "jsonrpc".parse().unwrap());
-                    debug!("Upgrading connection to WebSocket");
-                } else {
-                    *response.status_mut() = StatusCode::ACCEPTED;
-                }
+                *response.status_mut() = StatusCode::NOT_FOUND;
+                debug!("Connection response {:?}", response);
             }
+
 
             if !self.conn_headers.iter().all(|(header_name, header_value)| {
                 request.headers().get(header_name) == Some(header_value)
