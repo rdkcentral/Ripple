@@ -108,16 +108,14 @@ impl ParametersServer for ParametersImpl {
                 });
             }
             Ok(other) => {
-                return Err(jsonrpsee::core::Error::Custom(format!(
-                    "Internal Error: Got unexpected from app manager={:?}",
-                    other
-                )));
+                return Err(jsonrpsee::core::Error::Custom(
+                    "Internal Error: Unexpected response from app manager".to_string()
+                ));
             }
             Err(app_error) => {
-                return Err(jsonrpsee::core::Error::Custom(format!(
-                    "Internal Error: Got AppError={:?}",
-                    app_error
-                )));
+                return Err(jsonrpsee::core::Error::Custom(
+                    "Internal Error: AppManager encountered an error".to_string()
+                ));
             }
         }
     }
