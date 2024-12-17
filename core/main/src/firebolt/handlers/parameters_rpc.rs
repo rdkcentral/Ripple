@@ -26,6 +26,7 @@ use ripple_sdk::{
         device::entertainment_data::NavigationIntent,
         gateway::rpc_gateway_api::CallContext,
     },
+    log::error,
     tokio::sync::oneshot,
 };
 use serde::{Deserialize, Serialize};
@@ -108,13 +109,21 @@ impl ParametersServer for ParametersImpl {
                 });
             }
             Ok(other) => {
+                error!(
+                    "Unexpected response from app manager in  parameters.initialization: {:?}",
+                    other
+                );
                 return Err(jsonrpsee::core::Error::Custom(
-                    "Internal Error: Unexpected response from app manager".to_string()
+                    "Internal Error: Unexpected response from app manager:".to_string(),
                 ));
             }
             Err(app_error) => {
+                error!(
+                    "AppManager returned an error: {:?} in parameters.initialization",
+                    app_error
+                );
                 return Err(jsonrpsee::core::Error::Custom(
-                    "Internal Error: AppManager encountered an error".to_string()
+                    "Internal Error: AppManager encountered an error".to_string(),
                 ));
             }
         }
