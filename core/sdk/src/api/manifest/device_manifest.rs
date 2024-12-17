@@ -66,6 +66,8 @@ pub struct RippleConfiguration {
     pub partner_exclusion_refresh_timeout: u32,
     #[serde(default = "metrics_logging_percentage_default")]
     pub metrics_logging_percentage: u32,
+    #[serde(default)]
+    pub internet_monitoring_configuration: InternetMonitoringConfiguration,
 }
 
 fn partner_exclusion_refresh_timeout_default() -> u32 {
@@ -712,6 +714,19 @@ impl DataGovernanceSettingTag {
     }
 }
 
+#[derive(Deserialize, Debug, Clone)]
+pub struct InternetMonitoringConfiguration {
+    pub default_monitoring_interval_seconds: u32,
+}
+
+impl Default for InternetMonitoringConfiguration {
+    fn default() -> Self {
+        InternetMonitoringConfiguration {
+            default_monitoring_interval_seconds: 180,
+        }
+    }
+}
+
 impl Default for RippleConfiguration {
     fn default() -> Self {
         Self {
@@ -731,6 +746,7 @@ impl Default for RippleConfiguration {
             data_governance: Default::default(),
             partner_exclusion_refresh_timeout: partner_exclusion_refresh_timeout_default(),
             metrics_logging_percentage: metrics_logging_percentage_default(),
+            internet_monitoring_configuration: Default::default(),
         }
     }
 }
@@ -841,6 +857,12 @@ impl DeviceManifest {
     pub fn get_applications_configuration(&self) -> ApplicationsConfiguration {
         self.applications.clone()
     }
+
+    pub fn get_internet_monitoring_interval(&self) -> u32 {
+        self.configuration
+            .internet_monitoring_configuration
+            .default_monitoring_interval_seconds
+    }
 }
 
 #[cfg(test)]
@@ -947,6 +969,9 @@ pub(crate) mod tests {
                     },
                     partner_exclusion_refresh_timeout: 43200,
                     metrics_logging_percentage: 10,
+                    internet_monitoring_configuration: InternetMonitoringConfiguration {
+                        default_monitoring_interval_seconds: 180,
+                    },
                 },
                 capabilities: CapabilityConfiguration {
                     supported: vec!["main[manage]".to_string(), "test".to_string()],
