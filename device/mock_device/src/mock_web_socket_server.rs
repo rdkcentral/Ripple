@@ -158,33 +158,26 @@ impl StatsCollector {
         let mut thunder_histogram = self.thunder_histogram.write().unwrap();
         let count = thunder_histogram.entry(method).or_insert(0);
         *count += 1;
-        let entries: Vec<ApiStat> = thunder_histogram
-            .iter()
-            .map(|(method, count)| ApiStat {
-                method: method.clone(),
-                count: *count,
-            })
-            .collect();
-        let total: u32 = entries.iter().map(|stat| stat.count).sum();
+        let f = thunder_histogram.clone();
+        let mut total = 0;
+        let mut entries: Vec<ApiStat> = Vec::new();
+        for (_method, method_count) in f.iter() {
+            entries.push(ApiStat {
+                method: _method.clone(),
+                count: *method_count,
+            });
+            total += *method_count;
+        }
         let stats = ApiStats {
             stats: entries,
             total,
         };
         use std::fs::File;
         use std::io::{BufWriter, Write};
-        let file = File::create(self.stats_file.clone()).map_err(|e| {
-            error!("Failed to create stats file: {}", e);
-            e
-        })?;
+        let file = File::create(self.stats_file.clone()).unwrap();
         let mut writer = BufWriter::new(file);
-        serde_json::to_writer(&mut writer, &stats).map_err(|e| {
-            error!("Failed to write stats: {}", e);
-            e
-        })?;
-        writer.flush().map_err(|e| {
-            error!("Failed to flush stats: {}", e);
-            e
-        })?;
+        let _ = serde_json::to_writer(&mut writer, &stats);
+        let _ = writer.flush();
     }
 }
 
@@ -404,18 +397,8 @@ impl MockWebSocketServer {
                 if self.config.activate_all_plugins
                     && request.method.contains("Controller.1.status")
                 {
-                    let callsign = if let Some(callsign) = request.method.split('@').last() {
-                        callsign
-                    } else {
-                        error!("Failed to parse callsign from method: {}", request.method);
-                        return None;
-                    };
-                    let classname = if let Some(classname) = callsign.split('.').last() {
-                        classname
-                    } else {
-                        error!("Failed to parse classname from callsign: {}", callsign);
-                        return None;
-                    };
+                    let callsign = request.method.split('@').last().unwrap();
+                    let classname = callsign.split('.').last().unwrap();
                     debug!("activating plugin: {}, with params: {:?} for callsign: {classname} and callsign: {callsign}", request.method, request.params);
                     return Some(vec![ResponseSink {
                         delay: 0,
