@@ -172,10 +172,19 @@ impl StatsCollector {
         };
         use std::fs::File;
         use std::io::{BufWriter, Write};
-        let file = File::create(self.stats_file.clone()).unwrap();
+        let file = File::create(self.stats_file.clone()).map_err(|e| {
+            error!("Failed to create stats file: {}", e);
+            e
+        })?;
         let mut writer = BufWriter::new(file);
-        let _ = serde_json::to_writer(&mut writer, &stats);
-        let _ = writer.flush();
+        serde_json::to_writer(&mut writer, &stats).map_err(|e| {
+            error!("Failed to write stats: {}", e);
+            e
+        })?;
+        writer.flush().map_err(|e| {
+            error!("Failed to flush stats: {}", e);
+            e
+        })?;
     }
 }
 
