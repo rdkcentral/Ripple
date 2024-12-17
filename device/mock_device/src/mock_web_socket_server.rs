@@ -158,9 +158,13 @@ impl StatsCollector {
         let mut thunder_histogram = self.thunder_histogram.write().unwrap();
         let count = thunder_histogram.entry(method).or_insert(0);
         *count += 1;
-        let entries: Vec<ApiStat> = thunder_histogram.iter().map(|(method, count)| {
-            ApiStat { method: method.clone(), count: *count }
-        }).collect();
+        let entries: Vec<ApiStat> = thunder_histogram
+            .iter()
+            .map(|(method, count)| ApiStat {
+                method: method.clone(),
+                count: *count,
+            })
+            .collect();
         let total: u32 = entries.iter().map(|stat| stat.count).sum();
         let stats = ApiStats {
             stats: entries,
@@ -172,6 +176,7 @@ impl StatsCollector {
         let mut writer = BufWriter::new(file);
         let _ = serde_json::to_writer(&mut writer, &stats);
         let _ = writer.flush();
+    }
 }
 
 impl MockWebSocketServer {
