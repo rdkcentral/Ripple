@@ -22,6 +22,7 @@ use std::{
 };
 
 use http::{HeaderMap, StatusCode};
+use jsonrpsee::tracing::info;
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiRequest,
     futures::{stream::SplitSink, SinkExt, StreamExt},
@@ -106,20 +107,78 @@ type WSConnection = Arc<Mutex<HashMap<String, SplitSink<WebSocketStream<TcpStrea
 #[derive(Debug)]
 pub struct MockWebSocketServer {
     mock_data_v2: Arc<RwLock<MockData>>,
-
     listener: TcpListener,
-
     conn_path: String,
-
     conn_headers: HeaderMap,
-
     conn_query_params: HashMap<String, String>,
-
     port: u16,
-
     connected_peer_sinks: WSConnection,
-
     config: MockConfig,
+    /*
+    track thunder methods called and their count per method
+    */
+    stats_channel: ripple_sdk::tokio::sync::mpsc::Sender<String>,
+}
+pub struct StatsCollector {
+    thunder_histogram: Arc<RwLock<HashMap<String, u32>>>,
+    messages: ripple_sdk::tokio::sync::mpsc::Receiver<String>,
+    stats_file: String,
+}
+#[derive(Debug, Serialize, Deserialize)]
+struct ApiStat {
+    method: String,
+    count: u32,
+}
+#[derive(Debug, Serialize, Deserialize)]
+struct ApiStats {
+    stats: Vec<ApiStat>,
+    total: u32,
+}
+impl StatsCollector {
+    pub fn new(
+        messages: ripple_sdk::tokio::sync::mpsc::Receiver<String>,
+        stats_file: String,
+    ) -> Self {
+        info!(
+            "starting mock StatsCollector with stats file: {}",
+            stats_file
+        );
+        Self {
+            thunder_histogram: Arc::new(RwLock::new(HashMap::new())),
+            messages,
+            stats_file,
+        }
+    }
+    pub async fn start(mut self) {
+        while let Some(method) = self.messages.recv().await {
+            let _ = self.update_thunder_histogram(method.clone()).await;
+        }
+    }
+    async fn update_thunder_histogram(&self, method: String) {
+        let mut thunder_histogram = self.thunder_histogram.write().unwrap();
+        let count = thunder_histogram.entry(method).or_insert(0);
+        *count += 1;
+        let f = thunder_histogram.clone();
+        let mut total = 0;
+        let mut entries: Vec<ApiStat> = Vec::new();
+        for (_method, method_count) in f.iter() {
+            entries.push(ApiStat {
+                method: _method.clone(),
+                count: *method_count,
+            });
+            total += *method_count;
+        }
+        let stats = ApiStats {
+            stats: entries,
+            total,
+        };
+        use std::fs::File;
+        use std::io::{BufWriter, Write};
+        let file = File::create(self.stats_file.clone()).unwrap();
+        let mut writer = BufWriter::new(file);
+        let _ = serde_json::to_writer(&mut writer, &stats);
+        let _ = writer.flush();
+    }
 }
 
 impl MockWebSocketServer {
@@ -133,6 +192,8 @@ impl MockWebSocketServer {
             .local_addr()
             .map_err(|_| MockServerWebSocketError::CantListen)?
             .port();
+        let (stats_tx, stats_rx) = tokio::sync::mpsc::channel(10);
+        tokio::spawn(StatsCollector::new(stats_rx, config.clone().stats_file).start());
 
         Ok(Self {
             listener,
@@ -148,6 +209,7 @@ impl MockWebSocketServer {
                     .map(|(k, v)| (k.to_lowercase(), v))
                     .collect(),
             )),
+            stats_channel: stats_tx,
         })
     }
 
@@ -171,14 +233,12 @@ impl MockWebSocketServer {
 
     pub async fn start_server(self: Arc<Self>) {
         debug!("Waiting for connections");
-
         while let Ok((stream, peer_addr)) = self.listener.accept().await {
             let server = self.clone();
             tokio::spawn(async move {
                 server.accept_connection(peer_addr, stream).await;
             });
         }
-
         debug!("Shutting down");
     }
 
@@ -231,7 +291,7 @@ impl MockWebSocketServer {
             }
 
             Ok(response)
-        };
+        }; //End of callback
         let ws_stream = accept_hdr_async(stream, callback)
             .await
             .expect("Failed to accept");
@@ -263,14 +323,19 @@ impl MockWebSocketServer {
 
                 debug!("Parsed message: {:?}", request_message);
 
-                let responses = match self.find_responses(request_message).await {
+                let responses = match self.find_responses(request_message.clone()).await {
                     Some(value) => value,
-                    None => continue,
+                    None => {
+                        warn!("No mock response found for request: {msg}");
+                        continue;
+                    }
                 };
                 let connected_peer = self.connected_peer_sinks.clone();
+                let context = request_message.clone();
                 tokio::spawn(async move {
                     if let Err(e) =
-                        Self::send_to_sink(connected_peer, &peer.to_string(), responses).await
+                        Self::send_to_sink(connected_peer, &peer.to_string(), responses, context)
+                            .await
                     {
                         error!("Error sending data back to sink {}", e.to_string());
                     }
@@ -288,6 +353,7 @@ impl MockWebSocketServer {
         connection: WSConnection,
         peer: &str,
         responses: Vec<ResponseSink>,
+        request: Value,
     ) -> Result<()> {
         let mut clients = connection.lock().await;
         let sink = clients.get_mut(peer);
@@ -298,9 +364,9 @@ impl MockWebSocketServer {
                     tokio::time::sleep(Duration::from_millis(resp.delay)).await
                 }
                 if let Err(e) = sink.send(Message::Text(response.clone())).await {
-                    error!("Error sending response. resp={e:?}");
+                    error!("Error sending response={e:?} for request={request}");
                 } else {
-                    debug!("sent response. resp={response:?}");
+                    debug!("sent response={response:?} for request={request}");
                 }
             }
         } else {
@@ -316,14 +382,18 @@ impl MockWebSocketServer {
             is_value_jsonrpc(&request_message)
         );
         if let Ok(request) = serde_json::from_value::<JsonRpcApiRequest>(request_message.clone()) {
+            let _ = self.stats_channel.send(request.method.clone()).await;
             if let Some(id) = request.id {
-                debug!("{}", self.config.activate_all_plugins);
+                debug!("activate_all_plugins={}", self.config.activate_all_plugins);
                 if self.config.activate_all_plugins
                     && request.method.contains("Controller.1.status")
                 {
+                    let callsign = request.method.split('@').last().unwrap();
+                    let classname = callsign.split('.').last().unwrap();
+                    debug!("activating plugin: {}, with params: {:?} for callsign: {classname} and callsign: {callsign}", request.method, request.params);
                     return Some(vec![ResponseSink {
                         delay: 0,
-                        data: json!({"jsonrpc": "2.0", "id": id, "result": [{"state": "activated"}]}),
+                        data: json!({"jsonrpc":"2.0","id":id,"result":[{"callsign": callsign,"classname":classname,"state":"activated", "locator": "mock_thunder"}]}),
                     }]);
                 } else if let Some(v) = self.responses_for_key_v2(&request) {
                     if v.events.is_some() {
@@ -339,7 +409,7 @@ impl MockWebSocketServer {
                 }
                 return Some(vec![ResponseSink {
                     delay: 0,
-                    data: json!({"jsonrpc": "2.0", "id": id, "error": {"code": -32001, "message":"not found"}}),
+                    data: json!({"jsonrpc": "2.0", "id": id, "error": {"code": -32001, "message":format!("mock data for request:{} , params: {:?} not found",request.method,request.params)}}),
                 }]);
             } else {
                 error!("Failed to get id from request {:?}", request_message);
@@ -457,17 +527,6 @@ mod tests {
     use ripple_sdk::tokio::time::{self, error::Elapsed, Duration};
 
     use super::*;
-
-    fn json_response_validator(lhs: &Message, rhs: &Value) -> bool {
-        if let Message::Text(t) = lhs {
-            if let Ok(v) = serde_json::from_str::<Value>(t) {
-                println!("{:?} = {:?}", v, rhs);
-                return v.eq(rhs);
-            }
-        }
-
-        false
-    }
 
     async fn start_server(mock_data: MockData) -> Arc<MockWebSocketServer> {
         let server = MockWebSocketServer::new(
@@ -592,15 +651,16 @@ mod tests {
         .expect("connection to server was closed")
         .expect("error in server response");
 
-        let expected = json!({
+        let expected = Message::Text(json!({
             "id":1,
             "jsonrpc":"2.0".to_owned(),
             "error":{
                 "code":-32001,
-                "message":"not found".to_owned()
+                "message":format!("mock data for request:SomeOthermethod , params: {:?} not found", Some(params))
             }
-        });
-        assert!(json_response_validator(&response, &expected));
+        }).to_string());
+
+        assert_eq!(&response, &expected);
 
         let response =
             request_response_with_timeout(server, Message::Text(json!({"jsonrpc": "2.0", "id":1,"method": "Controller.1.status@org.rdk.SomeThunderApi" }).to_string()))
@@ -609,13 +669,19 @@ mod tests {
                 .expect("connection to server was closed")
                 .expect("error in server response");
 
-        let expected = json!({
-            "id":1,
-            "jsonrpc":"2.0".to_owned(),
-            "result":[{
-                "state":"activated".to_owned()
-            }]
-        });
-        assert!(json_response_validator(&response, &expected));
+        let expected = Message::Text(
+            json!({
+                "id":1,
+                "jsonrpc":"2.0".to_owned(),
+                "result":[{
+                    "callsign": "org.rdk.SomeThunderApi",
+                    "classname":"SomeThunderApi",
+                    "locator": "mock_thunder".to_owned(),
+                    "state":"activated".to_owned(),
+                }]
+            })
+            .to_string(),
+        );
+        assert_eq!(&response, &expected);
     }
 }
