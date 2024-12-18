@@ -26,6 +26,7 @@ use ripple_sdk::{
         device::entertainment_data::NavigationIntent,
         gateway::rpc_gateway_api::CallContext,
     },
+    log::error,
     tokio::sync::oneshot,
 };
 use serde::{Deserialize, Serialize};
@@ -94,23 +95,38 @@ impl ParametersServer for ParametersImpl {
             .platform_state
             .get_client()
             .send_app_request(app_request);
-        let resp = rpc_await_oneshot(app_resp_rx).await?;
-        if let AppManagerResponse::LaunchRequest(launch_req) = resp? {
-            return Ok(AppInitParameters {
-                us_privacy: privacy_data.get(privacy_rpc::US_PRIVACY_KEY).cloned(),
-                lmt: privacy_data
-                    .get(privacy_rpc::LMT_KEY)
-                    .and_then(|x| x.parse::<u16>().ok()),
-                discovery: Some(DiscoveryEvent {
-                    navigate_to: launch_req.get_intent(),
-                }),
-                second_screen: None,
-            });
+        match rpc_await_oneshot(app_resp_rx).await? {
+            Ok(AppManagerResponse::LaunchRequest(launch_req)) => {
+                return Ok(AppInitParameters {
+                    us_privacy: privacy_data.get(privacy_rpc::US_PRIVACY_KEY).cloned(),
+                    lmt: privacy_data
+                        .get(privacy_rpc::LMT_KEY)
+                        .and_then(|x| x.parse::<u16>().ok()),
+                    discovery: Some(DiscoveryEvent {
+                        navigate_to: launch_req.get_intent(),
+                    }),
+                    second_screen: None,
+                });
+            }
+            Ok(other) => {
+                error!(
+                    "Unexpected response from app manager in  parameters.initialization: {:?}",
+                    other
+                );
+                return Err(jsonrpsee::core::Error::Custom(
+                    "Internal Error: Unexpected response from app manager:".to_string(),
+                ));
+            }
+            Err(app_error) => {
+                error!(
+                    "AppManager returned an error: {:?} in parameters.initialization",
+                    app_error
+                );
+                return Err(jsonrpsee::core::Error::Custom(
+                    "Internal Error: AppManager encountered an error".to_string(),
+                ));
+            }
         }
-
-        Err(jsonrpsee::core::Error::Custom(String::from(
-            "Internal Error",
-        )))
     }
 }
 
