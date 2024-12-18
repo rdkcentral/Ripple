@@ -306,7 +306,7 @@ impl ProviderRegistrar {
                         .platform_state
                         .open_rpc_state
                         .get_openrpc_validator()
-                        .get_result_properties_schema(event)
+                        .get_closest_result_properties_schema(event, event_data_map)
                     {
                         // Populate the event result, injecting the app ID if the field exists in the event schema
 
@@ -325,9 +325,11 @@ impl ProviderRegistrar {
                             } else {
                                 error!(
                                 "callback_app_event_emitter: Missing field in event data: field={}",
-                                key
-                            );
-                                result_map.insert(key.clone(), Value::Null);
+                                key);
+
+                                // Assume the field in the schema holds the contents of the event. This
+                                // is the fragile part that should probably be addressed by a schema change.
+                                result_map.insert(key.clone(), event_data.clone());
                             }
                         }
 
@@ -407,110 +409,187 @@ impl ProviderRegistrar {
 
         info!("callback_provider_invoker: method={}", context.method);
 
-        if let Some(provided_by) = &context.provider_relation_set.provided_by {
-            let provider_relation_map = context
-                .platform_state
-                .open_rpc_state
-                .get_provider_relation_map();
+        let provided_by = match &context.provider_relation_set.provided_by {
+            Some(provided_by) => provided_by,
+            None => {
+                error!(
+                    "callback_provider_invoker: Missing provided_by: method={}",
+                    context.method
+                );
+                return Err(Error::Custom(String::from(
+                    "Unexpected schema configuration",
+                )));
+            }
+        };
 
-            if let Some(provided_by_set) = provider_relation_map.get(
-                &FireboltOpenRpcMethod::name_with_lowercase_module(provided_by),
-            ) {
-                if let Some(capability) = &provided_by_set.capability {
-                    let (provider_response_payload_tx, provider_response_payload_rx) =
-                        oneshot::channel::<ProviderResponsePayload>();
+        let provider_relation_map = context
+            .platform_state
+            .open_rpc_state
+            .get_provider_relation_map();
 
-                    let caller = CallerSession {
-                        session_id: Some(call_context.session_id.clone()),
-                        app_id: Some(call_context.app_id.clone()),
-                    };
+        let provided_by_set = match provider_relation_map.get(
+            &FireboltOpenRpcMethod::name_with_lowercase_module(provided_by),
+        ) {
+            Some(provided_by_set) => provided_by_set,
+            None => {
+                error!(
+                    "callback_provider_invoker: Missing provided_by_set: method={}",
+                    context.method
+                );
+                return Err(Error::Custom(String::from(
+                    "Unexpected schema configuration",
+                )));
+            }
+        };
 
-                    let provider_broker_request = ProviderBrokerRequest {
-                        capability: capability.clone(),
-                        method: provided_by.clone(),
-                        caller,
-                        request: ProviderRequestPayload::Generic(params),
-                        tx: provider_response_payload_tx,
-                        app_id: None,
-                    };
+        let capability = match &provided_by_set.capability {
+            Some(capability) => capability,
+            None => {
+                error!(
+                    "callback_provider_invoker: Missing capability: method={}",
+                    context.method
+                );
+                return Err(Error::Custom(String::from(
+                    "Unexpected schema configuration",
+                )));
+            }
+        };
 
-                    let provider_app_id = ProviderBroker::invoke_method(
-                        &context.platform_state,
-                        provider_broker_request,
-                    )
-                    .await;
+        let (provider_response_payload_tx, provider_response_payload_rx) =
+            oneshot::channel::<ProviderResponsePayload>();
 
-                    if let Ok(result) = timeout(
-                        Duration::from_millis(DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS),
-                        provider_response_payload_rx,
-                    )
-                    .await
+        let caller = CallerSession {
+            session_id: Some(call_context.session_id.clone()),
+            app_id: Some(call_context.app_id.clone()),
+        };
+
+        let provider_broker_request = ProviderBrokerRequest {
+            capability: capability.clone(),
+            method: provided_by.clone(),
+            caller,
+            request: ProviderRequestPayload::Generic(params),
+            tx: provider_response_payload_tx,
+            app_id: None,
+        };
+
+        let provider_app_id =
+            ProviderBroker::invoke_method(&context.platform_state, provider_broker_request).await;
+
+        let result = match timeout(
+            Duration::from_millis(DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS),
+            provider_response_payload_rx,
+        )
+        .await
+        {
+            Ok(result) => result,
+            Err(e) => {
+                error!(
+                    "callback_provider_invoker: Error waiting for provider response: {:?}",
+                    e
+                );
+                return Err(Error::Custom(String::from("Provider response timeout")));
+            }
+        };
+
+        let provider_response_payload = match result {
+            Ok(provider_response_payload) => provider_response_payload,
+            Err(e) => {
+                error!(
+                    "callback_provider_invoker: Error waiting for provider response: {:?}",
+                    e
+                );
+                return Err(Error::Custom(String::from("Error returning from provider")));
+            }
+        };
+
+        match provider_response_payload {
+            ProviderResponsePayload::GenericResponse(provider_response_value) => {
+                let provider_response_value_map = match provider_response_value {
+                    Value::Object(ref map) => map,
+                    _ => {
+                        // Method returns a non-object type, just return it.
+                        return Ok(provider_response_value);
+                    }
+                };
+
+                let result_properties_map = match context
+                    .platform_state
+                    .open_rpc_state
+                    .get_openrpc_validator()
+                    .get_closest_result_properties_schema(
+                        &context.method,
+                        provider_response_value_map,
+                    ) {
+                    Some(result_properties_map) => result_properties_map,
+                    None => {
+                        error!("callback_provider_invoker: Result schema not found");
+                        return Err(Error::Custom(String::from("Result schema not found")));
+                    }
+                };
+
+                // Inject the provider app ID if the field exists in the provided-to response schema, the other field will be
+                // the provider response. The firebolt spec is not ideal in that the provider response data is captured
+                // within a field of the provided-to's response object, hence the somewhat arbritrary logic here. Ideally
+                // the provided-to response object would be identical to the provider response object aside from an optional
+                // appId field.
+
+                let mut response_map = Map::new();
+                for key in result_properties_map.keys() {
+                    if let Some(field) = provider_response_value_map.get(key) {
+                        response_map.insert(key.clone(), field.clone());
+                    } else if key.eq("appId") {
+                        response_map.insert(
+                            key.clone(),
+                            Value::String(provider_app_id.clone().unwrap_or_default()),
+                        );
+                    } else if let Some(Value::Object(result_property_map)) =
+                        result_properties_map.get(key)
                     {
-                        if let Ok(provider_response_payload) = result {
-                            match provider_response_payload {
-                                ProviderResponsePayload::GenericResponse(
-                                    provider_response_value,
-                                ) => {
-                                    if let Some(result_properties_map) = context
-                                        .platform_state
-                                        .open_rpc_state
-                                        .get_openrpc_validator()
-                                        .get_result_properties_schema(&context.method)
-                                    {
-                                        // Inject the provider app ID if the field exists in the provided-to response schema, the other field will be
-                                        // the provider response. The firebolt spec is not ideal in that the provider response data is captured
-                                        // within a field of the provided-to's response object, hence the somewhat arbritrary logic here. Ideally
-                                        // the provided-to response object would be identical to the provider response object aside from an optional
-                                        // appId field.
+                        let reference_path = match result_property_map.get("$ref") {
+                            Some(Value::String(path)) => path,
+                            _ => {
+                                error!("callback_provider_invoker: $ref not found: key={}", key);
+                                continue;
+                            }
+                        };
 
-                                        let mut response_map = Map::new();
-                                        for key in result_properties_map.keys() {
-                                            if key.eq("appId") {
-                                                response_map.insert(
-                                                    key.clone(),
-                                                    Value::String(
-                                                        provider_app_id.clone().unwrap_or_default(),
-                                                    ),
-                                                );
-                                            } else {
-                                                response_map.insert(
-                                                    key.clone(),
-                                                    provider_response_value.clone(),
-                                                );
-                                            }
-                                        }
-                                        return Ok(Value::Object(response_map));
-                                    } else {
-                                        // Method returns a non-object type, just return it.
-                                        return Ok(provider_response_value);
-                                    }
-                                }
-                                ProviderResponsePayload::GenericError(e) => {
-                                    return Err(Error::Call(CallError::Custom {
-                                        code: e.code,
-                                        message: e.message,
-                                        data: None,
-                                    }));
-                                }
-                                _ => {
-                                    return Ok(provider_response_payload.as_value());
-                                }
+                        if let Some(ref_properties_map) = context
+                            .platform_state
+                            .open_rpc_state
+                            .get_openrpc_validator()
+                            .get_result_ref_schema(reference_path)
+                        {
+                            // If any (!) of the keys match, assume the field in the schema holds the contents of the provider response. This
+                            // is the fragile part that should be addressed by a spec change, as Ripple can only guess at intention.
+
+                            if provider_response_value_map
+                                .keys()
+                                .any(|key| ref_properties_map.contains_key(key))
+                            {
+                                response_map.insert(key.clone(), provider_response_value.clone());
+
+                                // Just bail now, we're dumping the complete provider response into the response map
+                                // under some key in the schema, so it's either right or wrong but continuing to iterate
+                                // would be wrong-er.
+
+                                return Ok(Value::Object(response_map));
                             }
                         } else {
-                            return Err(Error::Custom(String::from(
-                                "Error returning from provider",
-                            )));
+                            error!("callback_provider_invoker: ref_properties_map not found");
                         }
                     } else {
-                        return Err(Error::Custom(String::from("Provider response timeout")));
+                        error!("callback_provider_invoker: Not an object: key={}", key);
                     }
                 }
+                Ok(Value::Object(response_map))
             }
+            ProviderResponsePayload::GenericError(e) => Err(Error::Call(CallError::Custom {
+                code: e.code,
+                message: e.message,
+                data: None,
+            })),
+            _ => Ok(provider_response_payload.as_value()),
         }
-
-        Err(Error::Custom(String::from(
-            "Unexpected schema configuration",
-        )))
     }
 
     async fn callback_focus(
