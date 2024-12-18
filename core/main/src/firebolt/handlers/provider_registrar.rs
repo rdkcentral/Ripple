@@ -719,7 +719,7 @@ impl ProviderRegistrar {
                     .get_openrpc_validator()
                     .get_closest_result_properties_schema(
                         &context.method,
-                        &provider_response_value_map,
+                        provider_response_value_map,
                     ) {
                     Some(result_properties_map) => result_properties_map,
                     None => {
@@ -758,7 +758,7 @@ impl ProviderRegistrar {
                             .platform_state
                             .open_rpc_state
                             .get_openrpc_validator()
-                            .get_result_ref_schema(&reference_path)
+                            .get_result_ref_schema(reference_path)
                         {
                             // If any (!) of the keys match, assume the field in the schema holds the contents of the provider response. This
                             // is the fragile part that should be addressed by a spec change, as Ripple can only guess at intention.
@@ -782,18 +782,14 @@ impl ProviderRegistrar {
                         error!("callback_provider_invoker: Not an object: key={}", key);
                     }
                 }
-                return Ok(Value::Object(response_map));
+                Ok(Value::Object(response_map))
             }
-            ProviderResponsePayload::GenericError(e) => {
-                return Err(Error::Call(CallError::Custom {
-                    code: e.code,
-                    message: e.message,
-                    data: None,
-                }));
-            }
-            _ => {
-                return Ok(provider_response_payload.as_value());
-            }
+            ProviderResponsePayload::GenericError(e) => Err(Error::Call(CallError::Custom {
+                code: e.code,
+                message: e.message,
+                data: None,
+            })),
+            _ => Ok(provider_response_payload.as_value()),
         }
     }
     // </pca>

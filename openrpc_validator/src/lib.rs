@@ -52,7 +52,7 @@ impl RpcMethodValidator {
         None
     }
 
-    pub fn get_result_ref_schema(&self, reference_path: &String) -> Option<Map<String, Value>> {
+    pub fn get_result_ref_schema(&self, reference_path: &str) -> Option<Map<String, Value>> {
         for validator in &self.validators {
             if let Some(result_ref_schema) = validator.get_result_ref_schemas(reference_path) {
                 return Some(result_ref_schema);
@@ -105,7 +105,7 @@ impl FireboltOpenRpc {
         None
     }
 
-    pub fn get_result_ref_schemas(&self, reference_path: &String) -> Option<Map<String, Value>> {
+    pub fn get_result_ref_schemas(&self, reference_path: &str) -> Option<Map<String, Value>> {
         let parts: Vec<&str> = reference_path.split('/').collect();
         let result_type_string = reference_path.split('/').last().unwrap();
 
