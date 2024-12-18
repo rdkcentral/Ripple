@@ -50,10 +50,7 @@ use ripple_sdk::{
 use serde_json::{Map, Value};
 
 // TODO: Add to config
-// <pca> debug
-//const DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS: u64 = 15000;
-const DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS: u64 = 30000;
-// </pca>
+const DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS: u64 = 15000;
 
 #[derive(Debug)]
 enum MethodType {
@@ -303,20 +300,14 @@ impl ProviderRegistrar {
                 }
             };
 
-            println!("*** _DEBUG: event_data: {:?}", event_data);
-
             let result_value = match event_data {
                 Value::Object(ref event_data_map) => {
                     if let Some(event_schema_map) = context
                         .platform_state
                         .open_rpc_state
                         .get_openrpc_validator()
-                        // <pca> 2
-                        //.get_result_properties_schema(event)
                         .get_closest_result_properties_schema(event, event_data_map)
-                    // </pca>
                     {
-                        println!("*** _DEBUG: event_schema_map: {:?}", event_schema_map);
                         // Populate the event result, injecting the app ID if the field exists in the event schema
 
                         let mut result_map = Map::new();
@@ -325,19 +316,17 @@ impl ProviderRegistrar {
                             if let Some(event_value) = event_data_map.get(key) {
                                 result_map.insert(key.clone(), event_value.clone());
                             } else if key.eq("appId") {
-                                println!("*** _DEBUG: Mark 1");
                                 if let Some(context) = call_context.clone() {
                                     result_map.insert(key.clone(), Value::String(context.app_id));
                                 } else {
-                                    error!("*** _DEBUG: callback_app_event_emitter: Missing call context, could not determine app ID");
                                     error!("callback_app_event_emitter: Missing call context, could not determine app ID");
                                     result_map.insert(key.clone(), Value::Null);
                                 }
                             } else {
                                 error!(
                                 "callback_app_event_emitter: Missing field in event data: field={}",
-                                key
-                            );
+                                key);
+
                                 // Assume the field in the schema holds the contents of the event. This
                                 // is the fragile part that should probably be addressed by a schema change.
                                 result_map.insert(key.clone(), event_data.clone());
@@ -397,6 +386,207 @@ impl ProviderRegistrar {
         Ok(None) as RpcResult<Option<()>>
     }
 
+    // <pca>
+    // async fn callback_provider_invoker(
+    //     params: Params<'static>,
+    //     context: Arc<RpcModuleContext>,
+    // ) -> Result<Value, Error> {
+    //     let mut params_sequence = params.sequence();
+    //     let call_context: CallContext = match params_sequence.next() {
+    //         Ok(context) => context,
+    //         Err(e) => {
+    //             error!("callback_provider_invoker: Error: {:?}", e);
+    //             return Err(Error::Custom("Missing call context".to_string()));
+    //         }
+    //     };
+
+    //     let params: Value = match params_sequence.next() {
+    //         Ok(p) => p,
+    //         Err(e) => {
+    //             error!("callback_provider_invoker: Error: {:?}", e);
+    //             return Err(Error::Custom("Missing params".to_string()));
+    //         }
+    //     };
+
+    //     info!("callback_provider_invoker: method={}", context.method);
+
+    //     if let Some(provided_by) = &context.provider_relation_set.provided_by {
+    //         let provider_relation_map = context
+    //             .platform_state
+    //             .open_rpc_state
+    //             .get_provider_relation_map();
+
+    //         if let Some(provided_by_set) = provider_relation_map.get(
+    //             &FireboltOpenRpcMethod::name_with_lowercase_module(provided_by),
+    //         ) {
+    //             if let Some(capability) = &provided_by_set.capability {
+    //                 let (provider_response_payload_tx, provider_response_payload_rx) =
+    //                     oneshot::channel::<ProviderResponsePayload>();
+
+    //                 let caller = CallerSession {
+    //                     session_id: Some(call_context.session_id.clone()),
+    //                     app_id: Some(call_context.app_id.clone()),
+    //                 };
+
+    //                 let provider_broker_request = ProviderBrokerRequest {
+    //                     capability: capability.clone(),
+    //                     method: provided_by.clone(),
+    //                     caller,
+    //                     request: ProviderRequestPayload::Generic(params),
+    //                     tx: provider_response_payload_tx,
+    //                     app_id: None,
+    //                 };
+
+    //                 let provider_app_id = ProviderBroker::invoke_method(
+    //                     &context.platform_state,
+    //                     provider_broker_request,
+    //                 )
+    //                 .await;
+
+    //                 if let Ok(result) = timeout(
+    //                     Duration::from_millis(DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS),
+    //                     provider_response_payload_rx,
+    //                 )
+    //                 .await
+    //                 {
+    //                     if let Ok(provider_response_payload) = result {
+    //                         match provider_response_payload {
+    //                             ProviderResponsePayload::GenericResponse(
+    //                                 provider_response_value,
+    //                             ) => {
+    //                                 if let Value::Object(ref provider_response_value_map) =
+    //                                     provider_response_value
+    //                                 {
+    //                                     if let Some(result_properties_map) = context
+    //                                         .platform_state
+    //                                         .open_rpc_state
+    //                                         .get_openrpc_validator()
+    //                                         .get_closest_result_properties_schema(
+    //                                             &context.method,
+    //                                             &provider_response_value_map,
+    //                                         )
+    //                                     {
+    //                                         // Inject the provider app ID if the field exists in the provided-to response schema, the other field will be
+    //                                         // the provider response. The firebolt spec is not ideal in that the provider response data is captured
+    //                                         // within a field of the provided-to's response object, hence the somewhat arbritrary logic here. Ideally
+    //                                         // the provided-to response object would be identical to the provider response object aside from an optional
+    //                                         // appId field.
+
+    //                                         let mut response_map = Map::new();
+    //                                         for key in result_properties_map.keys() {
+    //                                             if let Some(field) =
+    //                                                 provider_response_value_map.get(key)
+    //                                             {
+    //                                                 response_map.insert(key.clone(), field.clone());
+    //                                             } else if key.eq("appId") {
+    //                                                 response_map.insert(
+    //                                                     key.clone(),
+    //                                                     Value::String(
+    //                                                         provider_app_id
+    //                                                             .clone()
+    //                                                             .unwrap_or_default(),
+    //                                                     ),
+    //                                                 );
+    //                                             } else if let Some(Value::Object(
+    //                                                 result_property_map,
+    //                                             )) = result_properties_map.get(key)
+    //                                             {
+    //                                                 let reference_path = match result_property_map
+    //                                                     .get("$ref")
+    //                                                 {
+    //                                                     Some(Value::String(path)) => path,
+    //                                                     _ => {
+    //                                                         error!(
+    //                                                                 "callback_provider_invoker: $ref not found: key={}",
+    //                                                                 key
+    //                                                             );
+    //                                                         continue;
+    //                                                     }
+    //                                                 };
+
+    //                                                 if let Some(ref_properties_map) = context
+    //                                                     .platform_state
+    //                                                     .open_rpc_state
+    //                                                     .get_openrpc_validator()
+    //                                                     .get_result_ref_schema(&reference_path)
+    //                                                 {
+    //                                                     // If any (!) of the keys match, assume the field in the schema holds the contents of the provider response. This
+    //                                                     // is the fragile part that should be addressed by a spec change, as Ripple can only guess as intention.
+
+    //                                                     // if ref_properties_map.keys().iter().any(
+    //                                                     //     |k| {
+    //                                                     //         provider_response_value_map
+    //                                                     //             .keys()
+    //                                                     //             .contains(k)
+    //                                                     //     },
+    //                                                     // ) {
+    //                                                     if provider_response_value_map.keys().any(
+    //                                                         |key| {
+    //                                                             ref_properties_map.contains_key(key)
+    //                                                         },
+    //                                                     ) {
+    //                                                         response_map.insert(
+    //                                                             key.clone(),
+    //                                                             provider_response_value.clone(),
+    //                                                         );
+
+    //                                                         // Just bail now, we're dumping the complete provider response into the response map
+    //                                                         // under some key in the schema, so it's either right or wrong but continuing to iterate
+    //                                                         // would be wrong-er.
+
+    //                                                         return Ok(Value::Object(response_map));
+    //                                                     }
+    //                                                 } else {
+    //                                                     error!(
+    //                                                             "callback_provider_invoker: ref_properties_map not found"
+    //                                                         );
+    //                                                 }
+    //                                             } else {
+    //                                                 error!(
+    //                                                         "callback_provider_invoker: Not an object: key={}",
+    //                                                         key
+    //                                                     );
+    //                                             }
+    //                                         }
+    //                                         return Ok(Value::Object(response_map));
+    //                                     } else {
+    //                                         error!("callback_provider_invoker: Result schema not found");
+    //                                         return Err(Error::Custom(String::from(
+    //                                             "Result schema not found",
+    //                                         )));
+    //                                     }
+    //                                 } else {
+    //                                     // Method returns a non-object type, just return it.
+    //                                     return Ok(provider_response_value);
+    //                                 }
+    //                             }
+    //                             ProviderResponsePayload::GenericError(e) => {
+    //                                 return Err(Error::Call(CallError::Custom {
+    //                                     code: e.code,
+    //                                     message: e.message,
+    //                                     data: None,
+    //                                 }));
+    //                             }
+    //                             _ => {
+    //                                 return Ok(provider_response_payload.as_value());
+    //                             }
+    //                         }
+    //                     } else {
+    //                         return Err(Error::Custom(String::from(
+    //                             "Error returning from provider",
+    //                         )));
+    //                     }
+    //                 } else {
+    //                     return Err(Error::Custom(String::from("Provider response timeout")));
+    //                 }
+    //             }
+    //         }
+    //     }
+
+    //     Err(Error::Custom(String::from(
+    //         "Unexpected schema configuration",
+    //     )))
+    // }
     async fn callback_provider_invoker(
         params: Params<'static>,
         context: Arc<RpcModuleContext>,
@@ -420,238 +610,193 @@ impl ProviderRegistrar {
 
         info!("callback_provider_invoker: method={}", context.method);
 
-        if let Some(provided_by) = &context.provider_relation_set.provided_by {
-            let provider_relation_map = context
-                .platform_state
-                .open_rpc_state
-                .get_provider_relation_map();
+        let provided_by = match &context.provider_relation_set.provided_by {
+            Some(provided_by) => provided_by,
+            None => {
+                error!(
+                    "callback_provider_invoker: Missing provided_by: method={}",
+                    context.method
+                );
+                return Err(Error::Custom(String::from(
+                    "Unexpected schema configuration",
+                )));
+            }
+        };
 
-            if let Some(provided_by_set) = provider_relation_map.get(
-                &FireboltOpenRpcMethod::name_with_lowercase_module(provided_by),
-            ) {
-                if let Some(capability) = &provided_by_set.capability {
-                    let (provider_response_payload_tx, provider_response_payload_rx) =
-                        oneshot::channel::<ProviderResponsePayload>();
+        let provider_relation_map = context
+            .platform_state
+            .open_rpc_state
+            .get_provider_relation_map();
 
-                    let caller = CallerSession {
-                        session_id: Some(call_context.session_id.clone()),
-                        app_id: Some(call_context.app_id.clone()),
-                    };
+        let provided_by_set = match provider_relation_map.get(
+            &FireboltOpenRpcMethod::name_with_lowercase_module(provided_by),
+        ) {
+            Some(provided_by_set) => provided_by_set,
+            None => {
+                error!(
+                    "callback_provider_invoker: Missing provided_by_set: method={}",
+                    context.method
+                );
+                return Err(Error::Custom(String::from(
+                    "Unexpected schema configuration",
+                )));
+            }
+        };
 
-                    let provider_broker_request = ProviderBrokerRequest {
-                        capability: capability.clone(),
-                        method: provided_by.clone(),
-                        caller,
-                        request: ProviderRequestPayload::Generic(params),
-                        tx: provider_response_payload_tx,
-                        app_id: None,
-                    };
+        let capability = match &provided_by_set.capability {
+            Some(capability) => capability,
+            None => {
+                error!(
+                    "callback_provider_invoker: Missing capability: method={}",
+                    context.method
+                );
+                return Err(Error::Custom(String::from(
+                    "Unexpected schema configuration",
+                )));
+            }
+        };
 
-                    let provider_app_id = ProviderBroker::invoke_method(
-                        &context.platform_state,
-                        provider_broker_request,
-                    )
-                    .await;
+        let (provider_response_payload_tx, provider_response_payload_rx) =
+            oneshot::channel::<ProviderResponsePayload>();
 
-                    if let Ok(result) = timeout(
-                        Duration::from_millis(DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS),
-                        provider_response_payload_rx,
-                    )
-                    .await
+        let caller = CallerSession {
+            session_id: Some(call_context.session_id.clone()),
+            app_id: Some(call_context.app_id.clone()),
+        };
+
+        let provider_broker_request = ProviderBrokerRequest {
+            capability: capability.clone(),
+            method: provided_by.clone(),
+            caller,
+            request: ProviderRequestPayload::Generic(params),
+            tx: provider_response_payload_tx,
+            app_id: None,
+        };
+
+        let provider_app_id =
+            ProviderBroker::invoke_method(&context.platform_state, provider_broker_request).await;
+
+        let result = match timeout(
+            Duration::from_millis(DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS),
+            provider_response_payload_rx,
+        )
+        .await
+        {
+            Ok(result) => result,
+            Err(e) => {
+                error!(
+                    "callback_provider_invoker: Error waiting for provider response: {:?}",
+                    e
+                );
+                return Err(Error::Custom(String::from("Provider response timeout")));
+            }
+        };
+
+        let provider_response_payload = match result {
+            Ok(provider_response_payload) => provider_response_payload,
+            Err(e) => {
+                error!(
+                    "callback_provider_invoker: Error waiting for provider response: {:?}",
+                    e
+                );
+                return Err(Error::Custom(String::from("Error returning from provider")));
+            }
+        };
+
+        match provider_response_payload {
+            ProviderResponsePayload::GenericResponse(provider_response_value) => {
+                let provider_response_value_map = match provider_response_value {
+                    Value::Object(ref map) => map,
+                    _ => {
+                        // Method returns a non-object type, just return it.
+                        return Ok(provider_response_value);
+                    }
+                };
+
+                let result_properties_map = match context
+                    .platform_state
+                    .open_rpc_state
+                    .get_openrpc_validator()
+                    .get_closest_result_properties_schema(
+                        &context.method,
+                        &provider_response_value_map,
+                    ) {
+                    Some(result_properties_map) => result_properties_map,
+                    None => {
+                        error!("callback_provider_invoker: Result schema not found");
+                        return Err(Error::Custom(String::from("Result schema not found")));
+                    }
+                };
+
+                // Inject the provider app ID if the field exists in the provided-to response schema, the other field will be
+                // the provider response. The firebolt spec is not ideal in that the provider response data is captured
+                // within a field of the provided-to's response object, hence the somewhat arbritrary logic here. Ideally
+                // the provided-to response object would be identical to the provider response object aside from an optional
+                // appId field.
+
+                let mut response_map = Map::new();
+                for key in result_properties_map.keys() {
+                    if let Some(field) = provider_response_value_map.get(key) {
+                        response_map.insert(key.clone(), field.clone());
+                    } else if key.eq("appId") {
+                        response_map.insert(
+                            key.clone(),
+                            Value::String(provider_app_id.clone().unwrap_or_default()),
+                        );
+                    } else if let Some(Value::Object(result_property_map)) =
+                        result_properties_map.get(key)
                     {
-                        if let Ok(provider_response_payload) = result {
-                            match provider_response_payload {
-                                ProviderResponsePayload::GenericResponse(
-                                    provider_response_value,
-                                ) => {
-                                    // <pca> 2
-                                    if let Value::Object(ref provider_response_value_map) =
-                                        provider_response_value
-                                    {
-                                        println!(
-                                            "*** _DEBUG: provider_response_value_map: {:?}",
-                                            provider_response_value_map
-                                        );
-                                        if let Some(result_properties_map) = context
-                                            .platform_state
-                                            .open_rpc_state
-                                            .get_openrpc_validator()
-                                            // <pca> 2
-                                            //.get_result_properties_schema(&context.method)
-                                            .get_closest_result_properties_schema(
-                                                &context.method,
-                                                &provider_response_value_map,
-                                            )
-                                        {
-                                            println!(
-                                                "*** _DEBUG: result_properties_map: {:?}",
-                                                result_properties_map
-                                            );
-                                            // <pca> 2
-                                            // if let Some(provider_response_value_map) =
-                                            //     provider_response_value.as_object()
-                                            // {
-                                            //     println!(
-                                            //         "*** _DEBUG: provider_response_value_map: {:?}",
-                                            //         provider_response_value_map
-                                            //     );
-                                            // Inject the provider app ID if the field exists in the provided-to response schema, the other field will be
-                                            // the provider response. The firebolt spec is not ideal in that the provider response data is captured
-                                            // within a field of the provided-to's response object, hence the somewhat arbritrary logic here. Ideally
-                                            // the provided-to response object would be identical to the provider response object aside from an optional
-                                            // appId field.
+                        let reference_path = match result_property_map.get("$ref") {
+                            Some(Value::String(path)) => path,
+                            _ => {
+                                error!("callback_provider_invoker: $ref not found: key={}", key);
+                                continue;
+                            }
+                        };
 
-                                            let mut response_map = Map::new();
-                                            for key in result_properties_map.keys() {
-                                                if let Some(field) =
-                                                    provider_response_value_map.get(key)
-                                                {
-                                                    println!("*** _DEBUG: Provider response contains key: {}", key);
-                                                    response_map.insert(key.clone(), field.clone());
-                                                } else if key.eq("appId") {
-                                                    println!("*** _DEBUG: Schema contains appId");
-                                                    response_map.insert(
-                                                        key.clone(),
-                                                        Value::String(
-                                                            provider_app_id
-                                                                .clone()
-                                                                .unwrap_or_default(),
-                                                        ),
-                                                    );
-                                                } else {
-                                                    // <pca> debug
-                                                    // println!("*** _DEBUG: Not in Provider response, adding from schema: {}: {:?}", key, provider_response_value.clone());
-                                                    // // Assume the field in the schema holds the contents of the provider response. This
-                                                    // // is the fragile part that should probably be addressed by a spec change.
-                                                    // response_map.insert(
-                                                    //     key.clone(),
-                                                    //     provider_response_value.clone(),
-                                                    // );
-                                                    println!(
-                                                        "*** _DEBUG: Not in Provider response k={}, v={:?}", key, result_properties_map.get(key).unwrap());
+                        if let Some(ref_properties_map) = context
+                            .platform_state
+                            .open_rpc_state
+                            .get_openrpc_validator()
+                            .get_result_ref_schema(&reference_path)
+                        {
+                            // If any (!) of the keys match, assume the field in the schema holds the contents of the provider response. This
+                            // is the fragile part that should be addressed by a spec change, as Ripple can only guess at intention.
 
-                                                    // If v or or the schema of $ref object in v contains same keys as provider response, then do:
+                            if provider_response_value_map
+                                .keys()
+                                .any(|key| ref_properties_map.contains_key(key))
+                            {
+                                response_map.insert(key.clone(), provider_response_value.clone());
 
-                                                    // response_map.insert(
-                                                    //     key.clone(),
-                                                    //     provider_response_value.clone(),
-                                                    // );
+                                // Just bail now, we're dumping the complete provider response into the response map
+                                // under some key in the schema, so it's either right or wrong but continuing to iterate
+                                // would be wrong-er.
 
-                                                    if let Some(Value::Object(
-                                                        result_property_map,
-                                                    )) = result_properties_map.get(key)
-                                                    {
-                                                        println!("*** _DEBUG: Keys don't match: result_property_map.keys()={:?}, provider_response_value_map.keys()={:?}", result_property_map.keys().collect::<Vec<_>>(), provider_response_value_map.keys().collect::<Vec<_>>());
-
-                                                        if let Some(ref_properties_map) = context
-                                                            .platform_state
-                                                            .open_rpc_state
-                                                            .get_openrpc_validator()
-                                                            .get_result_ref_schema(
-                                                                result_property_map,
-                                                            )
-                                                        {
-                                                            println!("*** _DEBUG: ref_properties_map.keys()={:?}", ref_properties_map.keys().collect::<Vec<&String>>());
-
-                                                            // If any (!) of the keys match, assume the field in the schema holds the contents of the provider response. This
-                                                            // is the fragile part that should be addressed by a spec change, as Ripple can only guess as intention.
-
-                                                            // if ref_properties_map.keys().iter().any(
-                                                            //     |k| {
-                                                            //         provider_response_value_map
-                                                            //             .keys()
-                                                            //             .contains(k)
-                                                            //     },
-                                                            // ) {
-                                                            if provider_response_value_map
-                                                                .keys()
-                                                                .any(|key| {
-                                                                    ref_properties_map
-                                                                        .contains_key(key)
-                                                                })
-                                                            {
-                                                                println!(
-                                                                    "*** _DEBUG: Key(s) match"
-                                                                );
-                                                                response_map.insert(
-                                                                    key.clone(),
-                                                                    provider_response_value.clone(),
-                                                                );
-
-                                                                // Just bail now, we're dumping the complete provider response into the response map
-                                                                // under some key in the schema, so it's either right or wrong but continuing to iterate
-                                                                // would be wrong-er.
-
-                                                                return Ok(Value::Object(
-                                                                    response_map,
-                                                                ));
-                                                            }
-                                                        } else {
-                                                            println!("*** _DEBUG: ref_properties_map not found");
-                                                            error!(
-                                                                "callback_provider_invoker: ref_properties_map not found"
-                                                            );
-                                                        }
-                                                    } else {
-                                                        println!(
-                                                            "*** _DEBUG: Not an object: key={}",
-                                                            key
-                                                        );
-                                                        error!(
-                                                            "callback_provider_invoker: Not an object: key={}",
-                                                            key
-                                                        );
-                                                    }
-                                                    // </pca>
-                                                }
-                                            }
-                                            return Ok(Value::Object(response_map));
-                                            // <pca> 2
-                                            // } else {
-                                            //     error!("callback_provider_invoker: Provider response does not match schema");
-                                            //     return Err(Error::Custom(String::from(
-                                            //         "Provider response does not match schema",
-                                            //     )));
-                                            // }
-                                        } else {
-                                            error!("callback_provider_invoker: Result schema not found");
-                                            return Err(Error::Custom(String::from(
-                                                "Result schema not found",
-                                            )));
-                                        }
-                                        // </pca>
-                                    } else {
-                                        // Method returns a non-object type, just return it.
-                                        return Ok(provider_response_value);
-                                    }
-                                }
-                                ProviderResponsePayload::GenericError(e) => {
-                                    return Err(Error::Call(CallError::Custom {
-                                        code: e.code,
-                                        message: e.message,
-                                        data: None,
-                                    }));
-                                }
-                                _ => {
-                                    return Ok(provider_response_payload.as_value());
-                                }
+                                return Ok(Value::Object(response_map));
                             }
                         } else {
-                            return Err(Error::Custom(String::from(
-                                "Error returning from provider",
-                            )));
+                            error!("callback_provider_invoker: ref_properties_map not found");
                         }
                     } else {
-                        return Err(Error::Custom(String::from("Provider response timeout")));
+                        error!("callback_provider_invoker: Not an object: key={}", key);
                     }
                 }
+                return Ok(Value::Object(response_map));
+            }
+            ProviderResponsePayload::GenericError(e) => {
+                return Err(Error::Call(CallError::Custom {
+                    code: e.code,
+                    message: e.message,
+                    data: None,
+                }));
+            }
+            _ => {
+                return Ok(provider_response_payload.as_value());
             }
         }
-
-        Err(Error::Custom(String::from(
-            "Unexpected schema configuration",
-        )))
     }
+    // </pca>
 
     async fn callback_focus(
         params: Params<'static>,

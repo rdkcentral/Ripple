@@ -35,21 +35,8 @@ impl RpcMethodValidator {
         None
     }
 
-    // <pca> 2
-    // pub fn get_result_properties_schema(&self, name: &str) -> Option<Map<String, Value>> {
-    //     for validator in &self.validators {
-    //         if let Some(result_properties_schema) =
-    //             validator.get_result_properties_schema_by_name(name)
-    //         {
-    //             return Some(result_properties_schema);
-    //         }
-    //     }
-    //     None
-    // }
-
     // get_closest_result_properties_schema: Attempts to return the result properties schema that most-closely
     // matches the sample_map input.
-
     pub fn get_closest_result_properties_schema(
         &self,
         name: &str,
@@ -64,41 +51,15 @@ impl RpcMethodValidator {
         }
         None
     }
-    // </pca>
 
-    // <pca>
-    pub fn get_result_ref_schema(
-        &self,
-        result_schema_map: &Map<String, Value>,
-    ) -> Option<Map<String, Value>> {
-        println!(
-            "*** _DEBUG: get_result_ref_schema: result_schema_map: {:?}",
-            result_schema_map
-        );
-        let reference_path = match result_schema_map.get("$ref") {
-            Some(Value::String(path)) => path,
-            _ => {
-                println!("*** _DEBUG: get_result_ref_schema: NOT FOUND");
-                return None;
-            }
-        };
+    pub fn get_result_ref_schema(&self, reference_path: &String) -> Option<Map<String, Value>> {
         for validator in &self.validators {
-            println!("*** _DEBUG: get_result_ref_schema: Calling validator.get_result_ref_schemas");
-            // <pca> 2
-            // if let Some(result_ref_schema) = validator.get_result_ref_schemas(result_schema_map) {
-            //     println!("*** _DEBUG: get_result_ref_schema: FOUND");
-            //     return Some(result_ref_schema);
-            // }
             if let Some(result_ref_schema) = validator.get_result_ref_schemas(reference_path) {
-                println!("*** _DEBUG: get_result_ref_schema: FOUND");
                 return Some(result_ref_schema);
             }
-            // </pca>
         }
-        println!("*** _DEBUG: get_result_ref_schema: NOT FOUND");
         None
     }
-    // </pca>
 
     pub fn params_validator(
         &self,
@@ -144,38 +105,7 @@ impl FireboltOpenRpc {
         None
     }
 
-    // <pca>
-    //fn get_result_ref_schemas(
-    //     &self,
-    //     result_schema_map: &Map<String, Value>,
-    // ) -> Option<Map<String, Value>> {
-    //     if let Some(result_schema_value) = result_schema_map.get("$ref") {
-    //         if let Some(result_schema_string) = result_schema_value.as_str() {
-    //             let result_type_string = result_schema_string.split('/').last().unwrap();
-    //             for spec in self.apis.values() {
-    //                 if let Value::Object(components) = &spec.components {
-    //                     if let Some(Value::Object(schemas_map)) = components.get("schemas") {
-    //                         if let Some(result_type_value) = schemas_map.get(result_type_string) {
-    //                             if let Some(result_type_map) = result_type_value.as_object() {
-    //                                 if let Some(Value::Object(result_properties_map)) =
-    //                                     result_type_map.get("properties")
-    //                                 {
-    //                                     return Some(result_properties_map.clone());
-    //                                 }
-    //                             }
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     None
-    // }
     pub fn get_result_ref_schemas(&self, reference_path: &String) -> Option<Map<String, Value>> {
-        println!(
-            "*** _DEBUG: get_result_ref_schemas: reference_path: {}",
-            reference_path
-        );
         let parts: Vec<&str> = reference_path.split('/').collect();
         let result_type_string = reference_path.split('/').last().unwrap();
 
@@ -185,7 +115,6 @@ impl FireboltOpenRpc {
                     if let Value::Object(components) = &spec.components {
                         components
                     } else {
-                        println!("*** _DEBUG: get_result_ref_schemas: components not found");
                         continue;
                     }
                 }
@@ -193,167 +122,101 @@ impl FireboltOpenRpc {
                     if let Value::Object(x_schemas) = &spec.x_schemas {
                         x_schemas
                     } else {
-                        println!("*** _DEBUG: get_result_ref_schemas: x-schemas not found");
                         continue;
                     }
                 }
                 _ => {
-                    println!(
-                        "*** _DEBUG: get_result_ref_schemas: unknown section: {}",
-                        parts[1]
-                    );
                     continue;
                 }
             };
 
-            println!(
-                "*** _DEBUG: get_result_ref_schemas: parts={:?} spec_section_map: {:?}",
-                parts, spec_section_map
-            );
-
             let mut sub_section_map = spec_section_map;
 
             for sub_section in &parts[2..parts.len() - 1] {
-                println!(
-                    "*** _DEBUG: get_result_ref_schemas: sub_section: {}",
-                    sub_section
-                );
                 if let Some(Value::Object(ss_map)) = sub_section_map.get(*sub_section) {
-                    println!("*** _DEBUG: get_result_ref_schemas: ss_map: {:?}", ss_map);
                     sub_section_map = ss_map;
                 } else {
-                    println!(
-                        "*** _DEBUG: get_result_ref_schemas: sub_section not found: {}",
-                        sub_section
-                    );
                     return None;
                 }
-                println!("*** _DEBUG: get_result_ref_schemas: Mark 3");
             }
 
-            println!(
-                "*** _DEBUG: get_result_ref_schemas: sub_section_map: {:?}",
-                sub_section_map
-            );
-
             if let Some(Value::Object(result_type_map)) = sub_section_map.get(result_type_string) {
-                println!(
-                        "*** _DEBUG: get_result_ref_schemas: result_type_string: {}, result_type_map: {:?}",
-                        result_type_string, result_type_map
-                    );
                 if let Some(Value::Object(properties_map)) = result_type_map.get("properties") {
-                    println!(
-                        "*** _DEBUG: get_result_ref_schemas: properties_map: {:?}",
-                        properties_map
-                    );
                     return Some(properties_map.clone());
                 }
             }
         }
         None
     }
-    // </pca>
 
-    // <pca> 2
-    // pub fn get_result_properties_schema_by_name(&self, name: &str) -> Option<Map<String, Value>> {
-    //     if let Some(method) = self.get_method_by_name(name) {
-    //         if let Some(result_schema_map) = method.result.schema.as_object() {
-    //             if let Some(any_of_map) = result_schema_map.get("anyOf") {
-    //                 // Iterate the anyOf type array and get the first one that matches. With the current firebolt APIs it will happen
-    //                 // to be the correct type, but this is extremely fragile and should be addressed in a future firebolt revision.
-    //                 // Ripple needs a way to determine the explicit result type.
-    //                 if let Some(any_of_array) = any_of_map.as_array() {
-    //                     for value in any_of_array.iter() {
-    //                         println!("*** _DEBUG: get_result_properties_schema_by_name: Calling validator.get_result_ref_schemas: 1");
-    //                         if let Some(result_properties_map) =
-    //                             self.get_result_ref_schemas(value.as_object().unwrap())
-    //                         {
-    //                             return Some(result_properties_map);
-    //                         }
-    //                     }
-    //                 } else {
-    //                     // This should never happen as it indicates a schema error.
-    //                     return None;
-    //                 }
-    //             } else {
-    //                 println!("*** _DEBUG: get_result_properties_schema_by_name: Calling validator.get_result_ref_schemas: 2");
-    //                 if let Some(result_properties_map) =
-    //                     self.get_result_ref_schemas(result_schema_map)
-    //                 {
-    //                     // Return the resolved $ref properites.
-    //                     return Some(result_properties_map);
-    //                 }
-    //             }
-    //             // </pca>
-    //         }
-    //     }
-    //     None
-    // }
     pub fn get_closest_result_schema_by_name(
         &self,
         name: &str,
         sample_map: &Map<String, Value>,
     ) -> Option<Map<String, Value>> {
-        if let Some(method) = self.get_method_by_name(name) {
-            if let Value::Object(result_schema_map) = method.result.schema {
-                if let Some(Value::Array(any_of_array)) = result_schema_map.get("anyOf") {
-                    // Iterate the anyOf type array and find the type that most-closely matches the sample_map input.
-                    // This is extremely fragile and should be addressed in a future firebolt revision.
+        let method = match self.get_method_by_name(name) {
+            Some(method) => method,
+            None => {
+                return None;
+            }
+        };
 
-                    let mut highest_match_count = 0;
-                    let mut highest_match_result_properties_map = None;
-                    for result_type_value in any_of_array.iter() {
-                        println!(
-                            "*** _DEBUG: get_closest_result_schema_by_name: any_of_value={:?}",
-                            result_type_value
-                        );
-                        if let Value::Object(result_type_map) = result_type_value {
-                            println!("*** _DEBUG: get_closest_result_schema_by_name: Mark 1");
-                            if let Some(Value::String(reference_path)) = result_type_map.get("$ref")
-                            {
-                                if let Some(result_properties_map) =
-                                    self.get_result_ref_schemas(reference_path)
-                                {
-                                    println!(
-                                        "*** _DEBUG: get_closest_result_schema_by_name: Mark 2"
-                                    );
-                                    let match_count = sample_map
-                                        .keys()
-                                        .filter(|key| result_properties_map.contains_key(*key))
-                                        .count();
+        let result_schema_map = match method.result.schema {
+            Value::Object(result_schema_map) => result_schema_map,
+            _ => {
+                return None;
+            }
+        };
 
-                                    println!("*** _DEBUG: get_closest_result_schema_by_name: match_count={}, highest_match_count={}", match_count, highest_match_count);
+        if let Some(Value::Array(any_of_array)) = result_schema_map.get("anyOf") {
+            // Iterate the anyOf type array and find the type that most-closely matches the sample_map input.
+            // This is extremely fragile and should be addressed in a future firebolt revision.
 
-                                    if match_count > highest_match_count {
-                                        highest_match_count = match_count;
-                                        highest_match_result_properties_map =
-                                            Some(result_properties_map);
-                                    }
-                                }
-                            }
-                        }
+            let mut highest_match_count = 0;
+            let mut highest_match_result_properties_map = None;
+            for result_type_value in any_of_array.iter() {
+                let result_type_map = match result_type_value {
+                    Value::Object(result_type_map) => result_type_map,
+                    _ => {
+                        continue;
                     }
-                    return highest_match_result_properties_map;
-                } else {
-                    println!("*** _DEBUG: get_closest_result_schema_by_name: Calling validator.get_result_ref_schemas: 2");
-                    let reference_path = match result_schema_map.get("$ref") {
-                        Some(Value::String(path)) => path,
-                        _ => {
-                            return None;
-                        }
-                    };
-                    if let Some(result_properties_map) = self.get_result_ref_schemas(reference_path)
-                    {
-                        // Return the resolved $ref properites.
-                        return Some(result_properties_map);
+                };
+
+                let reference_path = match result_type_map.get("$ref") {
+                    Some(Value::String(path)) => path,
+                    _ => {
+                        continue;
+                    }
+                };
+
+                if let Some(result_properties_map) = self.get_result_ref_schemas(reference_path) {
+                    let match_count = sample_map
+                        .keys()
+                        .filter(|key| result_properties_map.contains_key(*key))
+                        .count();
+
+                    if match_count > highest_match_count {
+                        highest_match_count = match_count;
+                        highest_match_result_properties_map = Some(result_properties_map);
                     }
                 }
-                // </pca>
+            }
+            return highest_match_result_properties_map;
+        } else {
+            let reference_path = match result_schema_map.get("$ref") {
+                Some(Value::String(path)) => path,
+                _ => {
+                    return None;
+                }
+            };
+            if let Some(result_properties_map) = self.get_result_ref_schemas(reference_path) {
+                // Return the resolved $ref properites.
+                return Some(result_properties_map);
             }
         }
+
         None
     }
-    // </pca>
 
     pub fn params_validator(
         &self,
