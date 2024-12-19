@@ -93,8 +93,15 @@ fn build(extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
     }
 }
 
+// <pca>
+fn get_extended_capabilities() -> Option<String> {
+    None
+}
+// </pca>
+
 fn init_extn_builder() -> ExtnChannelBuilder {
     ExtnChannelBuilder {
+        get_extended_capabilities,
         build,
         service: "thunder".into(),
     }

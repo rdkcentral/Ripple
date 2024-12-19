@@ -85,6 +85,16 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                                 } else {
                                     deferred_channels.push(preloaded_channel);
                                 }
+                                // <pca>
+                                if let Some(open_rpc) = (builder.get_extended_capabilities)() {
+                                    match serde_json::from_str(&open_rpc) {
+                                        Ok(v) => open_rpcs.push(v),
+                                        Err(e) => error!("{}", e.to_string()),
+                                    }
+                                } else {
+                                    info!("Channel: No extended capabilities");
+                                }
+                                // </pca>
                             } else {
                                 error!("invalid channel builder in {}", path);
                                 return Err(RippleError::BootstrapError);
@@ -121,7 +131,10 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                                     Err(e) => error!("{}", e.to_string()),
                                 }
                             } else {
-                                info!("No extended capabilities");
+                                // <pca>
+                                //info!("No extended capabilities");
+                                info!("Extension: No extended capabilities");
+                                // </pca>
                             }
 
                             let _ = jsonrpsee_extns.merge((builder.build)(extn_sender, tr));

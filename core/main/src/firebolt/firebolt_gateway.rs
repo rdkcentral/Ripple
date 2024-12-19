@@ -307,7 +307,10 @@ impl FireboltGateway {
                     }
                 }
                 Err(e) => {
-                    println!("**** firebolt_gateway: handle: Error in gatekeeper");
+                    println!(
+                        "**** firebolt_gateway: handle: Error in gatekeeper: e={:?}",
+                        e
+                    );
                     let deny_reason = e.reason;
                     // log firebolt response message in RDKTelemetry 1.0 friendly format
                     TelemetryBuilder::stop_and_send_firebolt_metrics_timer(

@@ -59,17 +59,19 @@ impl FireboltGatekeeper {
             method,
             secure,
         );
+
         let mut api_surface = vec![ApiSurface::Firebolt];
         if !secure {
             api_surface.push(ApiSurface::Ripple);
         }
+
         let perm_based_on_spec = platform_state
             .open_rpc_state
             .get_perms_for_method(method, api_surface)?;
-
         if perm_based_on_spec.is_empty() {
             return Some(perm_based_on_spec);
         }
+
         Some(Self::resolve_dependencies(
             platform_state,
             &perm_based_on_spec,

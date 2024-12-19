@@ -23,7 +23,9 @@ use crate::broker::workflow_broker::SubBrokerErr;
 use crate::state::platform_state::PlatformState;
 use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiError;
 
+use ripple_sdk::extn::extn_client_message::{ExtnMessage, ExtnPayload, ExtnRequest};
 use ripple_sdk::extn::ffi::ffi_message::CExtnMessage;
+use ripple_sdk::framework::ripple_contract::RippleContract;
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
     extn::client::extn_client::ExtnClient,
@@ -96,23 +98,45 @@ impl ExtnBroker {
                             id: id.clone(),
                         };
                         println!("**** extn_broker: start: Received request:broker_request: extn_provider_request: {:?}", req);
-                        
-                        let extn_client = if let Some(platform_state) = &ps {
+
+                        // <pca>
+                        //let extn_client = if let Some(platform_state) = &ps {
+                        let mut extn_client = if let Some(platform_state) = &ps {
+                            // </pca>
                             platform_state.get_client().get_extn_client()
                         } else {
                             return;
                         };
 
-//                         **** extn_sender: ExtnSender::send_request: msg: CExtnMessage { id: "4e98e642-7b55-4af2-be0e-c539f57709dc", 
-// requestor: "ripple:extn:jsonrpsee:badger", target: "\"device_info\"", 
-// target_id: "", payload: "{\"Request\":{\"Device\":{\"DeviceInfo\":\"GetTimezoneWithOffset\"}}}", 
-// callback: Some(Sender { .. }), ts: 1734392600618 }
-// **** extn_client: initialize: c_message: CExtnMessage { id: "4e98e642-7b55-4af2-be0e-c539f57709dc", requestor: "ripple:extn:jsonrpsee:badger", target: "\"device_info\"", target_id: "", payload: "{\"Request\":{\"Device\":{\"DeviceInfo\":\"GetTimezoneWithOffset\"}}}", callback: Some(Sender { .. }), ts: 1734392600618 }
-// **** extn_client: initialize: message: ExtnMessage { id: "4e98e642-7b55-4af2-be0e-c539f57709dc", requestor: ExtnId { _type: Extn, class: Jsonrpsee, service: "badger" }, target: DeviceInfo, target_id: None, payload: Request(Device(DeviceInfo(GetTimezoneWithOffset))), callback: Some(Sender { .. }), ts: Some(1734392600618) }
+                        //                         **** extn_sender: ExtnSender::send_request: msg: CExtnMessage { id: "4e98e642-7b55-4af2-be0e-c539f57709dc",
+                        // requestor: "ripple:extn:jsonrpsee:badger", target: "\"device_info\"",
+                        // target_id: "", payload: "{\"Request\":{\"Device\":{\"DeviceInfo\":\"GetTimezoneWithOffset\"}}}",
+                        // callback: Some(Sender { .. }), ts: 1734392600618 }
+                        // **** extn_client: initialize: c_message: CExtnMessage { id: "4e98e642-7b55-4af2-be0e-c539f57709dc", requestor: "ripple:extn:jsonrpsee:badger", target: "\"device_info\"", target_id: "", payload: "{\"Request\":{\"Device\":{\"DeviceInfo\":\"GetTimezoneWithOffset\"}}}", callback: Some(Sender { .. }), ts: 1734392600618 }
+                        // **** extn_client: initialize: message: ExtnMessage { id: "4e98e642-7b55-4af2-be0e-c539f57709dc", requestor: ExtnId { _type: Extn, class: Jsonrpsee, service: "badger" }, target: DeviceInfo, target_id: None, payload: Request(Device(DeviceInfo(GetTimezoneWithOffset))), callback: Some(Sender { .. }), ts: Some(1734392600618) }
                         let s = extn_client.get_extn_sender_with_extn_id(&alias);
                         println!("**** extn_broker: start: sender from extn_client: {:?}", s);
                         if let Some(sender) = s {
                             println!("**** extn_broker: start: sender available");
+
+                            // <pca>
+                            let msg = ExtnMessage {
+                                id: rpc_request.ctx.call_id.to_string(),
+                                requestor: ExtnId::get_main_target("main".into()),
+                                target: RippleContract::Rpc,
+                                target_id: Some(id),
+                                payload: ExtnPayload::Request(ExtnRequest::Rpc(
+                                    rpc_request.clone(),
+                                )),
+                                callback: None,
+                                ts: None,
+                            };
+
+                            //let result = extn_client.send_message(msg).await;
+                            let result = sender.try_send(msg.into());
+
+                            println!("**** extn_broker: start: result={:?}", result);
+                            // </pca>
 
                             // TBD - ExtnPayloadProvider ?
                             // let p = payload.get_extn_payload();
@@ -130,7 +154,7 @@ impl ExtnBroker {
                             //     callback: callback.clone(),
                             //     id: uuid::Uuid::new_v4().to_string(),
                             //     requestor: alias.clone(),
-                            //     target: 
+                            //     target:
                             //     payload,
                             //     target_id: "".to_owned(),
                             //     ts: Utc::now().timestamp_millis(),
@@ -174,50 +198,52 @@ impl ExtnBroker {
 
                         // JsonRpcApiResponse { jsonrpc: "2.0", id: Some(9), result: Some(Object {"TTS_Status": Number(0), "isenabled": Bool(false), "success": Bool(true)}), error: None, method: None, params: None }
 
-                        let res: Result<JsonRpcApiResponse, SubBrokerErr> =
-                            Ok(JsonRpcApiResponse {
-                                id: Some(broker_request.rpc.ctx.call_id),
-                                jsonrpc: "2.0".to_string(),
-                                result: Some(json!({
-                                    "result": "yay reached extn: success"
-                                })),
-                                error: None,
-                                method: Some(rpc_request.method.clone()),
-                                params: Some(serde_json::Value::String(
-                                    rpc_request.params_json.clone(),
-                                )),
-                            });
-                        println!("**** extn_broker: start: res from extn_broker: {:?}", res);
+                        // <pca>
+                        // let res: Result<JsonRpcApiResponse, SubBrokerErr> =
+                        //     Ok(JsonRpcApiResponse {
+                        //         id: Some(broker_request.rpc.ctx.call_id),
+                        //         jsonrpc: "2.0".to_string(),
+                        //         result: Some(json!({
+                        //             "result": "yay reached extn: success"
+                        //         })),
+                        //         error: None,
+                        //         method: Some(rpc_request.method.clone()),
+                        //         params: Some(serde_json::Value::String(
+                        //             rpc_request.params_json.clone(),
+                        //         )),
+                        //     });
+                        // println!("**** extn_broker: start: res from extn_broker: {:?}", res);
 
-                        let error_response = Err(SubBrokerErr::JsonRpcApiError(
-                            JsonRpcApiError::default()
-                                .with_code(-32001)
-                                .with_message(format!(
-                                    "extn_broker error for api {}",
-                                    broker_request.rpc.method
-                                ))
-                                .with_id(broker_request.rpc.ctx.call_id),
-                        ));
+                        // let error_response = Err(SubBrokerErr::JsonRpcApiError(
+                        //     JsonRpcApiError::default()
+                        //         .with_code(-32001)
+                        //         .with_message(format!(
+                        //             "extn_broker error for api {}",
+                        //             broker_request.rpc.method
+                        //         ))
+                        //         .with_id(broker_request.rpc.ctx.call_id),
+                        // ));
 
-                        match res {
-                            Ok(yay) => {
-                                println!(
-                                    "**** extn_broker: start: yay from extn_broker: {:?}",
-                                    yay
-                                );
-                                Self::send_broker_success_response(&callback, yay);
-                            }
-                            Err(err) => {
-                                println!(
-                                    "**** extn_broker: start: error_response from extn_broker: {:?}",
-                                    err
-                                );
-                                Self::send_broker_failure_response(
-                                    &callback,
-                                    error_response.expect("REASON"),
-                                );
-                            }
-                        }
+                        // match res {
+                        //     Ok(yay) => {
+                        //         println!(
+                        //             "**** extn_broker: start: yay from extn_broker: {:?}",
+                        //             yay
+                        //         );
+                        //         Self::send_broker_success_response(&callback, yay);
+                        //     }
+                        //     Err(err) => {
+                        //         println!(
+                        //             "**** extn_broker: start: error_response from extn_broker: {:?}",
+                        //             err
+                        //         );
+                        //         Self::send_broker_failure_response(
+                        //             &callback,
+                        //             error_response.expect("REASON"),
+                        //         );
+                        //     }
+                        // }
+                        // </pca>
                     }
                     None => {
                         println!("**** extn_broker: start: Failed to receive message");

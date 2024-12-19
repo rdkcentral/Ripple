@@ -60,7 +60,10 @@ impl RPCRequestProcessor {
 
 impl ExtnStreamProcessor for RPCRequestProcessor {
     type STATE = ExtnClient;
-    type VALUE = ExtnProviderRequest;
+    // <pca>
+    //type VALUE = ExtnProviderRequest;
+    type VALUE = RpcRequest;
+    // </pca>
     fn get_state(&self) -> Self::STATE {
         self.client.clone()
     }
@@ -73,6 +76,12 @@ impl ExtnStreamProcessor for RPCRequestProcessor {
         self.streamer.receiver()
     }
 
+    // <pca>
+    fn contract(&self) -> RippleContract {
+        RippleContract::Rpc
+    }
+    // </pca>
+
     // TBD = need to define - contract or fulfills_mutiple ?
 }
 
@@ -82,12 +91,15 @@ impl ExtnRequestProcessor for RPCRequestProcessor {
         self.client.clone()
     }
 
-
     // copied from RpcGatewayProcessor - ThunderDeviceInfoRequestProcessor wondering if this needs to be similar to match request
     // i.e let request = ExtnProviderRequest { value: serde_json::to_value(request).unwrap(), id: self.id.clone(), };
 
     // referring to the
-    async fn process_request(state: Self::STATE, msg: ExtnMessage, extracted_message: Self::VALUE) -> bool {
+    async fn process_request(
+        state: Self::STATE,
+        msg: ExtnMessage,
+        extracted_message: Self::VALUE,
+    ) -> bool {
         println!(
             "**** rpc_request_processor: process_request: extracted_message: {:?}",
             extracted_message.clone()
@@ -97,9 +109,11 @@ impl ExtnRequestProcessor for RPCRequestProcessor {
             msg.clone()
         );
 
-        let request = extracted_message.value;
-        let id = extracted_message.id;
-        
+        // <pca>
+        // let request = extracted_message.value;
+        // let id = extracted_message.id;
+        // </pca>
+
         // let methods = state.get_methods();
         // let resources = Resources::default();
 

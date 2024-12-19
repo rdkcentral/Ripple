@@ -829,12 +829,17 @@ impl ExtnClient {
         let (tx, tr) = bounded(2);
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
         println!(
-            "**** extn_client: standalone_request: send_request: id: {}, payload: {:?}", id, payload);
+            "**** extn_client: standalone_request: send_request: id: {}, payload: {:?}",
+            id, payload
+        );
         self.sender
             .send_request(id, payload, other_sender, Some(tx))?;
         match tokio::time::timeout(Duration::from_millis(timeout_in_msecs), tr.recv()).await {
             Ok(Ok(cmessage)) => {
-                println!("**** extn_client: standalone_request: cmessage: {:?}", cmessage);
+                println!(
+                    "**** extn_client: standalone_request: cmessage: {:?}",
+                    cmessage
+                );
                 trace!("** receiving message msg={:?}", cmessage);
                 let message: Result<ExtnMessage, RippleError> = cmessage.try_into();
 
