@@ -60,7 +60,7 @@ pub struct RippleConfiguration {
     pub internal_app_id: Option<String>,
     #[serde(default = "default_saved_dir")]
     pub saved_dir: String,
-    #[serde(default)]
+    #[serde(default = "data_governance_default")]
     pub data_governance: DataGovernanceConfig,
     #[serde(default = "partner_exclusion_refresh_timeout_default")]
     pub partner_exclusion_refresh_timeout: u32,
@@ -368,6 +368,10 @@ fn country_postal_code_default() -> HashMap<String, String> {
     HashMap::default()
 }
 
+pub fn data_governance_default() -> DataGovernanceConfig {
+    DataGovernanceConfig { policies: vec![] }
+}
+
 #[derive(Deserialize, Debug, Clone, Default)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct SettingsDefaults {
@@ -560,89 +564,6 @@ impl DataGovernanceConfig {
     }
 }
 
-impl Default for DataGovernanceConfig {
-    fn default() -> Self {
-        DataGovernanceConfig {
-            policies: vec![
-                DataGovernancePolicy::new(
-                    DataEventType::Watched,
-                    vec![
-                        DataGovernanceSettingTag::new(
-                            StorageProperty::AllowPersonalization,
-                            false,
-                            HashSet::from([
-                                "dataPlatform:cet:xvp:personalization:recommendation".into()
-                            ]),
-                        ),
-                        DataGovernanceSettingTag::new(
-                            StorageProperty::AllowResumePoints,
-                            false,
-                            HashSet::from([
-                                "dataPlatform:cet:xvp:personalization:continueWatching".into(),
-                            ]),
-                        ),
-                        DataGovernanceSettingTag::new(
-                            StorageProperty::AllowWatchHistory,
-                            false,
-                            HashSet::from([
-                                "dataPlatform:cet:xvp:personalization:continueWatching".into(),
-                            ]),
-                        ),
-                        DataGovernanceSettingTag::new(
-                            StorageProperty::AllowProductAnalytics,
-                            false,
-                            HashSet::from(["dataPlatform:cet:xvp:analytics".into()]),
-                        ),
-                        DataGovernanceSettingTag::new(
-                            StorageProperty::AllowBusinessAnalytics,
-                            false,
-                            HashSet::from(["dataPlatform:cet:xvp:analytics:business".into()]),
-                        ),
-                    ],
-                    false,
-                ),
-                DataGovernancePolicy::new(
-                    DataEventType::BusinessIntelligence,
-                    vec![
-                        DataGovernanceSettingTag::new(
-                            StorageProperty::AllowPersonalization,
-                            false,
-                            HashSet::from([
-                                "dataPlatform:cet:xvp:personalization:recommendation".into()
-                            ]),
-                        ),
-                        DataGovernanceSettingTag::new(
-                            StorageProperty::AllowResumePoints,
-                            false,
-                            HashSet::from([
-                                "dataPlatform:cet:xvp:personalization:continueWatching".into(),
-                            ]),
-                        ),
-                        DataGovernanceSettingTag::new(
-                            StorageProperty::AllowWatchHistory,
-                            false,
-                            HashSet::from([
-                                "dataPlatform:cet:xvp:personalization:continueWatching".into(),
-                            ]),
-                        ),
-                        DataGovernanceSettingTag::new(
-                            StorageProperty::AllowProductAnalytics,
-                            false,
-                            HashSet::from(["dataPlatform:cet:xvp:analytics".into()]),
-                        ),
-                        DataGovernanceSettingTag::new(
-                            StorageProperty::AllowBusinessAnalytics,
-                            false,
-                            HashSet::from(["dataPlatform:cet:xvp:analytics:business".into()]),
-                        ),
-                    ],
-                    false,
-                ),
-            ],
-        }
-    }
-}
-
 impl Default for RippleFeatures {
     fn default() -> Self {
         RippleFeatures {
@@ -743,7 +664,7 @@ impl Default for RippleConfiguration {
             features: Default::default(),
             internal_app_id: None,
             saved_dir: default_saved_dir(),
-            data_governance: Default::default(),
+            data_governance: data_governance_default(),
             partner_exclusion_refresh_timeout: partner_exclusion_refresh_timeout_default(),
             metrics_logging_percentage: metrics_logging_percentage_default(),
             internet_monitoring_configuration: Default::default(),
