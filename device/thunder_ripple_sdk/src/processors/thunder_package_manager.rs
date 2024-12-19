@@ -1132,6 +1132,10 @@ pub mod tests {
             id: Uuid::new_v4(),
             plugin_manager_tx: None,
             subscriptions: None,
+            broker_callbacks: None,
+            broker_subscriptions: None,
+            thndr_asynclient: None,
+            use_thunderbroker: false,
         };
         let mut sessions: HashMap<String, Operation> = HashMap::new();
         sessions.insert("asdf".to_string(), operation.clone());
@@ -1165,6 +1169,10 @@ pub mod tests {
             id: Uuid::new_v4(),
             plugin_manager_tx: None,
             subscriptions: None,
+            broker_callbacks: None,
+            broker_subscriptions: None,
+            thndr_asynclient: None,
+            use_thunderbroker: false,
         };
         let mut sessions: HashMap<String, Operation> = HashMap::new();
         sessions.insert("asdf".to_string(), operation.clone());
