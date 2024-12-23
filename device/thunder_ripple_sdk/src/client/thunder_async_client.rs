@@ -25,11 +25,7 @@ use ripple_sdk::{
         device::device_operator::DeviceChannelRequest, gateway::rpc_gateway_api::JsonRpcApiResponse,
     },
     log::{debug, error, info},
-    tokio::{
-        self,
-        net::TcpStream,
-        sync::mpsc::{Receiver, Sender},
-    },
+    tokio::{self, net::TcpStream, sync::mpsc::Receiver},
     utils::{error::RippleError, rpc_utils::extract_tcp_port},
 };
 use serde_json::json;
@@ -89,29 +85,56 @@ impl ThunderAsyncResponse {
         None
     }
 
-    pub fn get_device_resp_msg(&self) -> Option<DeviceResponseMessage> {
-        let device_resp = match &self.result {
-            Ok(resp) => resp,
+    pub fn get_id(&self) -> Option<u64> {
+        match &self.result {
+            Ok(response) => response.id,
+            Err(_) => None,
+        }
+    }
+
+    pub fn get_device_resp_msg(&self, sub_id: Option<String>) -> Option<DeviceResponseMessage> {
+        println!("@@NNA...get_device_resp_msg res:{:?}", self.result);
+        let json_resp = match &self.result {
+            Ok(json_resp_res) => {
+                println!("@@NNA...get_device_resp_msg resp::{:?}", json_resp_res);
+                json_resp_res
+            }
             _ => return None,
         };
 
-        let serialized = match serde_json::to_value(device_resp) {
-            Ok(val) => val,
-            Err(_) => return None,
-        };
+        let mut device_response_msg = None;
 
-        match serde_json::from_value(serialized) {
-            Ok(device_resp_msg) => Some(device_resp_msg),
-            Err(_) => None,
+        if let Some(res) = &json_resp.result {
+            device_response_msg = Some(DeviceResponseMessage::new(res.clone(), sub_id));
+        } else if let Some(er) = &json_resp.error {
+            device_response_msg = Some(DeviceResponseMessage::new(er.clone(), sub_id));
+        } else if !json_resp.clone().method.is_none() {
+            if let Some(params) = &json_resp.params {
+                let dev_resp = serde_json::to_value(params).unwrap();
+                device_response_msg = Some(DeviceResponseMessage::new(dev_resp, sub_id));
+            }
+        } else {
+            error!("deviceresponse msg extraction failed.");
         }
+        println!("@@NNA...device_response_msg: {:?}", device_response_msg);
+        device_response_msg
     }
 }
 
 impl ThunderAsyncClient {
+    fn get_id_from_result(result: &[u8]) -> Option<u64> {
+        serde_json::from_slice::<JsonRpcApiResponse>(result)
+            .ok()
+            .and_then(|data| data.id)
+    }
+
     pub fn get_sender(&self) -> BrokerSender {
         self.sender.clone()
     }
 
+    pub fn get_thndrasync_callback(&self) -> BrokerCallback {
+        self.callback.clone()
+    }
     async fn create_ws(
         endpoint: &str,
     ) -> (
@@ -146,16 +169,28 @@ impl ThunderAsyncClient {
     }
 
     fn prepare_request(&self, request: &ThunderAsyncRequest) -> Result<Vec<String>, RippleError> {
+        println!("@@@NNA-----> in start prepare request id :{}", request.id);
         let mut requests = Vec::new();
-        let id = request.id;
+        let id: u64 = request.id;
         let (callsign, method) = request.request.get_callsign_method();
+        println!(
+            "@@@NNA-----> in prepare request callsign :{}, method :{}",
+            callsign, method
+        );
         if method.is_empty() {
             return Err(RippleError::InvalidInput);
         }
         // check if the plugin is activated.
         let status = match self.status_manager.get_status(callsign.clone()) {
-            Some(v) => v.clone(),
+            Some(v) => {
+                println!(
+                    "@@@NNA....status_manager.get_status returned some value. v:{:?} ",
+                    v
+                );
+                v.clone()
+            }
             None => {
+                println!("@@@NNA....status_manager.get_status return none.");
                 self.status_manager
                     .add_broker_request_to_pending_list(callsign.clone(), request.clone());
                 // PluginState is not available with StateManager,  create an internal thunder request to activate the plugin
@@ -166,6 +201,10 @@ impl ThunderAsyncClient {
                 return Ok(requests);
             }
         };
+        println!(
+            "@@@NNA-----> in prepare request ThunderPluginState :{:?} ",
+            status
+        );
 
         if status.state.is_missing() {
             error!("Plugin {} is missing", callsign);
@@ -178,6 +217,7 @@ impl ThunderAsyncClient {
         }
 
         if !status.state.is_activated() {
+            println!("@@@NNA....plugin not activated yet...");
             // add the broker request to pending list
             self.status_manager
                 .add_broker_request_to_pending_list(callsign.clone(), request.clone());
@@ -187,10 +227,21 @@ impl ThunderAsyncClient {
                 .generate_plugin_activation_request(callsign.clone());
             requests.push(request.to_string());
             return Ok(requests);
+        } else {
+            println!("@@@NNA....plugin is activated Now...&&&&&...");
         }
+
+        println!(
+            "@@@NNA....after plugin activation devicechannelrequest : {:?} ",
+            request.request
+        );
 
         match &request.request {
             DeviceChannelRequest::Call(c) => {
+                println!(
+                    "@@@NNA-----> in DeviceChannelRequest::Call request id :{}",
+                    request.id
+                );
                 // Simple request and response handling
                 requests.push(
                     json!({
@@ -202,39 +253,50 @@ impl ThunderAsyncClient {
                     .to_string(),
                 )
             }
-            DeviceChannelRequest::Unsubscribe(_) => requests.push(
-                json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "method": format!("{}.unregister", callsign),
-                    "params": {
-                        "event": method,
-                        "id": "client.events"
-                    }
-                })
-                .to_string(),
-            ),
-            DeviceChannelRequest::Subscribe(_) => requests.push(
-                json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "method": format!("{}.register", callsign),
-                    "params": json!({
-                        "event": method,
-                        "id": "client.events"
+            DeviceChannelRequest::Unsubscribe(_) => {
+                println!(
+                    "@@@NNA-----> in DeviceChannelRequest::Unsubscribe request id :{}",
+                    request.id
+                );
+                requests.push(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "method": format!("{}.unregister", callsign),
+                        "params": {
+                            "event": method,
+                            "id": "client.events"
+                        }
                     })
-                })
-                .to_string(),
-            ),
+                    .to_string(),
+                )
+            }
+            DeviceChannelRequest::Subscribe(_) => {
+                println!(
+                    "@@@NNA-----> in DeviceChannelRequest::Subscribe request id :{}",
+                    request.id
+                );
+                requests.push(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "method": format!("{}.register", callsign), 
+                        "params": json!({
+                            "event": method,
+                            "id": "client.events"
+                        })
+                    })
+                    .to_string(),
+                )
+            }
         }
-
         Ok(requests)
     }
 
-    pub fn new(callback: BrokerCallback, tx: Sender<ThunderAsyncRequest>) -> Self {
+    pub fn new(callback: BrokerCallback, sender: BrokerSender) -> Self {
         Self {
             status_manager: StatusManager::new(),
-            sender: BrokerSender { sender: tx.clone() },
+            sender,
             callback,
         }
     }
@@ -265,13 +327,20 @@ impl ThunderAsyncClient {
         loop {
             tokio::select! {
                 Some(value) = &mut read => {
+                    debug!("@@@NNA...Got response in thunder async client start");
                     match value {
                         Ok(v) => {
+                            println!("@@@NNA----> msg v: {:?}",v);
                             if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
+                                println!("@@@NNA----> msg t: {:?}",t);
                                 if client_c.status_manager.is_controller_response(client_c.get_sender(), callback.clone(), t.as_bytes()).await {
+                                    debug!("@@@NNA---->Got response in thunder async client start before handle_controller_response. sender:{:?}, callback:{:?}",client_c.get_sender(), callback.clone() );
                                     client_c.status_manager.handle_controller_response(client_c.get_sender(), callback.clone(), t.as_bytes()).await;
+                                    debug!("@@@NNA---->after step client_c.status_manager.handle_controller_response");
                                 }
                                 else {
+                                    let id = Self::get_id_from_result(t.as_bytes());
+                                    println!("@@@NNA.... jsn response id:{:?}, callback:{:?}", id, callback.clone());
                                     // send the incoming text without context back to the sender
                                     Self::handle_jsonrpc_response(t.as_bytes(),callback.clone()).await
                                 }
@@ -286,10 +355,13 @@ impl ThunderAsyncClient {
                 },
                 Some(request) = tr.recv() => {
                     debug!("Got request from receiver for broker {:?}", request);
+                    debug!("Got request from receiver for broker for method{:?}", request.request.get_callsign_method());
                     match client_c.prepare_request(&request) {
                         Ok(updated_request) => {
                             debug!("Sending request to broker {:?}", updated_request);
                             for r in updated_request {
+                                println!("@@@NNA----> we r at the feed, flush operations block....");
+                                println!("@@@NNA----> r :{}", r);
                                 let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
                                 let _flush = ws_tx.flush().await;
                             }
@@ -304,7 +376,9 @@ impl ThunderAsyncClient {
                                     error!("error preparing request {:?}", e)
                                 }
                             }
-                            callback_for_sender.send(response).await
+                            println!("@@@NNA----> before callback_for_sender send with response: {:?}", response);
+                            callback_for_sender.send(response).await;
+                            println!("@@@NNA----> after callback_for_sender send ");
                         }
                     }
                 }
@@ -317,7 +391,15 @@ impl ThunderAsyncClient {
     /// Default handler method for the broker to remove the context and send it back to the
     /// client for consumption
     async fn handle_jsonrpc_response(result: &[u8], callback: BrokerCallback) {
+        debug!(
+            "@@@NNA...in handle_jsonrpc_response with callback: {:?}, result:{:?}",
+            callback, result
+        );
         if let Ok(message) = serde_json::from_slice::<JsonRpcApiResponse>(result) {
+            debug!(
+                "@@@NNA...in handle_jsonrpc_response msg:{:?} to callback:{:?}",
+                message, callback
+            );
             callback
                 .send(ThunderAsyncResponse::new_response(message))
                 .await

@@ -143,6 +143,16 @@ impl DeviceResponseMessage {
             sub_id: Some(sub_id),
         }
     }
+
+    pub fn new(message: Value, sub_id: Option<String>) -> DeviceResponseMessage {
+        DeviceResponseMessage { message, sub_id }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DeviceResponseSubscription {
+    pub sub_id: Option<String>,
+    pub handlers: Vec<tokio::sync::mpsc::Sender<DeviceResponseMessage>>,
 }
 
 #[cfg(test)]

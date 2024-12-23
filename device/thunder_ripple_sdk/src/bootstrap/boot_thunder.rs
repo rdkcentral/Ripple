@@ -102,6 +102,9 @@ pub async fn boot_thunder(
                 prev: thndr_boot_statecfg,
                 state: thunder_state,
             };
+
+            thndr_boot_stateclient.clone().state.start_event_thread();
+
             SetupThunderProcessor::setup(thndr_boot_stateclient.clone()).await;
             return Some(thndr_boot_stateclient);
         }

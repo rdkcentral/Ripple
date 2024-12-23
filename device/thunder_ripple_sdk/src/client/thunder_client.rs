@@ -53,21 +53,22 @@ use ripple_sdk::{
     utils::error::RippleError,
 };
 use serde::{Deserialize, Serialize};
+use tokio::sync::oneshot::Sender;
 use url::Url;
 
 use super::thunder_async_client::{ThunderAsyncClient, ThunderAsyncRequest, ThunderAsyncResponse};
 use super::thunder_client_pool::ThunderPoolCommand;
-use super::thunder_plugins_status_mgr::BrokerCallback;
+use super::thunder_plugins_status_mgr::{BrokerCallback, BrokerSender};
 use super::{
     jsonrpc_method_locator::JsonRpcMethodLocator,
     plugin_manager::{PluginActivatedResult, PluginManagerCommand},
 };
-use ripple_sdk::api::device::device_operator::DeviceChannelRequest;
+use ripple_sdk::api::device::device_operator::{DeviceChannelRequest, DeviceResponseSubscription};
 use ripple_sdk::tokio::sync::mpsc::Receiver;
 use std::sync::RwLock;
 use std::{env, process::Command};
 
-pub type BrokerSubMap = HashMap<String, Vec<MpscSender<DeviceResponseMessage>>>;
+pub type BrokerSubMap = HashMap<String, DeviceResponseSubscription>;
 pub type BrokerCallbackMap = HashMap<u64, Option<OneShotSender<DeviceResponseMessage>>>;
 
 #[derive(Debug)]
@@ -84,33 +85,65 @@ impl ThunderClientManager {
 
         tokio::spawn(async move {
             if let Some(thndr_asynclient) = &client_c.thndr_asynclient {
+                println!("@@@NNA----> from thunder_client to async start call....");
                 thndr_asynclient
                     .start(&thndr_endpoint_url, request_tr)
                     .await;
             }
             error!("Thunder disconnected so reconnecting");
         });
-
+        /*thunder async response will get here */
         tokio::spawn(async move {
+            println!("@@@NNA----> in thunder::manage response block entrance...");
             while let Some(response) = response_tr.recv().await {
-                if let Some(id) = response.id {
+                println!(
+                    "@@@NNA...manage fn response block..with response{:?}",
+                    response
+                );
+                if let Some(id) = response.get_id() {
+                    println!("@@@NNA...manage fn response id: {:?}", id);
                     if let Some(cb) = client.clone().broker_callbacks {
+                        println!(
+                            "@@@NNA...manage fn broker_callbacks check inside..callback:{:?}",
+                            cb
+                        );
                         let mut callback = cb.write().unwrap();
+                        println!(
+                            "@@@NNA.... after cb.write fn unwrap callback: {:?}",
+                            callback
+                        );
                         if let Some(Some(c)) = callback.remove(&id) {
-                            if let Some(resp) = response.get_device_resp_msg() {
+                            println!("@@@NNA...manage fn after callback.remove..");
+                            if let Some(resp) = response.get_device_resp_msg(None) {
+                                println!("@@@NNA...deviceresponse {:?}", resp);
+                                println!("@@@NNA...onshot send to sender tx: {:?}", c);
                                 oneshot_send_and_log(c, resp, "ThunderResponse");
                             };
                         }
                     }
                 } else if let Some(event_name) = response.get_event() {
+                    println!("@@@NNA...manage fn response event {:?}", event_name);
                     if let Some(broker_subs) = client.clone().broker_subscriptions {
+                        println!(
+                            "@@@NNA...after broker_subscriptions check.. broker_subs:{:?} ",
+                            broker_subs
+                        );
                         let subs = {
+                            println!("@@@@NNA,,, in subs check with subs");
                             let mut br_subs = broker_subs.write().unwrap();
                             br_subs.get_mut(&event_name).cloned()
                         };
-                        if let Some(subs) = subs {
-                            for s in subs {
-                                if let Some(resp_msg) = response.get_device_resp_msg() {
+
+                        if let Some(dev_resp_sub) = subs {
+                            //let subc = subs;
+                            for s in &dev_resp_sub.handlers {
+                                if let Some(resp_msg) =
+                                    response.get_device_resp_msg(dev_resp_sub.clone().sub_id)
+                                {
+                                    println!(
+                                        "@@NNA....after get_device_resp_msg() with resp_msg:{:?}",
+                                        resp_msg
+                                    );
                                     mpsc_send_and_log(&s, resp_msg, "ThunderResponse").await;
                                 }
                             }
@@ -261,31 +294,60 @@ impl DeviceOperator for ThunderClient {
                 params: request.params,
                 callback: tx,
             });
+            println!(
+                "@@@NNA---->in DeviceOperator::call req with msg{:?}",
+                message
+            );
             self.send_message(message).await;
 
+            // match rx.await {
+            //     Ok(response) => response,
+            //     Err(_) => DeviceResponseMessage {
+            //         message: Value::Null,
+            //         sub_id: None,
+            //     },
+            // }
             match rx.await {
-                Ok(response) => response,
+                Ok(response) => {
+                    println!(
+                        "@@@NNA....thunderclient deviceoperator response received:{:?}",
+                        response
+                    );
+                    response
+                }
                 Err(_) => DeviceResponseMessage {
                     message: Value::Null,
                     sub_id: None,
                 },
             }
         } else {
-            let (_tx, rx) = oneshot::channel::<DeviceResponseMessage>();
+            let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
             let async_request = ThunderAsyncRequest::new(DeviceChannelRequest::Call(request));
-            self.add_to_callback(&async_request);
+            self.add_to_callback(&async_request, tx);
 
+            println!(
+                "@@@NNA---->in DeviceOperator::call req with msg{:?}",
+                async_request
+            );
             if let Some(async_client) = &self.thndr_asynclient {
                 async_client.send(async_request).await;
             }
+            println!("@@@NNA----->after deviceoperator call send fn ..");
 
             match rx.await {
-                Ok(response) => response,
+                Ok(response) => {
+                    println!("@@@NNA....deviceoperator response received:{:?}", response);
+                    response
+                }
                 Err(_) => DeviceResponseMessage {
                     message: Value::Null,
                     sub_id: None,
                 },
             }
+            // DeviceResponseMessage {
+            //     message: Value::Null,
+            //     sub_id: None,
+            // }
         }
     }
 
@@ -305,16 +367,56 @@ impl DeviceOperator for ThunderClient {
                 sub_id: request.sub_id,
             };
             let msg = ThunderMessage::ThunderSubscribeMessage(message);
+            println!(
+                "@@@NNA---->in DeviceOperator::subscribe req with msg{:?}",
+                msg
+            );
             self.send_message(msg).await;
-            rx.await.unwrap()
+            println!("****deviceoperator subscribe request waiting for response...");
+            //rx.await.unwrap()
+            match rx.await {
+                Ok(response) => {
+                    println!(
+                        "@@@NNA....thunderclient deviceoperator subscription response received:{:?}",
+                        response
+                    );
+                    response
+                }
+                Err(_) => DeviceResponseMessage {
+                    message: Value::Null,
+                    sub_id: None,
+                },
+            }
         } else if let Some(subscribe_request) = self.check_sub(&request, handler.clone()) {
-            let (_tx, rx) = oneshot::channel::<DeviceResponseMessage>();
-            self.add_to_callback(&subscribe_request);
-
+            let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
+            self.add_to_callback(&subscribe_request, tx);
+            println!(
+                "@@@NNA---->in DeviceOperator::subscribe req with msg{:?}",
+                subscribe_request
+            );
             if let Some(async_client) = &self.thndr_asynclient {
                 async_client.send(subscribe_request).await;
             }
-            rx.await.unwrap()
+            println!("@@@NNA----> subscribe request waiting for response...");
+
+            match rx.await {
+                Ok(response) => {
+                    println!(
+                        "@@@NNA....deviceoperator subscription response received:{:?}",
+                        response
+                    );
+                    response
+                }
+                Err(_) => DeviceResponseMessage {
+                    message: Value::Null,
+                    sub_id: None,
+                },
+            }
+            //rx.await.unwrap()
+            // DeviceResponseMessage {
+            //     message: Value::Null,
+            //     sub_id: None,
+            // }
         } else {
             DeviceResponseMessage {
                 message: Value::Null,
@@ -577,10 +679,23 @@ impl ThunderClient {
         None
     }
 
-    fn add_to_callback(&self, request: &ThunderAsyncRequest) {
+    fn add_to_callback(
+        &self,
+        request: &ThunderAsyncRequest,
+        dev_resp_callback: Sender<DeviceResponseMessage>,
+    ) {
         let mut callbacks = self.broker_callbacks.as_ref().unwrap().write().unwrap();
-        callbacks.insert(request.id, None);
+        callbacks.insert(request.id, Some(dev_resp_callback));
     }
+
+    // fn add_to_brokersubmap(
+    //     &self,
+    //     request: &ThunderAsyncRequest,
+    //     dev_resp_callback: Sender<DeviceResponseMessage>,
+    // ) {
+    //     let mut brokersubs = self.broker_subscriptions.as_ref().unwrap().write().unwrap();
+    //     brokersubs.insert(request, Some(dev_resp_callback));
+    // }
 
     // if already subscibed updated handlers
     fn check_sub(
@@ -588,15 +703,31 @@ impl ThunderClient {
         request: &DeviceSubscribeRequest,
         handler: MpscSender<DeviceResponseMessage>,
     ) -> Option<ThunderAsyncRequest> {
+        println!("@@@NNA----> in check_sub function");
         let mut broker_subscriptions = self.broker_subscriptions.as_ref().unwrap().write().unwrap();
-        let key = format!("{}.{}", request.module, request.event_name);
+        let key = format!("client.events.{}", request.event_name);
         if let Some(subs) = broker_subscriptions.get_mut(&key) {
-            subs.push(handler);
+            println!(
+                "@@@NNA----> Adding handler to existing subscription for key: {}",
+                key
+            );
+
+            subs.handlers.push(handler);
             None
         } else {
             let async_request =
                 ThunderAsyncRequest::new(DeviceChannelRequest::Subscribe(request.clone()));
-            broker_subscriptions.insert(key, vec![handler]);
+            println!(
+                "@@@NNA----> async_request: {:?}, broker_subscriptions: {:?}",
+                async_request, broker_subscriptions
+            );
+
+            let dev_resp_sub = DeviceResponseSubscription {
+                sub_id: request.clone().sub_id,
+                handlers: vec![handler],
+            };
+
+            broker_subscriptions.insert(key, dev_resp_sub);
             Some(async_request)
         }
     }
@@ -812,10 +943,12 @@ impl ThunderClientBuilder {
                 use_thunderbroker: false,
             })
         } else {
-            let (sender, tr) = mpsc::channel(10);
-            let callback = BrokerCallback { sender };
+            let (resp_tx, resp_rx) = mpsc::channel(10);
+            let callback = BrokerCallback { sender: resp_tx };
             let (broker_tx, broker_rx) = mpsc::channel(10);
-            let client = ThunderAsyncClient::new(callback, broker_tx);
+            let broker_sender = BrokerSender { sender: broker_tx };
+            let client = ThunderAsyncClient::new(callback, broker_sender);
+
             let thunder_client = ThunderClient {
                 sender: None,
                 pooled_sender: None,
@@ -831,10 +964,9 @@ impl ThunderClientBuilder {
             ThunderClientManager::manage(
                 thunder_client.clone(),
                 broker_rx,
-                tr,
+                resp_rx,
                 url.unwrap().to_string(),
             );
-
             Ok(thunder_client)
         }
     }
