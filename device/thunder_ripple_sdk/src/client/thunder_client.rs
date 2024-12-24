@@ -144,7 +144,7 @@ impl ThunderClientManager {
                                         "@@NNA....after get_device_resp_msg() with resp_msg:{:?}",
                                         resp_msg
                                     );
-                                    mpsc_send_and_log(&s, resp_msg, "ThunderResponse").await;
+                                    mpsc_send_and_log(s, resp_msg, "ThunderResponse").await;
                                 }
                             }
                         }

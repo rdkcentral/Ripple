@@ -108,7 +108,7 @@ impl ThunderAsyncResponse {
             device_response_msg = Some(DeviceResponseMessage::new(res.clone(), sub_id));
         } else if let Some(er) = &json_resp.error {
             device_response_msg = Some(DeviceResponseMessage::new(er.clone(), sub_id));
-        } else if !json_resp.clone().method.is_none() {
+        } else if json_resp.clone().method.is_some() {
             if let Some(params) = &json_resp.params {
                 let dev_resp = serde_json::to_value(params).unwrap();
                 device_response_msg = Some(DeviceResponseMessage::new(dev_resp, sub_id));
@@ -280,7 +280,7 @@ impl ThunderAsyncClient {
                     json!({
                         "jsonrpc": "2.0",
                         "id": id,
-                        "method": format!("{}.register", callsign), 
+                        "method": format!("{}.register", callsign),
                         "params": json!({
                             "event": method,
                             "id": "client.events"
