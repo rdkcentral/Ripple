@@ -27,9 +27,11 @@ use futures_util::{SinkExt, StreamExt};
 
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
-    log::{debug, error, info},
-    tokio::sync::Mutex,
-    tokio::{self, sync::mpsc},
+    log::{debug, error, info, trace},
+    tokio::{
+        self,
+        sync::{mpsc, Mutex},
+    },
     utils::error::RippleError,
 };
 use serde_json::json;
@@ -261,6 +263,26 @@ impl ThunderBroker {
         let callsign = collection.join(".");
         (callsign, method)
     }
+    fn unsubscribe(&self, request: &BrokerRequest) -> Option<BrokerRequest> {
+        let mut sub_map = self.subscription_map.write().unwrap();
+        trace!(
+            "Unsubscribing a listen request for session id: {:?}",
+            request.rpc.ctx.session_id
+        );
+        let app_id = &request.rpc.ctx.session_id;
+        let method = &request.rpc.ctx.method;
+        let mut existing_request = None;
+        if let Some(mut existing_requests) = sub_map.remove(app_id) {
+            if let Some(i) = existing_requests
+                .iter()
+                .position(|x| x.rpc.ctx.method.eq_ignore_ascii_case(method))
+            {
+                existing_request = Some(existing_requests.remove(i));
+            }
+            let _ = sub_map.insert(app_id.clone(), existing_requests);
+        }
+        existing_request
+    }
 
     fn subscribe(&self, request: &BrokerRequest) -> Option<BrokerRequest> {
         let mut sub_map = self.subscription_map.write().unwrap();
@@ -374,7 +396,7 @@ impl EndpointBroker for ThunderBroker {
         let method = method.unwrap();
         // Below chunk of code is basically for subscription where thunder needs some special care based on
         // the JsonRpc specification
-        if rpc_request.rpc.is_subscription() {
+        if rpc_request.rpc.is_subscription() && !rpc_request.rpc.is_unlisten() {
             let listen = rpc_request.rpc.is_listening();
             // If there was an existing app and method combo for the same subscription just unregister that
             if let Some(cleanup) = self.subscribe(rpc_request) {
@@ -407,10 +429,29 @@ impl EndpointBroker for ThunderBroker {
                     .to_string(),
                 )
             }
+        } else if rpc_request.rpc.is_unlisten() {
+            if let Some(cleanup) = self.unsubscribe(rpc_request) {
+                trace!(
+                    "Unregistering thunder listener for call_id {} and method {}",
+                    cleanup.rpc.ctx.call_id,
+                    method
+                );
+                requests.push(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": cleanup.rpc.ctx.call_id,
+                        "method": format!("{}.unregister", callsign),
+                        "params": {
+                            "event": method,
+                            "id": format!("{}", cleanup.rpc.ctx.call_id)
+                        }
+                    })
+                    .to_string(),
+                )
+            }
         } else {
             // Simple request and response handling
-            let request = Self::update_request(rpc_request)?;
-            requests.push(request)
+            requests.push(Self::update_request(rpc_request)?)
         }
 
         Ok(requests)

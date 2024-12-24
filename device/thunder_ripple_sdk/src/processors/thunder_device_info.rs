@@ -547,17 +547,18 @@ impl ThunderDeviceInfoRequestProcessor {
         }
     }
 
-    async fn start_internet_monitoring_changes(state: CachedState, request: ExtnMessage) -> bool {
+    async fn start_internet_monitoring_changes(
+        state: CachedState,
+        request: ExtnMessage,
+        interval_in_seconds: u32,
+    ) -> bool {
         // Self::start_internet_monitoring(&state).await
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::Network.method("startConnectivityMonitoring"),
                 params: Some(DeviceChannelParams::Json(
-                    /* This interval is in seconds. Arrived at this magical number 180 secs
-                     * after discussing with NetworkPlugin developer.
-                     */
-                    json!({"interval": 180}).to_string(),
+                    json!({"interval":interval_in_seconds}).to_string(),
                 )),
             })
             .await;
@@ -1623,8 +1624,8 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             DeviceInfoRequest::InternetConnectionStatus => {
                 Self::internet_connection_status(state.clone(), msg).await
             }
-            DeviceInfoRequest::StartMonitoringInternetChanges => {
-                Self::start_internet_monitoring_changes(state.clone(), msg).await
+            DeviceInfoRequest::StartMonitoringInternetChanges(i) => {
+                Self::start_internet_monitoring_changes(state.clone(), msg, i).await
             }
             DeviceInfoRequest::FullCapabilities(keys) => {
                 let keys_as_str: Vec<&str> = keys.iter().map(String::as_str).collect();

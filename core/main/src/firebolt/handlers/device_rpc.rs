@@ -34,8 +34,7 @@ use ripple_sdk::{
         device::{
             device_events::{
                 DeviceEvent, DeviceEventCallback, DeviceEventRequest, AUDIO_CHANGED_EVENT,
-                HDCP_CHANGED_EVENT, HDR_CHANGED_EVENT, NETWORK_CHANGED_EVENT,
-                SCREEN_RESOLUTION_CHANGED_EVENT, VIDEO_RESOLUTION_CHANGED_EVENT,
+                HDCP_CHANGED_EVENT,
             },
             device_info_request::{DeviceInfoRequest, DeviceResponse, FirmwareInfo},
             device_request::{AudioProfile, DeviceVersionResponse, HdcpProfile},
@@ -84,36 +83,12 @@ pub trait Device {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
 
-    #[method(name = "device.onHdrChanged")]
-    async fn on_hdr_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
-    #[method(name = "device.onScreenResolutionChanged")]
-    async fn on_screen_resolution_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
-    #[method(name = "device.onVideoResolutionChanged")]
-    async fn on_video_resolution_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
     #[method(name = "device.type")]
     async fn typ(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "device.audio")]
     async fn audio(&self, ctx: CallContext) -> RpcResult<HashMap<AudioProfile, bool>>;
     #[method(name = "device.onAudioChanged")]
     async fn on_audio_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
-    #[method(name = "device.onNetworkChanged")]
-    async fn on_network_changed(
         &self,
         ctx: CallContext,
         request: ListenRequest,
@@ -319,105 +294,6 @@ impl DeviceServer for DeviceImpl {
         })
     }
 
-    async fn on_hdr_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        let listen = request.listen;
-        AppEvents::add_listener(
-            &self.state,
-            HDR_CHANGED_EVENT.to_string(),
-            ctx.clone(),
-            request,
-        );
-
-        if self
-            .state
-            .get_client()
-            .send_extn_request(DeviceEventRequest {
-                event: DeviceEvent::HdrChanged,
-                subscribe: listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
-            })
-            .await
-            .is_err()
-        {
-            error!("Error while registration");
-        }
-
-        Ok(ListenerResponse {
-            listening: listen,
-            event: HDR_CHANGED_EVENT.to_string(),
-        })
-    }
-
-    async fn on_screen_resolution_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        let listen = request.listen;
-        AppEvents::add_listener(
-            &self.state,
-            SCREEN_RESOLUTION_CHANGED_EVENT.to_string(),
-            ctx.clone(),
-            request,
-        );
-
-        if self
-            .state
-            .get_client()
-            .send_extn_request(DeviceEventRequest {
-                event: DeviceEvent::ScreenResolutionChanged,
-                subscribe: listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
-            })
-            .await
-            .is_err()
-        {
-            error!("Error while registration");
-        }
-
-        Ok(ListenerResponse {
-            listening: listen,
-            event: SCREEN_RESOLUTION_CHANGED_EVENT.to_string(),
-        })
-    }
-
-    async fn on_video_resolution_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        let listen = request.listen;
-        AppEvents::add_listener(
-            &self.state,
-            VIDEO_RESOLUTION_CHANGED_EVENT.to_string(),
-            ctx.clone(),
-            request,
-        );
-
-        if self
-            .state
-            .get_client()
-            .send_extn_request(DeviceEventRequest {
-                event: DeviceEvent::VideoResolutionChanged,
-                subscribe: listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
-            })
-            .await
-            .is_err()
-        {
-            error!("Error while registration");
-        }
-
-        Ok(ListenerResponse {
-            listening: listen,
-            event: VIDEO_RESOLUTION_CHANGED_EVENT.to_string(),
-        })
-    }
-
     async fn typ(&self, _ctx: CallContext) -> RpcResult<String> {
         Ok(self.state.get_device_manifest().get_form_factor())
     }
@@ -475,39 +351,6 @@ impl DeviceServer for DeviceImpl {
         Ok(ListenerResponse {
             listening: listen,
             event: AUDIO_CHANGED_EVENT.to_string(),
-        })
-    }
-
-    async fn on_network_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        let listen = request.listen;
-        AppEvents::add_listener(
-            &self.state,
-            NETWORK_CHANGED_EVENT.to_string(),
-            ctx.clone(),
-            request,
-        );
-
-        if self
-            .state
-            .get_client()
-            .send_extn_request(DeviceEventRequest {
-                event: DeviceEvent::NetworkChanged,
-                subscribe: listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
-            })
-            .await
-            .is_err()
-        {
-            error!("Error while registration");
-        }
-
-        Ok(ListenerResponse {
-            listening: listen,
-            event: NETWORK_CHANGED_EVENT.to_string(),
         })
     }
 
