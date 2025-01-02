@@ -22,7 +22,7 @@ pub mod client {
     pub mod thunder_client;
     pub mod thunder_client_pool;
     pub mod thunder_plugin;
-    pub mod thunder_plugins_status_mgr;
+    pub mod thunderbroker_plugins_status_mgr;
 }
 
 pub mod bootstrap {

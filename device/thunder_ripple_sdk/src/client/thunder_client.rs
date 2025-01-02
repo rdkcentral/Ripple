@@ -58,7 +58,7 @@ use url::Url;
 
 use super::thunder_async_client::{ThunderAsyncClient, ThunderAsyncRequest, ThunderAsyncResponse};
 use super::thunder_client_pool::ThunderPoolCommand;
-use super::thunder_plugins_status_mgr::{BrokerCallback, BrokerSender};
+use super::thunderbroker_plugins_status_mgr::{BrokerCallback, BrokerSender};
 use super::{
     jsonrpc_method_locator::JsonRpcMethodLocator,
     plugin_manager::{PluginActivatedResult, PluginManagerCommand},
@@ -687,15 +687,6 @@ impl ThunderClient {
         let mut callbacks = self.broker_callbacks.as_ref().unwrap().write().unwrap();
         callbacks.insert(request.id, Some(dev_resp_callback));
     }
-
-    // fn add_to_brokersubmap(
-    //     &self,
-    //     request: &ThunderAsyncRequest,
-    //     dev_resp_callback: Sender<DeviceResponseMessage>,
-    // ) {
-    //     let mut brokersubs = self.broker_subscriptions.as_ref().unwrap().write().unwrap();
-    //     brokersubs.insert(request, Some(dev_resp_callback));
-    // }
 
     // if already subscibed updated handlers
     fn check_sub(

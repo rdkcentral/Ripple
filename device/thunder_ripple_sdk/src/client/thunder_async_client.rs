@@ -33,7 +33,7 @@ use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
 
 use crate::utils::get_next_id;
 
-use super::thunder_plugins_status_mgr::{BrokerCallback, BrokerSender, StatusManager};
+use super::thunderbroker_plugins_status_mgr::{BrokerCallback, BrokerSender, StatusManager};
 
 #[derive(Clone, Debug)]
 pub struct ThunderAsyncClient {
@@ -412,5 +412,206 @@ impl ThunderAsyncClient {
         if let Err(e) = self.sender.send(request).await {
             error!("Failed to send thunder Async Request: {:?}", e);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::client::thunder_client::ThunderClient;
+    //use crate::client::thunder_client_pool::tests::Uuid;
+    use ripple_sdk::api::device::device_operator::{DeviceCallRequest, DeviceChannelRequest};
+    use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
+    //use ripple_sdk::async_channel::Recv;
+    use ripple_sdk::utils::error::RippleError;
+    use ripple_sdk::uuid::Uuid;
+    use std::collections::HashMap;
+    use std::sync::{Arc, RwLock};
+    use tokio::sync::mpsc;
+
+    #[tokio::test]
+    async fn test_thunder_async_request_new() {
+        let callrequest = DeviceCallRequest {
+            method: "org.rdk.System.1.getSerialNumber".to_string(),
+            params: None,
+        };
+
+        let request = DeviceChannelRequest::Call(callrequest);
+        let _async_request = ThunderAsyncRequest::new(request.clone());
+        assert_eq!(
+            _async_request.request.get_callsign_method(),
+            request.get_callsign_method()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_thunder_async_response_new_response() {
+        let response = JsonRpcApiResponse {
+            jsonrpc: "2.0".to_string(),
+            id: Some(6),
+            result: Some(json!({"key": "value"})),
+            error: None,
+            method: None,
+            params: None,
+        };
+
+        let _async_response = ThunderAsyncResponse::new_response(response.clone());
+        assert_eq!(_async_response.result.unwrap().result, response.result);
+    }
+
+    #[tokio::test]
+    async fn test_thunder_async_response_new_error() {
+        let error = RippleError::ServiceError;
+        let async_response = ThunderAsyncResponse::new_error(1, error.clone());
+        assert_eq!(async_response.id, Some(1));
+        assert_eq!(async_response.result.unwrap_err(), error);
+    }
+
+    #[tokio::test]
+    async fn test_thunder_async_response_get_event() {
+        let response = JsonRpcApiResponse {
+            jsonrpc: "2.0".to_string(),
+            id: Some(6),
+            result: Some(json!({"key": "value"})),
+            error: None,
+            method: Some("event_1".to_string()),
+            params: None,
+        };
+        let async_response = ThunderAsyncResponse::new_response(response);
+        assert_eq!(async_response.get_event(), Some("event_1".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_thunder_async_response_get_id() {
+        let response = JsonRpcApiResponse {
+            jsonrpc: "2.0".to_string(),
+            id: Some(42),
+            result: Some(json!({"key": "value"})),
+            error: None,
+            method: Some("event_1".to_string()),
+            params: None,
+        };
+        let async_response = ThunderAsyncResponse::new_response(response);
+        assert_eq!(async_response.get_id(), Some(42));
+    }
+
+    #[tokio::test]
+    async fn test_thunder_async_response_get_device_resp_msg() {
+        let response = JsonRpcApiResponse {
+            jsonrpc: "2.0".to_string(),
+            id: Some(6),
+            result: Some(json!({"key": "value"})),
+            error: None,
+            method: Some("event_1".to_string()),
+            params: None,
+        };
+        let async_response = ThunderAsyncResponse::new_response(response);
+        let device_resp_msg = async_response.get_device_resp_msg(None);
+        assert_eq!(device_resp_msg.unwrap().message, json!({"key": "value"}));
+    }
+
+    #[tokio::test]
+    async fn test_thunder_async_client_get_id_from_result() {
+        let response = json!({"id": 42}).to_string();
+        let id = ThunderAsyncClient::get_id_from_result(response.as_bytes());
+        assert_ne!(id, Some(42));
+    }
+
+    #[tokio::test]
+    async fn test_thunder_async_client_prepare_request() {
+        let (resp_tx, _resp_rx) = mpsc::channel(10);
+        let callback = BrokerCallback { sender: resp_tx };
+        let (broker_tx, _broker_rx) = mpsc::channel(10);
+        let broker_sender = BrokerSender { sender: broker_tx };
+        let client = ThunderAsyncClient::new(callback, broker_sender);
+
+        let callrequest = DeviceCallRequest {
+            method: "org.rdk.System.1.getSerialNumber".to_string(),
+            params: None,
+        };
+
+        let request = DeviceChannelRequest::Call(callrequest);
+        let async_request = ThunderAsyncRequest::new(request);
+        let result = client.prepare_request(&async_request);
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_thunder_async_client_send() {
+        let (resp_tx, _resp_rx) = mpsc::channel(10);
+        let callback = BrokerCallback { sender: resp_tx };
+        let (broker_tx, mut broker_rx) = mpsc::channel(10);
+        let broker_sender = BrokerSender { sender: broker_tx };
+        let client = ThunderAsyncClient::new(callback, broker_sender);
+
+        let callrequest = DeviceCallRequest {
+            method: "org.rdk.System.1.getSerialNumber".to_string(),
+            params: None,
+        };
+
+        let request = DeviceChannelRequest::Call(callrequest);
+        let async_request = ThunderAsyncRequest::new(request);
+        client.send(async_request.clone()).await;
+        let received = broker_rx.recv().await;
+        assert_eq!(received.unwrap().id, async_request.id);
+    }
+
+    #[tokio::test]
+    async fn test_thunder_async_client_handle_jsonrpc_response() {
+        let (resp_tx, mut resp_rx) = mpsc::channel(10);
+        let callback = BrokerCallback { sender: resp_tx };
+        let response = JsonRpcApiResponse {
+            jsonrpc: "2.0".to_string(),
+            id: Some(6),
+            result: Some(json!({"key": "value"})),
+            error: None,
+            method: Some("event_1".to_string()),
+            params: None,
+        };
+        let response_bytes = serde_json::to_vec(&response).unwrap();
+        ThunderAsyncClient::handle_jsonrpc_response(&response_bytes, callback).await;
+        let received = resp_rx.recv().await;
+        assert_eq!(
+            received.unwrap().result.unwrap().result,
+            Some(json!({"key": "value"}))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_thunder_async_client_start() {
+        let (resp_tx, mut resp_rx) = mpsc::channel(10);
+        let callback = BrokerCallback { sender: resp_tx };
+        let (broker_tx, _broker_rx) = mpsc::channel(10);
+        let broker_sender = BrokerSender { sender: broker_tx };
+        let client = ThunderAsyncClient::new(callback.clone(), broker_sender);
+
+        let _thunder_client = ThunderClient {
+            sender: None,
+            pooled_sender: None,
+            id: Uuid::new_v4(),
+            plugin_manager_tx: None,
+            subscriptions: None,
+            thndr_asynclient: Some(client),
+            broker_subscriptions: Some(Arc::new(RwLock::new(HashMap::new()))),
+            broker_callbacks: Some(Arc::new(RwLock::new(HashMap::new()))),
+            use_thunderbroker: true,
+        };
+
+        let response = json!({
+            "jsonrpc": "2.0",
+            "result": {
+                "key": "value"
+            }
+        });
+
+        ThunderAsyncClient::handle_jsonrpc_response(response.to_string().as_bytes(), callback)
+            .await;
+        let received = resp_rx.recv().await;
+        assert!(received.is_some());
+        let async_response = received.unwrap();
+        assert_eq!(
+            async_response.result.unwrap().result,
+            Some(json!({"key": "value"}))
+        );
     }
 }
