@@ -246,12 +246,14 @@ impl MainContextProcessor {
         };
 
         if matches!(internet_state, InternetConnectionStatus::FullyConnected) {
+            // get internet monitoring interval from platformState configuration
+            let interval_in_seconds = state
+                .get_device_manifest()
+                .get_internet_monitoring_interval();
             //Send request to start internet monitoring.
-            if let Err(err) = state
-                .get_client()
-                .get_extn_client()
-                .request_transient(DeviceInfoRequest::StartMonitoringInternetChanges)
-            {
+            if let Err(err) = state.get_client().get_extn_client().request_transient(
+                DeviceInfoRequest::StartMonitoringInternetChanges(interval_in_seconds),
+            ) {
                 error!("Error in sending start monitoring: {:?}", err);
             }
         }
