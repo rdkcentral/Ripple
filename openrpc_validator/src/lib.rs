@@ -35,12 +35,27 @@ impl RpcMethodValidator {
         None
     }
 
-    pub fn get_result_properties_schema(&self, name: &str) -> Option<Map<String, Value>> {
+    // get_closest_result_properties_schema: Attempts to return the result properties schema that most-closely
+    // matches the sample_map input.
+    pub fn get_closest_result_properties_schema(
+        &self,
+        name: &str,
+        sample_map: &Map<String, Value>,
+    ) -> Option<Map<String, Value>> {
         for validator in &self.validators {
             if let Some(result_properties_schema) =
-                validator.get_result_properties_schema_by_name(name)
+                validator.get_closest_result_schema_by_name(name, sample_map)
             {
                 return Some(result_properties_schema);
+            }
+        }
+        None
+    }
+
+    pub fn get_result_ref_schema(&self, reference_path: &str) -> Option<Map<String, Value>> {
+        for validator in &self.validators {
+            if let Some(result_ref_schema) = validator.get_result_ref_schemas(reference_path) {
+                return Some(result_ref_schema);
             }
         }
         None
@@ -90,60 +105,117 @@ impl FireboltOpenRpc {
         None
     }
 
-    fn get_result_ref_schemas(
-        &self,
-        result_schema_map: &Map<String, Value>,
-    ) -> Option<Map<String, Value>> {
-        if let Some(result_schema_value) = result_schema_map.get("$ref") {
-            if let Some(result_schema_string) = result_schema_value.as_str() {
-                let result_type_string = result_schema_string.split('/').last().unwrap();
-                for spec in self.apis.values() {
+    pub fn get_result_ref_schemas(&self, reference_path: &str) -> Option<Map<String, Value>> {
+        let parts: Vec<&str> = reference_path.split('/').collect();
+        let result_type_string = reference_path.split('/').last().unwrap();
+
+        for spec in self.apis.values() {
+            let spec_section_map = match parts[1] {
+                "components" => {
                     if let Value::Object(components) = &spec.components {
-                        if let Some(Value::Object(schemas_map)) = components.get("schemas") {
-                            if let Some(result_type_value) = schemas_map.get(result_type_string) {
-                                if let Some(result_type_map) = result_type_value.as_object() {
-                                    if let Some(Value::Object(result_properties_map)) =
-                                        result_type_map.get("properties")
-                                    {
-                                        return Some(result_properties_map.clone());
-                                    }
-                                }
-                            }
-                        }
+                        components
+                    } else {
+                        continue;
                     }
+                }
+                "x-schemas" => {
+                    if let Value::Object(x_schemas) = &spec.x_schemas {
+                        x_schemas
+                    } else {
+                        continue;
+                    }
+                }
+                _ => {
+                    continue;
+                }
+            };
+
+            let mut sub_section_map = spec_section_map;
+
+            for sub_section in &parts[2..parts.len() - 1] {
+                if let Some(Value::Object(ss_map)) = sub_section_map.get(*sub_section) {
+                    sub_section_map = ss_map;
+                } else {
+                    return None;
+                }
+            }
+
+            if let Some(Value::Object(result_type_map)) = sub_section_map.get(result_type_string) {
+                if let Some(Value::Object(properties_map)) = result_type_map.get("properties") {
+                    return Some(properties_map.clone());
                 }
             }
         }
+
         None
     }
 
-    pub fn get_result_properties_schema_by_name(&self, name: &str) -> Option<Map<String, Value>> {
-        if let Some(method) = self.get_method_by_name(name) {
-            if let Some(result_schema_map) = method.result.schema.as_object() {
-                if let Some(any_of_map) = result_schema_map.get("anyOf") {
-                    // Iterate the anyOf type array and get the first one that matches. With the current firebolt APIs it will happen
-                    // to be the correct type, but this is extremely fragile and should be addressed in a future firebolt revision.
-                    // Ripple needs a way to determine the explicit result type.
-                    if let Some(any_of_array) = any_of_map.as_array() {
-                        for value in any_of_array.iter() {
-                            if let Some(result_properties_map) =
-                                self.get_result_ref_schemas(value.as_object().unwrap())
-                            {
-                                return Some(result_properties_map);
-                            }
-                        }
-                    } else {
-                        // This should never happen as it indicates a schema error.
-                        return None;
+    pub fn get_closest_result_schema_by_name(
+        &self,
+        name: &str,
+        sample_map: &Map<String, Value>,
+    ) -> Option<Map<String, Value>> {
+        let method = match self.get_method_by_name(name) {
+            Some(method) => method,
+            None => {
+                return None;
+            }
+        };
+
+        let result_schema_map = match method.result.schema {
+            Value::Object(result_schema_map) => result_schema_map,
+            _ => {
+                return None;
+            }
+        };
+
+        if let Some(Value::Array(any_of_array)) = result_schema_map.get("anyOf") {
+            // Iterate the anyOf type array and find the type that most-closely matches the sample_map input.
+            // This is extremely fragile and should be addressed in a future firebolt revision.
+
+            let mut highest_match_count = 0;
+            let mut highest_match_result_properties_map = None;
+            for result_type_value in any_of_array.iter() {
+                let result_type_map = match result_type_value {
+                    Value::Object(result_type_map) => result_type_map,
+                    _ => {
+                        continue;
                     }
-                } else if let Some(result_properties_map) =
-                    self.get_result_ref_schemas(result_schema_map)
-                {
-                    // Return the resolved $ref properites.
-                    return Some(result_properties_map);
+                };
+
+                let reference_path = match result_type_map.get("$ref") {
+                    Some(Value::String(path)) => path,
+                    _ => {
+                        continue;
+                    }
+                };
+
+                if let Some(result_properties_map) = self.get_result_ref_schemas(reference_path) {
+                    let match_count = sample_map
+                        .keys()
+                        .filter(|key| result_properties_map.contains_key(*key))
+                        .count();
+
+                    if match_count > highest_match_count {
+                        highest_match_count = match_count;
+                        highest_match_result_properties_map = Some(result_properties_map);
+                    }
                 }
             }
+            return highest_match_result_properties_map;
+        } else {
+            let reference_path = match result_schema_map.get("$ref") {
+                Some(Value::String(path)) => path,
+                _ => {
+                    return None;
+                }
+            };
+            if let Some(result_properties_map) = self.get_result_ref_schemas(reference_path) {
+                // Return the resolved $ref properites.
+                return Some(result_properties_map);
+            }
         }
+
         None
     }
 
