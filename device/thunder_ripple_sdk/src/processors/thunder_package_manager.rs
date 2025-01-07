@@ -1134,7 +1134,7 @@ pub mod tests {
             subscriptions: None,
             broker_callbacks: None,
             broker_subscriptions: None,
-            thndr_asynclient: None,
+            thunder_async_client: None,
             use_thunderbroker: false,
         };
         let mut sessions: HashMap<String, Operation> = HashMap::new();
@@ -1171,7 +1171,7 @@ pub mod tests {
             subscriptions: None,
             broker_callbacks: None,
             broker_subscriptions: None,
-            thndr_asynclient: None,
+            thunder_async_client: None,
             use_thunderbroker: false,
         };
         let mut sessions: HashMap<String, Operation> = HashMap::new();

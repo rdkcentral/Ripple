@@ -173,7 +173,7 @@ impl MockThunderController {
             id: Uuid::new_v4(),
             plugin_manager_tx: None,
             subscriptions: None,
-            thndr_asynclient: None,
+            thunder_async_client: None,
             broker_subscriptions: None,
             broker_callbacks: None,
             use_thunderbroker: false,

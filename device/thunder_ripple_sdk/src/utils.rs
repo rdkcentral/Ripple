@@ -15,10 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{
-    collections::HashMap,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use std::collections::HashMap;
 
 use jsonrpsee::core::Error;
 use ripple_sdk::{
@@ -111,11 +108,4 @@ pub fn get_error_value(error: &Error) -> Value {
         }
     }
     Value::Null
-}
-
-static ATOMIC_ID: AtomicU64 = AtomicU64::new(0);
-
-pub fn get_next_id() -> u64 {
-    ATOMIC_ID.fetch_add(1, Ordering::Relaxed);
-    ATOMIC_ID.load(Ordering::Relaxed)
 }

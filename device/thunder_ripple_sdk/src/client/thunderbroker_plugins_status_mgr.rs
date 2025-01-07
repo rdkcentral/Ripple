@@ -27,12 +27,11 @@ use ripple_sdk::{
     tokio::sync::mpsc::Sender,
     utils::error::RippleError,
 };
-use serde::{Deserialize, Serialize};
-use serde_json::json;
-
-use crate::utils::get_next_id;
 
 use super::thunder_async_client::{ThunderAsyncRequest, ThunderAsyncResponse};
+use ripple_sdk::utils::rpc_utils::get_next_id;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 #[derive(Clone, Debug)]
 pub struct BrokerSender {

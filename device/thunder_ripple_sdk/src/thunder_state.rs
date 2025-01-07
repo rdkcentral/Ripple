@@ -60,7 +60,7 @@ impl ThunderConnectionState {
 #[derive(Debug, Clone)]
 pub struct ThunderBootstrapStateWithConfig {
     pub extn_client: ExtnClient,
-    pub url: Option<Url>,
+    pub url: Url,
     pub pool_size: Option<u32>,
     pub plugin_param: Option<ThunderPluginBootParam>,
     pub thunder_connection_state: Option<Arc<ThunderConnectionState>>,

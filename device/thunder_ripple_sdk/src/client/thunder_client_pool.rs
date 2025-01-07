@@ -66,7 +66,7 @@ impl ThunderClientPool {
         let mut clients = Vec::default();
         for _ in 0..size {
             let client = ThunderClientBuilder::get_client(
-                Some(url.clone()),
+                url.clone(),
                 plugin_manager_tx.clone(),
                 Some(s.clone()),
                 thunder_connection_state.clone(),
@@ -132,7 +132,7 @@ impl ThunderClientPool {
                         let i = itr.position(|x| x.client.id == client_id);
                         if let Some(index) = i {
                             let client = ThunderClientBuilder::get_client(
-                                Some(url.clone()),
+                                url.clone(),
                                 plugin_manager_tx.clone(),
                                 Some(sender_for_thread.clone()),
                                 thunder_connection_state.clone(),
@@ -161,7 +161,7 @@ impl ThunderClientPool {
             id: Uuid::new_v4(),
             plugin_manager_tx: pmtx_c,
             subscriptions: None,
-            thndr_asynclient: None,
+            thunder_async_client: None,
             broker_subscriptions: None,
             broker_callbacks: None,
             use_thunderbroker: false,
