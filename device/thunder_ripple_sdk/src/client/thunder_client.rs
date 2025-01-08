@@ -75,7 +75,7 @@ pub type BrokerCallbackMap = HashMap<u64, Option<OneShotSender<DeviceResponseMes
 pub struct ThunderClientManager;
 
 impl ThunderClientManager {
-    fn manage(
+    fn start(
         client: ThunderClient,
         request_tr: Receiver<ThunderAsyncRequest>,
         mut response_tr: Receiver<ThunderAsyncResponse>,
@@ -627,6 +627,129 @@ impl ThunderClientBuilder {
         None
     }
 
+    async fn start_thunderpool_client(
+        url: Url,
+        plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
+        pool_tx: Option<mpsc::Sender<ThunderPoolCommand>>,
+        thunder_connection_state: Option<Arc<ThunderConnectionState>>,
+        existing_client: Option<ThunderClient>,
+    ) -> Result<ThunderClient, RippleError> {
+        let uid = Uuid::new_v4();
+        info!("initiating thunder connection URL:{} ", url);
+
+        let subscriptions = Arc::new(Mutex::new(HashMap::<String, ThunderSubscription>::default()));
+        let (s, mut r) = mpsc::channel::<ThunderMessage>(32);
+        let pmtx_c = plugin_manager_tx.clone();
+        let client =
+            Self::create_client(url.clone(), thunder_connection_state.clone().unwrap()).await;
+
+        // add error handling here
+        if client.is_err() {
+            error!("Unable to connect to thunder: {client:?}");
+            return Err(RippleError::BootstrapError);
+        }
+
+        let client = client.unwrap();
+        let subscriptions_c = subscriptions.clone();
+        tokio::spawn(async move {
+            while let Some(message) = r.recv().await {
+                if !client.is_connected() {
+                    if let Some(ptx) = pool_tx {
+                        warn!(
+                            "Client {} became disconnected, removing from pool message {:?}",
+                            uid, message
+                        );
+                        // Remove the client and then try the message again with a new client
+                        let pool_msg = ThunderPoolCommand::ResetThunderClient(uid);
+                        mpsc_send_and_log(&ptx, pool_msg, "ResetThunderClient").await;
+                        let pool_msg = ThunderPoolCommand::ThunderMessage(message);
+                        mpsc_send_and_log(&ptx, pool_msg, "RetryThunderMessage").await;
+                        return;
+                    }
+                }
+                info!("Client {} sending thunder message {:?}", uid, message);
+                match message {
+                    ThunderMessage::ThunderCallMessage(thunder_message) => {
+                        ThunderClient::call(&client, thunder_message, plugin_manager_tx.clone())
+                            .await;
+                    }
+                    ThunderMessage::ThunderSubscribeMessage(thunder_message) => {
+                        ThunderClient::subscribe(
+                            uid,
+                            &client,
+                            &subscriptions_c,
+                            thunder_message,
+                            plugin_manager_tx.clone(),
+                            pool_tx.clone(),
+                        )
+                        .await;
+                    }
+                    ThunderMessage::ThunderUnsubscribeMessage(thunder_message) => {
+                        ThunderClient::unsubscribe(&client, &subscriptions_c, thunder_message)
+                            .await;
+                    }
+                }
+            }
+        });
+
+        if let Some(old_client) = existing_client {
+            // Re-subscribe for each subscription that was active on the old client
+            if let Some(subscriptions) = old_client.subscriptions {
+                // Reactivate the plugin state
+                let (plugin_rdy_tx, plugin_rdy_rx) = oneshot::channel::<PluginActivatedResult>();
+                if let Some(tx) = pmtx_c.clone() {
+                    let msg = PluginManagerCommand::ReactivatePluginState { tx: plugin_rdy_tx };
+                    mpsc_send_and_log(&tx, msg, "ResetPluginState").await;
+                    if let Ok(res) = plugin_rdy_rx.await {
+                        res.ready().await;
+                    }
+                }
+                let mut subs = subscriptions.lock().await;
+                for (subscribe_method, tsub) in subs.iter_mut() {
+                    let mut listeners =
+                        HashMap::<String, MpscSender<DeviceResponseMessage>>::default();
+                    std::mem::swap(&mut listeners, &mut tsub.listeners);
+                    for (sub_id, listener) in listeners {
+                        let thunder_message: ThunderSubscribeMessage = {
+                            Self::parse_subscribe_method(subscribe_method)
+                                .map(|(module, event_name)| ThunderSubscribeMessage {
+                                    module,
+                                    event_name,
+                                    params: tsub.params.clone(),
+                                    handler: listener,
+                                    callback: None,
+                                    sub_id: Some(sub_id),
+                                })
+                                .unwrap()
+                        };
+                        let resp = s
+                            .send(ThunderMessage::ThunderSubscribeMessage(thunder_message))
+                            .await;
+                        if resp.is_err() {
+                            if let Some((module, _)) =
+                                Self::parse_subscribe_method(subscribe_method)
+                            {
+                                error!("Failed to send re-subscribe message for {}", module);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(ThunderClient {
+            sender: Some(s),
+            pooled_sender: None,
+            id: uid,
+            plugin_manager_tx: pmtx_c,
+            subscriptions: Some(subscriptions),
+            thunder_async_client: None,
+            broker_subscriptions: None,
+            broker_callbacks: None,
+            use_thunderbroker: false,
+        })
+    }
+
     async fn create_client(
         url: Url,
         thunder_connection_state: Arc<ThunderConnectionState>,
@@ -685,127 +808,15 @@ impl ThunderClientBuilder {
         use_thndrbroker: bool,
     ) -> Result<ThunderClient, RippleError> {
         if !use_thndrbroker {
-            let uid = Uuid::new_v4();
-
-            info!("initiating thunder connection URL:{} ", url);
-
-            let subscriptions =
-                Arc::new(Mutex::new(HashMap::<String, ThunderSubscription>::default()));
-            let (s, mut r) = mpsc::channel::<ThunderMessage>(32);
-            let pmtx_c = plugin_manager_tx.clone();
-            let client =
-                Self::create_client(url.clone(), thunder_connection_state.clone().unwrap()).await;
-
-            // add error handling here
-            if client.is_err() {
-                error!("Unable to connect to thunder: {client:?}");
-                return Err(RippleError::BootstrapError);
-            }
-
-            let client = client.unwrap();
-            let subscriptions_c = subscriptions.clone();
-            tokio::spawn(async move {
-                while let Some(message) = r.recv().await {
-                    if !client.is_connected() {
-                        if let Some(ptx) = pool_tx {
-                            warn!(
-                                "Client {} became disconnected, removing from pool message {:?}",
-                                uid, message
-                            );
-                            // Remove the client and then try the message again with a new client
-                            let pool_msg = ThunderPoolCommand::ResetThunderClient(uid);
-                            mpsc_send_and_log(&ptx, pool_msg, "ResetThunderClient").await;
-                            let pool_msg = ThunderPoolCommand::ThunderMessage(message);
-                            mpsc_send_and_log(&ptx, pool_msg, "RetryThunderMessage").await;
-                            return;
-                        }
-                    }
-                    info!("Client {} sending thunder message {:?}", uid, message);
-                    match message {
-                        ThunderMessage::ThunderCallMessage(thunder_message) => {
-                            ThunderClient::call(
-                                &client,
-                                thunder_message,
-                                plugin_manager_tx.clone(),
-                            )
-                            .await;
-                        }
-                        ThunderMessage::ThunderSubscribeMessage(thunder_message) => {
-                            ThunderClient::subscribe(
-                                uid,
-                                &client,
-                                &subscriptions_c,
-                                thunder_message,
-                                plugin_manager_tx.clone(),
-                                pool_tx.clone(),
-                            )
-                            .await;
-                        }
-                        ThunderMessage::ThunderUnsubscribeMessage(thunder_message) => {
-                            ThunderClient::unsubscribe(&client, &subscriptions_c, thunder_message)
-                                .await;
-                        }
-                    }
-                }
-            });
-
-            if let Some(old_client) = existing_client {
-                // Re-subscribe for each subscription that was active on the old client
-                if let Some(subscriptions) = old_client.subscriptions {
-                    // Reactivate the plugin state
-                    let (plugin_rdy_tx, plugin_rdy_rx) =
-                        oneshot::channel::<PluginActivatedResult>();
-                    if let Some(tx) = pmtx_c.clone() {
-                        let msg = PluginManagerCommand::ReactivatePluginState { tx: plugin_rdy_tx };
-                        mpsc_send_and_log(&tx, msg, "ResetPluginState").await;
-                        if let Ok(res) = plugin_rdy_rx.await {
-                            res.ready().await;
-                        }
-                    }
-                    let mut subs = subscriptions.lock().await;
-                    for (subscribe_method, tsub) in subs.iter_mut() {
-                        let mut listeners =
-                            HashMap::<String, MpscSender<DeviceResponseMessage>>::default();
-                        std::mem::swap(&mut listeners, &mut tsub.listeners);
-                        for (sub_id, listener) in listeners {
-                            let thunder_message: ThunderSubscribeMessage = {
-                                Self::parse_subscribe_method(subscribe_method)
-                                    .map(|(module, event_name)| ThunderSubscribeMessage {
-                                        module,
-                                        event_name,
-                                        params: tsub.params.clone(),
-                                        handler: listener,
-                                        callback: None,
-                                        sub_id: Some(sub_id),
-                                    })
-                                    .unwrap()
-                            };
-                            let resp = s
-                                .send(ThunderMessage::ThunderSubscribeMessage(thunder_message))
-                                .await;
-                            if resp.is_err() {
-                                if let Some((module, _)) =
-                                    Self::parse_subscribe_method(subscribe_method)
-                                {
-                                    error!("Failed to send re-subscribe message for {}", module);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Ok(ThunderClient {
-                sender: Some(s),
-                pooled_sender: None,
-                id: uid,
-                plugin_manager_tx: pmtx_c,
-                subscriptions: Some(subscriptions),
-                thunder_async_client: None,
-                broker_subscriptions: None,
-                broker_callbacks: None,
-                use_thunderbroker: false,
-            })
+            let client = Self::start_thunderpool_client(
+                url,
+                plugin_manager_tx,
+                pool_tx,
+                thunder_connection_state,
+                existing_client,
+            )
+            .await;
+            client
         } else {
             let (resp_tx, resp_rx) = mpsc::channel(10);
             let callback = BrokerCallback { sender: resp_tx };
@@ -825,7 +836,7 @@ impl ThunderClientBuilder {
                 use_thunderbroker: true,
             };
 
-            ThunderClientManager::manage(
+            ThunderClientManager::start(
                 thunder_client.clone(),
                 broker_rx,
                 resp_rx,
