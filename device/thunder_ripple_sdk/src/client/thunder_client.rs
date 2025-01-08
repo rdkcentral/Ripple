@@ -808,15 +808,14 @@ impl ThunderClientBuilder {
         use_thndrbroker: bool,
     ) -> Result<ThunderClient, RippleError> {
         if !use_thndrbroker {
-            let client = Self::start_thunderpool_client(
+            Self::start_thunderpool_client(
                 url,
                 plugin_manager_tx,
                 pool_tx,
                 thunder_connection_state,
                 existing_client,
             )
-            .await;
-            client
+            .await
         } else {
             let (resp_tx, resp_rx) = mpsc::channel(10);
             let callback = BrokerCallback { sender: resp_tx };
