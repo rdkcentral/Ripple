@@ -88,7 +88,7 @@ pub async fn boot_thunder(
         }
 
         if let Ok(thndr_client) =
-            ThunderClientBuilder::get_client(gateway_url.clone(), None, None, None, None, true)
+            ThunderClientBuilder::start_thunder_client(gateway_url.clone(), None, None, None, None, true)
                 .await
         {
             let thunder_state = ThunderState::new(ext_client.clone(), thndr_client);

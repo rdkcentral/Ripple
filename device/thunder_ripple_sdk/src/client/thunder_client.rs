@@ -63,7 +63,7 @@ use super::{
     jsonrpc_method_locator::JsonRpcMethodLocator,
     plugin_manager::{PluginActivatedResult, PluginManagerCommand},
 };
-use crate::client::thunder_async_client::{DeviceChannelRequest, DeviceResponseSubscription};
+use ripple_sdk::api::device::device_operator::{DeviceChannelRequest, DeviceResponseSubscription};
 use ripple_sdk::tokio::sync::mpsc::Receiver;
 use std::sync::RwLock;
 use std::{env, process::Command};
@@ -626,6 +626,7 @@ impl ThunderClientBuilder {
         }
         None
     }
+
     async fn create_client(
         url: Url,
         thunder_connection_state: Arc<ThunderConnectionState>,
@@ -675,7 +676,7 @@ impl ThunderClientBuilder {
         client
     }
 
-    pub async fn get_client(
+    pub async fn start_thunder_client(
         url: Url,
         plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
         pool_tx: Option<mpsc::Sender<ThunderPoolCommand>>,

@@ -23,10 +23,7 @@ use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::api::device::device_operator::DeviceResponseMessage;
 use ripple_sdk::{
     api::{
-        device::device_operator::{
-            DeviceCallRequest, DeviceSubscribeRequest, DeviceUnsubscribeRequest,
-        },
-        gateway::rpc_gateway_api::JsonRpcApiResponse,
+        device::device_operator::DeviceChannelRequest, gateway::rpc_gateway_api::JsonRpcApiResponse,
     },
     log::{debug, error, info},
     tokio::{self, net::TcpStream, sync::mpsc::Receiver},
@@ -35,49 +32,8 @@ use ripple_sdk::{
         rpc_utils::{extract_tcp_port, get_next_id},
     },
 };
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
-
-#[derive(Debug, Clone)]
-pub struct DeviceResponseSubscription {
-    pub sub_id: Option<String>,
-    pub handlers: Vec<tokio::sync::mpsc::Sender<DeviceResponseMessage>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum DeviceChannelRequest {
-    Call(DeviceCallRequest),
-    Subscribe(DeviceSubscribeRequest),
-    Unsubscribe(DeviceUnsubscribeRequest),
-}
-
-impl DeviceChannelRequest {
-    pub fn get_callsign_method(&self) -> (String, String) {
-        match self {
-            DeviceChannelRequest::Call(c) => {
-                let mut collection: Vec<&str> = c.method.split('.').collect();
-                let method = collection.pop().unwrap_or_default();
-                let callsign = collection.join(".");
-                (callsign, method.into())
-            }
-            DeviceChannelRequest::Subscribe(s) => (s.module.clone(), s.event_name.clone()),
-            DeviceChannelRequest::Unsubscribe(u) => (u.module.clone(), u.event_name.clone()),
-        }
-    }
-
-    pub fn is_subscription(&self) -> bool {
-        !matches!(self, DeviceChannelRequest::Call(_))
-    }
-
-    pub fn is_unsubscribe(&self) -> Option<DeviceUnsubscribeRequest> {
-        if let DeviceChannelRequest::Unsubscribe(u) = self {
-            Some(u.clone())
-        } else {
-            None
-        }
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct ThunderAsyncClient {
