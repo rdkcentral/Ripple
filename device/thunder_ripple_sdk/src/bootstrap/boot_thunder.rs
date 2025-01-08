@@ -53,7 +53,7 @@ pub async fn boot_thunder(
 ) -> Option<ThunderBootstrapStateWithClient> {
     info!("Booting thunder initiated");
     //by default enabling the thunderBroker
-    if ext_client.get_bool_config("use_with_thunder_broker") {
+    let state = if ext_client.get_bool_config("use_with_thunder_broker") {
         info!("Using thunder broker");
         let mut extn_client = ext_client.clone();
         let mut gateway_url = url::Url::parse(GATEWAY_DEFAULT).unwrap();
@@ -112,21 +112,26 @@ pub async fn boot_thunder(
 
             thndr_boot_stateclient.clone().state.start_event_thread();
 
-            SetupThunderProcessor::setup(thndr_boot_stateclient.clone()).await;
-            return Some(thndr_boot_stateclient);
+            Some(thndr_boot_stateclient)
+        } else {
+            None
         }
-        None
     } else {
         if let Ok(state) = ThunderGetConfigStep::setup(ext_client, plugin_param).await {
             if let Ok(state) = ThunderPoolStep::setup(state).await {
-                SetupThunderProcessor::setup(state.clone()).await;
-                return Some(state);
+                Some(state)
             } else {
                 error!("Unable to connect to Thunder, error in ThunderPoolStep");
+                None
             }
         } else {
             error!("Unable to connect to Thunder, error in ThunderGetConfigStep");
+            None
         }
-        None
+    };
+
+    if let Some(s) = state.clone() {
+        SetupThunderProcessor::setup(s).await;
     }
+    state
 }
