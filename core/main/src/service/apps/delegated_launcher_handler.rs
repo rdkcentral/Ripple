@@ -622,14 +622,7 @@ impl DelegatedLauncherHandler {
         &mut self,
         mut session: AppSession,
     ) -> Result<AppManagerResponse, AppError> {
-        let transport = session.get_transport();
-        if let EffectiveTransport::Bridge(_) = transport.clone() {
-            if !self.platform_state.supports_bridge() {
-                error!("Bridge is not a supported contract");
-                return Err(AppError::NotSupported);
-            }
-        }
-
+        let _transport = session.get_transport();
         let app_id = session.app.id.clone();
 
         if let Some(app_title) = session.app.title.as_ref() {
@@ -881,40 +874,8 @@ impl DelegatedLauncherHandler {
         emit_event: bool,
     ) -> CompletedSessionResponse {
         let app_id = session.app.id.clone();
-        let transport = session.get_transport();
+        let _transport = session.get_transport();
         let session_id = Uuid::new_v4().to_string();
-        if let EffectiveTransport::Bridge(container_id) = transport.clone() {
-            if platform_state.supports_bridge() {
-                // Step 1: Add the session of the app to the state if bridge
-                let session_state = Session::new(app_id.clone(), None, transport);
-                platform_state
-                    .session_state
-                    .add_session(session_id.clone(), session_state);
-                let id = container_id.clone();
-                debug!(
-                    "App session details: appId: {} session: {}",
-                    app_id, session_id
-                );
-                // Step 2: Start the session using contract
-                let request = BridgeSessionParams {
-                    container_id,
-                    session_id: session_id.clone(),
-                    app_id: app_id.clone(),
-                };
-                let request = BridgeProtocolRequest::StartSession(request);
-                let client = platform_state.get_client();
-                // After processing the session response the launcher will launch the app
-                // Below thread is going to wait for the app to be launched and create a connection
-                tokio::spawn(async move {
-                    if let Err(e) = client.send_extn_request(request).await {
-                        error!("Error sending request to bridge {:?}", e);
-                    } else {
-                        info!("Bridge connected for {}", id);
-                    }
-                });
-            }
-        }
-
         let loaded_session_id = Uuid::new_v4().to_string();
         let mut active_session_id = None;
         if !session.launch.inactive {
