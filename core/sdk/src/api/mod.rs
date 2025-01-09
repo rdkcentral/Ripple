@@ -73,6 +73,7 @@ pub mod firebolt {
 
 pub mod observability {
     pub mod analytics;
+    pub mod log_signal;
     pub mod metrics_util;
     pub mod operational_metrics;
 }
