@@ -156,12 +156,9 @@ impl ThunderBroker {
                                        let t = t.as_bytes();
                                        match Self::handle_jsonrpc_response(t,broker_c.get_broker_callback( Self::get_id_from_result(t) ).await) {
                                              Ok(okie) => {
-                                                // LogSignal::new("Thunder response".to_string(), okie.data.ctx.clone())
-                                                //     .with_diagnostic_context_item("response", &format!("{:?}", okie))
-                                                //     .emit_debug();
-
-                                                debug!("Thunder response {:?}", okie);
-
+                                                LogSignal::new("thunder_response".to_string(), "got message from thunder".to_string(), okie.data.clone())
+                                                    //.with_diagnostic_context_item("response", &format!("{:?}", okie))
+                                                    .emit_debug();
                                              },
                                              Err(e) => {
                                                   error!("Broker Websocket error on handle_jsonrpc_response {:?}", e);
@@ -205,7 +202,7 @@ impl ThunderBroker {
                                         match broker_c.prepare_request(&request) {
                                             Ok(updated_request) => {
 
-                                                LogSignal::new("Sending request to broker".to_string(), request.rpc.ctx.clone())
+                                                LogSignal::new("thunder_broker".to_string(),"sending message to thunder".to_string(), request.rpc.ctx.clone())
                                                     .with_diagnostic_context_item("updated_request", &format!("{:?}", updated_request))
                                                     .emit_debug();
 
@@ -219,7 +216,7 @@ impl ThunderBroker {
                                             }
                                             Err(e) => {
 
-                                                LogSignal::new("Prepare request failed".to_string(), request.rpc.ctx.clone())
+                                                LogSignal::new("thunder_broker".to_string(), "Prepare request failed".to_string(), request.rpc.ctx.clone())
                                                     .with_diagnostic_context_item("error", &format!("{:?}", e))
                                                     .emit_error();
                                                 broker_c.get_default_callback().send_error(request,e).await

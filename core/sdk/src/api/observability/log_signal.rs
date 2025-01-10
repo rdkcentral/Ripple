@@ -1,25 +1,32 @@
 use std::collections::HashMap;
 
-use crate::api::gateway::rpc_gateway_api::CallContext;
+use crate::api::gateway::rpc_gateway_api::{CallContext, ClientContext, JsonRpcApiResponse};
 
 /*
 
 Abstractions around ease of use contextual logging
 */
+pub trait ContextAsJson {
+    fn as_json(&self) -> serde_json::Value;
+}
 #[derive(serde::Serialize)]
-pub struct LogSignal {
+pub struct LogSignal<T>
+where
+    T: std::fmt::Display + ContextAsJson,
+{
+    name: String,
     message: String,
     diagnostic_context: HashMap<String, String>,
-    call_context: CallContext,
+    context: T,
 }
-impl std::fmt::Display for LogSignal {
+impl<T: std::fmt::Display + ContextAsJson> std::fmt::Display for LogSignal<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "message={}, diagnostic_context={}, call_context={}",
             self.message,
             diagnostic_context_to_string(&self.diagnostic_context),
-            self.call_context
+            self.context
         )
     }
 }
@@ -38,35 +45,123 @@ fn diagnostic_context_to_string(diagnostic_context: &HashMap<String, String>) ->
     diagnostic_context_string
 }
 
-impl From<LogSignal> for serde_json::Value {
-    fn from(signal: LogSignal) -> serde_json::Value {
+impl ContextAsJson for CallContext {
+    fn as_json(&self) -> serde_json::Value {
         let mut map = serde_json::Map::new();
         map.insert(
-            "message".to_string(),
-            serde_json::Value::String(signal.message),
+            "session_id".to_string(),
+            serde_json::Value::String(self.session_id.clone()),
         );
         map.insert(
-            "diagnostic_context".to_string(),
-            serde_json::Value::Object(map_to_jsonmap(signal.diagnostic_context.into())),
+            "request_id".to_string(),
+            serde_json::Value::String(self.request_id.clone()),
         );
-        map.insert("call_context".to_string(), signal.call_context.into());
+        map.insert(
+            "app_id".to_string(),
+            serde_json::Value::String(self.app_id.clone()),
+        );
+        map.insert(
+            "call_id".to_string(),
+            serde_json::Value::Number(serde_json::Number::from(self.call_id)),
+        );
+        // map.insert("protocol".to_string(), serde_json::Value::String(self.protocol.clone()));
+        map.insert(
+            "method".to_string(),
+            serde_json::Value::String(self.method.clone()),
+        );
+        // map.insert("cid".to_string(), serde_json::Value::String(self.cid.clone()));
+        map.insert(
+            "gateway_secure".to_string(),
+            serde_json::Value::Bool(self.gateway_secure),
+        );
+        serde_json::Value::Object(map)
+    }
+}
+impl ContextAsJson for ClientContext {
+    fn as_json(&self) -> serde_json::Value {
+        let mut map = serde_json::Map::new();
+        map.insert(
+            "session_id".to_string(),
+            serde_json::Value::String(self.session_id.clone()),
+        );
+        map.insert(
+            "app_id".to_string(),
+            serde_json::Value::String(self.app_id.clone()),
+        );
+        serde_json::Value::Object(map)
+    }
+}
+impl ContextAsJson for JsonRpcApiResponse {
+    fn as_json(&self) -> serde_json::Value {
+        let mut map = serde_json::Map::new();
+        map.insert(
+            "session_id".to_string(),
+            serde_json::Value::Number(self.id.clone().unwrap_or_default().into()),
+        );
+        map.insert(
+            "jsonrpc".to_string(),
+            serde_json::Value::String(self.jsonrpc.clone()),
+        );
+        map.insert(
+            "result".to_string(),
+            self.result.clone().unwrap_or_default(),
+        );
+        map.insert(
+            "method".to_string(),
+            serde_json::Value::String(self.method.clone().unwrap_or_default()),
+        );
+        map.insert("error".to_string(), self.error.clone().unwrap_or_default());
+
         serde_json::Value::Object(map)
     }
 }
 
-impl LogSignal {
-    pub fn new(message: String, call_context: CallContext) -> Self {
+impl<T> From<&LogSignal<T>> for serde_json::Value
+where
+    T: std::fmt::Display + ContextAsJson,
+{
+    fn from(signal: &LogSignal<T>) -> serde_json::Value {
+        let mut map = serde_json::Map::new();
+        map.insert(
+            "message".to_string(),
+            serde_json::Value::String(signal.message.clone()),
+        );
+        map.insert(
+            "diagnostic_context".to_string(),
+            serde_json::Value::Object(map_to_jsonmap(signal.diagnostic_context.clone().into())),
+        );
+        //TODO: Implement call_context
+        let f = signal.context.as_json();
+        map.insert("call_context".to_string(), f);
+        serde_json::Value::Object(map)
+    }
+}
+impl std::fmt::Display for JsonRpcApiResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "session_id={}", self.id.clone().unwrap_or_default())
+    }
+}
+
+impl<T: std::fmt::Display + ContextAsJson> LogSignal<T> {
+    pub fn new(name: String, message: String, context: T) -> Self
+    where
+        T: ContextAsJson,
+    {
         LogSignal {
+            name,
             message,
             diagnostic_context: HashMap::new(),
-            call_context,
+            context,
         }
     }
     pub fn emit_debug(&self) {
-        log::debug!("{}", self);
+        let me_as_json: serde_json::Value = self.into();
+        log::debug!("{}", me_as_json);
     }
     pub fn emit_error(&self) {
-        log::debug!("{}", self);
+        /*
+        TODO, fix this */
+        //log::debug!("{}", <&LogSignal<T> as Into<T>>::into(self));
     }
 
     pub fn with_diagnostic_context(mut self, diagnostic_context: HashMap<String, String>) -> Self {
@@ -91,7 +186,7 @@ mod tests {
         let mut diagnostic_context = HashMap::new();
         diagnostic_context.insert("key".to_string(), "value".to_string());
         let call_context = CallContext::mock();
-        let log_signal = LogSignal::new("message".to_string(), call_context)
+        let log_signal = LogSignal::new("tester".to_string(), "message".to_string(), call_context)
             .with_diagnostic_context(diagnostic_context);
         let json = serde_json::to_string(&log_signal).unwrap();
         assert_eq!(json, "{\"message\":\"message\",\"diagnostic_context\":{\"key\":\"value\"},\"call_context\":{\"session_id\":\"session_id\",\"request_id\":\"1\",\"app_id\":\"some_app_id\",\"call_id\":1,\"protocol\":\"JsonRpc\",\"method\":\"module.method\",\"cid\":\"cid\",\"gateway_secure\":true}}");
@@ -101,7 +196,7 @@ mod tests {
         let mut diagnostic_context = HashMap::new();
         diagnostic_context.insert("key".to_string(), "value".to_string());
         let call_context = CallContext::mock();
-        let log_signal = LogSignal::new("message".to_string(), call_context)
+        let log_signal = LogSignal::new("tester".to_string(), "message".to_string(), call_context)
             .with_diagnostic_context(diagnostic_context);
         let text = format!("{}", log_signal);
         assert_eq!(text, "message=message, diagnostic_context=key:value , call_context=session_id=session_id, request_id=1, app_id=some_app_id, call_id=1, protocol=JsonRpc, method=module.method, cid=cid");

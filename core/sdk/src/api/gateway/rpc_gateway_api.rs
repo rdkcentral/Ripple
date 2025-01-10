@@ -622,6 +622,15 @@ pub struct ClientContext {
     pub app_id: String,
     pub gateway_secure: bool,
 }
+impl std::fmt::Display for ClientContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "session_id={}, app_id={}, gateway_secure={}",
+            self.session_id, self.app_id, self.gateway_secure
+        )
+    }
+}
 
 #[derive(Debug)]
 pub enum PermissionCommand {

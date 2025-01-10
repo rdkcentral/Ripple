@@ -209,10 +209,6 @@ impl RpcRouter {
                 let now = Utc::now().timestamp_millis();
                 let success = !msg.is_error();
                 TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success, &msg);
-                // LogSignal::new("asdf", req.ctx.clone())
-                //     .with_diagnostic_context_item("status_code", &status)
-                //     .emit_debug();
-
                 return_api_message_for_transport(session, msg, state).await;
             }
         });
