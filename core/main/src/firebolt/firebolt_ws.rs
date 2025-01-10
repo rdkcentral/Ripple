@@ -256,16 +256,16 @@ impl FireboltWs {
         let (mut sender, mut receiver) = ws_stream.split();
         let mut platform_state = state.clone();
         tokio::spawn(async move {
-            while let Some(rs) = resp_rx.recv().await {
-                debug!("rs={:?}", rs);
-                let send_result = sender.send(Message::Text(rs.jsonrpc_msg.clone())).await;
+            while let Some(api_message) = resp_rx.recv().await {
+                debug!("api_message={:?}", api_message);
+                let send_result = sender.send(Message::Text(api_message.jsonrpc_msg.clone())).await;
                 match send_result {
                     Ok(_) => {
                         platform_state
                             .metrics
-                            .update_api_stage(&rs.request_id, "response");
-
-                        if let Some(stats) = platform_state.metrics.get_api_stats(&rs.request_id) {
+                            .update_api_stage(&api_message.request_id, "response");
+                      
+                        if let Some(stats) = platform_state.metrics.get_api_stats(&api_message.request_id) {
                             info!(
                                 "Sending Firebolt response: {:?},{}",
                                 stats.stats_ref,
@@ -276,12 +276,12 @@ impl FireboltWs {
                                 stats.stats_ref,
                                 stats.stats.get_stage_durations()
                             );
-                            platform_state.metrics.remove_api_stats(&rs.request_id);
+                            platform_state.metrics.remove_api_stats(&api_message.request_id);
                         }
 
                         info!(
                             "Sent Firebolt response cid={} msg={}",
-                            connection_id_c, rs.jsonrpc_msg
+                            connection_id_c, api_message.jsonrpc_msg
                         );
                     }
                     Err(err) => error!("{:?}", err),
