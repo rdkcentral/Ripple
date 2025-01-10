@@ -62,9 +62,20 @@ impl LogSignal {
             call_context,
         }
     }
+    pub fn emit_debug(&self) {
+        log::debug!("{}", self);
+    }
+    pub fn emit_error(&self) {
+        log::debug!("{}", self);
+    }
 
     pub fn with_diagnostic_context(mut self, diagnostic_context: HashMap<String, String>) -> Self {
         self.diagnostic_context = diagnostic_context;
+        self
+    }
+    pub fn with_diagnostic_context_item(mut self, key: &str, value: &str) -> Self {
+        self.diagnostic_context
+            .insert(key.to_string(), value.to_string());
         self
     }
 }

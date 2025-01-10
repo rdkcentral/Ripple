@@ -31,6 +31,7 @@ use ripple_sdk::{
     api::{
         firebolt::fb_metrics::Timer,
         gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
+        observability::log_signal::LogSignal,
     },
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
@@ -161,7 +162,18 @@ async fn resolve_route(
     }
     Err(RippleError::InvalidOutput)
 }
+// fn get_status_code_from_response(response: &JsonRpcMessage) -> i32 {
 
+//     if let Ok(r) = serde_json::from_str::<JsonRpcMessage>(&r) {
+//         if let Some(ec) = r.error {
+//             ec.code
+//         } else {
+//             1
+//         }
+//     } else {
+//         1
+//     }
+// }
 impl RpcRouter {
     pub async fn route(
         mut state: PlatformState,
@@ -197,6 +209,9 @@ impl RpcRouter {
                 let now = Utc::now().timestamp_millis();
                 let success = !msg.is_error();
                 TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success, &msg);
+                // LogSignal::new("asdf", req.ctx.clone())
+                //     .with_diagnostic_context_item("status_code", &status)
+                //     .emit_debug();
 
                 return_api_message_for_transport(session, msg, state).await;
             }

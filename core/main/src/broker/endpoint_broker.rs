@@ -208,7 +208,7 @@ static ATOMIC_ID: AtomicU64 = AtomicU64::new(0);
 
 impl BrokerCallback {
     pub async fn send_json_rpc_api_response(&self, response: JsonRpcApiResponse) {
-        let output = BrokerOutput { data: response };
+        let output = BrokerOutput::new(response);
         if let Err(e) = self.sender.send(output).await {
             error!("couldnt send response for {:?}", e);
         }
@@ -241,9 +241,28 @@ pub struct BrokerContext {
 #[derive(Debug, Clone, Default)]
 pub struct BrokerOutput {
     pub data: JsonRpcApiResponse,
+    /*
+    for request/response matching in the service of things
+    like logging - async calls become orphans otherwise
+    */
+    pub request: Option<BrokerRequest>,
 }
 
 impl BrokerOutput {
+    pub fn new(data: JsonRpcApiResponse) -> Self {
+        Self {
+            data,
+            request: None,
+        }
+    }
+    pub fn with_jsonrpc_response(&mut self, data: JsonRpcApiResponse) -> &mut Self {
+        self.data = data;
+        self
+    }
+    pub fn with_broker_request(&mut self, request: BrokerRequest) -> &mut Self {
+        self.request = Some(request);
+        self
+    }
     pub fn is_result(&self) -> bool {
         self.data.result.is_some()
     }
@@ -541,7 +560,7 @@ impl EndpointBrokerState {
         let jv: Value = "".into();
         data.result = Some(jv);
         data.id = Some(id);
-        let output = BrokerOutput { data };
+        let output = BrokerOutput::new(data);
 
         capture_stage(&self.metrics_state, &rpc_request, "static_rule_request");
         tokio::spawn(async move { callback.sender.send(output).await });
@@ -721,16 +740,20 @@ pub trait EndpointBroker {
 
     /// Default handler method for the broker to remove the context and send it back to the
     /// client for consumption
-    fn handle_jsonrpc_response(result: &[u8], callback: BrokerCallback) {
+    fn handle_jsonrpc_response(
+        result: &[u8],
+        callback: BrokerCallback,
+    ) -> Result<BrokerOutput, RippleError> {
         let mut final_result = Err(RippleError::ParseError);
         if let Ok(data) = serde_json::from_slice::<JsonRpcApiResponse>(result) {
-            final_result = Ok(BrokerOutput { data });
+            final_result = Ok(BrokerOutput::new(data));
         }
-        if let Ok(output) = final_result {
+        if let Ok(output) = final_result.clone() {
             tokio::spawn(async move { callback.sender.send(output).await });
         } else {
             error!("Bad broker response {}", String::from_utf8_lossy(result));
         }
+        final_result
     }
 
     fn get_cleaner(&self) -> BrokerCleaner;
@@ -894,9 +917,7 @@ impl BrokerOutputForwarder {
                             debug!("sending to workflow callback {:?}", response);
                             let _ = workflow_callback
                                 .sender
-                                .send(BrokerOutput {
-                                    data: response.clone(),
-                                })
+                                .send(BrokerOutput::new(response.clone()))
                                 .await;
                         } else {
                             let tm_str = get_rpc_header(&rpc_request);
@@ -1054,9 +1075,7 @@ impl BrokerOutputForwarder {
         tokio::spawn(async move {
             callback
                 .sender
-                .send(BrokerOutput {
-                    data: json_rpc_api_response,
-                })
+                .send(BrokerOutput::new(json_rpc_api_response))
                 .await
         });
     }
@@ -1067,9 +1086,7 @@ impl BrokerOutputForwarder {
         tokio::spawn(async move {
             callback
                 .sender
-                .send(BrokerOutput {
-                    data: json_rpc_api_success_response,
-                })
+                .send(BrokerOutput::new(json_rpc_api_success_response))
                 .await
         });
     }
@@ -1214,10 +1231,10 @@ mod tests {
         #[test]
         fn test_result() {
             let mut data = JsonRpcApiResponse::mock();
-            let output = BrokerOutput { data: data.clone() };
+            let output = BrokerOutput::default().with_jsonrpc_response(data.clone());
             assert!(!output.is_result());
             data.result = Some(serde_json::Value::Null);
-            let output = BrokerOutput { data };
+            let output = BrokerOutput::default().with_jsonrpc_response(data);
             assert!(output.is_result());
         }
 
@@ -1225,7 +1242,7 @@ mod tests {
         fn test_get_event() {
             let mut data = JsonRpcApiResponse::mock();
             data.method = Some("20.events".to_owned());
-            let output = BrokerOutput { data };
+            let output = BrokerOutput::default().with_jsonrpc_response(data);
             assert_eq!(20, output.get_event().unwrap())
         }
     }
@@ -1310,7 +1327,7 @@ mod tests {
         let rpc_request = RpcRequest::new("new_method".to_string(), "params".to_string(), ctx);
         let mut data = JsonRpcApiResponse::mock();
         data.error = Some(error);
-        let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
+        let mut output: BrokerOutput = BrokerOutput::new { data: data.clone() };
         let filter = "if .result and .result.success then (.result.stbVersion | split(\"_\") [0]) elif .error then if .error.code == -32601 then {error: { code: -1, message: \"Unknown method.\" }} else \"Error occurred with a different code\" end else \"No result or recognizable error\" end".to_string();
         //let mut response = JsonRpcApiResponse::mock();
         //response.error = Some(error);
@@ -1325,10 +1342,9 @@ mod tests {
         let error = json!({"code":22,"message":"test error code 22"});
         let mut data = JsonRpcApiResponse::mock();
         data.error = Some(error);
-        let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
+        let mut output: BrokerOutput = BrokerOutput::new(data);
         let filter = "if .result and .result.success then .result.value elif .error.code==22 or .error.code==43 then null else .error end".to_string();
-        //let mut response = JsonRpcApiResponse::mock();
-        //response.error = Some(error);
+
         apply_response(filter, &rpc_request.ctx.method, &mut output.data);
         assert_eq!(output.data.error, None);
         assert_eq!(output.data.result.unwrap(), serde_json::Value::Null);
@@ -1337,10 +1353,8 @@ mod tests {
         let error = json!({"code":300,"message":"test error code 300"});
         let mut data = JsonRpcApiResponse::mock();
         data.error = Some(error.clone());
-        let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
+        let mut output: BrokerOutput = BrokerOutput::new(data);
         let filter = "if .result and .result.success then .result.value elif .error.code==22 or .error.code==43 then null else { error: .error } end".to_string();
-        //let mut response = JsonRpcApiResponse::mock();
-        //response.error = Some(error.clone());
         apply_response(filter, &rpc_request.ctx.method, &mut output.data);
         assert_eq!(output.data.error, Some(error));
     }
@@ -1367,7 +1381,7 @@ mod tests {
         //response.result = Some(result);
         let mut data = JsonRpcApiResponse::mock();
         data.result = Some(result);
-        let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
+        let mut output: BrokerOutput = BrokerOutput::new(data.clone());
         apply_response(filter, &rpc_request.ctx.method, &mut output.data);
         assert_eq!(output.data.result.unwrap(), "SCXI11BEI".to_string());
 
@@ -1376,15 +1390,11 @@ mod tests {
         let filter = "if .result then if .result | contains(\"480\") then ( [640, 480] ) elif .result | contains(\"576\") then ( [720, 576] ) elif .result | contains(\"1080\") then ( [1920, 1080] ) elif .result | contains(\"2160\") then ( [2160, 1440] ) end elif .error then if .error.code == -32601 then \"Unknown method.\" else \"Error occurred with a different code\" end else \"No result or recognizable error\" end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
-        //let data = JsonRpcApiResponse::mock();
-        //let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
         apply_response(filter, &rpc_request.ctx.method, &mut response);
         assert_eq!(response.result.unwrap(), json!([1920, 1080]));
 
         // device.audio
         let result = json!({"currentAudioFormat":"DOLBY AC3","supportedAudioFormat":["NONE","PCM","AAC","VORBIS","WMA","DOLBY AC3","DOLBY AC4","DOLBY MAT","DOLBY TRUEHD","DOLBY EAC3 ATMOS","DOLBY TRUEHD ATMOS","DOLBY MAT ATMOS","DOLBY AC4 ATMOS","UNKNOWN"],"success":true});
-        //let data = JsonRpcApiResponse::mock();
-        //let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
         let filter = "if .result and .result.success then .result | {\"stereo\": (.supportedAudioFormat |  index(\"PCM\") > 0),\"dolbyDigital5.1\": (.supportedAudioFormat |  index(\"DOLBY AC3\") > 0),\"dolbyDigital5.1plus\": (.supportedAudioFormat |  index(\"DOLBY EAC3\") > 0),\"dolbyAtmos\": (.supportedAudioFormat |  index(\"DOLBY EAC3 ATMOS\") > 0)} elif .error then if .error.code == -32601 then \"Unknown method.\" else \"Error occurred with a different code\" end else \"No result or recognizable error\" end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
@@ -1398,8 +1408,7 @@ mod tests {
         let result = json!({"interfaces":[{"interface":"ETHERNET","macAddress":
         "f0:46:3b:5b:eb:14","enabled":true,"connected":false},{"interface":"WIFI","macAddress
         ":"f0:46:3b:5b:eb:15","enabled":true,"connected":true}],"success":true});
-        //let data = JsonRpcApiResponse::mock();
-        //let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
+
         let filter = "if .result and .result.success then (.result.interfaces | .[] | select(.connected) | {\"state\": \"connected\",\"type\": .interface | ascii_downcase }) elif .error then if .error.code == -32601 then \"Unknown method.\" else \"Error occurred with a different code\" end else \"No result or recognizable error\" end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
@@ -1411,8 +1420,6 @@ mod tests {
 
         // device.name
         let result = json!({"friendlyName": "my_device","success":true});
-        //let data = JsonRpcApiResponse::mock();
-        //let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
         let filter = "if .result.success then (if .result.friendlyName | length == 0 then \"Living Room\" else .result.friendlyName end) else \"Living Room\" end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
@@ -1421,8 +1428,6 @@ mod tests {
 
         // localization.language
         let result = json!({"success": true, "value": "{\"update_time\":\"2024-07-29T20:23:29.539132160Z\",\"value\":\"FR\"}"});
-        //let data = JsonRpcApiResponse::mock();
-        //let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
         let filter = "if .result.success then (.result.value | fromjson | .value) else \"en\" end"
             .to_string();
         let mut response = JsonRpcApiResponse::mock();
@@ -1433,8 +1438,6 @@ mod tests {
 
         // secondscreen.friendlyName
         let result = json!({"friendlyName": "my_device","success":true});
-        //let data = JsonRpcApiResponse::mock();
-        //let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
         let filter = "if .result.success then (if .result.friendlyName | length == 0 then \"Living Room\" else .result.friendlyName end) else \"Living Room\" end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
@@ -1444,8 +1447,6 @@ mod tests {
 
         // advertising.setSkipRestriction
         let result = json!({"success":true});
-        //let data = JsonRpcApiResponse::mock();
-        //let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
         let filter = "if .result.success then null else { code: -32100, message: \"couldn't set skip restriction\" } end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
@@ -1455,8 +1456,6 @@ mod tests {
 
         // securestorage.get
         let result = json!({"value": "some_value","success": true,"ttl": 100});
-        //let data = JsonRpcApiResponse::mock();
-        //let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
         let filter = "if .result.success then .result.value elif .error.code==22 or .error.code==43 then \"null\" else .error end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
@@ -1465,8 +1464,6 @@ mod tests {
 
         // localization.countryCode
         let result = json!({"territory": "USA","success": true});
-        //let data = JsonRpcApiResponse::mock();
-        //let mut output: BrokerOutput = BrokerOutput { data: data.clone() };
         let filter = "if .result.success then if .result.territory == \"ITA\" then \"IT\" elif .result.territory == \"GBR\" then \"GB\" elif .result.territory == \"IRL\" then \"IE\" elif .result.territory == \"DEU\" then \"DE\" elif .result.territory == \"AUS\" then \"AU\" else \"GB\" end end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
