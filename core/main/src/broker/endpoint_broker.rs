@@ -1364,6 +1364,7 @@ mod tests {
     }
 
     mod broker_output {
+        use openrpc_validator::jsonschema::output;
         use ripple_sdk::{api::gateway::rpc_gateway_api::JsonRpcApiResponse, Mockable};
 
         use crate::broker::endpoint_broker::BrokerOutput;
@@ -1371,10 +1372,12 @@ mod tests {
         #[test]
         fn test_result() {
             let mut data = JsonRpcApiResponse::mock();
-            let output = BrokerOutput::default().with_jsonrpc_response(data.clone());
+            let mut output = BrokerOutput::default();
+            let output = output.with_jsonrpc_response(data.clone());
             assert!(!output.is_result());
             data.result = Some(serde_json::Value::Null);
-            let output = BrokerOutput::default().with_jsonrpc_response(data);
+            let mut output = BrokerOutput::default();
+            let output = output.with_jsonrpc_response(data);
             assert!(output.is_result());
         }
 
@@ -1382,7 +1385,8 @@ mod tests {
         fn test_get_event() {
             let mut data = JsonRpcApiResponse::mock();
             data.method = Some("20.events".to_owned());
-            let output = BrokerOutput::default().with_jsonrpc_response(data);
+            let mut output = BrokerOutput::default();
+            let output = output.with_jsonrpc_response(data);
             assert_eq!(20, output.get_event().unwrap())
         }
     }
@@ -1467,7 +1471,7 @@ mod tests {
         let rpc_request = RpcRequest::new("new_method".to_string(), "params".to_string(), ctx);
         let mut data = JsonRpcApiResponse::mock();
         data.error = Some(error);
-        let mut output: BrokerOutput = BrokerOutput::new { data: data.clone() };
+        let mut output: BrokerOutput = BrokerOutput::new(data.clone());
         let filter = "if .result and .result.success then (.result.stbVersion | split(\"_\") [0]) elif .error then if .error.code == -32601 then {error: { code: -1, message: \"Unknown method.\" }} else \"Error occurred with a different code\" end else \"No result or recognizable error\" end".to_string();
         //let mut response = JsonRpcApiResponse::mock();
         //response.error = Some(error);

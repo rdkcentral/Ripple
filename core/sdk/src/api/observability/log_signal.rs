@@ -64,12 +64,14 @@ impl ContextAsJson for CallContext {
             "call_id".to_string(),
             serde_json::Value::Number(serde_json::Number::from(self.call_id)),
         );
-        // map.insert("protocol".to_string(), serde_json::Value::String(self.protocol.clone()));
         map.insert(
             "method".to_string(),
             serde_json::Value::String(self.method.clone()),
         );
-        // map.insert("cid".to_string(), serde_json::Value::String(self.cid.clone()));
+        map.insert(
+            "cid".to_string(),
+            serde_json::Value::String(self.cid.clone().unwrap_or_default()),
+        );
         map.insert(
             "gateway_secure".to_string(),
             serde_json::Value::Bool(self.gateway_secure),
@@ -191,7 +193,7 @@ mod tests {
         let log_signal = LogSignal::new("tester".to_string(), "message".to_string(), call_context)
             .with_diagnostic_context(diagnostic_context);
         let json = serde_json::to_string(&log_signal).unwrap();
-        assert_eq!(json, "{\"message\":\"message\",\"diagnostic_context\":{\"key\":\"value\"},\"call_context\":{\"session_id\":\"session_id\",\"request_id\":\"1\",\"app_id\":\"some_app_id\",\"call_id\":1,\"protocol\":\"JsonRpc\",\"method\":\"module.method\",\"cid\":\"cid\",\"gateway_secure\":true}}");
+        assert_eq!(json, "{\"name\":\"tester\",\"message\":\"message\",\"diagnostic_context\":{\"key\":\"value\"},\"context\":{\"session_id\":\"session_id\",\"request_id\":\"1\",\"app_id\":\"some_app_id\",\"call_id\":1,\"protocol\":\"JsonRpc\",\"method\":\"module.method\",\"cid\":\"cid\",\"gateway_secure\":true}}");
     }
     #[test]
     fn test_log_signal_text_output() {
