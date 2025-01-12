@@ -31,7 +31,6 @@ use ripple_sdk::{
     api::{
         firebolt::fb_metrics::Timer,
         gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
-        observability::log_signal::LogSignal,
     },
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,

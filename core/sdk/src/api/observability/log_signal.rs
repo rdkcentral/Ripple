@@ -9,7 +9,7 @@ Abstractions around ease of use contextual logging
 pub trait ContextAsJson {
     fn as_json(&self) -> serde_json::Value;
 }
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Clone)]
 pub struct LogSignal<T>
 where
     T: std::fmt::Display + ContextAsJson,
@@ -127,13 +127,18 @@ where
             serde_json::Value::String(signal.message.clone()),
         );
         map.insert(
+            "name".to_string(),
+            serde_json::Value::String(signal.name.clone()),
+        );
+
+        map.insert(
             "diagnostic_context".to_string(),
             serde_json::Value::Object(map_to_jsonmap(signal.diagnostic_context.clone().into())),
         );
         //TODO: Implement call_context
         let f = signal.context.as_json();
         map.insert("call_context".to_string(), f);
-        serde_json::Value::Object(map)
+        serde_json::json!({"log_signal": serde_json::Value::Object(map) })
     }
 }
 impl std::fmt::Display for JsonRpcApiResponse {
@@ -155,13 +160,10 @@ impl<T: std::fmt::Display + ContextAsJson> LogSignal<T> {
         }
     }
     pub fn emit_debug(&self) {
-        let me_as_json: serde_json::Value = self.into();
-        log::debug!("{}", me_as_json);
+        log::debug!("{}", serde_json::Value::from(self));
     }
     pub fn emit_error(&self) {
-        /*
-        TODO, fix this */
-        //log::debug!("{}", <&LogSignal<T> as Into<T>>::into(self));
+        log::error!("{}", serde_json::Value::from(self));
     }
 
     pub fn with_diagnostic_context(mut self, diagnostic_context: HashMap<String, String>) -> Self {

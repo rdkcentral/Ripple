@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{collections::HashMap, net::SocketAddr};
+use std::net::SocketAddr;
 
 use super::firebolt_gateway::FireboltGatewayCommand;
 use crate::{
@@ -27,7 +27,6 @@ use crate::{
 };
 use futures::SinkExt;
 use futures::StreamExt;
-use hyper::client::connect;
 use jsonrpsee::types::{error::ErrorCode, ErrorResponse, Id};
 use ripple_sdk::{
     api::{
@@ -320,7 +319,6 @@ impl FireboltWs {
                     if msg.is_text() && !msg.is_empty() {
                         let req_text = String::from(msg.to_text().unwrap());
                         let req_id = Uuid::new_v4().to_string();
-                        let app_ = ctx.clone();
                         if let Ok(request) = RpcRequest::parse(
                             req_text.clone(),
                             app_id_c.clone(),

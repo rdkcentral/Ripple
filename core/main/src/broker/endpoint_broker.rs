@@ -21,6 +21,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::{
             ApiMessage, ApiProtocol, CallContext, JsonRpcApiRequest, JsonRpcApiResponse, RpcRequest,
         },
+        observability::log_signal::LogSignal,
         session::AccountSession,
     },
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
@@ -88,6 +89,53 @@ pub struct BrokerRequest {
     pub rule: Rule,
     pub subscription_processed: Option<bool>,
     pub workflow_callback: Option<BrokerCallback>,
+}
+impl ripple_sdk::api::observability::log_signal::ContextAsJson for BrokerRequest {
+    fn as_json(&self) -> serde_json::Value {
+        let mut map = serde_json::Map::new();
+        map.insert(
+            "session_id".to_string(),
+            serde_json::Value::String(self.rpc.ctx.session_id.clone()),
+        );
+        map.insert(
+            "request_id".to_string(),
+            serde_json::Value::String(self.rpc.ctx.request_id.clone()),
+        );
+        map.insert(
+            "app_id".to_string(),
+            serde_json::Value::String(self.rpc.ctx.app_id.clone()),
+        );
+        map.insert(
+            "call_id".to_string(),
+            serde_json::Value::Number(serde_json::Number::from(self.rpc.ctx.call_id)),
+        );
+        // map.insert(
+        //     "protocol".to_string(),
+        //     serde_json::Value::String(self.rpc.ctx.protocol.clone()),
+        // );
+        map.insert(
+            "method".to_string(),
+            serde_json::Value::String(self.rpc.method.clone()),
+        );
+        // map.insert(
+        //     "cid".to_string(),
+        //     serde_json::Value::String(self.rpc.ctx.cid.clone()),
+        // );
+        map.insert(
+            "gateway_secure".to_string(),
+            serde_json::Value::Bool(self.rpc.ctx.gateway_secure),
+        );
+        serde_json::Value::Object(map)
+    }
+}
+impl std::fmt::Display for BrokerRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "BrokerRequest {{ rpc: {:?}, rule: {:?}, subscription_processed: {:?}, workflow_callback: {:?} }}",
+            self.rpc, self.rule, self.subscription_processed, self.workflow_callback
+        )
+    }
 }
 
 pub type BrokerSubMap = HashMap<String, Vec<BrokerRequest>>;
@@ -241,26 +289,14 @@ pub struct BrokerContext {
 #[derive(Debug, Clone, Default)]
 pub struct BrokerOutput {
     pub data: JsonRpcApiResponse,
-    /*
-    for request/response matching in the service of things
-    like logging - async calls become orphans otherwise
-    */
-    pub request: Option<BrokerRequest>,
 }
 
 impl BrokerOutput {
     pub fn new(data: JsonRpcApiResponse) -> Self {
-        Self {
-            data,
-            request: None,
-        }
+        Self { data }
     }
     pub fn with_jsonrpc_response(&mut self, data: JsonRpcApiResponse) -> &mut Self {
         self.data = data;
-        self
-    }
-    pub fn with_broker_request(&mut self, request: BrokerRequest) -> &mut Self {
-        self.request = Some(request);
         self
     }
     pub fn is_result(&self) -> bool {
@@ -582,17 +618,47 @@ impl EndpointBrokerState {
         let callback = self.callback.clone();
         let mut broker_sender = None;
         let mut found_rule = None;
+        LogSignal::new(
+            "handle_brokerage".to_string(),
+            "starting brokerage".to_string(),
+            rpc_request.ctx.clone(),
+        )
+        .emit_debug();
         if let Some(rule) = self.rule_engine.get_rule(&rpc_request) {
             found_rule = Some(rule.clone());
+
             if let Some(endpoint) = rule.endpoint {
+                LogSignal::new(
+                    "handle_brokerage".to_string(),
+                    "rule found".to_string(),
+                    rpc_request.ctx.clone(),
+                )
+                .with_diagnostic_context_item("rule_alias", &rule.alias)
+                .with_diagnostic_context_item("endpoint", &endpoint)
+                .emit_debug();
                 if let Some(endpoint) = self.get_sender(&endpoint) {
                     broker_sender = Some(endpoint);
                 }
             } else if rule.alias != "static" {
+                LogSignal::new(
+                    "handle_brokerage".to_string(),
+                    "rule found".to_string(),
+                    rpc_request.ctx.clone(),
+                )
+                .with_diagnostic_context_item("rule_alias", &rule.alias)
+                .with_diagnostic_context_item("static", rule.alias.as_str())
+                .emit_debug();
                 if let Some(endpoint) = self.get_sender("thunder") {
                     broker_sender = Some(endpoint);
                 }
             }
+        } else {
+            LogSignal::new(
+                "handle_brokerage".to_string(),
+                "rule not found".to_string(),
+                rpc_request.ctx.clone(),
+            )
+            .emit_debug();
         }
         trace!("found rule {:?}", found_rule);
         if found_rule.is_some() {
@@ -601,7 +667,7 @@ impl EndpointBrokerState {
             if rule.alias == "static" {
                 trace!("handling static request for {:?}", rpc_request);
                 self.handle_static_request(
-                    rpc_request,
+                    rpc_request.clone(),
                     extn_message,
                     rule,
                     callback,
@@ -614,6 +680,7 @@ impl EndpointBrokerState {
                     self.update_request(&rpc_request, rule, extn_message, requestor_callback);
                 capture_stage(&self.metrics_state, &rpc_request, "broker_request");
                 let thunder = self.get_sender("thunder");
+                let request_context = updated_request.rpc.ctx.clone();
                 tokio::spawn(async move {
                     /*
                     process "unlisten" requests here - the broker layers require state, which does not exist , as the
@@ -621,6 +688,12 @@ impl EndpointBrokerState {
                     */
                     if updated_request.rpc.is_unlisten() {
                         let result: JsonRpcApiResponse = updated_request.clone().rpc.into();
+                        LogSignal::new(
+                            "handle_brokerage".to_string(),
+                            "unlisten request".to_string(),
+                            request_context.clone(),
+                        )
+                        .emit_debug();
                         /*
                         This is suboptimal, but the only way to handle this is to send the unlisten request to the thunder, and then
                         */
@@ -631,6 +704,12 @@ impl EndpointBrokerState {
                             }
                         }
                     } else if let Err(e) = broker_sender.send(updated_request.clone()).await {
+                        LogSignal::new(
+                            "handle_brokerage".to_string(),
+                            "broker send error".to_string(),
+                            request_context.clone(),
+                        )
+                        .emit_error();
                         callback.send_error(updated_request, e).await
                     }
                 });
@@ -640,6 +719,13 @@ impl EndpointBrokerState {
         } else {
             handled = false;
         }
+        LogSignal::new(
+            "handle_brokerage".to_string(),
+            "brokerage complete".to_string(),
+            rpc_request.ctx.clone(),
+        )
+        .with_diagnostic_context_item("handled", handled.to_string().as_str())
+        .emit_debug();
 
         handled
     }
@@ -794,6 +880,13 @@ impl BrokerOutputForwarder {
 
                 if let Some(id) = id {
                     if let Ok(broker_request) = platform_state.endpoint_state.get_request(id) {
+                        LogSignal::new(
+                            "start_forwarder".to_string(),
+                            "broker request found".to_string(),
+                            broker_request.clone(),
+                        )
+                        .emit_debug();
+
                         let trigger_event_handling = broker_request.rule.event_handler.is_some();
                         let workflow_callback = broker_request.clone().workflow_callback;
                         let sub_processed = broker_request.is_subscription_processed();
@@ -804,6 +897,12 @@ impl BrokerOutputForwarder {
 
                         // Step 1: Create the data
                         if let Some(result) = response.result.clone() {
+                            LogSignal::new(
+                                "start_forwarder".to_string(),
+                                "processing event".to_string(),
+                                broker_request.clone(),
+                            )
+                            .emit_debug();
                             if is_event {
                                 apply_rule_for_event(
                                     &broker_request,
@@ -840,6 +939,12 @@ impl BrokerOutputForwarder {
                                         event_utility_clone.get_function(&decorator_method)
                                     {
                                         // spawn a tokio thread to run the function and continue the main thread.
+                                        LogSignal::new(
+                                            "start_forwarder".to_string(),
+                                            "event decorator method found".to_string(),
+                                            rpc_request.ctx.clone(),
+                                        )
+                                        .emit_debug();
                                         let session_id = rpc_request.ctx.get_id();
                                         let request_id = rpc_request.ctx.call_id;
                                         let protocol = rpc_request.ctx.protocol.clone();
@@ -877,6 +982,12 @@ impl BrokerOutputForwarder {
                                         });
                                         continue;
                                     } else {
+                                        LogSignal::new(
+                                            "start_forwarder".to_string(),
+                                            "event decorator method not found".to_string(),
+                                            rpc_request.ctx.clone(),
+                                        )
+                                        .emit_debug();
                                         error!(
                                             "Failed to invoke decorator method {:?}",
                                             decorator_method
@@ -897,6 +1008,13 @@ impl BrokerOutputForwarder {
                             }
                         } else {
                             trace!("start_forwarder: no result {:?}", response);
+                            LogSignal::new(
+                                "start_forwarder".to_string(),
+                                "no result".to_string(),
+                                rpc_request.ctx.clone(),
+                            )
+                            .with_diagnostic_context_item("response", response.to_string().as_str())
+                            .emit_debug();
                             apply_response_needed = true;
                         }
 
@@ -915,6 +1033,12 @@ impl BrokerOutputForwarder {
 
                         if let Some(workflow_callback) = workflow_callback {
                             debug!("sending to workflow callback {:?}", response);
+                            LogSignal::new(
+                                "start_forwarder".to_string(),
+                                "sending to workflow callback".to_string(),
+                                rpc_request.ctx.clone(),
+                            )
+                            .emit_debug();
                             let _ = workflow_callback
                                 .sender
                                 .send(BrokerOutput::new(response.clone()))
@@ -1167,7 +1291,23 @@ fn apply_rule_for_event(
             &filter,
             format!("{}_event", rpc_request.ctx.method),
         ) {
+            LogSignal::new(
+                "apply_rule_for_event".to_string(),
+                "broker request found".to_string(),
+                broker_request.clone(),
+            )
+            .with_diagnostic_context_item("success", "true")
+            .with_diagnostic_context_item("result", r.to_string().as_str())
+            .emit_debug();
             response.result = Some(r);
+        } else {
+            LogSignal::new(
+                "apply_rule_for_event".to_string(),
+                "broker request found".to_string(),
+                broker_request.clone(),
+            )
+            .with_diagnostic_context_item("success", "false")
+            .emit_debug();
         }
     }
 }
