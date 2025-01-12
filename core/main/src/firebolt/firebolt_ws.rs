@@ -319,9 +319,6 @@ impl FireboltWs {
                                     ApiMessage::new(ApiProtocol::JsonRpc, msg, req_id.clone());
                                 // No Stats here its an invalid RPC request
                                 match session.get_transport() {
-                                    EffectiveTransport::Bridge(id) => {
-                                        let _ = state.send_to_bridge(id, api_msg).await;
-                                    }
                                     EffectiveTransport::Websocket => {
                                         let _ = session.send_json_rpc(api_msg).await;
                                     }

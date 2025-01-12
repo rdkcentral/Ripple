@@ -428,14 +428,6 @@ async fn send_json_rpc_error(
                         )
                     }
                 }
-                EffectiveTransport::Bridge(id) => {
-                    if let Err(e) = platform_state.send_to_bridge(id, api_message).await {
-                        error!(
-                            "send_json_rpc_error: Error sending bridge message: e={:?}",
-                            e
-                        )
-                    }
-                }
             }
         } else {
             error!("send_json_rpc_error: Could not serialize error message");

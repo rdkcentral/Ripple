@@ -285,17 +285,6 @@ impl AppEvents {
                     error!("JsonRPC sender missing");
                 }
             }
-            EffectiveTransport::Bridge(id) => {
-                if state.supports_bridge() {
-                    let client = state.get_client();
-                    let request = BridgeProtocolRequest::Send(id, api_message);
-                    if let Err(e) = client.send_extn_request(request).await {
-                        error!("Error sending event to bridge {:?}", e);
-                    }
-                } else {
-                    error!("Bridge not supported");
-                }
-            }
         }
     }
 

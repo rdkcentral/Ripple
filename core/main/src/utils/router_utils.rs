@@ -40,11 +40,6 @@ pub async fn return_api_message_for_transport(
                 error!("Error while responding back message {:?}", e)
             }
         }
-        EffectiveTransport::Bridge(container_id) => {
-            if let Err(e) = state.send_to_bridge(container_id, msg).await {
-                error!("Error sending event to bridge {:?}", e);
-            }
-        }
     }
 }
 
