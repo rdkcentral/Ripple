@@ -239,6 +239,11 @@ impl RpcRouter {
             "**** rpc_router: route: route_extn_protocol: req: {}",
             req.method
         );
+        println!(
+            "**** rpc_router: route: route_extn_protocol: extn_msg: {:?}",
+            extn_msg.clone()
+        );
+
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
 

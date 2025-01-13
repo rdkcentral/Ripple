@@ -15,12 +15,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 use crate::{
-    api::{
-        apps::EffectiveTransport,
-        gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
-    },
+    api::gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
     extn::extn_client_message::{ExtnMessage, ExtnResponse},
-    log::{error, trace},
+    log::error,
     serde_json::{self, Result as SResult},
     utils::error::RippleError,
 };
@@ -59,20 +56,3 @@ pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage) {
 pub fn get_rpc_header(request: &RpcRequest) -> String {
     format!("{},{}", request.ctx.app_id, request.ctx.method)
 }
-
-pub fn add_telemetry_status_code(original_ref: &str, status_code: &str) -> Option<String> {
-    Some(format!("{},{}", original_ref, status_code))
-}
-
-// pub fn capture_stage(metrics_state: &MetricsState, request: &RpcRequest, stage: &str) {
-//     let mut state = metrics_state.clone();
-//     let duration = state.update_api_stage(&request.ctx.request_id, stage);
-
-//     trace!(
-//         "Firebolt processing stage: {},{},{},{}",
-//         request.ctx.app_id,
-//         request.ctx.method,
-//         stage,
-//         duration
-//     )
-// }

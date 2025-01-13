@@ -409,10 +409,11 @@ impl EndpointBrokerState {
         }
     }
 
-    fn get_extn_message(&self, id: u64, is_event: bool) -> Result<ExtnMessage, RippleError> {
+    pub fn get_extn_message(&self, id: u64, is_event: bool) -> Result<ExtnMessage, RippleError> {
         println!("**** endpoint_broker: get_extn_message: id {:?}", id);
         if is_event {
             let v = { self.extension_request_map.read().unwrap().get(&id).cloned() };
+            println!("**** endpoint_broker: get_extn_message: v {:?}", v);
             if let Some(v1) = v {
                 Ok(v1)
             } else {
@@ -688,7 +689,7 @@ impl EndpointBrokerState {
                 let thunder = self.get_sender("thunder");
                 tokio::spawn(async move {
                     println!(
-                        "**** endpoint_broker: handle_brokerage: sending request to broker {:?}",
+                        "**** endpoint_broker: handle_brokerage: sending request to broker: {:?}",
                         updated_request
                     );
                     /*

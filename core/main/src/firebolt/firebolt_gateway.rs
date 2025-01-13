@@ -258,12 +258,25 @@ impl FireboltGateway {
                         "**** firebolt_gateway: handle: extn_request: {}",
                         extn_request
                     );
+                    
+                    if let Some(overridden_method) = platform_state.get_manifest().has_rpc_override_method(&request_c.method) {
+                        println!(
+                            "***** firebolt_gateway: handle: req method: {} overridden to: {}",
+                            request_c.method, overridden_method
+                        );
+                        request_c.method = overridden_method;
+                    }
+
                     if !platform_state.endpoint_state.handle_brokerage(
                         request_c.clone(),
                         extn_msg.clone(),
                         None,
                     ) {
                         println!("**** firebolt_gateway: handle: Brokerage not handled");
+                        println!(
+                            "**** firebolt_gateway: handle: Routing request: extn_msg: {:?}",
+                            extn_msg
+                        );
                         // Route
                         match request.clone().ctx.protocol {
                             ApiProtocol::Extn => {

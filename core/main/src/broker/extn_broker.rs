@@ -71,6 +71,9 @@ impl ExtnBroker {
                         trace!("Received message {:?}", broker_request);
                         let rpc_request = broker_request.rpc.clone();
                         println!("**** extn_broker: start: Received request: broker_request: rpc request: {:?}", rpc_request);
+                        let mut extn_msg =
+                            endpoint_broker.get_extn_message(rpc_request.ctx.call_id, true);
+                        println!("**** extn_broker: start: Received request:broker_request: extn_request_map: extn_msg:{:?}", extn_msg);
                         let rule = broker_request.rule;
                         println!(
                             "**** extn_broker: start: Received request:broker_request: rule: {:?}",
@@ -114,8 +117,14 @@ impl ExtnBroker {
                         // callback: Some(Sender { .. }), ts: 1734392600618 }
                         // **** extn_client: initialize: c_message: CExtnMessage { id: "4e98e642-7b55-4af2-be0e-c539f57709dc", requestor: "ripple:extn:jsonrpsee:badger", target: "\"device_info\"", target_id: "", payload: "{\"Request\":{\"Device\":{\"DeviceInfo\":\"GetTimezoneWithOffset\"}}}", callback: Some(Sender { .. }), ts: 1734392600618 }
                         // **** extn_client: initialize: message: ExtnMessage { id: "4e98e642-7b55-4af2-be0e-c539f57709dc", requestor: ExtnId { _type: Extn, class: Jsonrpsee, service: "badger" }, target: DeviceInfo, target_id: None, payload: Request(Device(DeviceInfo(GetTimezoneWithOffset))), callback: Some(Sender { .. }), ts: Some(1734392600618) }
+
                         let s = extn_client.get_extn_sender_with_extn_id(&alias);
                         println!("**** extn_broker: start: sender from extn_client: {:?}", s);
+
+                        // Remove *Revert back to the original -  no extn message becaue it's rpcrequest
+                        // let extn_msg = endpoint_broker.get_extn_message(rpc_request.ctx.call_id, true);
+                        // println!("**** extn_broker: start: Received request:broker_request: extn_request_map: extn_msg:{:?}", extn_msg);
+
                         if let Some(sender) = s {
                             println!("**** extn_broker: start: sender available");
 
@@ -133,6 +142,8 @@ impl ExtnBroker {
                             };
 
                             //let result = extn_client.send_message(msg).await;
+
+                            // fix channel request: not working
                             let result = sender.try_send(msg.into());
 
                             println!("**** extn_broker: start: result={:?}", result);

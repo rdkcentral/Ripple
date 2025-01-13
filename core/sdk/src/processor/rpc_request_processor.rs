@@ -16,7 +16,7 @@
 //
 
 use crate::{
-    api::gateway::rpc_gateway_api::{ApiProtocol, RpcRequest},
+    api::{gateway::rpc_gateway_api::RpcRequest, manifest::extn_manifest::ExtnManifest},
     async_trait::async_trait,
     extn::{
         client::{
@@ -24,48 +24,68 @@ use crate::{
             extn_processor::{
                 DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
             },
-            extn_sender::ExtnSender,
         },
         extn_client_message::ExtnMessage,
-        extn_id::{ExtnClassId, ExtnId, ExtnProviderAdjective, ExtnProviderRequest},
     },
     framework::ripple_contract::RippleContract,
+    processor::rpc_router::RouterState,
+    processor::rpc_router::RpcRouter,
     tokio::sync::mpsc::{Receiver, Sender},
-    // processor::rpc_router::RPCRouter,
+    utils::router_utils::return_extn_response,
 };
-use jsonrpsee::{
-    core::server::rpc_module::{MethodKind, Methods},
-    types::{error::ErrorCode, Id, Params},
-};
+use chrono::Utc;
+use futures::future::ok;
+use jsonrpsee::core::server::rpc_module::Methods;
+use std::sync::{Arc, Mutex};
 
 const EXTN_NAME: &'static str = "badger";
+
+#[derive(Debug, Clone)]
+pub struct RPCRequestState {
+    client: ExtnClient,
+    router_state: RouterState,
+}
 
 /// Processor to service incoming RPC Requests used by extensions and other local rpc handlers for aliasing.
 #[derive(Debug)]
 pub struct RPCRequestProcessor {
-    client: ExtnClient,
-    methods: Methods,
+    state: RPCRequestState,
     streamer: DefaultExtnStreamer,
 }
 
 impl RPCRequestProcessor {
-    pub fn new(client: ExtnClient, methods: Methods) -> RPCRequestProcessor {
+    // TBD - manifest - do we need it for badger methods/ do we need to check if the has overriden the methods for badger especially?
+    // can even create a new struct to put in methods, resources, manifest if manifest is needed for badger methods
+
+    pub fn new(
+        client: ExtnClient,
+        methods: Methods,
+        manifest: ExtnManifest,
+    ) -> RPCRequestProcessor {
+        // TBD: should create a new state badger_state, in sdk for router_state???
+        // TBD: BootstrapState creates the extn_manifest - set that in the new badger_state in sdk like how we set it in PlatformState??
+
+        let router_state = RouterState::new();
+        router_state.update_methods(methods.clone());
+
         RPCRequestProcessor {
-            client,
-            methods,
+            state: RPCRequestState {
+                client,
+                router_state,
+            },
             streamer: DefaultExtnStreamer::new(),
         }
     }
 }
 
 impl ExtnStreamProcessor for RPCRequestProcessor {
-    type STATE = ExtnClient;
+    type STATE = RPCRequestState;
     // <pca>
     //type VALUE = ExtnProviderRequest;
     type VALUE = RpcRequest;
     // </pca>
     fn get_state(&self) -> Self::STATE {
-        self.client.clone()
+        self.state.clone()
     }
 
     fn sender(&self) -> Sender<ExtnMessage> {
@@ -88,8 +108,13 @@ impl ExtnStreamProcessor for RPCRequestProcessor {
 #[async_trait]
 impl ExtnRequestProcessor for RPCRequestProcessor {
     fn get_client(&self) -> ExtnClient {
-        self.client.clone()
+        self.state.client.clone()
     }
+
+    // i dont know whether this is right, but how can I get the router_state from the RouterState????????
+    // fn get_router_state(&self) -> Option<RouterState> {
+    //     Some(self.router_state.clone())
+    // }
 
     // copied from RpcGatewayProcessor - ThunderDeviceInfoRequestProcessor wondering if this needs to be similar to match request
     // i.e let request = ExtnProviderRequest { value: serde_json::to_value(request).unwrap(), id: self.id.clone(), };
@@ -114,17 +139,69 @@ impl ExtnRequestProcessor for RPCRequestProcessor {
         // let id = extracted_message.id;
         // </pca>
 
-        // let methods = state.get_methods();
-        // let resources = Resources::default();
-
         tokio::spawn(async move {
-            // if let Ok(msg) = RpcRouter::resolve_route(Self::methods, resources, req).await {
-            //     return_extn_response(msg, extn_msg);
-            // }
+            // ok - reiterate - in main =>  the router-state is initialized in PlatformState & update methods is called in the inititialization of the FireboltGateway
+            // so how can I make it happen in sdk?
+
+            // TBD on how to get the instance of the RouterState here ?
+            // self.router_state.lock().unwrap().update_methods(self.methods.clone()); = need to add &self in process_request method signature
+
+            let router_state = state.router_state.clone();
             println!(
-                "**** rpc_request_processor: process_request: msg - extnMessage:: {:?}",
-                msg.clone()
+                "**** rpc_request_processor: process_request: router_state: {:?}",
+                router_state
             );
+            let req = RpcRequest::from(extracted_message.clone());
+            println!(
+                "**** rpc_request_processor: process_request:  routing req method: {}",
+                req.method
+            );
+            let start = Utc::now().timestamp_millis();
+            let resp = RpcRouter::resolve_route(req.clone(), &router_state).await;
+
+            let status = match resp.clone() {
+                Ok(msg) => {
+                    println!(
+                        "**** rpc_request_processor: process_request: routing req method: {} msg: {:?}",
+                        req.method,
+                        msg
+                    );
+                    if msg.is_error() {
+                        msg.jsonrpc_msg
+                    } else {
+                        "0".into()
+                    }
+                }
+                Err(e) => {
+                    println!(
+                        "**** rpc_request_processor: process_request: failed to resolve route for msg - extnMessage:: {:?}",
+                        msg.clone()
+                    );
+                    format!("{}", e)
+                }
+            };
+
+            // badger_info_rpc return RpcResult<BadgerDeviceInfo> as response
+            // **** rpc_request_processor: process_request: routing req method: badger.info 
+            // msg: ApiMessage { protocol: JsonRpc, jsonrpc_msg: "{\"jsonrpc\":\"2.0\",
+            // \"result\":{\"privacySettings\":{}},\"id\":2}", 
+            // request_id: "169d72d6-561f-4c58-b593-7f59d0a88467", stats: None }
+
+            // if Self::respond(
+            //     state.get_client().get_extn_client(),
+            //     msg.clone(),
+            //     ExtnResponse::JsonRpc(status.),
+            // )
+            // .await
+            // .is_ok()
+            // {
+            //     return true;
+            // }
+            
+            // Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
+
+            // TBD: what to return? - need to return the response to the extn broker
+            return true;
         });
 
         true
