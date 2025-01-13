@@ -26,10 +26,7 @@ use ripple_sdk::{
         context::RippleContextUpdateRequest,
         device::device_info_request::{DeviceInfoRequest, DeviceResponse, FirmwareInfo},
         distributor::distributor_privacy::{DataEventType, PrivacySettingsData},
-        firebolt::{
-            fb_metrics::{MetricsContext, MetricsEnvironment},
-            fb_openrpc::FireboltSemanticVersion,
-        },
+        firebolt::{fb_metrics::MetricsContext, fb_openrpc::FireboltSemanticVersion},
         gateway::rpc_gateway_api::rpc_value_result_to_string_result,
         manifest::device_manifest::DataGovernanceConfig,
         observability::metrics_util::ApiStats,
@@ -321,6 +318,16 @@ impl MetricsState {
         */
 
         let mut firmware = String::default();
+        if let Ok(resp) = state
+            .get_client()
+            .send_extn_request(DeviceInfoRequest::FirmwareInfo)
+            .await
+        {
+            if let Some(DeviceResponse::FirmwareInfo(info)) = resp.payload.extract() {
+                firmware = info.name;
+            }
+        }
+
         let activated = Some(true);
         let proposition =
             Self::get_persistent_store_string(state, PERSISTENT_STORAGE_KEY_PROPOSITION)
