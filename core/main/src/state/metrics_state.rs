@@ -286,6 +286,23 @@ impl MetricsState {
         };
 
         debug!("got os_info={:?}", &os_info);
+
+        // <pca>
+        let os_ver =
+            BrokerUtils::process_internal_main_request(state, "ripple.device_os_version", None)
+                .await
+                .and_then(|val| {
+                    from_value::<String>(val).map_err(|_| {
+                        jsonrpsee::core::Error::Call(CallError::Custom {
+                            code: -32100,
+                            message: "Failed to parse ripple.device_os_version".into(),
+                            data: None,
+                        })
+                    })
+                })
+                .unwrap_or_default();
+        // </pca>
+
         let device_name = rpc_value_result_to_string_result(
             BrokerUtils::process_internal_main_request(state, "device.name", None).await,
             Some(Self::unset("device.name")),
@@ -306,25 +323,33 @@ impl MetricsState {
         */
 
         let mut firmware = String::default();
-        let mut env = None;
-
-        match state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::PlatformBuildInfo)
-            .await
-        {
-            Ok(resp) => {
-                if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp.payload.extract() {
-                    firmware = info.name;
-                    env = if info.debug {
-                        Some(MetricsEnvironment::Dev.to_string())
-                    } else {
-                        Some(MetricsEnvironment::Prod.to_string())
-                    };
-                }
-            }
-            Err(_) => env = None,
+        // <pca>
+        //let mut env = None;
+        // match state
+        //     .get_client()
+        //     .send_extn_request(DeviceInfoRequest::PlatformBuildInfo)
+        //     .await
+        // {
+        //     Ok(resp) => {
+        //         if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp.payload.extract() {
+        //             firmware = info.name;
+        //             env = if info.debug {
+        //                 Some(MetricsEnvironment::Dev.to_string())
+        //             } else {
+        //                 Some(MetricsEnvironment::Prod.to_string())
+        //             };
+        //         }
+        //     }
+        //     Err(_) => env = None,
+        // };
+        let env = if os_ver.is_empty() {
+            None
+        } else if os_ver.ends_with("P") {
+            Some(MetricsEnvironment::Prod.to_string())
+        } else {
+            Some(MetricsEnvironment::Dev.to_string())
         };
+        // </pca>
 
         let activated = Some(true);
         let proposition =
@@ -415,7 +440,10 @@ impl MetricsState {
 
             context.device_language = language;
             context.os_name = os_info.name;
-            context.os_ver = os_info.version.readable;
+            // <pca>
+            //context.os_ver = os_info.version.readable;
+            context.os_ver = os_ver;
+            // </pca>
             context.device_name = Some(device_name);
             context.device_session_id = state.device_session_id.clone().into();
             context.firmware = firmware;

@@ -136,7 +136,10 @@ mod tests {
             device_name: Some("TestDevice".to_string()),
             platform: "iOS".to_string(),
             os_name: "test_os_name".to_string(),
-            os_ver: "14.0".to_string(),
+            // <pca>
+            //os_ver: "14.0".to_string(),
+            os_ver: "QS023.006.00P".to_string(),
+            // </pca>
             distribution_tenant_id: "test_distribution_tenant_id".to_string(),
             device_session_id: "test_device_session_id".to_string(),
             mac_address: "test_mac_address".to_string(),
