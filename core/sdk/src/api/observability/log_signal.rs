@@ -98,7 +98,7 @@ impl ContextAsJson for JsonRpcApiResponse {
         let mut map = serde_json::Map::new();
         map.insert(
             "session_id".to_string(),
-            serde_json::Value::Number(self.id.clone().unwrap_or_default().into()),
+            serde_json::Value::Number(self.id.unwrap_or_default().into()),
         );
         map.insert(
             "jsonrpc".to_string(),
@@ -135,7 +135,7 @@ where
 
         map.insert(
             "diagnostic_context".to_string(),
-            serde_json::Value::Object(map_to_jsonmap(signal.diagnostic_context.clone().into())),
+            serde_json::Value::Object(map_to_jsonmap(signal.diagnostic_context.clone())),
         );
         //TODO: Implement call_context
         let f = signal.context.as_json();
@@ -145,7 +145,7 @@ where
 }
 impl std::fmt::Display for JsonRpcApiResponse {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "session_id={}", self.id.clone().unwrap_or_default())
+        write!(f, "session_id={}", self.id.unwrap_or_default())
     }
 }
 

@@ -1364,7 +1364,6 @@ mod tests {
     }
 
     mod broker_output {
-        use openrpc_validator::jsonschema::output;
         use ripple_sdk::{api::gateway::rpc_gateway_api::JsonRpcApiResponse, Mockable};
 
         use crate::broker::endpoint_broker::BrokerOutput;
