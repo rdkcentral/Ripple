@@ -136,17 +136,13 @@ mod tests {
             device_name: Some("TestDevice".to_string()),
             platform: "iOS".to_string(),
             os_name: "test_os_name".to_string(),
-            // <pca>
-            //os_ver: "14.0".to_string(),
-            os_ver: "QS023.006.00P".to_string(),
-            // </pca>
+            os_ver: "14.0".to_string(),
             distribution_tenant_id: "test_distribution_tenant_id".to_string(),
             device_session_id: "test_device_session_id".to_string(),
             mac_address: "test_mac_address".to_string(),
             serial_number: "test_serial_number".to_string(),
             firmware: "test_firmware".to_string(),
             ripple_version: "test_ripple_version".to_string(),
-            env: Some("test_env".to_string()),
             data_governance_tags: None,
             activated: None,
             proposition: "test_proposition".to_string(),
