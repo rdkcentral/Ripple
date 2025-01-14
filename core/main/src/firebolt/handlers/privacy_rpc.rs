@@ -97,7 +97,6 @@ impl AllowAppContentAdTargetingSettings {
             method: "localization.countryCode".into(),
             params_json: RpcRequest::prepend_ctx(None, &new_ctx),
         };
-
         let resp = platform_state
             .get_client()
             .get_extn_client()

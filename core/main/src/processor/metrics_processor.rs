@@ -214,7 +214,10 @@ impl ExtnRequestProcessor for MetricsProcessor {
                 }
             }
             MetricsPayload::TelemetryPayload(t) => {
-                TelemetryBuilder::update_session_id_and_send_telemetry(&state, t).is_ok()
+                match TelemetryBuilder::update_session_id_and_send_telemetry(&state, t) {
+                    Ok(_) => Self::ack(client, msg).await.is_ok(),
+                    Err(e) => Self::handle_error(client, msg, e).await,
+                }
             }
             MetricsPayload::OperationalMetric(_) => true,
         }

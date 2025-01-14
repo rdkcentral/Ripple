@@ -645,6 +645,7 @@ impl ExtnClient {
             contract
         );
         let contract_str: String = contract.as_clear_string();
+        debug!("get_extn_sender_with_contract: {}", contract_str);
         let id = {
             self.contract_map
                 .read()
@@ -775,18 +776,29 @@ impl ExtnClient {
         if !self.sender.get_cap().is_main() {
             return Err(RippleError::InvalidAccess);
         }
+        trace!("Main internal request with payload: {:?}", payload);
 
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = oneshot::channel();
         add_single_processor(id.clone(), Some(tx), self.response_processors.clone());
-        let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
-        self.sender
-            .send_request(id, payload, other_sender, Some(self.sender.tx.clone()))?;
-        if let Ok(r) = rx.await {
-            return Ok(r);
-        }
 
-        Err(RippleError::ExtnError)
+        let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
+
+        match self
+            .sender
+            .send_request(id, payload, other_sender, Some(self.sender.tx.clone()))
+        {
+            Ok(_) => {
+                if let Ok(r) = rx.await {
+                    return Ok(r);
+                }
+                Err(RippleError::ExtnError)
+            }
+            Err(e) => {
+                error!("Error sending main internal request {:?}", e);
+                Err(RippleError::ExtnError)
+            }
+        }
     }
 
     ///
