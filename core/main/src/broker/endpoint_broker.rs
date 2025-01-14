@@ -886,6 +886,10 @@ impl BrokerOutputForwarder {
                             broker_request.clone(),
                         )
                         .emit_debug();
+                        /*
+                        save off rpc method name for rule context telemetry
+                        */
+                        let rule_context_name = broker_request.rpc.method.clone();
 
                         let trigger_event_handling = broker_request.rule.event_handler.is_some();
                         let workflow_callback = broker_request.clone().workflow_callback;
@@ -1022,7 +1026,7 @@ impl BrokerOutputForwarder {
                             if let Some(filter) = broker_request.rule.transform.get_transform_data(
                                 super::rules_engine::RuleTransformType::Response,
                             ) {
-                                apply_response(filter, &rpc_request.ctx.method, &mut response);
+                                apply_response(filter, &rule_context_name, &mut response);
                             } else if response.result.is_none() && response.error.is_none() {
                                 response.result = Some(Value::Null);
                             }
