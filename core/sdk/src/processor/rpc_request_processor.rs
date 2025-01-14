@@ -146,13 +146,17 @@ impl ExtnRequestProcessor for RPCRequestProcessor {
                 router_state
             );
             let req = RpcRequest::from(extracted_message.clone());
+            println!(
+                "**** rpc_request_processor: process_request: req: {:?}",
+                req.clone()
+            );
 
             println!(
                 "**** rpc_request_processor: process_request:  routing req method: {}",
                 req.method
             );
 
-            RpcRouter::resolve_route(req.clone(), &router_state).await;
+            // RpcRouter::resolve_route(req.clone(), &router_state).await;
 
             // Route
             match req.clone().ctx.protocol {
@@ -168,7 +172,14 @@ impl ExtnRequestProcessor for RPCRequestProcessor {
                 _ => {
                     println!("**** rpc_request_processor: process_request: Routing others");
                     // if the websocket disconnects before the session is received this leads to an error
-                    RpcRouter::resolve_route(req.clone(), &router_state).await;
+                    let res = RpcRouter::resolve_route(req.clone(), &router_state).await;
+                    println!(
+                        "**** rpc_request_processor: process_request: routing req method: {} res: {:?}",
+                        req.method,
+                        res
+                    );
+                    // TBD - how to return the response to the extn_broker ? 
+                    // do we need session to send the response back to the extn_broker thru return_api_message_for_transport via bridge?
                 }
             }
 
