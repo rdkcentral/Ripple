@@ -132,7 +132,7 @@ impl ExtnBroker {
                             let msg = ExtnMessage {
                                 id: rpc_request.ctx.call_id.to_string(),
                                 requestor: ExtnId::get_main_target("main".into()),
-                                target: RippleContract::Rpc,
+                                target: RippleContract::JsonRpsee,
                                 target_id: Some(id),
                                 payload: ExtnPayload::Request(ExtnRequest::Rpc(
                                     rpc_request.clone(),
@@ -143,10 +143,14 @@ impl ExtnBroker {
 
                             //let result = extn_client.send_message(msg).await;
 
-                            // fix channel request: not working
-                            let result = sender.try_send(msg.into());
+                            // tokio::spawn(async move {
 
-                            println!("**** extn_broker: start: result={:?}", result);
+                            // fix channel request: not working
+                            let response = sender.try_send(msg.into());
+                            println!("**** extn_broker: start: channel response ={:?}", response);
+                            // });
+
+                            
                             // </pca>
 
                             // TBD - ExtnPayloadProvider ?

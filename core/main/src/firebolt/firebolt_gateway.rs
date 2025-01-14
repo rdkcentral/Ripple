@@ -258,8 +258,11 @@ impl FireboltGateway {
                         "**** firebolt_gateway: handle: extn_request: {}",
                         extn_request
                     );
-                    
-                    if let Some(overridden_method) = platform_state.get_manifest().has_rpc_override_method(&request_c.method) {
+
+                    if let Some(overridden_method) = platform_state
+                        .get_manifest()
+                        .has_rpc_override_method(&request_c.method)
+                    {
                         println!(
                             "***** firebolt_gateway: handle: req method: {} overridden to: {}",
                             request_c.method, overridden_method

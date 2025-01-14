@@ -105,6 +105,7 @@ impl ExtnSender {
         other_sender: Option<CSender<CExtnMessage>>,
         callback: Option<CSender<CExtnMessage>>,
     ) -> Result<(), RippleError> {
+        println!("**** extn_sender: ExtnSender::send_request: id: {:?} payload: {:?}", id, payload);
         // Extns can only send request to which it has permissions through Extn manifest
         if !self.check_contract_permission(payload.get_contract()) {
             debug!(
@@ -125,7 +126,7 @@ impl ExtnSender {
             target_id: "".to_owned(),
             ts: Utc::now().timestamp_millis(),
         };
-        println!("**** extn_sender: ExtnSender::send_request: msg: {:?}", msg);
+        println!("**** extn_sender: ExtnSender::send_request: CExtnMessage msg: {:?}", msg);
         self.send(msg, other_sender)
     }
 
@@ -180,7 +181,9 @@ impl ExtnSender {
         msg: CExtnMessage,
         other_sender: Option<CSender<CExtnMessage>>,
     ) -> Result<(), RippleError> {
+        println!("**** extn_sender: send: msg: {:?}", msg);
         if let Some(other_sender) = other_sender {
+            println!("**** extn_sender: Sending message on the other sender");
             trace!("Sending message on the other sender");
             if let Err(e) = other_sender.try_send(msg) {
                 error!("send() error for message in other sender {}", e);
@@ -188,6 +191,7 @@ impl ExtnSender {
             }
             Ok(())
         } else {
+            println!("**** extn_sender: sending to main channel");
             let tx = self.tx.clone();
             //tokio::spawn(async move {
             trace!("sending to main channel");

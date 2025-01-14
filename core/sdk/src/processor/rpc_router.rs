@@ -22,7 +22,8 @@ use crate::{
     },
     log::{error, info},
     utils::error::RippleError,
-    utils::router_utils::get_rpc_header,
+    extn::extn_client_message::ExtnMessage,
+    utils::router_utils::return_extn_response,
 };
 use futures::{future::join_all, StreamExt};
 use jsonrpsee::{
@@ -92,9 +93,9 @@ impl RpcRouter {
         req: RpcRequest,
         router_state: &RouterState,
     ) -> Result<ApiMessage, RippleError> {
-        println!("**** rpc_router: resolve_route: routing req: {:?}", req);
-        println!("**** rpc_router: resolve_route: routing {}", req.method);
-        info!("Routing {}", req.method);
+        println!("**** rpc_router: resolve_route: SDK: routing req: {:?}", req);
+        println!("**** rpc_router: resolve_route: SDK: routing {}", req.method);
+        info!("SDK: Routing {}", req.method);
         let id = Id::Number(req.ctx.call_id);
         let methods = router_state.get_methods();
         let resources = router_state.resources.clone();
@@ -109,7 +110,7 @@ impl RpcRouter {
             Some((name, method)) => match &method.inner() {
                 MethodKind::Sync(callback) => match method.claim(name, &resources) {
                     Ok(_guard) => {
-                        println!("**** rpc_router: resolve_route: MethodKind::Sync");
+                        println!("**** rpc_router: resolve_route: SDK: MethodKind::Sync");
                         (callback)(id, params, &sink);
                     }
                     Err(_) => {
@@ -118,12 +119,12 @@ impl RpcRouter {
                 },
                 MethodKind::Async(callback) => match method.claim(name, &resources) {
                     Ok(guard) => {
-                        println!("**** rpc_router: resolve_route: MethodKind::ASync");
+                        println!("**** rpc_router: resolve_route: SDK: MethodKind::ASync");
                         let sink = sink.clone();
                         let id = id.into_owned();
                         let params = params.into_owned();
                         let fut = async move {
-                            println!("**** rpc_router: resolve_route: MethodKind::ASync fut");
+                            println!("**** rpc_router: resolve_route: SDK:MethodKind::ASync fut");
                             (callback)(id, params, sink, 1, Some(guard)).await;
                         };
                         method_executors.push(fut);
@@ -134,25 +135,47 @@ impl RpcRouter {
                     }
                 },
                 _ => {
-                    error!("Unsupported method call");
+                    println!("**** rpc_router: resolve_route: SDK: Unsupported method call");
+                    error!("SDK: Unsupported method call");
                 }
             },
         }
 
         join_all(method_executors).await;
         if let Some(r) = sink_rx.next().await {
-            let rpc_header = get_rpc_header(&req);
             let protocol = req.ctx.protocol.clone();
             let request_id = req.ctx.request_id;
 
-            let mut msg = ApiMessage::new(protocol, r, request_id.clone());
+            let msg = ApiMessage::new(protocol, r, request_id.clone());
             println!(
-                "**** rpc_router: resolve_route: returning msg: {:?}",
+                "**** rpc_router: resolve_route: SDK: returning msg: {:?}",
                 msg.clone()
             );
 
             return Ok(msg);
         }
         Err(RippleError::InvalidOutput)
+    }
+
+    pub async fn route_extn_protocol(
+        router_state: &RouterState,
+        req: RpcRequest,
+        extn_msg: ExtnMessage,
+    ) {
+        println!(
+            "**** rpc_router: route: route_extn_protocol: req: {}",
+            req.method
+        );
+        println!(
+            "**** rpc_router: route: route_extn_protocol: extn_msg: {:?}",
+            extn_msg.clone()
+        );
+
+        let router_state = router_state.clone();
+        tokio::spawn(async move {
+            if let Ok(msg) = RpcRouter::resolve_route(req, &router_state).await {
+                return_extn_response(msg, extn_msg);
+            }
+        });
     }
 }
