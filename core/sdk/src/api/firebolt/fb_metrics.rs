@@ -37,10 +37,8 @@ use super::fb_telemetry::{OperationalMetricRequest, TelemetryPayload};
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct BehavioralMetricContext {
     pub app_id: String,
-    // <pca>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub app_version: Option<String>,
-    // </pca>
     pub product_version: String,
     pub partner_id: String,
     pub app_session_id: String,

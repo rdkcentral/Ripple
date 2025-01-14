@@ -88,9 +88,7 @@ pub async fn update_app_context(
             .clone()
             .unwrap_or(String::from(SEMVER_LIGHTWEIGHT));
 
-        // <pca>
         context.app_version = app.app_metrics_version.clone();
-        // </pca>
     }
     if let Some(session) = ps.session_state.get_account_session() {
         context.partner_id = session.id;
