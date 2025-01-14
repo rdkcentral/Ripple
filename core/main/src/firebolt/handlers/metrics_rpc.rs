@@ -654,11 +654,17 @@ impl MetricsServer for MetricsImpl {
     }
     async fn app_info(&self, ctx: CallContext, app_info_params: AppInfoParams) -> RpcResult<()> {
         trace!("metrics.app_info: app_info_params={:?}", app_info_params);
-        self.state
+        match self
+            .state
             .app_manager_state
-            .set_app_metrics_version(&ctx.app_id, app_info_params.build);
-
-        Ok(())
+            .set_app_metrics_version(&ctx.app_id, app_info_params.build)
+        {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                error!("Error setting app metrics version: {:?}", e);
+                Err(rpc_err("Unable to set app info"))
+            }
+        }
     }
 }
 

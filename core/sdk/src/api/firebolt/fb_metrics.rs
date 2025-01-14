@@ -37,7 +37,11 @@ use super::fb_telemetry::{OperationalMetricRequest, TelemetryPayload};
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct BehavioralMetricContext {
     pub app_id: String,
-    pub app_version: String,
+    // <pca>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app_version: Option<String>,
+    // </pca>
+    pub product_version: String,
     pub partner_id: String,
     pub app_session_id: String,
     pub app_user_session_id: Option<String>,
@@ -49,10 +53,11 @@ impl From<CallContext> for BehavioralMetricContext {
     fn from(call_context: CallContext) -> Self {
         BehavioralMetricContext {
             app_id: call_context.app_id.clone(),
-            app_version: String::from("app.version.not.implemented"),
+            product_version: String::from("product.version.not.implemented"),
             partner_id: String::from("partner.id.not.set"),
             app_session_id: String::from("app_session_id.not.set"),
             durable_app_id: call_context.app_id,
+            app_version: None,
             app_user_session_id: None,
             governance_state: None,
         }
@@ -1105,11 +1110,12 @@ mod tests {
     fn test_extn_request_behavioral_metric() {
         let behavioral_metric_context = BehavioralMetricContext {
             app_id: "test_app_id".to_string(),
-            app_version: "test_app_version".to_string(),
+            product_version: "test_product_version".to_string(),
             partner_id: "test_partner_id".to_string(),
             app_session_id: "test_app_session_id".to_string(),
             app_user_session_id: Some("test_user_session_id".to_string()),
             durable_app_id: "test_durable_app_id".to_string(),
+            app_version: Some("test_app_version".to_string()),
             governance_state: Some(AppDataGovernanceState {
                 data_tags_to_apply: HashSet::new(),
             }),
@@ -1173,11 +1179,12 @@ mod tests {
         let behavior_metric_payload = BehavioralMetricPayload::Ready(Ready {
             context: BehavioralMetricContext {
                 app_id: "test_app_id".to_string(),
-                app_version: "test_app_version".to_string(),
+                product_version: "test_product_version".to_string(),
                 partner_id: "test_partner_id".to_string(),
                 app_session_id: "test_app_session_id".to_string(),
                 app_user_session_id: Some("test_user_session_id".to_string()),
                 durable_app_id: "test_durable_app_id".to_string(),
+                app_version: Some("test_app_version".to_string()),
                 governance_state: Some(AppDataGovernanceState {
                     data_tags_to_apply: HashSet::new(),
                 }),
@@ -1254,11 +1261,12 @@ mod tests {
     fn test_behavioral_metric_payload() {
         let behavioral_metric_context = BehavioralMetricContext {
             app_id: "test_app_id".to_string(),
-            app_version: "test_app_version".to_string(),
+            product_version: "test_product_version".to_string(),
             partner_id: "test_partner_id".to_string(),
             app_session_id: "test_app_session_id".to_string(),
             app_user_session_id: Some("test_user_session_id".to_string()),
             durable_app_id: "test_durable_app_id".to_string(),
+            app_version: Some("test_app_version".to_string()),
             governance_state: Some(AppDataGovernanceState {
                 data_tags_to_apply: HashSet::new(),
             }),
@@ -1278,11 +1286,12 @@ mod tests {
 
         let new_behavioral_metric_context = BehavioralMetricContext {
             app_id: "new_test_app_id".to_string(),
-            app_version: "new_test_app_version".to_string(),
+            product_version: "new_test_product_version".to_string(),
             partner_id: "new_test_partner_id".to_string(),
             app_session_id: "new_test_app_session_id".to_string(),
             app_user_session_id: Some("new_test_user_session_id".to_string()),
             durable_app_id: "new_test_durable_app_id".to_string(),
+            app_version: Some("test_app_version".to_string()),
             governance_state: Some(AppDataGovernanceState {
                 data_tags_to_apply: HashSet::new(),
             }),
