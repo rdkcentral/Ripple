@@ -83,16 +83,12 @@ pub async fn update_app_context(
     if let Some(app) = ps.app_manager_state.get(&ctx.app_id) {
         context.app_session_id = app.loaded_session_id.to_owned();
         context.app_user_session_id = app.active_session_id;
-        context.app_version = ps
+        context.product_version = ps
             .version
             .clone()
             .unwrap_or(String::from(SEMVER_LIGHTWEIGHT));
 
-        // TODO: Meeting 12/11/24 to discuss where version from Metrics.appInfo call should be used.
-        //       If part of BehavioralMetricContext, un/comment below/above and modify send_behavioral
-        //       to NOT populate app_ver using the context, get per above instead.
-
-        //context.app_version = app.app_metrics_version.unwrap_or(String::default());
+        context.app_version = app.app_metrics_version.clone();
     }
     if let Some(session) = ps.session_state.get_account_session() {
         context.partner_id = session.id;
@@ -141,7 +137,7 @@ pub async fn send_metric_for_app_state_change(
                 if let Some(app) = ps.app_manager_state.get(app_id) {
                     context.app_session_id = app.loaded_session_id.to_owned();
                     context.app_user_session_id = app.active_session_id;
-                    context.app_version = ps
+                    context.product_version = ps
                         .version
                         .clone()
                         .unwrap_or(String::from(SEMVER_LIGHTWEIGHT));
