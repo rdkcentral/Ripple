@@ -54,7 +54,9 @@ use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 // TBD get the storage dir from manifest or other Ripple config file
 const RIPPLE_STORAGE_DIR: &str = "/opt/persistent/ripple";
+const RIPPLE_RULES_DIR: &str = "/etc/ripple/rules";
 const USER_DATA_MIGRATION_CONFIG_FILE_NAME: &str = "user_data_migration_config.json";
+const USER_DATA_MIGRATION_STATUS_FILE_NAME: &str = "user_data_migration_status.json";
 
 #[derive(Debug)]
 enum UserDataMigratorError {
@@ -101,14 +103,15 @@ pub struct MigrationConfigEntry {
     setter_rule: Option<Rule>,
     #[serde(skip_serializing_if = "Option::is_none")]
     legacy_to_plugin_value_conversion: Option<CoversionRule>,
-    migrated: bool,
 }
 
-type MigrationMap = HashMap<String, MigrationConfigEntry>;
+type MigrationConfigMap = HashMap<String, MigrationConfigEntry>;
+type MigrationStatusMap = HashMap<String, bool>;
 #[derive(Clone, Debug)]
 pub struct UserDataMigrator {
-    migration_config: Arc<Mutex<MigrationMap>>, // persistent migration map
-    config_file_path: String,                   // path to the migration map file
+    migration_config: Arc<Mutex<MigrationConfigMap>>, // persistent migration configuration map
+    migration_status: Arc<Mutex<MigrationStatusMap>>, // persistent migration status map
+    status_file_path: String,                         // path to the migration status file
     response_tx: Sender<BrokerOutput>,
     response_rx: Arc<Mutex<Receiver<BrokerOutput>>>,
 }
@@ -116,7 +119,10 @@ pub struct UserDataMigrator {
 impl UserDataMigrator {
     pub fn create() -> Option<Self> {
         let possible_config_file_paths = vec![
-            format!("/etc/{}", USER_DATA_MIGRATION_CONFIG_FILE_NAME),
+            format!(
+                "{}/{}",
+                RIPPLE_RULES_DIR, USER_DATA_MIGRATION_CONFIG_FILE_NAME
+            ),
             format!(
                 "{}/{}",
                 RIPPLE_STORAGE_DIR, USER_DATA_MIGRATION_CONFIG_FILE_NAME
@@ -129,12 +135,22 @@ impl UserDataMigrator {
                 debug!("Found migration map file: {}", path);
                 if let Some(migration_map) = Self::load_migration_config(&path) {
                     let (response_tx, response_rx) = mpsc::channel(16);
-                    return Some(UserDataMigrator {
-                        migration_config: Arc::new(Mutex::new(migration_map)),
-                        config_file_path: path.to_string(),
-                        response_tx,
-                        response_rx: Arc::new(Mutex::new(response_rx)),
-                    });
+                    let status_file_path = format!(
+                        "{}/{}",
+                        RIPPLE_STORAGE_DIR, USER_DATA_MIGRATION_STATUS_FILE_NAME
+                    );
+                    if let Some(migration_status_map) =
+                        Self::load_migration_status_file(&status_file_path)
+                    {
+                        debug!("Found migration status file: {}", status_file_path);
+                        return Some(UserDataMigrator {
+                            migration_config: Arc::new(Mutex::new(migration_map)),
+                            migration_status: Arc::new(Mutex::new(migration_status_map)),
+                            status_file_path,
+                            response_tx,
+                            response_rx: Arc::new(Mutex::new(response_rx)),
+                        });
+                    }
                 }
             }
         }
@@ -230,7 +246,11 @@ impl UserDataMigrator {
             "intercept_broker_request: Handling getter request for method: {:?}",
             config_entry.getter
         );
-        if !config_entry.migrated {
+
+        let status = self
+            .get_migration_status(&config_entry.namespace, &config_entry.key)
+            .await;
+        if !status {
             let self_arc = Arc::new(self.clone());
             self_arc
                 .invoke_perform_getter_migration(broker, ws_tx.clone(), request, config_entry)
@@ -870,51 +890,171 @@ impl UserDataMigrator {
 
     // function to set the migration flag to true and update the migration map in the config file
     async fn set_migration_status(&self, namespace: &str, key: &str) {
-        let mut config_entry_changed = false;
-        {
-            let mut migration_map = self.migration_config.lock().await;
-            if let Some(config_entry) = migration_map
-                .values_mut()
-                .find(|entry| entry.namespace == namespace && entry.key == key)
-            {
-                if !config_entry.migrated {
-                    config_entry.migrated = true;
-                    config_entry_changed = true;
+        let status = self.get_migration_status(namespace, key).await;
+        if !status {
+            if let Some(k) = self.get_config_key_from_migration_map(namespace, key).await {
+                {
+                    let mut status_map = self.migration_status.lock().await;
+                    status_map.insert(k, true);
                 }
-            }
-        }
-
-        // save the migration map to the config file after releasing the lock in case config_entry_changed
-        if config_entry_changed {
-            if let Err(e) = self.update_migration_config_file().await {
-                error!("Failed to update migration config file: {}", e);
+                self.update_migration_status_file().await;
             }
         }
     }
     // load the migration map from the file
-    pub fn load_migration_config(config_file_path: &str) -> Option<MigrationMap> {
+    fn load_migration_config(config_file_path: &str) -> Option<MigrationConfigMap> {
         let file = File::open(config_file_path).ok()?;
         let reader = std::io::BufReader::new(file);
         Some(serde_json::from_reader(reader).unwrap_or_else(|_| HashMap::new()))
     }
 
-    // function to update the migration status in the config file
-    async fn update_migration_config_file(&self) -> Result<(), String> {
-        if Path::new(&self.config_file_path).exists() {
-            let migration_map = self.migration_config.lock().await;
-            let file = OpenOptions::new()
-                .write(true)
-                .truncate(true)
-                .open(&self.config_file_path)
-                .map_err(|e| format!("Failed to open migration config file: {}", e))?;
-            serde_json::to_writer_pretty(file, &*migration_map)
-                .map_err(|e| format!("Failed to write to migration config file: {}", e))?;
-            Ok(())
-        } else {
-            Err(format!(
-                "Migration config file not found at path {}",
-                self.config_file_path
-            ))
+    // function to load the migration status from the file
+    fn load_migration_status_file(status_file_path: &str) -> Option<HashMap<String, bool>> {
+        // open the status file if exists, else create a new file
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .read(true)
+            .open(status_file_path)
+            .ok()?;
+        // read the content of the file to a string and return a HashMap
+        let reader = std::io::BufReader::new(file);
+        Some(serde_json::from_reader(reader).unwrap_or_else(|_| HashMap::new()))
+    }
+
+    async fn update_migration_status_file(&self) {
+        let status_map = self.migration_status.lock().await;
+
+        let file = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(&self.status_file_path)
+            .unwrap();
+        serde_json::to_writer_pretty(file, &*status_map)
+            .unwrap_or_else(|e| error!("Failed to write to migration status file: {}", e));
+    }
+
+    // function to get the hashmap key from migration map given namespace and key
+    async fn get_config_key_from_migration_map(
+        &self,
+        namespace: &str,
+        key: &str,
+    ) -> Option<String> {
+        let migration_map = self.migration_config.lock().await;
+
+        migration_map.iter().find_map(|(k, entry)| {
+            if entry.namespace == namespace && entry.key == key {
+                Some(k.clone())
+            } else {
+                None
+            }
+        })
+    }
+
+    //function to check the migration status from migration_status_map given the namespace and key
+    async fn get_migration_status(&self, namespace: &str, key: &str) -> bool {
+        let status_map = self.migration_status.lock().await;
+
+        if let Some(key) = self.get_config_key_from_migration_map(namespace, key).await {
+            if let Some(status) = status_map.get(&key) {
+                return *status;
+            }
         }
+        false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[tokio::test]
+    async fn test_get_migration_status() {
+        let mut migration_map = HashMap::new();
+        let mut migration_status_map = HashMap::new();
+        let migration_entry = MigrationConfigEntry {
+            namespace: "namespace".to_string(),
+            key: "key".to_string(),
+            default: Value::Null,
+            getter: "getter".to_string(),
+            setter: "setter".to_string(),
+            setter_rule: None,
+            legacy_to_plugin_value_conversion: None,
+        };
+        migration_map.insert("abcd".to_string(), migration_entry);
+        migration_status_map.insert("abcd".to_string(), true);
+
+        let migrator = UserDataMigrator {
+            migration_config: Arc::new(Mutex::new(migration_map)),
+            migration_status: Arc::new(Mutex::new(migration_status_map)),
+            status_file_path: "status_file_path".to_string(),
+            response_tx: mpsc::channel(16).0,
+            response_rx: Arc::new(Mutex::new(mpsc::channel(16).1)),
+        };
+
+        let status = migrator.get_migration_status("namespace", "key").await;
+        assert!(status);
+
+        let status = migrator.get_migration_status("namespace", "key1").await;
+        assert!(!status);
+    }
+
+    #[tokio::test]
+    async fn test_get_config_key_from_migration_map() {
+        let mut migration_map = HashMap::new();
+        let migration_entry = MigrationConfigEntry {
+            namespace: "namespace".to_string(),
+            key: "key".to_string(),
+            default: Value::Null,
+            getter: "getter".to_string(),
+            setter: "setter".to_string(),
+            setter_rule: None,
+            legacy_to_plugin_value_conversion: None,
+        };
+        migration_map.insert("abcd".to_string(), migration_entry);
+
+        let migrator = UserDataMigrator {
+            migration_config: Arc::new(Mutex::new(migration_map)),
+            migration_status: Arc::new(Mutex::new(HashMap::new())),
+            status_file_path: "status_file_path".to_string(),
+            response_tx: mpsc::channel(16).0,
+            response_rx: Arc::new(Mutex::new(mpsc::channel(16).1)),
+        };
+
+        let key = migrator
+            .get_config_key_from_migration_map("namespace", "key")
+            .await;
+        assert_eq!(key, Some("abcd".to_string()));
+    }
+
+    // Negative test case for get_config_key_from_migration_map where the key is not found
+    #[tokio::test]
+    async fn test_get_config_key_from_migration_map_not_found() {
+        let mut migration_map = HashMap::new();
+        let migration_entry = MigrationConfigEntry {
+            namespace: "namespace".to_string(),
+            key: "key".to_string(),
+            default: Value::Null,
+            getter: "getter".to_string(),
+            setter: "setter".to_string(),
+            setter_rule: None,
+            legacy_to_plugin_value_conversion: None,
+        };
+        migration_map.insert("abcd".to_string(), migration_entry);
+
+        let migrator = UserDataMigrator {
+            migration_config: Arc::new(Mutex::new(migration_map)),
+            migration_status: Arc::new(Mutex::new(HashMap::new())),
+            status_file_path: "status_file_path".to_string(),
+            response_tx: mpsc::channel(16).0,
+            response_rx: Arc::new(Mutex::new(mpsc::channel(16).1)),
+        };
+
+        let key = migrator
+            .get_config_key_from_migration_map("namespace", "key1")
+            .await;
+        assert_eq!(key, None);
     }
 }
