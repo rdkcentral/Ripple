@@ -15,58 +15,44 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::{BTreeMap, HashMap};
-use std::str::FromStr;
-use std::sync::Arc;
-
-use jsonrpsee::core::client::{Client, ClientT, SubscriptionClientT};
-use jsonrpsee::ws_client::WsClientBuilder;
-
-use crate::thunder_state::ThunderConnectionState;
-use crate::utils::get_error_value;
-use jsonrpsee::core::{async_trait, error::Error as JsonRpcError};
-use jsonrpsee::types::ParamsSer;
-use regex::Regex;
-use ripple_sdk::serde_json::json;
-use ripple_sdk::{
-    api::device::device_operator::DeviceResponseMessage,
-    tokio::sync::mpsc::{self, Sender as MpscSender},
-    tokio::{sync::Mutex, task::JoinHandle, time::sleep},
-};
-use ripple_sdk::{
-    api::device::device_operator::{
-        DeviceCallRequest, DeviceSubscribeRequest, DeviceUnsubscribeRequest,
-    },
-    serde_json::{self, Value},
-    tokio,
-};
-use ripple_sdk::{
-    api::device::device_operator::{DeviceChannelParams, DeviceOperator},
-    uuid::Uuid,
-};
-use ripple_sdk::{
-    log::{error, info, warn},
-    utils::channel_utils::{mpsc_send_and_log, oneshot_send_and_log},
-};
-use ripple_sdk::{
-    tokio::sync::oneshot::{self, Sender as OneShotSender},
-    utils::error::RippleError,
-};
-use serde::{Deserialize, Serialize};
-use tokio::sync::oneshot::Sender;
-use url::Url;
-
 use super::thunder_async_client::{ThunderAsyncClient, ThunderAsyncRequest, ThunderAsyncResponse};
-use super::thunder_client_pool::ThunderPoolCommand;
 use super::thunder_async_client_plugins_status_mgr::{BrokerCallback, BrokerSender};
+use super::thunder_client_pool::ThunderPoolCommand;
 use super::{
     jsonrpc_method_locator::JsonRpcMethodLocator,
     plugin_manager::{PluginActivatedResult, PluginManagerCommand},
 };
-use ripple_sdk::api::device::device_operator::{DeviceChannelRequest, DeviceResponseSubscription};
-use ripple_sdk::tokio::sync::mpsc::Receiver;
+use crate::thunder_state::ThunderConnectionState;
+use crate::utils::get_error_value;
+use jsonrpsee::core::client::{Client, ClientT, SubscriptionClientT};
+use jsonrpsee::core::{async_trait, error::Error as JsonRpcError};
+use jsonrpsee::types::ParamsSer;
+use jsonrpsee::ws_client::WsClientBuilder;
+use regex::Regex;
+use ripple_sdk::{
+    api::device::device_operator::{
+        DeviceCallRequest, DeviceChannelParams, DeviceChannelRequest, DeviceOperator,
+        DeviceResponseMessage, DeviceResponseSubscription, DeviceSubscribeRequest,
+        DeviceUnsubscribeRequest,
+    },
+    log::{error, info, warn},
+    serde_json::{self, json, Value},
+    tokio,
+    tokio::sync::mpsc::{self, Receiver, Sender as MpscSender},
+    tokio::sync::oneshot::{self, Sender as OneShotSender},
+    tokio::{sync::Mutex, task::JoinHandle, time::sleep},
+    utils::channel_utils::{mpsc_send_and_log, oneshot_send_and_log},
+    utils::error::RippleError,
+    uuid::Uuid,
+};
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashMap};
+use std::str::FromStr;
+use std::sync::Arc;
 use std::sync::RwLock;
 use std::{env, process::Command};
+use tokio::sync::oneshot::Sender;
+use url::Url;
 
 pub type BrokerSubMap = HashMap<String, DeviceResponseSubscription>;
 pub type BrokerCallbackMap = HashMap<u64, Option<OneShotSender<DeviceResponseMessage>>>;
