@@ -35,15 +35,13 @@ use ripple_sdk::{
         },
         time::{timeout, Duration},
     },
-    utils::error::RippleError,
+    utils::{error::RippleError, rpc_utils::get_next_id},
 };
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::broker::endpoint_broker::{
-    self, BrokerCallback, BrokerOutput, BrokerRequest, EndpointBrokerState,
-};
+use crate::broker::endpoint_broker::{self, BrokerCallback, BrokerOutput, BrokerRequest};
 use crate::broker::rules_engine::{Rule, RuleTransformType};
 
 use futures::stream::SplitSink;
@@ -282,7 +280,7 @@ impl UserDataMigrator {
         broker: &ThunderBroker,
         ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
     ) -> Result<Value, UserDataMigratorError> {
-        let request_id = EndpointBrokerState::get_next_id();
+        let request_id = get_next_id();
         let call_sign = "org.rdk.PersistentStore.1.".to_owned();
 
         // Register custom callback to handle the response
@@ -369,7 +367,7 @@ impl UserDataMigrator {
         ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
         params_json: &Value,
     ) -> Result<(), UserDataMigratorError> {
-        let request_id = EndpointBrokerState::get_next_id();
+        let request_id = get_next_id();
         let call_sign = "org.rdk.PersistentStore.1.".to_owned();
 
         // Register custom callback to handle the response
@@ -436,7 +434,7 @@ impl UserDataMigrator {
         ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
         request: &BrokerRequest,
     ) -> Result<BrokerOutput, UserDataMigratorError> {
-        let request_id = EndpointBrokerState::get_next_id();
+        let request_id = get_next_id();
 
         // Register custom callback to handle the response
         broker
@@ -528,7 +526,7 @@ impl UserDataMigrator {
             }
         };
 
-        let request_id = EndpointBrokerState::get_next_id();
+        let request_id = get_next_id();
 
         // Register custom callback to handle the response
         broker

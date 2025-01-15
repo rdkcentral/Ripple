@@ -22,14 +22,48 @@ use std::{
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
     chrono::{DateTime, Duration, Utc},
+    framework::RippleResponse,
     log::{error, info, warn},
+    tokio::sync::mpsc::Sender,
     utils::error::RippleError,
 };
+
+use super::thunder_async_client::{ThunderAsyncRequest, ThunderAsyncResponse};
+use ripple_sdk::utils::rpc_utils::get_next_id;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::broker::endpoint_broker::{BrokerCallback, BrokerRequest, BrokerSender};
-use ripple_sdk::utils::rpc_utils::get_next_id;
+#[derive(Clone, Debug)]
+pub struct BrokerSender {
+    pub sender: Sender<ThunderAsyncRequest>,
+}
+
+impl BrokerSender {
+    // Method to send the request to the underlying broker for handling.
+    pub async fn send(&self, request: ThunderAsyncRequest) -> RippleResponse {
+        if let Err(e) = self.sender.send(request).await {
+            error!("Error sending to broker {:?}", e);
+            Err(RippleError::SendFailure)
+        } else {
+            Ok(())
+        }
+    }
+}
+
+/// BrokerCallback will be used by the communication broker to send the firebolt response
+/// back to the gateway for client consumption
+#[derive(Clone, Debug)]
+pub struct BrokerCallback {
+    pub sender: Sender<ThunderAsyncResponse>,
+}
+
+impl BrokerCallback {
+    pub async fn send(&self, response: ThunderAsyncResponse) {
+        if (self.sender.send(response).await).is_err() {
+            error!("error returning callback for request")
+        }
+    }
+}
 
 // defautl timeout for plugin activation in seconds
 const DEFAULT_PLUGIN_ACTIVATION_TIMEOUT: i64 = 8;
@@ -115,7 +149,7 @@ impl State {
 pub struct ThunderPluginState {
     pub state: State,
     pub activation_timestamp: DateTime<Utc>,
-    pub pending_requests: Vec<BrokerRequest>,
+    pub pending_requests: Vec<ThunderAsyncRequest>,
 }
 #[derive(Debug, Clone)]
 pub struct StatusManager {
@@ -163,7 +197,11 @@ impl StatusManager {
         }
     }
 
-    pub fn add_broker_request_to_pending_list(&self, plugin_name: String, request: BrokerRequest) {
+    pub fn add_broker_request_to_pending_list(
+        &self,
+        plugin_name: String,
+        request: ThunderAsyncRequest,
+    ) {
         let mut status = self.status.write().unwrap();
         if let Some(plugin_state) = status.get_mut(&plugin_name) {
             plugin_state.pending_requests.push(request);
@@ -188,7 +226,7 @@ impl StatusManager {
     pub fn retrive_pending_broker_requests(
         &self,
         plugin_name: String,
-    ) -> (Vec<BrokerRequest>, bool) {
+    ) -> (Vec<ThunderAsyncRequest>, bool) {
         let mut status = self.status.write().unwrap();
         if let Some(plugin_state) = status.get_mut(&plugin_name) {
             let pending_requests = plugin_state.pending_requests.clone();
@@ -206,7 +244,7 @@ impl StatusManager {
         (Vec::new(), false)
     }
 
-    pub fn get_all_pending_broker_requests(&self, plugin_name: String) -> Vec<BrokerRequest> {
+    pub fn get_all_pending_broker_requests(&self, plugin_name: String) -> Vec<ThunderAsyncRequest> {
         let status = self.status.read().unwrap();
         if let Some(plugin_state) = status.get(&plugin_name) {
             plugin_state.pending_requests.clone()
@@ -312,7 +350,7 @@ impl StatusManager {
                 self.update_status(event.callsign.clone(), event.state.clone());
 
                 if event.state.is_activated() {
-                    // get the pending BrokerRequest and process.
+                    // get the pending ThunderAsyncRequest and process.
                     let (pending_requests, expired) =
                         self.retrive_pending_broker_requests(event.callsign);
                     if !pending_requests.is_empty() {
@@ -374,8 +412,7 @@ impl StatusManager {
                 }
             }
         } else if let Some(_e) = &data.error {
-            self.on_thunder_error_response(callback, data, &callsign.to_string())
-                .await;
+            Self::on_thunder_error_response(self, callback, data, &callsign.to_string()).await;
         }
     }
 
@@ -386,25 +423,20 @@ impl StatusManager {
         data: &JsonRpcApiResponse,
         request: &str,
     ) {
-        let callsign = match request.split('@').last() {
-            Some(callsign) => callsign.trim_matches(|c| c == '"' || c == '}'),
-            None => "",
-        };
-
         let result = match &data.result {
             Some(result) => result,
-            None => {
-                self.on_thunder_error_response(callback, data, &callsign.to_string())
-                    .await;
-                return;
-            }
+            None => return,
+        };
+
+        let callsign = match request.split('@').last() {
+            Some(callsign) => callsign.trim_matches(|c| c == '"' || c == '}'),
+            None => return,
         };
 
         let status_res: Vec<Status> = match serde_json::from_value(result.clone()) {
             Ok(status_res) => status_res,
             Err(_) => {
-                self.on_thunder_error_response(callback, data, &callsign.to_string())
-                    .await;
+                Self::on_thunder_error_response(self, callback, data, &callsign.to_string()).await;
                 return;
             }
         };
@@ -516,6 +548,17 @@ impl StatusManager {
     }
 }
 
+impl BrokerCallback {
+    /// Default method used for sending errors via the BrokerCallback
+    pub async fn send_error(&self, request: ThunderAsyncRequest, error: RippleError) {
+        let response = ThunderAsyncResponse {
+            id: Some(request.id),
+            result: Err(error),
+        };
+        self.send(response).await;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -611,16 +654,13 @@ mod tests {
         api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
     };
     use crate::broker::rules_engine::{Rule, RuleTransform};
-
     #[tokio::test]
     async fn test_expired_broker_request() {
         let status_manager = StatusManager::new();
         let (tx, _tr) = mpsc::channel(10);
         let broker = BrokerSender { sender: tx };
-
         let (tx_1, _tr_1) = channel(2);
         let callback = BrokerCallback { sender: tx_1 };
-
         let data = JsonRpcApiResponse {
             id: Some(1),
             jsonrpc: "2.0".to_string(),
@@ -635,7 +675,6 @@ mod tests {
             .await;
         let status = status_manager.get_status("TestPlugin".to_string());
         assert_eq!(status.unwrap().state, State::Activated);
-
         let ctx = CallContext::new(
             "session_id".to_string(),
             "request_id".to_string(),
@@ -646,9 +685,8 @@ mod tests {
             Some("cid".to_string()),
             true,
         );
-
         // Add a request to the pending list
-        let request = BrokerRequest {
+        let request = DeviceChannelRequest {
             rpc: RpcRequest {
                 ctx,
                 params_json: "".to_string(),
@@ -662,10 +700,8 @@ mod tests {
             subscription_processed: None,
         };
         status_manager.add_broker_request_to_pending_list("TestPlugin".to_string(), request);
-
         // Sleep for 10 seconds to expire the request
         tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-
         // Check if the request is expired
         let (pending_requests, expired) =
             status_manager.retrive_pending_broker_requests("TestPlugin".to_string());
