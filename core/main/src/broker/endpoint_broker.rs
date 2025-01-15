@@ -828,7 +828,7 @@ pub trait EndpointBroker {
     /// client for consumption
     fn handle_jsonrpc_response(
         result: &[u8],
-        callback: BrokerCallback,
+        callback: BrokerCallback, _params: Option<Value>,
     ) -> Result<BrokerOutput, RippleError> {
         let mut final_result = Err(RippleError::ParseError);
         if let Ok(data) = serde_json::from_slice::<JsonRpcApiResponse>(result) {
@@ -1023,12 +1023,31 @@ impl BrokerOutputForwarder {
                         }
 
                         if apply_response_needed {
-                            if let Some(filter) = broker_request.rule.transform.get_transform_data(
-                                super::rules_engine::RuleTransformType::Response,
-                            ) {
-                                apply_response(filter, &rule_context_name, &mut response);
-                            } else if response.result.is_none() && response.error.is_none() {
-                                response.result = Some(Value::Null);
+                            // Apply response rule using params if there is any; otherwise, apply response rule using main broker request's response rule
+                            let mut apply_response_using_main_req_needed = true;
+                            if let Some(params) = output.data.params {
+                                for (key, value) in params.as_object().unwrap() {
+                                    if key == "response" {
+                                        let filter = value.as_str().unwrap().to_string();
+                                        apply_response_using_main_req_needed = false;
+                                        apply_response(
+                                            filter,
+                                            &rpc_request.ctx.method,
+                                            &mut response,
+                                        );
+                                    }
+                                }
+                            }
+                            if apply_response_using_main_req_needed {
+                                if let Some(filter) =
+                                    broker_request.rule.transform.get_transform_data(
+                                        super::rules_engine::RuleTransformType::Response,
+                                    )
+                                {
+                                    apply_response(filter, &rule_context_name, &mut response);
+                                } else if response.result.is_none() && response.error.is_none() {
+                                    response.result = Some(Value::Null);
+                                }
                             }
                         }
 
@@ -1264,7 +1283,6 @@ pub fn apply_response(
                         response.result = Some(jq_out);
                         response.error = None;
                     }
-                    trace!("mutated response {:?}", response);
                 }
                 Err(e) => {
                     response.error = Some(json!(e.to_string()));
