@@ -161,18 +161,7 @@ async fn resolve_route(
     }
     Err(RippleError::InvalidOutput)
 }
-// fn get_status_code_from_response(response: &JsonRpcMessage) -> i32 {
 
-//     if let Ok(r) = serde_json::from_str::<JsonRpcMessage>(&r) {
-//         if let Some(ec) = r.error {
-//             ec.code
-//         } else {
-//             1
-//         }
-//     } else {
-//         1
-//     }
-// }
 impl RpcRouter {
     pub async fn route(
         mut state: PlatformState,

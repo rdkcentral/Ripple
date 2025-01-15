@@ -127,7 +127,7 @@ impl EndpointBroker for HttpBroker {
         let _ =  endpoint.get_url().parse().map_err(|e| error!("broker url {:?} in endpoint is invalid, cannot start http broker. error={}",endpoint,e) ).map(|uri| tokio::spawn(async move {
             while let Some(request) = tr.recv().await {
                 debug!("http broker received request={:?}", request);
-                LogSignal::new("http_broker".to_string(), "starting".to_string(), request.rpc.ctx.clone())
+                LogSignal::new("http_broker".to_string(), "start processing request".to_string(), request.rpc.ctx.clone())
                     .with_diagnostic_context_item("rule_alias", request.rule.alias.as_str()).emit_debug();
                 match send_http_request(&client, Method::GET, &uri, &request.clone().rule.alias)
                     .await

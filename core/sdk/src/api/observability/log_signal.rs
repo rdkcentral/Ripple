@@ -98,8 +98,12 @@ impl ContextAsJson for JsonRpcApiResponse {
         let mut map = serde_json::Map::new();
         map.insert(
             "session_id".to_string(),
-            serde_json::Value::Number(self.id.unwrap_or_default().into()),
+            match self.id {
+                Some(id) => serde_json::Value::Number(id.into()),
+                None => serde_json::Value::Null,
+            },
         );
+
         map.insert(
             "jsonrpc".to_string(),
             serde_json::Value::String(self.jsonrpc.clone()),
@@ -137,9 +141,7 @@ where
             "diagnostic_context".to_string(),
             serde_json::Value::Object(map_to_jsonmap(signal.diagnostic_context.clone())),
         );
-        //TODO: Implement call_context
-        let f = signal.context.as_json();
-        map.insert("call_context".to_string(), f);
+        map.insert("call_context".to_string(), signal.context.as_json());
         serde_json::json!({"log_signal": serde_json::Value::Object(map) })
     }
 }
