@@ -58,7 +58,7 @@ use url::Url;
 
 use super::thunder_async_client::{ThunderAsyncClient, ThunderAsyncRequest, ThunderAsyncResponse};
 use super::thunder_client_pool::ThunderPoolCommand;
-use super::thunderbroker_plugins_status_mgr::{BrokerCallback, BrokerSender};
+use super::thunder_async_client_plugins_status_mgr::{BrokerCallback, BrokerSender};
 use super::{
     jsonrpc_method_locator::JsonRpcMethodLocator,
     plugin_manager::{PluginActivatedResult, PluginManagerCommand},

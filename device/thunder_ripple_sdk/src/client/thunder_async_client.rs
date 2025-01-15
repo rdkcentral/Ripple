@@ -17,7 +17,7 @@
 
 use std::time::Duration;
 
-use super::thunderbroker_plugins_status_mgr::{BrokerCallback, BrokerSender, StatusManager};
+use super::thunder_async_client_plugins_status_mgr::{BrokerCallback, BrokerSender, StatusManager};
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::api::device::device_operator::DeviceResponseMessage;
