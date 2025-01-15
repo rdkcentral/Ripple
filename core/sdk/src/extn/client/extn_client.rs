@@ -797,7 +797,6 @@ impl ExtnClient {
 
     /// Method to send event to an extension based on its Id
     pub fn send_event_with_id(&self, id: &str, event: impl ExtnPayloadProvider) -> RippleResponse {
-        println!("**** extn_client: send_event_with_id: id: {}", id);
         if let Some(sender) = self.get_extn_sender_with_extn_id(id) {
             self.sender.send_event(event, Some(sender))
         } else {
