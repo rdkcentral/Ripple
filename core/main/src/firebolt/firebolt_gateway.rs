@@ -91,7 +91,6 @@ pub enum FireboltGatewayCommand {
 
 impl FireboltGateway {
     pub fn new(state: BootstrapState, methods: Methods) -> FireboltGateway {
-        println!("**** firebolt_gateway: new: Creating new FireboltGateway");
         for method in methods.method_names() {
             info!("Adding RPC method {}", method);
         }
@@ -100,7 +99,6 @@ impl FireboltGateway {
     }
 
     pub async fn start(&self) {
-        println!("**** firebolt_gateway: start: Starting Gateway Listener");
         trace!("Starting Gateway Listener");
         let mut firebolt_gateway_rx = self
             .state
@@ -131,12 +129,8 @@ impl FireboltGateway {
                         .await;
                     self.state.platform_state.session_state.clear_session(&cid);
                 }
-                HandleRpc { request } => {
-                    println!("**** firebolt_gateway: start: Handling RPC");
-                    self.handle(request, None).await
-                }
+                HandleRpc { request } => self.handle(request, None).await,
                 HandleRpcForExtn { msg } => {
-                    println!("**** firebolt_gateway: start: Handling RPC for Extn");
                     if let Some(request) = msg.payload.clone().extract() {
                         self.handle(request, Some(msg)).await
                     } else {
@@ -152,7 +146,6 @@ impl FireboltGateway {
     }
 
     pub async fn handle(&self, request: RpcRequest, extn_msg: Option<ExtnMessage>) {
-        println!("**** firebolt_gateway: handle: Handling RPC");
         trace!(
             "firebolt_gateway Received Firebolt request {} {} {}",
             request.ctx.request_id,
@@ -164,7 +157,6 @@ impl FireboltGateway {
         let callback_c = extn_msg.clone();
         match request.ctx.protocol {
             ApiProtocol::Extn => {
-                println!("**** firebolt_gateway: handle: Extn Protocol");
                 extn_request = true;
                 // extn protocol with subscription requests means there is no need for callback
                 // it is using extn_client::subscribe method which uses id field to resolve.
@@ -176,7 +168,6 @@ impl FireboltGateway {
                 }
             }
             _ => {
-                println!("**** firebolt_gateway: handle: Other Protocols");
                 if !self
                     .state
                     .platform_state
@@ -220,7 +211,6 @@ impl FireboltGateway {
         let open_rpc_state = self.state.platform_state.open_rpc_state.clone();
 
         tokio::spawn(async move {
-            println!("**** firebolt_gateway: handle: Spawning new thread");
             capture_stage(&platform_state.metrics, &request_c, "context_ready");
             // Validate incoming request parameters.
             if let Err(error_string) = validate_request(open_rpc_state, &request_c, fail_open) {
@@ -254,19 +244,10 @@ impl FireboltGateway {
 
             match result {
                 Ok(_) => {
-                    println!(
-                        "**** firebolt_gateway: handle: extn_request: {}",
-                        extn_request
-                    );
-
                     if let Some(overridden_method) = platform_state
                         .get_manifest()
                         .has_rpc_override_method(&request_c.method)
                     {
-                        println!(
-                            "***** firebolt_gateway: handle: req method: {} overridden to: {}",
-                            request_c.method, overridden_method
-                        );
                         request_c.method = overridden_method;
                     }
 
@@ -275,15 +256,9 @@ impl FireboltGateway {
                         extn_msg.clone(),
                         None,
                     ) {
-                        println!("**** firebolt_gateway: handle: Brokerage not handled");
-                        println!(
-                            "**** firebolt_gateway: handle: Routing request: extn_msg: {:?}",
-                            extn_msg
-                        );
                         // Route
                         match request.clone().ctx.protocol {
                             ApiProtocol::Extn => {
-                                println!("**** firebolt_gateway: handle: Routing Extn Protocol");
                                 if let Some(extn_msg) = extn_msg {
                                     RpcRouter::route_extn_protocol(
                                         &platform_state,
@@ -296,17 +271,11 @@ impl FireboltGateway {
                                 }
                             }
                             _ => {
-                                println!("**** firebolt_gateway: handle: Routing others");
-                                println!(
-                                    "**** firebolt_gateway: handle: get_session for req: {:?}",
-                                    request_c
-                                );
                                 if let Some(session) = platform_state
                                     .clone()
                                     .session_state
                                     .get_session(&request_c.ctx)
                                 {
-                                    println!("**** firebolt_gateway: handle: Session found: route");
                                     // if the websocket disconnects before the session is recieved this leads to an error
                                     RpcRouter::route(
                                         platform_state.clone(),
@@ -323,10 +292,6 @@ impl FireboltGateway {
                     }
                 }
                 Err(e) => {
-                    println!(
-                        "**** firebolt_gateway: handle: Error in gatekeeper: e={:?}",
-                        e
-                    );
                     let deny_reason = e.reason;
                     // log firebolt response message in RDKTelemetry 1.0 friendly format
                     TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
@@ -360,7 +325,6 @@ fn validate_request(
     request: &RpcRequest,
     fail_open: bool,
 ) -> Result<(), String> {
-    println!("**** firebolt_gateway: validate_request: Validating request");
     // Existing fail open configuration should work where the
     // call should be delegated to the actual handler
     if fail_open {
@@ -428,7 +392,6 @@ async fn send_json_rpc_error(
     request: &RpcRequest,
     json_rpc_error: JsonRpcError,
 ) {
-    println!("**** firebolt_gateway: send_json_rpc_error: Sending JSON RPC Error");
     if let Some(session) = platform_state
         .clone()
         .session_state
@@ -465,7 +428,6 @@ async fn send_json_rpc_error(
 
             match session.get_transport() {
                 EffectiveTransport::Websocket => {
-                    println!("**** firebolt_gateway: send_json_rpc_error: Sending JSON RPC Error over Websocket");
                     if let Err(e) = session.send_json_rpc(api_message).await {
                         error!(
                             "send_json_rpc_error: Error sending websocket message: e={:?}",
@@ -474,7 +436,6 @@ async fn send_json_rpc_error(
                     }
                 }
                 EffectiveTransport::Bridge(id) => {
-                    println!("**** firebolt_gateway: send_json_rpc_error: Sending JSON RPC Error over Bridge");
                     if let Err(e) = platform_state.send_to_bridge(id, api_message).await {
                         error!(
                             "send_json_rpc_error: Error sending bridge message: e={:?}",

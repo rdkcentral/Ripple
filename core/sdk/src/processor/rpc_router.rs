@@ -16,14 +16,9 @@
 //
 
 use crate::{
-    api::{
-        gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
-        manifest::extn_manifest::ExtnManifest,
-    },
+    api::gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
     log::{error, info},
     utils::error::RippleError,
-    extn::extn_client_message::ExtnMessage,
-    utils::router_utils::return_extn_response,
 };
 use futures::{future::join_all, StreamExt};
 use jsonrpsee::{
@@ -37,7 +32,6 @@ use jsonrpsee::{
     },
     types::{error::ErrorCode, Id, Params},
 };
-use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 
 pub struct RpcRouter;
@@ -46,7 +40,6 @@ pub struct RpcRouter;
 pub struct RouterState {
     methods: Arc<RwLock<Methods>>,
     resources: Resources,
-    manifest: ExtnManifest,
 }
 
 impl RouterState {
@@ -54,13 +47,15 @@ impl RouterState {
         RouterState {
             methods: Arc::new(RwLock::new(Methods::new())),
             resources: Resources::default(),
-            manifest: ExtnManifest::default(),
         }
     }
 
     pub fn update_methods(&self, methods: Methods) {
         let mut methods_state = self.methods.write().unwrap();
-        let _ = methods_state.merge(methods.initialize_resources(&self.resources).unwrap());
+        if let Err(e) = methods_state.merge(methods.initialize_resources(&self.resources).unwrap())
+        {
+            error!("Failed to merge methods: {:?}", e);
+        }
     }
 
     fn get_methods(&self) -> Methods {
@@ -74,27 +69,11 @@ impl Default for RouterState {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct JsonRpcMessage {
-    pub jsonrpc: String,
-    pub id: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<JsonRpcError>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct JsonRpcError {
-    pub code: i64,
-    pub message: String,
-}
-
 impl RpcRouter {
     pub async fn resolve_route(
         req: RpcRequest,
         router_state: &RouterState,
     ) -> Result<ApiMessage, RippleError> {
-        println!("**** rpc_router: resolve_route: SDK: routing req: {:?}", req);
-        println!("**** rpc_router: resolve_route: SDK: routing {}", req.method);
         info!("SDK: Routing {}", req.method);
         let id = Id::Number(req.ctx.call_id);
         let methods = router_state.get_methods();
@@ -103,79 +82,51 @@ impl RpcRouter {
         let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES);
         let mut method_executors = Vec::new();
         let params = Params::new(Some(req.params_json.as_str()));
-        match methods.method_with_name(&req.method) {
-            None => {
-                sink.send_error(id, ErrorCode::MethodNotFound.into());
-            }
-            Some((name, method)) => match &method.inner() {
-                MethodKind::Sync(callback) => match method.claim(name, &resources) {
-                    Ok(_guard) => {
-                        println!("**** rpc_router: resolve_route: SDK: MethodKind::Sync");
-                        (callback)(id, params, &sink);
-                    }
-                    Err(_) => {
+
+        if let Some((name, method)) = methods.method_with_name(&req.method) {
+            match &method.inner() {
+                MethodKind::Sync(callback) => {
+                    if let Ok(_guard) = method.claim(name, &resources) {
+                        callback(id, params, &sink);
+                    } else {
                         sink.send_error(id, ErrorCode::MethodNotFound.into());
                     }
-                },
-                MethodKind::Async(callback) => match method.claim(name, &resources) {
-                    Ok(guard) => {
-                        println!("**** rpc_router: resolve_route: SDK: MethodKind::ASync");
+                }
+                MethodKind::Async(callback) => {
+                    if let Ok(guard) = method.claim(name, &resources) {
                         let sink = sink.clone();
                         let id = id.into_owned();
                         let params = params.into_owned();
                         let fut = async move {
-                            println!("**** rpc_router: resolve_route: SDK:MethodKind::ASync fut");
-                            (callback)(id, params, sink, 1, Some(guard)).await;
+                            callback(id, params, sink, 1, Some(guard)).await;
                         };
                         method_executors.push(fut);
-                    }
-                    Err(e) => {
-                        error!("{:?}", e);
+                    } else {
                         sink.send_error(id, ErrorCode::MethodNotFound.into());
                     }
-                },
+                }
                 _ => {
-                    println!("**** rpc_router: resolve_route: SDK: Unsupported method call");
                     error!("SDK: Unsupported method call");
                 }
-            },
+            }
+        } else {
+            sink.send_error(id, ErrorCode::MethodNotFound.into());
         }
 
         join_all(method_executors).await;
+
         if let Some(r) = sink_rx.next().await {
             let protocol = req.ctx.protocol.clone();
             let request_id = req.ctx.request_id;
 
-            let msg = ApiMessage::new(protocol, r, request_id.clone());
-            println!(
-                "**** rpc_router: resolve_route: SDK: returning msg: {:?}",
-                msg.clone()
+            let msg = ApiMessage::new(
+                protocol,
+                serde_json::to_string(&r).unwrap(),
+                request_id.clone(),
             );
 
             return Ok(msg);
         }
         Err(RippleError::InvalidOutput)
-    }
-
-    pub async fn route_extn_protocol(
-        router_state: &RouterState,
-        req: RpcRequest,
-        extn_msg: ExtnMessage,
-    ) {
-        println!(
-            "**** rpc_router: route: route_extn_protocol: req: {}",
-            req.method
-        );
-        println!(
-            "**** rpc_router: route: route_extn_protocol: extn_msg: {:?}",
-            extn_msg.clone()
-        );
-
-        let router_state = router_state.clone();
-        tokio::spawn(async move {
-            if let Ok(msg) = RpcRouter::resolve_route(req, &router_state).await {
-                return_extn_response(msg, extn_msg);
-            }
-        });
     }
 }

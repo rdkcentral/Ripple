@@ -226,35 +226,18 @@ impl RuleEngine {
     }
 
     pub fn get_rule(&self, rpc_request: &RpcRequest) -> Option<Rule> {
-        println!(
-            "**** rules_engine: get_rule: Request received for {}",
-            rpc_request.method
-        );
-        println!(
-            "**** rules_engine: get_rule: Rules available: {:?}",
-            self.rules.rules
-        );
         let method = rpc_request.method.to_lowercase();
         if let Some(mut rule) = self.rules.rules.get(&method).cloned() {
-            println!(
-                "**** rules_engine: get_rule: Rule available for {}",
-                rpc_request.method
-            );
             rule.transform.apply_context(rpc_request);
             return Some(rule);
         } else {
             for (key, value) in &self.rules.rules {
                 if key.ends_with(".*") && method.starts_with(&key[..key.len() - 2]) {
-                    println!(
-                        "**** rules_engine: get_rule: Rule available for {}",
-                        rpc_request.method
-                    );
                     let mut rule = value.clone();
                     rule.transform.apply_context(rpc_request);
                     return Some(rule);
                 }
             }
-            println!("**** rules_engine: get_rule: Rule not available for {}, hence falling back to extension handler", rpc_request.method);
             trace!(
                 "Rule not available for {}, hence falling back to extension handler",
                 rpc_request.method

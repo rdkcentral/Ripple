@@ -403,10 +403,6 @@ impl ThunderClient {
         thunder_message: ThunderCallMessage,
         plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
     ) {
-        println!(
-            "**** **** thunder_client: call: thunder_message: {:?}",
-            thunder_message
-        );
         // First check if the plugin is activated and ready to use
         if Self::check_and_activate_plugin(&thunder_message.callsign(), &plugin_manager_tx)
             .await
@@ -419,7 +415,6 @@ impl ThunderClient {
         match params {
             Some(p) => match p {
                 DeviceChannelParams::Bool(b) => {
-                    println!("**** **** thunder_client: call: bool");
                     let r = Box::new(ThunderRawBoolRequest {
                         method: thunder_message.method.clone(),
                         v: b,
@@ -429,7 +424,6 @@ impl ThunderClient {
                     return_message(thunder_message.callback, r);
                 }
                 _ => {
-                    println!("**** thunder_client: call: params");
                     let response = Box::new(ThunderParamRequest {
                         method: &thunder_message.method.clone(),
                         params: &p.as_params(),
@@ -441,7 +435,6 @@ impl ThunderClient {
                 }
             },
             None => {
-                println!("**** **** thunder_client: call: no params");
                 let response: Value = Box::new(ThunderNoParamRequest {
                     method: thunder_message.method.clone(),
                 })
@@ -555,7 +548,6 @@ impl ThunderClientBuilder {
         thunder_connection_state: Arc<ThunderConnectionState>,
         existing_client: Option<ThunderClient>,
     ) -> Result<ThunderClient, RippleError> {
-        println!("**** thunder_client: get_client: url: {:?}", url);
         let id = Uuid::new_v4();
 
         info!("initiating thunder connection {}", url);

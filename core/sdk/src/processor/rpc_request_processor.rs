@@ -16,10 +16,7 @@
 //
 
 use crate::{
-    api::{
-        gateway::rpc_gateway_api::{ApiProtocol, RpcRequest},
-        manifest::extn_manifest::ExtnManifest,
-    },
+    api::gateway::rpc_gateway_api::RpcRequest,
     extn::{
         client::{
             extn_client::ExtnClient,
@@ -37,8 +34,6 @@ use crate::{
 use async_trait::async_trait;
 use jsonrpsee::core::server::rpc_module::Methods;
 
-const EXTN_NAME: &'static str = "badger";
-
 #[derive(Debug, Clone)]
 pub struct RPCRequestState {
     client: ExtnClient,
@@ -53,17 +48,7 @@ pub struct RPCRequestProcessor {
 }
 
 impl RPCRequestProcessor {
-    // TBD - manifest - do we need it for badger methods/ do we need to check if the has overriden the methods for badger especially?
-    // can even create a new struct to put in methods, resources, manifest if manifest is needed for badger methods
-
-    pub fn new(
-        client: ExtnClient,
-        methods: Methods,
-        manifest: ExtnManifest,
-    ) -> RPCRequestProcessor {
-        // TBD: should create a new state badger_state, in sdk for router_state???
-        // TBD: BootstrapState creates the extn_manifest - set that in the new badger_state in sdk like how we set it in PlatformState??
-
+    pub fn new(client: ExtnClient, methods: Methods) -> RPCRequestProcessor {
         let router_state = RouterState::new();
         router_state.update_methods(methods.clone());
 
@@ -80,6 +65,7 @@ impl RPCRequestProcessor {
 impl ExtnStreamProcessor for RPCRequestProcessor {
     type STATE = RPCRequestState;
     type VALUE = RpcRequest;
+
     fn get_state(&self) -> Self::STATE {
         self.state.clone()
     }
@@ -95,8 +81,6 @@ impl ExtnStreamProcessor for RPCRequestProcessor {
     fn contract(&self) -> RippleContract {
         RippleContract::JsonRpsee
     }
-
-    // TBD = need to define - contract or fulfills_mutiple ?
 }
 
 #[async_trait]
@@ -105,100 +89,40 @@ impl ExtnRequestProcessor for RPCRequestProcessor {
         self.state.client.clone()
     }
 
-    // i dont know whether this is right, but how can I get the router_state from the RouterState????????
-    // fn get_router_state(&self) -> Option<RouterState> {
-    //     Some(self.router_state.clone())
-    // }
-
-    // copied from RpcGatewayProcessor - ThunderDeviceInfoRequestProcessor wondering if this needs to be similar to match request
-    // i.e let request = ExtnProviderRequest { value: serde_json::to_value(request).unwrap(), id: self.id.clone(), };
-
-    // referring to the
     async fn process_request(
         state: Self::STATE,
         extn_msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
-        println!(
-            "**** rpc_request_processor: process_request: extracted_message: {:?}",
-            extracted_message.clone()
-        );
-        println!(
-            "**** rpc_request_processor: process_request: msg - extnMessage:: {:?}",
-            extn_msg.clone()
-        );
-
         let client = state.client.clone();
         tokio::spawn(async move {
-            // ok - reiterate - in main =>  the router-state is initialized in PlatformState & update methods is called in the inititialization of the FireboltGateway
-            // so how can I make it happen in sdk?
-
             let router_state = state.router_state.clone();
-            println!(
-                "**** rpc_request_processor: process_request: router_state: {:?}",
-                router_state
-            );
             let req = RpcRequest::from(extracted_message.clone());
-            println!(
-                "**** rpc_request_processor: process_request: req: {:?}",
-                req.clone()
-            );
-
-            println!(
-                "**** rpc_request_processor: process_request:  routing req method: {}",
-                req.method
-            );
-
             let resp = RpcRouter::resolve_route(req.clone(), &router_state).await;
-            println!("*** _DEBUG: resp={:?}", resp);
-
-            // // Route
-            // match req.clone().ctx.protocol {
-            //     ApiProtocol::Extn => {
-            //         println!("**** rpc_request_processor: process_request: Routing Extn Protocol");
-            //         RpcRouter::route_extn_protocol(&router_state, req.clone(), extn_msg).await;
-            //     }
-            //     _ => {
-            //         println!("**** rpc_request_processor: process_request: Routing others");
-            //         // if the websocket disconnects before the session is received this leads to an error
-            //         RpcRouter::resolve_route(req.clone(), &router_state).await;
-            //     }
-            // }
-
             let mut resp_extn_msg = extn_msg.clone();
             resp_extn_msg.target = RippleContract::Rpc;
 
             match resp {
                 Ok(response_msg) => {
-                    println!("*** _DEBUG: response_msg={:?}", response_msg);
                     if response_msg.is_error() {
                         Self::handle_error(client, resp_extn_msg, RippleError::ProcessorError)
                             .await;
-                    } else {
-                        if let Ok(json_value) = serde_json::from_str(&response_msg.jsonrpc_msg) {
-                            if Self::respond(client, resp_extn_msg, ExtnResponse::Value(json_value))
-                                .await
-                                .is_ok()
-                            {
-                                return true;
-                            }
-                        } else {
-                            Self::handle_error(client, resp_extn_msg, RippleError::ProcessorError)
-                                .await;
+                    } else if let Ok(json_value) = serde_json::from_str(&response_msg.jsonrpc_msg) {
+                        if Self::respond(client, resp_extn_msg, ExtnResponse::Value(json_value))
+                            .await
+                            .is_ok()
+                        {
+                            return true;
                         }
+                    } else {
+                        Self::handle_error(client, resp_extn_msg, RippleError::ProcessorError)
+                            .await;
                     }
                 }
-                Err(e) => {
-                    println!("*** _DEBUG: e={:?}", e);
+                Err(_) => {
                     Self::handle_error(client, resp_extn_msg, RippleError::ProcessorError).await;
                 }
             };
-
-            // badger_info_rpc return RpcResult<BadgerDeviceInfo> as response
-            // **** rpc_request_processor: process_request: routing req method: badger.info
-            // msg: ApiMessage { protocol: JsonRpc, jsonrpc_msg: "{\"jsonrpc\":\"2.0\",
-            // \"result\":{\"privacySettings\":{}},\"id\":2}",
-            // request_id: "169d72d6-561f-4c58-b593-7f59d0a88467", stats: None }
 
             true
         });

@@ -20,7 +20,6 @@ pub mod error;
 pub mod extn_utils;
 pub mod logger;
 pub mod mock_utils;
-pub mod router_utils;
 pub mod rpc_utils;
 pub mod serde_utils;
 pub mod test_utils;

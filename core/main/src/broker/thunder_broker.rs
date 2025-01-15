@@ -102,7 +102,6 @@ impl ThunderBroker {
 
     fn start(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
         let endpoint = request.endpoint.clone();
-        println!("**** Endpoint {:?}", endpoint);
         let (tx, mut tr) = mpsc::channel(10);
         let (c_tx, mut c_tr) = mpsc::channel(2);
         let sender = BrokerSender { sender: tx };
@@ -160,7 +159,6 @@ impl ThunderBroker {
 
                     },
                     Some(mut request) = tr.recv() => {
-                        println!("**** thunder_broker: Request {:?}", request);
                         debug!("Got request from receiver for broker {:?}", request);
 
                         match broker_c.check_and_generate_plugin_activation_request(&request) {
@@ -168,7 +166,6 @@ impl ThunderBroker {
                                 if !requests.is_empty() {
                                     let mut ws_tx = ws_tx_wrap.lock().await;
                                     for r in requests {
-                                        println!("**** thunder_broker: Request r1: {:?}", r);
                                         let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
                                         let _flush = ws_tx.flush().await;
                                     }
@@ -189,7 +186,6 @@ impl ThunderBroker {
                                                 let binding = ws_tx_wrap.clone();
                                                 let mut ws_tx = binding.lock().await;
                                                 for r in updated_request {
-                                                    println!("**** thunder_broker: Request r2: {:?}", r);
                                                     let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
                                                     let _flush = ws_tx.flush().await;
                                                 }

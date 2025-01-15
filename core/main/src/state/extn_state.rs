@@ -71,13 +71,6 @@ impl LoadedLibrary {
             .filter(|x| x.id.is_channel())
             .map(|x| x.id.to_string())
             .collect();
-        println!(
-            "**** extn_state: getting channels {} lib_metadata={:?} extn_metadata={:?}",
-            self.metadata.symbols.len(),
-            extn_ids,
-            self.entry
-        );
-
         info!(
             "getting channels {} lib_metadata={:?} extn_metadata={:?}",
             self.metadata.symbols.len(),
@@ -93,7 +86,6 @@ impl LoadedLibrary {
     }
 
     pub fn get_extns(&self) -> Vec<ExtnSymbol> {
-        println!("**** extn_state: getting extns");
         let extn_ids: Vec<String> = self
             .metadata
             .symbols
@@ -198,7 +190,6 @@ impl ExtnState {
         channel: PreLoadedExtnChannel,
         client: RippleClient,
     ) -> Result<(), RippleError> {
-        println!("**** extn_state: start_channel");
         let sender = self.clone().get_sender();
         let symbol = channel.symbol.clone();
         let extn_id = channel.extn_id.clone();
