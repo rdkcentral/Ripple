@@ -277,7 +277,6 @@ impl ThunderAsyncClient {
                         },
                         Err(e) => {
                             error!("Broker Websocket error on read {:?}", e);
-                            // Time to reconnect Thunder with existing subscription
                             break;
                         }
                     }
@@ -289,8 +288,46 @@ impl ThunderAsyncClient {
                         Ok(updated_request) => {
                             debug!("Sending request to broker {:?}", updated_request);
                             for r in updated_request {
-                                let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
-                                let _flush = ws_tx.flush().await;
+                                let url_clone = url.to_string();
+                                tokio::spawn({
+                                    let client_c = client_c.clone();
+                                    let callback = callback.clone();
+                                    async move {
+                                        let (mut new_wtx, mut new_wrx) = Self::create_ws(&url_clone).await;
+                                        let _feed = new_wtx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
+                                        let _flush = new_wtx.flush().await;
+
+                                        tokio::pin! {
+                                            let read = new_wrx.next();
+                                        }
+
+                                        loop {
+                                            tokio::select! {
+                                                Some(value) = &mut read => {
+                                                    match value {
+                                                        Ok(v) => {
+                                                            if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
+                                                                if client_c.status_manager.is_controller_response(client_c.get_sender(), callback.clone(), t.as_bytes()).await {
+                                                                    client_c.status_manager.handle_controller_response(client_c.get_sender(), callback.clone(), t.as_bytes()).await;
+                                                                }
+                                                                else {
+                                                                    //let _id = Self::get_id_from_result(t.as_bytes()); for debug purpose
+                                                                    // send the incoming text without context back to the sender
+                                                                    Self::handle_jsonrpc_response(t.as_bytes(),callback.clone()).await
+                                                                }
+                                                            }
+                                                        },
+                                                        Err(e) => {
+                                                            error!("Broker Websocket error on read {:?}", e);
+                                                            // Time to reconnect Thunder with existing subscription
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                });
                             }
                         }
                         Err(e) => {

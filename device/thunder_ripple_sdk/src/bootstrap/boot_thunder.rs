@@ -53,7 +53,7 @@ pub async fn boot_thunder(
     info!("Booting thunder initiated");
     //by default enabling the thunderBroker
     let state = if ext_client.get_bool_config("use_with_thunder_async_client") {
-        info!("Using thunder broker");
+        info!("Using thunder_async_clinet");
         let mut extn_client = ext_client.clone();
         let mut gateway_url = url::Url::parse(GATEWAY_DEFAULT).unwrap();
         let extn_message_response: Result<ExtnMessage, RippleError> =
