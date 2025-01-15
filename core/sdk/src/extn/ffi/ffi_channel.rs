@@ -33,9 +33,7 @@ pub struct ExtnChannel {
 #[repr(C)]
 #[derive(Debug)]
 pub struct ExtnChannelBuilder {
-    // <pca>
     pub get_extended_capabilities: fn() -> Option<String>,
-    // </pca>
     pub build: fn(extn_id: String) -> Result<Box<ExtnChannel>, RippleError>,
     pub service: String,
 }

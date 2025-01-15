@@ -23,6 +23,7 @@ use crate::broker::workflow_broker::SubBrokerErr;
 use crate::state::platform_state::PlatformState;
 use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiError;
 
+use ripple_sdk::async_channel::unbounded;
 use ripple_sdk::extn::extn_client_message::{ExtnMessage, ExtnPayload, ExtnRequest};
 use ripple_sdk::extn::ffi::ffi_message::CExtnMessage;
 use ripple_sdk::framework::ripple_contract::RippleContract;
@@ -102,10 +103,7 @@ impl ExtnBroker {
                         };
                         println!("**** extn_broker: start: Received request:broker_request: extn_provider_request: {:?}", req);
 
-                        // <pca>
-                        //let extn_client = if let Some(platform_state) = &ps {
                         let mut extn_client = if let Some(platform_state) = &ps {
-                            // </pca>
                             platform_state.get_client().get_extn_client()
                         } else {
                             return;
@@ -128,7 +126,10 @@ impl ExtnBroker {
                         if let Some(sender) = s {
                             println!("**** extn_broker: start: sender available");
 
-                            // <pca>
+                            // <pca> 2
+                            let (callback_tx, callback_rx) = unbounded();
+                            // </pca>
+
                             let msg = ExtnMessage {
                                 id: rpc_request.ctx.call_id.to_string(),
                                 requestor: ExtnId::get_main_target("main".into()),
@@ -137,7 +138,10 @@ impl ExtnBroker {
                                 payload: ExtnPayload::Request(ExtnRequest::Rpc(
                                     rpc_request.clone(),
                                 )),
-                                callback: None,
+                                // <pca> 2
+                                //callback: None,
+                                callback: Some(callback_tx),
+                                // </pca>
                                 ts: None,
                             };
 
@@ -148,10 +152,10 @@ impl ExtnBroker {
                             // fix channel request: not working
                             let response = sender.try_send(msg.into());
                             println!("**** extn_broker: start: channel response ={:?}", response);
+                            println!("*** _DEBUG: extn_broker: send response ={:?}", response);
+                            let resp = callback_rx.recv().await;
+                            println!("*** _DEBUG: extn_broker: callback resp={:?}", resp);
                             // });
-
-                            
-                            // </pca>
 
                             // TBD - ExtnPayloadProvider ?
                             // let p = payload.get_extn_payload();
@@ -213,7 +217,6 @@ impl ExtnBroker {
 
                         // JsonRpcApiResponse { jsonrpc: "2.0", id: Some(9), result: Some(Object {"TTS_Status": Number(0), "isenabled": Bool(false), "success": Bool(true)}), error: None, method: None, params: None }
 
-                        // <pca>
                         // let res: Result<JsonRpcApiResponse, SubBrokerErr> =
                         //     Ok(JsonRpcApiResponse {
                         //         id: Some(broker_request.rpc.ctx.call_id),
@@ -258,7 +261,6 @@ impl ExtnBroker {
                         //         );
                         //     }
                         // }
-                        // </pca>
                     }
                     None => {
                         println!("**** extn_broker: start: Failed to receive message");
