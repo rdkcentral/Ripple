@@ -19,7 +19,7 @@ use std::vec;
 
 use hyper::{client::HttpConnector, Body, Client, Method, Request, Response, Uri};
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::JsonRpcApiError,
+    api::{gateway::rpc_gateway_api::JsonRpcApiError, observability::log_signal::LogSignal},
     log::{debug, error, trace},
     tokio::{self, sync::mpsc},
     utils::error::RippleError,
@@ -123,9 +123,12 @@ impl EndpointBroker for HttpBroker {
         let (tx, mut tr) = mpsc::channel(10);
         let broker = BrokerSender { sender: tx };
         let client = Client::new();
+
         let _ =  endpoint.get_url().parse().map_err(|e| error!("broker url {:?} in endpoint is invalid, cannot start http broker. error={}",endpoint,e) ).map(|uri| tokio::spawn(async move {
             while let Some(request) = tr.recv().await {
                 debug!("http broker received request={:?}", request);
+                LogSignal::new("http_broker".to_string(), "start processing request".to_string(), request.rpc.ctx.clone())
+                    .with_diagnostic_context_item("rule_alias", request.rule.alias.as_str()).emit_debug();
                 match send_http_request(&client, Method::GET, &uri, &request.clone().rule.alias)
                     .await
                 {
