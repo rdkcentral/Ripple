@@ -576,7 +576,7 @@ impl EndpointBrokerState {
                 if let Some(endpoint) = self.get_sender(&endpoint) {
                     broker_sender = Some(endpoint);
                 }
-            } else if rule.alias != "static".to_owned() {
+            } else if rule.alias != "static" {
                 if let Some(endpoint) = self.get_sender("thunder") {
                     broker_sender = Some(endpoint);
                 }
@@ -588,7 +588,7 @@ impl EndpointBrokerState {
         if found_rule.is_some() {
             let rule = found_rule.unwrap();
 
-            if rule.alias == "static".to_owned() {
+            if rule.alias == "static" {
                 trace!("handling static request for {:?}", rpc_request);
                 self.handle_static_request(
                     rpc_request,
