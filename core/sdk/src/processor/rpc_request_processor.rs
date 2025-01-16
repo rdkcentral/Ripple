@@ -97,7 +97,7 @@ impl ExtnRequestProcessor for RPCRequestProcessor {
         let client = state.client.clone();
         tokio::spawn(async move {
             let router_state = state.router_state.clone();
-            let req = RpcRequest::from(extracted_message.clone());
+            let req = extracted_message.clone();
             let resp = RpcRouter::resolve_route(req.clone(), &router_state).await;
             let mut resp_extn_msg = extn_msg.clone();
             resp_extn_msg.target = RippleContract::Rpc;
