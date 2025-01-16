@@ -1289,6 +1289,7 @@ pub fn apply_response(
                     error!("jq_compile error {:?}", e);
                 }
             }
+            trace!("mutated response {:?}", response);
         }
         Err(e) => {
             response.error = Some(json!(e.to_string()));

@@ -35,9 +35,11 @@ use ripple_sdk::{
 };
 use serde_json::json;
 use serde_json::Value;
+use std::time::SystemTime;
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
+    time::Duration,
     vec,
 };
 
@@ -84,6 +86,7 @@ impl ThunderBroker {
     pub async fn register_composite_request(&self, id: u64, request: RpcRequest) {
         let mut composite_request_list = self.composite_request_list.lock().await;
         composite_request_list.insert(id, request);
+        Self::start_purge_composite_request_timer(self.composite_request_list.clone(), id);
     }
 
     pub async fn unregister_composite_request(&self, id: u64) {
@@ -116,6 +119,28 @@ impl ThunderBroker {
             return callback.clone();
         }
         self.default_callback.clone()
+    }
+
+    // This function is used to start the timer and when timer is up then purge the composite request
+    fn start_purge_composite_request_timer(
+        composite_request_list: Arc<Mutex<HashMap<u64, RpcRequest>>>,
+        id: u64,
+    ) {
+        debug!("Start composite request purge timer");
+        let now = SystemTime::now();
+        // start a new thread to purge the composite request after 8 seconds
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::new(2, 0)).await;
+            match now.elapsed() {
+                Ok(_elapsed) => {
+                    composite_request_list.lock().await.remove(&id);
+                }
+                Err(_e) => {
+                    composite_request_list.lock().await.remove(&id);
+                }
+            }
+            debug!("End of purge composite request");
+        });
     }
 
     fn start(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
@@ -269,7 +294,7 @@ impl ThunderBroker {
                                                     }
                                                 }
                                                 let binding = ws_tx_wrap.clone();
-                                                let mut ws_tx = binding.lock(). await;
+                                                let mut ws_tx = binding.lock().await;
                                                 for r in updated_request {
                                                     let _ = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
 
