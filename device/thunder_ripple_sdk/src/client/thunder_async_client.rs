@@ -66,7 +66,7 @@ pub struct ThunderAsyncResponse {
 impl ThunderAsyncResponse {
     fn new_response(response: JsonRpcApiResponse) -> Self {
         Self {
-            id: None,
+            id: response.id,
             result: Ok(response),
         }
     }

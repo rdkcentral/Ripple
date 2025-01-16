@@ -71,10 +71,16 @@ impl ThunderPoolStep {
         };
 
         info!("Received Controller pool");
-        let expected_plugins = state.plugin_param.clone();
+        let expected_plugins = match state.plugin_param.clone() {
+            Some(plugins) => plugins,
+            None => {
+                error!("Expected plugins are not provided.");
+                return Err(RippleError::BootstrapError);
+            }
+        };
         let tc = Box::new(controller_pool);
         let (plugin_manager_tx, failed_plugins) =
-            PluginManager::start(tc, expected_plugins.clone().unwrap()).await;
+            PluginManager::start(tc, expected_plugins.clone()).await;
 
         if !failed_plugins.is_empty() {
             error!(
@@ -83,7 +89,7 @@ impl ThunderPoolStep {
             );
             loop {
                 let failed_plugins = PluginManager::activate_mandatory_plugins(
-                    expected_plugins.as_ref().unwrap().clone(),
+                    expected_plugins.clone(),
                     plugin_manager_tx.clone(),
                 )
                 .await;
