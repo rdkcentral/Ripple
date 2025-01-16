@@ -1480,7 +1480,7 @@ mod tests {
         let filter = "if .result.success then if .result.territory == \"ITA\" then \"IT\" elif .result.territory == \"GBR\" then \"GB\" elif .result.territory == \"IRL\" then \"IE\" elif .result.territory == \"DEU\" then \"DE\" elif .result.territory == \"AUS\" then \"AU\" else \"GB\" end end".to_string();
         let mut response = JsonRpcApiResponse::mock();
         response.result = Some(result);
-        apply_response(filter, &Some(rpc_request.ctx.method), &mut response);
+        apply_response(filter, &rpc_request.ctx.method, &mut response);
         assert_eq!(response.result.unwrap(), "GB");
     }
 }

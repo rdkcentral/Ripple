@@ -477,7 +477,6 @@ impl EndpointBroker for ThunderBroker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::platform_state::PlatformState;
     use crate::{
         broker::{
             endpoint_broker::{
@@ -488,7 +487,6 @@ mod tests {
         utils::test_utils::{MockWebsocket, WSMockData},
     };
     use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
-    use ripple_tdk::utils::test_utils::Mockable;
     use serde_json::json;
     use std::time::Duration;
     use tokio::sync::mpsc;
