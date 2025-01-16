@@ -1283,13 +1283,13 @@ pub fn apply_response(
                         response.result = Some(jq_out);
                         response.error = None;
                     }
+                    trace!("mutated response {:?}", response);
                 }
                 Err(e) => {
                     response.error = Some(json!(e.to_string()));
                     error!("jq_compile error {:?}", e);
                 }
             }
-            trace!("mutated response {:?}", response);
         }
         Err(e) => {
             response.error = Some(json!(e.to_string()));

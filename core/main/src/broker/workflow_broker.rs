@@ -92,7 +92,6 @@ impl WorkflowBroker {
             // Handle new params from the rule source
             if let Some(ref params) = source.params {
                 // Ensure params is valid JSON
-                println!("^^^^^^ parsing params: {:?}", params);
                 match serde_json::from_str::<serde_json::Value>(params) {
                     Ok(new_params) => {
                         // Merge the new params with existing params
