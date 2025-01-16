@@ -43,6 +43,8 @@ use std::{
     vec,
 };
 
+pub const PURGE_COMPOSITE_REQUEST_TIMER: u64 = 8;
+
 #[derive(Clone)]
 pub struct ThunderBroker {
     sender: BrokerSender,
@@ -121,7 +123,7 @@ impl ThunderBroker {
         self.default_callback.clone()
     }
 
-    // This function is used to start the timer and when timer is up then purge the composite request
+    // This function is used to start a timer and when the timer is up then purge composite request
     fn start_purge_composite_request_timer(
         composite_request_list: Arc<Mutex<HashMap<u64, RpcRequest>>>,
         id: u64,
@@ -130,7 +132,7 @@ impl ThunderBroker {
         let now = SystemTime::now();
         // start a new thread to purge the composite request after 8 seconds
         tokio::spawn(async move {
-            tokio::time::sleep(Duration::new(2, 0)).await;
+            tokio::time::sleep(Duration::new(PURGE_COMPOSITE_REQUEST_TIMER, 0)).await;
             match now.elapsed() {
                 Ok(_elapsed) => {
                     composite_request_list.lock().await.remove(&id);
