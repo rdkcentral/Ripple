@@ -26,10 +26,10 @@ use ripple_sdk::framework::ripple_contract::RippleContract;
 use ripple_sdk::log::trace;
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
+    chrono::Utc,
     extn::extn_id::{ExtnClassId, ExtnId},
     log::error,
     tokio::{self, sync::mpsc},
-    chrono::Utc,
 };
 
 #[derive(Clone)]
