@@ -27,7 +27,7 @@ use ripple_sdk::log::trace;
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
     chrono::Utc,
-    extn::extn_id::{ExtnClassId, ExtnId},
+    extn::extn_id::ExtnId,
     log::error,
     tokio::{self, sync::mpsc},
 };
@@ -51,6 +51,13 @@ impl ExtnBroker {
                 let rpc_request = broker_request.rpc.clone();
                 let rule = broker_request.rule.clone();
                 let alias = rule.alias;
+                let id = match ExtnId::try_from(alias.clone()) {
+                    Ok(extn_id) => extn_id,
+                    Err(_) => {
+                        error!("Failed to convert alias to ExtnId");
+                        continue;
+                    }
+                };
 
                 let extn_client = if let Some(platform_state) = &ps {
                     platform_state.get_client().get_extn_client()
@@ -64,7 +71,7 @@ impl ExtnBroker {
                         id: rpc_request.ctx.call_id.to_string(),
                         requestor: ExtnId::get_main_target("main".into()),
                         target: RippleContract::JsonRpsee,
-                        target_id: Some(ExtnId::new_extn(ExtnClassId::Gateway, alias)),
+                        target_id: Some(id),
                         payload: ExtnPayload::Request(ExtnRequest::Rpc(rpc_request.clone())),
                         callback: Some(callback_tx),
                         ts: Some(Utc::now().timestamp_millis()),
