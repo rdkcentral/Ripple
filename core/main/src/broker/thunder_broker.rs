@@ -30,6 +30,7 @@ use ripple_sdk::{
     tokio::{
         self,
         sync::{mpsc, Mutex},
+        time,
     },
     utils::error::RippleError,
 };
@@ -54,7 +55,22 @@ pub struct ThunderBroker {
     default_callback: BrokerCallback,
     data_migrator: Option<UserDataMigrator>,
     custom_callback_list: Arc<Mutex<HashMap<u64, BrokerCallback>>>,
-    composite_request_list: Arc<Mutex<HashMap<u64, RpcRequest>>>,
+    composite_request_list: Arc<Mutex<HashMap<u64, CompositeRequest>>>,
+}
+
+#[derive(Clone)]
+pub struct CompositeRequest {
+    pub time_stamp: SystemTime,
+    pub rpc_request: RpcRequest,
+}
+
+impl CompositeRequest {
+    pub fn new(time_stamp: SystemTime, rpc_request: RpcRequest) -> CompositeRequest {
+        CompositeRequest {
+            time_stamp,
+            rpc_request,
+        }
+    }
 }
 
 impl ThunderBroker {
@@ -87,8 +103,8 @@ impl ThunderBroker {
 
     pub async fn register_composite_request(&self, id: u64, request: RpcRequest) {
         let mut composite_request_list = self.composite_request_list.lock().await;
-        composite_request_list.insert(id, request);
-        Self::start_purge_composite_request_timer(self.composite_request_list.clone(), id);
+        let composite_req = CompositeRequest::new(SystemTime::now(), request);
+        composite_request_list.insert(id, composite_req);
     }
 
     pub async fn unregister_composite_request(&self, id: u64) {
@@ -99,7 +115,9 @@ impl ThunderBroker {
     async fn get_composite_request(&self, id: Option<u64>) -> Option<RpcRequest> {
         let rid = id?;
         let composite_request_list = self.composite_request_list.lock().await;
-        composite_request_list.get(&rid).cloned()
+        composite_request_list
+            .get(&rid)
+            .map(|req| req.rpc_request.clone())
     }
 
     pub async fn register_custom_callback(&self, id: u64, callback: BrokerCallback) {
@@ -123,25 +141,35 @@ impl ThunderBroker {
         self.default_callback.clone()
     }
 
-    // This function is used to start a timer and when the timer is up then purge composite request
-    fn start_purge_composite_request_timer(
-        composite_request_list: Arc<Mutex<HashMap<u64, RpcRequest>>>,
-        id: u64,
-    ) {
-        debug!("Start composite request purge timer");
-        let now = SystemTime::now();
-        // start a new thread to purge the composite request after 8 seconds
+    // Start a timer to purge composite request that are older than 8 seconds
+    fn start_purge_composite_request_timer(&self) {
+        debug!("Starting composite request purge timer");
+        let composite_request_list = self.composite_request_list.clone();
+        let mut interval = time::interval(Duration::from_millis(3000));
         tokio::spawn(async move {
-            tokio::time::sleep(Duration::new(PURGE_COMPOSITE_REQUEST_TIMER, 0)).await;
-            match now.elapsed() {
-                Ok(_elapsed) => {
-                    composite_request_list.lock().await.remove(&id);
+            // iterate each composite request and check if timestamp is greater than 8 seconds
+            loop {
+                interval.tick().await;
+                let mut composite_request_list = composite_request_list.lock().await;
+                let mut keys_to_remove = Vec::new();
+                for (key, value) in composite_request_list.iter() {
+                    match value.time_stamp.elapsed() {
+                        Ok(elapsed) => {
+                            if elapsed.as_secs() > PURGE_COMPOSITE_REQUEST_TIMER {
+                                keys_to_remove.push(*key);
+                            }
+                        }
+                        Err(e) => {
+                            error!("Error while calculating elapsed time {:?}", e);
+                        }
+                    }
                 }
-                Err(_e) => {
-                    composite_request_list.lock().await.remove(&id);
+                // remove the composite request from the list
+                for key in keys_to_remove {
+                    composite_request_list.remove(&key);
+                    debug!("Removed composite request with id {}", key);
                 }
             }
-            debug!("End of purge composite request");
         });
     }
 
@@ -161,6 +189,7 @@ impl ThunderBroker {
         let broker_c = thunder_broker.clone();
         let broker_for_cleanup = thunder_broker.clone();
         let broker_for_reconnect = thunder_broker.clone();
+        broker_c.start_purge_composite_request_timer();
         tokio::spawn(async move {
             let (ws_tx, mut ws_rx) = BrokerUtils::get_ws_broker(&endpoint.get_url(), None).await;
 
@@ -199,47 +228,9 @@ impl ThunderBroker {
                                     }
                                     else {
                                         // send the incoming text without context back to the sender
-                                                                /* Retrieve composite params and add it to JsonRpcApiResponse */
-                                                                let rpc_req = broker_c.get_composite_request(id).await;
-                                                                let mut new_param: Option<Value> = None;
-                                                                if let Some(request) = rpc_req {
-                                                                    let pp: &str = request.params_json.as_str();
-                                                                    let pp_json = &serde_json::from_str::<Value>(pp).unwrap();
-                        
-                                                                    // iterate pp_json array and extract object with response key
-                                                                    for pp in pp_json.as_array().unwrap() {
-                                                                        for (key, value) in pp.as_object().unwrap() {
-                                                                            if key == "response" {
-                                                                                new_param = Some(json!({"response": value}));
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                } else {
-                                                                    new_param = None
-                                                                };
-                                                                // remove composite request from list
-                                                                if let Some(id) = id {
-                                                                    broker_c.unregister_composite_request(id).await;
-                                                                }
-                                       let t = t.as_bytes();
-                                       match Self::handle_jsonrpc_response(t,broker_c.get_broker_callback( Self::get_id_from_result(t) ).await, new_param) {
-                                             Ok(okie) => {
-                                                match diagnostic_context.lock().await.as_ref() {
-                                                    Some(ctx) => {
-                                                        LogSignal::new("thunder_response".to_string(), "received message from thunder".to_string(), ctx.rpc.ctx.clone())
-                                                            .with_diagnostic_context_item("response", &format! ("{:?}", okie))
-                                                            .emit_debug();
-                                                    },
-                                                    None => {
-                                                        LogSignal::new("thunder_response".to_string(), "received message from thunder".to_string(), okie.data)
-                                                            .emit_debug();
-                                                    }
-                                                }
-                                             },
-                                             Err(e) => {
-                                                  error!("Broker Websocket error on handle_jsonrpc_response {:?}", e);
-                                             }
-                                       }
+                                        let id = Self::get_id_from_result(t.as_bytes());
+                                        let composite_resp_params = Self::get_composite_response_params_by_id(broker_c.clone(), id).await;
+                                        Self::handle_jsonrpc_response(t.as_bytes(),broker_c.get_broker_callback(id).await, composite_resp_params)
                                     }
                                 }
                             },
@@ -368,6 +359,33 @@ impl ThunderBroker {
             let _ = new_response.params.insert(p);
         }
         new_response
+    }
+
+    async fn get_composite_response_params_by_id(
+        broker: ThunderBroker,
+        id: Option<u64>,
+    ) -> Option<Value> {
+        /* Get composite req params by call_id*/
+        let rpc_req = broker.get_composite_request(id).await;
+        let mut new_param: Option<Value> = None;
+        if let Some(request) = rpc_req {
+            let pp: &str = request.params_json.as_str();
+            let pp_json = &serde_json::from_str::<Value>(pp).unwrap();
+
+            // iterate pp_json array and extract object with response key
+            for pp in pp_json.as_array().unwrap() {
+                for (key, value) in pp.as_object().unwrap() {
+                    if key == "response" {
+                        new_param = Some(json!({"response": value}));
+                    }
+                }
+            }
+        }
+        // remove composite request from list
+        if let Some(id) = id {
+            broker.unregister_composite_request(id).await;
+        }
+        new_param
     }
 
     fn get_id_from_result(result: &[u8]) -> Option<u64> {
