@@ -16,14 +16,6 @@
 //
 
 use jsonrpsee::core::Error;
-use std::sync::atomic::{AtomicU64, Ordering};
-
-static ATOMIC_ID: AtomicU64 = AtomicU64::new(0);
-
-pub fn get_next_id() -> u64 {
-    ATOMIC_ID.fetch_add(1, Ordering::Relaxed);
-    ATOMIC_ID.load(Ordering::Relaxed)
-}
 
 pub fn rpc_err(msg: impl Into<String>) -> Error {
     Error::Custom(msg.into())
@@ -38,12 +30,3 @@ pub fn extract_tcp_port(url: &str) -> Result<String, Error> {
         Err(Error::Custom("Invalid URL format".to_string()))
     }
 }
-// pub fn extract_tcp_port(url: &str) -> String {
-//     let url_split: Vec<&str> = url.split("://").collect();
-//     if let Some(domain) = url_split.get(1) {
-//         let domain_split: Vec<&str> = domain.split('/').collect();
-//         domain_split.first().unwrap().to_string()
-//     } else {
-//         url.to_owned()
-//     }
-// }

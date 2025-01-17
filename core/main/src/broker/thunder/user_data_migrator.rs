@@ -35,19 +35,20 @@ use ripple_sdk::{
         },
         time::{timeout, Duration},
     },
-    utils::{error::RippleError, rpc_utils::get_next_id},
+    utils::error::RippleError,
 };
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::broker::endpoint_broker::{self, BrokerCallback, BrokerOutput, BrokerRequest};
-use crate::broker::rules_engine::{Rule, RuleTransformType};
+use crate::broker::{
+    endpoint_broker::{self, BrokerCallback, BrokerOutput, BrokerRequest, EndpointBrokerState},
+    rules_engine::{Rule, RuleTransformType},
+    thunder_broker::ThunderBroker,
+};
 
 use futures::stream::SplitSink;
 use futures_util::SinkExt;
-
-use crate::broker::thunder_broker::ThunderBroker;
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 // TBD get the storage dir from manifest or other Ripple config file
@@ -280,7 +281,7 @@ impl UserDataMigrator {
         broker: &ThunderBroker,
         ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
     ) -> Result<Value, UserDataMigratorError> {
-        let request_id = get_next_id();
+        let request_id = EndpointBrokerState::get_next_id();
         let call_sign = "org.rdk.PersistentStore.1.".to_owned();
 
         // Register custom callback to handle the response
@@ -367,7 +368,7 @@ impl UserDataMigrator {
         ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
         params_json: &Value,
     ) -> Result<(), UserDataMigratorError> {
-        let request_id = get_next_id();
+        let request_id = EndpointBrokerState::get_next_id();
         let call_sign = "org.rdk.PersistentStore.1.".to_owned();
 
         // Register custom callback to handle the response
@@ -434,7 +435,7 @@ impl UserDataMigrator {
         ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
         request: &BrokerRequest,
     ) -> Result<BrokerOutput, UserDataMigratorError> {
-        let request_id = get_next_id();
+        let request_id = EndpointBrokerState::get_next_id();
 
         // Register custom callback to handle the response
         broker
@@ -526,7 +527,7 @@ impl UserDataMigrator {
             }
         };
 
-        let request_id = get_next_id();
+        let request_id = EndpointBrokerState::get_next_id();
 
         // Register custom callback to handle the response
         broker

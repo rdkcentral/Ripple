@@ -15,9 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::time::Duration;
-
 use super::thunder_async_client_plugins_status_mgr::{BrokerCallback, BrokerSender, StatusManager};
+use crate::utils::get_next_id;
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::api::device::device_operator::DeviceResponseMessage;
@@ -27,12 +26,10 @@ use ripple_sdk::{
     },
     log::{debug, error, info},
     tokio::{self, net::TcpStream, sync::mpsc::Receiver},
-    utils::{
-        error::RippleError,
-        rpc_utils::{extract_tcp_port, get_next_id},
-    },
+    utils::{error::RippleError, rpc_utils::extract_tcp_port},
 };
 use serde_json::json;
+use std::time::Duration;
 use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
 
 #[derive(Clone, Debug)]

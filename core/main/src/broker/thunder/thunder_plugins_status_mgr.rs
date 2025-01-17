@@ -28,8 +28,9 @@ use ripple_sdk::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::broker::endpoint_broker::{BrokerCallback, BrokerRequest, BrokerSender};
-use ripple_sdk::utils::rpc_utils::get_next_id;
+use crate::broker::endpoint_broker::{
+    BrokerCallback, BrokerRequest, BrokerSender, EndpointBrokerState,
+};
 
 // defautl timeout for plugin activation in seconds
 const DEFAULT_PLUGIN_ACTIVATION_TIMEOUT: i64 = 8;
@@ -228,7 +229,7 @@ impl StatusManager {
     }
 
     pub fn generate_plugin_activation_request(&self, plugin_name: String) -> String {
-        let id = get_next_id();
+        let id = EndpointBrokerState::get_next_id();
         let controller_call_sign = Self::get_controller_call_sign();
 
         let request = json!({
@@ -246,7 +247,7 @@ impl StatusManager {
     }
 
     pub fn generate_plugin_status_request(&self, plugin_name: String) -> String {
-        let id = get_next_id();
+        let id = EndpointBrokerState::get_next_id();
         let controller_call_sign = Self::get_controller_call_sign();
 
         let request = json!({
@@ -261,7 +262,7 @@ impl StatusManager {
     }
 
     pub fn generate_state_change_subscribe_request(&self) -> String {
-        let id = get_next_id();
+        let id = EndpointBrokerState::get_next_id();
         let controller_call_sign = Self::get_controller_call_sign();
 
         let request = json!({

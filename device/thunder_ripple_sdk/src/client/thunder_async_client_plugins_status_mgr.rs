@@ -29,7 +29,7 @@ use ripple_sdk::{
 };
 
 use super::thunder_async_client::{ThunderAsyncRequest, ThunderAsyncResponse};
-use ripple_sdk::utils::rpc_utils::get_next_id;
+use crate::utils::get_next_id;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 

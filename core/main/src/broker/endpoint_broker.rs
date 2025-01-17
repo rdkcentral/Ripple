@@ -30,13 +30,16 @@ use ripple_sdk::{
         self,
         sync::mpsc::{self, Receiver, Sender},
     },
-    utils::{error::RippleError, rpc_utils::get_next_id},
+    utils::error::RippleError,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
-    sync::{Arc, RwLock},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, RwLock,
+    },
 };
 
 use crate::{
@@ -201,7 +204,7 @@ impl Default for BrokerCallback {
     }
 }
 
-// static ATOMIC_ID: AtomicU64 = AtomicU64::new(0);
+static ATOMIC_ID: AtomicU64 = AtomicU64::new(0);
 
 impl BrokerCallback {
     pub async fn send_json_rpc_api_response(&self, response: JsonRpcApiResponse) {
@@ -407,6 +410,11 @@ impl EndpointBrokerState {
         }
     }
 
+    pub fn get_next_id() -> u64 {
+        ATOMIC_ID.fetch_add(1, Ordering::Relaxed);
+        ATOMIC_ID.load(Ordering::Relaxed)
+    }
+
     fn update_request(
         &self,
         rpc_request: &RpcRequest,
@@ -414,7 +422,7 @@ impl EndpointBrokerState {
         extn_message: Option<ExtnMessage>,
         workflow_callback: Option<BrokerCallback>,
     ) -> (u64, BrokerRequest) {
-        let id = get_next_id();
+        let id = Self::get_next_id();
         let mut rpc_request_c = rpc_request.clone();
         {
             let mut request_map = self.request_map.write().unwrap();
