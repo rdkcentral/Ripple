@@ -394,7 +394,7 @@ impl EndpointBrokerState {
         }
     }
 
-    pub fn get_extn_message(&self, id: u64, is_event: bool) -> Result<ExtnMessage, RippleError> {
+    fn get_extn_message(&self, id: u64, is_event: bool) -> Result<ExtnMessage, RippleError> {
         if is_event {
             let v = { self.extension_request_map.read().unwrap().get(&id).cloned() };
             if let Some(v1) = v {
@@ -588,7 +588,7 @@ impl EndpointBrokerState {
         if found_rule.is_some() {
             let rule = found_rule.unwrap();
 
-            if rule.alias == "static" {
+            if rule.alias == *"static" {
                 trace!("handling static request for {:?}", rpc_request);
                 self.handle_static_request(
                     rpc_request,

@@ -29,6 +29,7 @@ use ripple_sdk::{
     extn::extn_id::{ExtnClassId, ExtnId},
     log::error,
     tokio::{self, sync::mpsc},
+    chrono::Utc,
 };
 
 #[derive(Clone)]
@@ -50,11 +51,6 @@ impl ExtnBroker {
                 let rpc_request = broker_request.rpc.clone();
                 let rule = broker_request.rule.clone();
                 let alias = rule.alias;
-                let id = if alias == "ripple:channel:gateway:badger" {
-                    ExtnId::new_extn(ExtnClassId::Gateway, "badger".into())
-                } else {
-                    ExtnId::new_extn(ExtnClassId::Gateway, alias.clone())
-                };
 
                 let extn_client = if let Some(platform_state) = &ps {
                     platform_state.get_client().get_extn_client()
@@ -68,10 +64,10 @@ impl ExtnBroker {
                         id: rpc_request.ctx.call_id.to_string(),
                         requestor: ExtnId::get_main_target("main".into()),
                         target: RippleContract::JsonRpsee,
-                        target_id: Some(id),
+                        target_id: Some(ExtnId::new_extn(ExtnClassId::Gateway, alias)),
                         payload: ExtnPayload::Request(ExtnRequest::Rpc(rpc_request.clone())),
                         callback: Some(callback_tx),
-                        ts: None,
+                        ts: Some(Utc::now().timestamp_millis()),
                     };
 
                     if sender.try_send(msg.into()).is_ok() {

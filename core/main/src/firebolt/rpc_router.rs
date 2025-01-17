@@ -82,7 +82,6 @@ impl Default for RouterState {
     }
 }
 
-// only resolve_route is needed, no need for telemetrics
 async fn resolve_route(
     platform_state: &mut PlatformState,
     methods: Methods,
