@@ -251,8 +251,16 @@ impl ThunderAsyncClient {
                 match value {
                     Ok(v) => {
                         if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
+                            // <pca>
+                            // // send the incoming text without context back to the sender
+                            // Self::handle_jsonrpc_response(t.as_bytes(),callback.clone()).await
+                            if self.status_manager.is_controller_response(self.get_sender(), callback.clone(), t.as_bytes()).await {
+                                self.status_manager.handle_controller_response(self.get_sender(), callback.clone(), t.as_bytes()).await;
+                            } else {
                             // send the incoming text without context back to the sender
                             Self::handle_jsonrpc_response(t.as_bytes(),callback.clone()).await
+                            }
+                            // </pca>
                         }
                     },
                     Err(e) => {
