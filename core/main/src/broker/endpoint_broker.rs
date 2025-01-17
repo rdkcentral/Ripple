@@ -1026,15 +1026,18 @@ impl BrokerOutputForwarder {
                             // Apply response rule using params if there is any; otherwise, apply response rule using main broker request's response rule
                             let mut apply_response_using_main_req_needed = true;
                             if let Some(params) = output.data.params {
-                                for (key, value) in params.as_object().unwrap() {
-                                    if key == "response" {
-                                        let filter = value.as_str().unwrap().to_string();
-                                        apply_response_using_main_req_needed = false;
-                                        apply_response(
-                                            filter,
-                                            &rpc_request.ctx.method,
-                                            &mut response,
-                                        );
+                                if let Some(param) = params.as_object() {
+                                    for (key, value) in param {
+                                        if key == "response" {
+                                            if let Some(filter) = value.as_str() {
+                                                apply_response_using_main_req_needed = false;
+                                                apply_response(
+                                                    filter.to_string(),
+                                                    &rpc_request.ctx.method,
+                                                    &mut response,
+                                                );
+                                            }
+                                        }
                                     }
                                 }
                             }
