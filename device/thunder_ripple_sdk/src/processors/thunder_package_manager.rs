@@ -1135,7 +1135,7 @@ pub mod tests {
             broker_callbacks: None,
             broker_subscriptions: None,
             thunder_async_client: None,
-            use_thunderbroker: false,
+            use_thunder_async: false,
         };
         let mut sessions: HashMap<String, Operation> = HashMap::new();
         sessions.insert("asdf".to_string(), operation.clone());
@@ -1172,7 +1172,7 @@ pub mod tests {
             broker_callbacks: None,
             broker_subscriptions: None,
             thunder_async_client: None,
-            use_thunderbroker: false,
+            use_thunder_async: false,
         };
         let mut sessions: HashMap<String, Operation> = HashMap::new();
         sessions.insert("asdf".to_string(), operation.clone());

@@ -176,7 +176,7 @@ impl MockThunderController {
             thunder_async_client: None,
             broker_subscriptions: None,
             broker_callbacks: None,
-            use_thunderbroker: false,
+            use_thunder_async: false,
         };
 
         let (s, r) = unbounded();

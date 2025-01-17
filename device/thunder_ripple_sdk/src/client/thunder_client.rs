@@ -217,7 +217,7 @@ pub struct ThunderClient {
     pub thunder_async_client: Option<ThunderAsyncClient>,
     pub broker_subscriptions: Option<Arc<RwLock<BrokerSubMap>>>,
     pub broker_callbacks: Option<Arc<RwLock<BrokerCallbackMap>>>,
-    pub use_thunderbroker: bool,
+    pub use_thunder_async: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -245,7 +245,7 @@ impl ThunderClient {
 #[async_trait]
 impl DeviceOperator for ThunderClient {
     async fn call(&self, request: DeviceCallRequest) -> DeviceResponseMessage {
-        if !self.use_thunderbroker {
+        if !self.use_thunder_async {
             let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
             let message = ThunderMessage::ThunderCallMessage(ThunderCallMessage {
                 method: request.method,
@@ -271,7 +271,7 @@ impl DeviceOperator for ThunderClient {
         request: DeviceSubscribeRequest,
         handler: mpsc::Sender<DeviceResponseMessage>,
     ) -> DeviceResponseMessage {
-        if !self.use_thunderbroker {
+        if !self.use_thunder_async {
             let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
             let message = ThunderSubscribeMessage {
                 module: request.module,
@@ -302,7 +302,7 @@ impl DeviceOperator for ThunderClient {
     }
 
     async fn unsubscribe(&self, request: DeviceUnsubscribeRequest) {
-        if !self.use_thunderbroker {
+        if !self.use_thunder_async {
             let message = ThunderUnsubscribeMessage {
                 module: request.module,
                 event_name: request.event_name,
@@ -732,7 +732,7 @@ impl ThunderClientBuilder {
             thunder_async_client: None,
             broker_subscriptions: None,
             broker_callbacks: None,
-            use_thunderbroker: false,
+            use_thunder_async: false,
         })
     }
 
@@ -791,9 +791,9 @@ impl ThunderClientBuilder {
         pool_tx: Option<mpsc::Sender<ThunderPoolCommand>>,
         thunder_connection_state: Option<Arc<ThunderConnectionState>>,
         existing_client: Option<ThunderClient>,
-        use_thndrbroker: bool,
+        use_thunderasync_client: bool,
     ) -> Result<ThunderClient, RippleError> {
-        if !use_thndrbroker {
+        if !use_thunderasync_client {
             Self::start_thunderpool_client(
                 url,
                 plugin_manager_tx,
@@ -818,7 +818,7 @@ impl ThunderClientBuilder {
                 thunder_async_client: Some(client),
                 broker_subscriptions: Some(Arc::new(RwLock::new(HashMap::new()))),
                 broker_callbacks: Some(Arc::new(RwLock::new(HashMap::new()))),
-                use_thunderbroker: true,
+                use_thunder_async: true,
             };
 
             ThunderClientManager::start(
@@ -842,7 +842,7 @@ impl ThunderClientBuilder {
             thunder_async_client: None,
             broker_subscriptions: None,
             broker_callbacks: None,
-            use_thunderbroker: false,
+            use_thunder_async: false,
         }
     }
 }

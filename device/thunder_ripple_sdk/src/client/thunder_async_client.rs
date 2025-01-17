@@ -63,6 +63,8 @@ pub struct ThunderAsyncResponse {
     pub result: Result<JsonRpcApiResponse, RippleError>,
 }
 
+impl ThunderAsyncClient {}
+
 impl ThunderAsyncResponse {
     fn new_response(response: JsonRpcApiResponse) -> Self {
         Self {
@@ -236,6 +238,34 @@ impl ThunderAsyncClient {
         }
     }
 
+    pub async fn process_new_req(&self, request: String, url: String, callback: BrokerCallback) {
+        let (mut new_wtx, mut new_wrx) = Self::create_ws(&url).await;
+        let _feed = new_wtx
+            .feed(tokio_tungstenite::tungstenite::Message::Text(request))
+            .await;
+        let _flush = new_wtx.flush().await;
+
+        tokio::pin! {
+            let read = new_wrx.next();
+        }
+
+        tokio::select! {
+            Some(value) = &mut read => {
+                match value {
+                    Ok(v) => {
+                        if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
+                            // send the incoming text without context back to the sender
+                            Self::handle_jsonrpc_response(t.as_bytes(),callback.clone()).await
+                        }
+                    },
+                    Err(e) => {
+                        error!("thunder_async_client Websocket error on read {:?}", e);
+                    }
+                }
+            }
+        }
+    }
+
     pub async fn start(
         &self,
         url: &str,
@@ -282,50 +312,18 @@ impl ThunderAsyncClient {
                     }
                 },
                 Some(request) = tr.recv() => {
-                    debug!("Got request from receiver for broker {:?}", request);
+                    debug!("Got request from receiver for thunder {:?}", request);
                     // here prepare_request will check the plugin status and add json rpc format
                     match client_c.prepare_request(&request) {
                         Ok(updated_request) => {
-                            debug!("Sending request to broker {:?}", updated_request);
+                            debug!("Sending request to thunder {:?}", updated_request);
                             for r in updated_request {
                                 let url_clone = url.to_string();
+                                let callback_clone = callback.clone();
+                                let self_clone = self.clone();
                                 tokio::spawn({
-                                    let client_c = client_c.clone();
-                                    let callback = callback.clone();
                                     async move {
-                                        let (mut new_wtx, mut new_wrx) = Self::create_ws(&url_clone).await;
-                                        let _feed = new_wtx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
-                                        let _flush = new_wtx.flush().await;
-
-                                        tokio::pin! {
-                                            let read = new_wrx.next();
-                                        }
-
-                                        loop {
-                                            tokio::select! {
-                                                Some(value) = &mut read => {
-                                                    match value {
-                                                        Ok(v) => {
-                                                            if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
-                                                                if client_c.status_manager.is_controller_response(client_c.get_sender(), callback.clone(), t.as_bytes()).await {
-                                                                    client_c.status_manager.handle_controller_response(client_c.get_sender(), callback.clone(), t.as_bytes()).await;
-                                                                }
-                                                                else {
-                                                                    //let _id = Self::get_id_from_result(t.as_bytes()); for debug purpose
-                                                                    // send the incoming text without context back to the sender
-                                                                    Self::handle_jsonrpc_response(t.as_bytes(),callback.clone()).await
-                                                                }
-                                                            }
-                                                        },
-                                                        Err(e) => {
-                                                            error!("Broker Websocket error on read {:?}", e);
-                                                            // Time to reconnect Thunder with existing subscription
-                                                            break;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
+                                       Self::process_new_req(&self_clone, r, url_clone, callback_clone.clone()).await;
                                     }
                                 });
                             }
@@ -541,7 +539,7 @@ mod tests {
             thunder_async_client: Some(client),
             broker_subscriptions: Some(Arc::new(RwLock::new(HashMap::new()))),
             broker_callbacks: Some(Arc::new(RwLock::new(HashMap::new()))),
-            use_thunderbroker: true,
+            use_thunder_async: true,
         };
 
         let response = json!({
