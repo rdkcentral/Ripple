@@ -44,7 +44,7 @@ use std::{
     vec,
 };
 
-pub const PURGE_COMPOSITE_REQUEST_TIMER: u64 = 8;
+pub const COMPOSITE_REQUEST_TIME_OUT: u64 = 8;
 
 #[derive(Clone)]
 pub struct ThunderBroker {
@@ -56,6 +56,7 @@ pub struct ThunderBroker {
     data_migrator: Option<UserDataMigrator>,
     custom_callback_list: Arc<Mutex<HashMap<u64, BrokerCallback>>>,
     composite_request_list: Arc<Mutex<HashMap<u64, CompositeRequest>>>,
+    composite_request_purge_started: Arc<Mutex<bool>>,
 }
 
 #[derive(Clone)]
@@ -89,6 +90,7 @@ impl ThunderBroker {
             data_migrator: None,
             custom_callback_list: Arc::new(Mutex::new(HashMap::new())),
             composite_request_list: Arc::new(Mutex::new(HashMap::new())),
+            composite_request_purge_started: Arc::new(Mutex::new(false)),
         }
     }
 
@@ -105,6 +107,7 @@ impl ThunderBroker {
         let mut composite_request_list = self.composite_request_list.lock().await;
         let composite_req = CompositeRequest::new(SystemTime::now(), request);
         composite_request_list.insert(id, composite_req);
+        self.start_purge_composite_request_timer();
     }
 
     pub async fn unregister_composite_request(&self, id: u64) {
@@ -141,13 +144,19 @@ impl ThunderBroker {
         self.default_callback.clone()
     }
 
-    // Start a timer to purge composite request that are older than 8 seconds
+    // Start a timer to purge individual composite request that are older than 8 seconds
     fn start_purge_composite_request_timer(&self) {
-        debug!("Starting composite request purge timer");
         let composite_request_list = self.composite_request_list.clone();
         let mut interval = time::interval(Duration::from_millis(3000));
+        let purge_thread_started = self.composite_request_purge_started.clone();
         tokio::spawn(async move {
-            // iterate each composite request and check if timestamp is greater than 8 seconds
+            if *purge_thread_started.lock().await {
+                debug!("Composite request purge timer already started. Terminate this thread");
+                return;
+            }
+            *purge_thread_started.lock().await = true;
+            debug!("Starting composite request purge timer");
+            // iterate each individual composite request and check if timestamp is greater than 8 seconds
             loop {
                 interval.tick().await;
                 let mut composite_request_list = composite_request_list.lock().await;
@@ -155,7 +164,7 @@ impl ThunderBroker {
                 for (key, value) in composite_request_list.iter() {
                     match value.time_stamp.elapsed() {
                         Ok(elapsed) => {
-                            if elapsed.as_secs() > PURGE_COMPOSITE_REQUEST_TIMER {
+                            if elapsed.as_secs() > COMPOSITE_REQUEST_TIME_OUT {
                                 keys_to_remove.push(*key);
                             }
                         }
@@ -164,10 +173,15 @@ impl ThunderBroker {
                         }
                     }
                 }
-                // remove the composite request from the list
+                // remove request from the list
                 for key in keys_to_remove {
                     composite_request_list.remove(&key);
                     debug!("Removed composite request with id {}", key);
+                }
+                if composite_request_list.is_empty() {
+                    *purge_thread_started.lock().await = false;
+                    debug!("Composite request list is empty, stop timer");
+                    break;
                 }
             }
         });
