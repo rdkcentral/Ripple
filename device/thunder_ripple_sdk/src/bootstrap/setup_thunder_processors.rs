@@ -26,13 +26,13 @@ use crate::processors::thunder_telemetry::ThunderTelemetryProcessor;
 use crate::thunder_state::ThunderBootstrapStateWithClient;
 
 use crate::processors::{
-    thunder_browser::ThunderBrowserRequestProcessor,
+    //thunder_browser::ThunderBrowserRequestProcessor,
     thunder_device_info::ThunderDeviceInfoRequestProcessor,
     thunder_events::ThunderOpenEventsProcessor,
     thunder_persistent_store::ThunderStorageRequestProcessor,
-    thunder_remote::ThunderRemoteAccessoryRequestProcessor,
-    thunder_wifi::ThunderWifiRequestProcessor,
-    thunder_window_manager::ThunderWindowManagerRequestProcessor,
+    // thunder_remote::ThunderRemoteAccessoryRequestProcessor,
+    // thunder_wifi::ThunderWifiRequestProcessor,
+    // thunder_window_manager::ThunderWindowManagerRequestProcessor,
 };
 
 pub struct SetupThunderProcessor;
@@ -46,15 +46,7 @@ impl SetupThunderProcessor {
         let mut extn_client = state.state.get_client();
         extn_client
             .add_request_processor(ThunderDeviceInfoRequestProcessor::new(state.clone().state));
-        extn_client.add_request_processor(ThunderBrowserRequestProcessor::new(state.clone().state));
-        extn_client.add_request_processor(ThunderWifiRequestProcessor::new(state.clone().state));
         extn_client.add_request_processor(ThunderStorageRequestProcessor::new(state.clone().state));
-        extn_client.add_request_processor(ThunderWindowManagerRequestProcessor::new(
-            state.state.clone(),
-        ));
-        extn_client.add_request_processor(ThunderRemoteAccessoryRequestProcessor::new(
-            state.clone().state,
-        ));
         extn_client.add_request_processor(ThunderOpenEventsProcessor::new(state.clone().state));
 
         let package_manager_processor =

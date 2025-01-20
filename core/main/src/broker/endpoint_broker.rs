@@ -844,12 +844,8 @@ impl BrokerOutputForwarder {
                                                 .session_state
                                                 .get_session_for_connection_id(&session_id)
                                             {
-                                                return_api_message_for_transport(
-                                                    session,
-                                                    message,
-                                                    platform_state_c,
-                                                )
-                                                .await
+                                                return_api_message_for_transport(session, message)
+                                                    .await
                                             }
                                         });
                                         continue;
@@ -956,12 +952,7 @@ impl BrokerOutputForwarder {
                                 .session_state
                                 .get_session_for_connection_id(&session_id)
                             {
-                                return_api_message_for_transport(
-                                    session,
-                                    message,
-                                    platform_state.clone(),
-                                )
-                                .await
+                                return_api_message_for_transport(session, message).await
                             }
                         }
                     } else {
@@ -1010,7 +1001,7 @@ impl BrokerOutputForwarder {
             .session_state
             .get_session_for_connection_id(&session_id)
         {
-            return_api_message_for_transport(session, message, platform_state.clone()).await;
+            return_api_message_for_transport(session, message).await;
         }
     }
 

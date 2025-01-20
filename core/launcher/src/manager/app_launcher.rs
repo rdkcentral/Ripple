@@ -542,7 +542,7 @@ impl AppLauncher {
 
     fn get_transport(contract_permited: bool, url: &str) -> AppRuntimeTransport {
         if !url.contains("__firebolt_endpoint") && contract_permited {
-            AppRuntimeTransport::Bridge
+            AppRuntimeTransport::Websocket
         } else {
             AppRuntimeTransport::Websocket
         }

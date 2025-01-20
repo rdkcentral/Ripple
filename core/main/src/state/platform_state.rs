@@ -17,21 +17,20 @@
 
 use ripple_sdk::{
     api::{
-        gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
+        gateway::rpc_gateway_api::RpcRequest,
         manifest::{
             app_library::AppLibraryState,
             device_manifest::{AppLibraryEntry, DeviceManifest},
             exclusory::ExclusoryImpl,
             extn_manifest::ExtnManifest,
         },
-        protocol::BridgeProtocolRequest,
         session::SessionAdjective,
     },
     extn::{
         extn_client_message::{ExtnMessage, ExtnPayloadProvider},
         extn_id::ExtnId,
     },
-    framework::{ripple_contract::RippleContract, RippleResponse},
+    framework::ripple_contract::RippleContract,
     utils::error::RippleError,
     uuid::Uuid,
 };

@@ -53,10 +53,6 @@ impl AppSession {
     pub fn get_transport(&self) -> EffectiveTransport {
         match &self.runtime {
             Some(rt) => match rt.transport {
-                AppRuntimeTransport::Bridge => match &rt.id {
-                    Some(id) => EffectiveTransport::Bridge(id.clone()),
-                    None => EffectiveTransport::Websocket,
-                },
                 AppRuntimeTransport::Websocket => EffectiveTransport::Websocket,
             },
             None => EffectiveTransport::Websocket,
@@ -79,7 +75,6 @@ pub struct AppBasicInfo {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum AppRuntimeTransport {
-    Bridge,
     Websocket,
 }
 
@@ -118,7 +113,6 @@ pub enum EffectiveTransport {
 impl std::fmt::Display for EffectiveTransport {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            EffectiveTransport::Bridge(id) => write!(f, "bridge_{}", id),
             EffectiveTransport::Websocket => write!(f, "websocket"),
         }
     }

@@ -25,15 +25,9 @@ use ripple_sdk::{
     utils::error::RippleError,
 };
 
-use crate::state::{
-    metrics_state::MetricsState, platform_state::PlatformState, session_state::Session,
-};
+use crate::state::{metrics_state::MetricsState, session_state::Session};
 
-pub async fn return_api_message_for_transport(
-    session: Session,
-    msg: ApiMessage,
-    state: PlatformState,
-) {
+pub async fn return_api_message_for_transport(session: Session, msg: ApiMessage) {
     match session.get_transport() {
         EffectiveTransport::Websocket => {
             if let Err(e) = session.send_json_rpc(msg).await {

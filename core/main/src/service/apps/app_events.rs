@@ -24,7 +24,6 @@ use ripple_sdk::{
         apps::{AppEventRequest, EffectiveTransport},
         firebolt::fb_general::ListenRequest,
         gateway::rpc_gateway_api::{ApiMessage, CallContext},
-        protocol::BridgeProtocolRequest,
     },
     log::error,
     serde_json::{json, Value},
@@ -262,7 +261,7 @@ impl AppEvents {
         }
     }
 
-    pub async fn send_event(state: &PlatformState, listener: &EventListener, data: &Value) {
+    pub async fn send_event(listener: &EventListener, data: &Value) {
         let protocol = listener.call_ctx.protocol.clone();
         let event = Response {
             jsonrpc: TwoPointZero,
@@ -340,7 +339,6 @@ impl AppEvents {
             }
             if context.is_some() {
                 AppEvents::send_event(
-                    state,
                     &i,
                     &json!({
                         "context": context.clone(),
@@ -349,7 +347,7 @@ impl AppEvents {
                 )
                 .await;
             } else {
-                AppEvents::send_event(state, &i, &decorated_res.unwrap()).await;
+                AppEvents::send_event(&i, &decorated_res.unwrap()).await;
             }
         }
 
@@ -362,7 +360,7 @@ impl AppEvents {
                 event_ctx_string.clone(),
             );
             for i in listeners {
-                AppEvents::send_event(state, &i, result).await;
+                AppEvents::send_event(&i, result).await;
             }
         }
     }
@@ -381,7 +379,7 @@ impl AppEvents {
         for i in listeners_vec {
             let decorated_res = i.decorate(state, event_name, result).await;
             if let Ok(res) = decorated_res {
-                AppEvents::send_event(state, &i, &res).await;
+                AppEvents::send_event(&i, &res).await;
             } else {
                 error!("could not generate event for '{}'", event_name);
             }

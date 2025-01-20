@@ -198,7 +198,7 @@ impl RpcRouter {
                 let success = !msg.is_error();
                 TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success, &msg);
 
-                return_api_message_for_transport(session, msg, state).await;
+                return_api_message_for_transport(session, msg).await;
             }
         });
     }

@@ -23,9 +23,7 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        apps::{
-            AppError, AppManagerResponse, AppMethod, AppSession, EffectiveTransport, StateChange,
-        },
+        apps::{AppError, AppManagerResponse, AppMethod, AppSession, StateChange},
         device::{device_user_grants_data::EvaluateAt, entertainment_data::NavigationIntent},
         firebolt::{
             fb_capabilities::{DenyReason, DenyReasonWithCap, FireboltPermission},
@@ -66,7 +64,6 @@ use ripple_sdk::{
                 LCM_EVENT_ON_REQUEST_READY,
             },
         },
-        protocol::{BridgeProtocolRequest, BridgeSessionParams},
     },
     log::info,
     tokio::{self, sync::mpsc::Receiver},
@@ -84,10 +81,8 @@ use crate::{
         user_grants::{GrantHandler, GrantPolicyEnforcer, GrantState},
     },
     state::{
-        bootstrap_state::ChannelsState,
-        cap::permitted_state::PermissionHandler,
-        platform_state::PlatformState,
-        session_state::{PendingSessionInfo, Session},
+        bootstrap_state::ChannelsState, cap::permitted_state::PermissionHandler,
+        platform_state::PlatformState, session_state::PendingSessionInfo,
     },
     utils::rpc_utils::rpc_await_oneshot,
     SEMVER_LIGHTWEIGHT,
@@ -1023,22 +1018,9 @@ impl DelegatedLauncherHandler {
     async fn end_session(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
         debug!("end_session: entry: app_id={}", app_id);
         let app = self.platform_state.app_manager_state.remove(app_id);
-        if let Some(app) = app {
+        if let Some(_app) = app {
             if let Some(timer) = self.timer_map.remove(app_id) {
                 timer.cancel();
-            }
-            let transport = app.initial_session.get_transport();
-            if let EffectiveTransport::Bridge(container_id) = transport {
-                AppEvents::remove_session(&self.platform_state, app.session_id.clone());
-                let request = BridgeProtocolRequest::EndSession(container_id);
-                if let Err(e) = self
-                    .platform_state
-                    .get_client()
-                    .send_extn_request(request)
-                    .await
-                {
-                    error!("Error sending event to bridge {:?}", e);
-                }
             }
         } else {
             error!("end_session app_id={} Not found", app_id);
