@@ -5,7 +5,7 @@ After=wpeframework.service
 [Service]
 Type=notify
 EnvironmentFile=-/opt/ripple.conf
-ExecStartPre=/bin/sh -c '. /etc/device.properties; if [ "$BUILD_TYPE" == "vbn" ];then /bin/systemctl set-environment RUST_LOG=Debug; else /bin/systemctl set-environment RUST_LOG=INFO; fi'
+ExecStartPre=/bin/sh -c '. /etc/device.properties; if [ "$BUILD_TYPE" == "vbn" ] || [ "$BUILD_TYPE" == "dev" ];then /bin/systemctl set-environment RUST_LOG=Debug; else /bin/systemctl set-environment RUST_LOG=INFO; fi'
 ExecStartPre=/bin/sh -c '.  /etc/device.properties; if [ "$BUILD_TYPE" != "prod" ] && [ -f /opt/ripple_pre.sh ];then  source /opt/ripple_pre.sh; fi'
 ExecStart=/usr/bin/ripple
 ExecStartPost=/bin/sh -c '.  /etc/device.properties; if [ "$BUILD_TYPE" != "prod" ] && [ -f /opt/ripple_post.sh ];then  source /opt/ripple_post.sh; fi'
