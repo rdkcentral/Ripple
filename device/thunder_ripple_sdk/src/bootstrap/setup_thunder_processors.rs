@@ -26,13 +26,9 @@ use crate::processors::thunder_telemetry::ThunderTelemetryProcessor;
 use crate::thunder_state::ThunderBootstrapStateWithClient;
 
 use crate::processors::{
-    //thunder_browser::ThunderBrowserRequestProcessor,
     thunder_device_info::ThunderDeviceInfoRequestProcessor,
     thunder_events::ThunderOpenEventsProcessor,
     thunder_persistent_store::ThunderStorageRequestProcessor,
-    // thunder_remote::ThunderRemoteAccessoryRequestProcessor,
-    // thunder_wifi::ThunderWifiRequestProcessor,
-    // thunder_window_manager::ThunderWindowManagerRequestProcessor,
 };
 
 pub struct SetupThunderProcessor;

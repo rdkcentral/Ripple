@@ -106,7 +106,6 @@ pub struct AppLaunchInfo {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub enum EffectiveTransport {
-    //Bridge(String),
     Websocket,
 }
 
