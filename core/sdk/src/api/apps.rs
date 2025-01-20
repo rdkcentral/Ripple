@@ -317,47 +317,6 @@ mod tests {
     };
 
     #[test]
-    fn test_get_transport_with_bridge_runtime_and_id() {
-        let app = AppSession {
-            app: AppBasicInfo {
-                id: "app_id".to_string(),
-                catalog: None,
-                url: None,
-                title: None,
-            },
-            runtime: Some(AppRuntime {
-                id: Some("runtime_id".to_string()),
-                transport: AppRuntimeTransport::Bridge,
-            }),
-            launch: AppLaunchInfo::default(),
-        };
-
-        assert_eq!(
-            app.get_transport(),
-            EffectiveTransport::Bridge("runtime_id".to_string())
-        );
-    }
-
-    #[test]
-    fn test_get_transport_with_bridge_runtime_and_no_id() {
-        let app = AppSession {
-            app: AppBasicInfo {
-                id: "app_id".to_string(),
-                catalog: None,
-                url: None,
-                title: None,
-            },
-            runtime: Some(AppRuntime {
-                id: None,
-                transport: AppRuntimeTransport::Bridge,
-            }),
-            launch: AppLaunchInfo::default(),
-        };
-
-        assert_eq!(app.get_transport(), EffectiveTransport::Websocket);
-    }
-
-    #[test]
     fn test_get_transport_with_websocket_runtime() {
         let app = AppSession {
             app: AppBasicInfo {

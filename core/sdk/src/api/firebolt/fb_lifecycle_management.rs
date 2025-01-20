@@ -291,7 +291,7 @@ mod tests {
                 },
                 runtime: Some(AppRuntime {
                     id: Some("sample_runtime_id".to_string()),
-                    transport: AppRuntimeTransport::Bridge,
+                    transport: AppRuntimeTransport::Websocket,
                 }),
                 launch: AppLaunchInfo::default(),
             },

@@ -540,14 +540,6 @@ impl AppLauncher {
         }
     }
 
-    fn get_transport(contract_permited: bool, url: &str) -> AppRuntimeTransport {
-        if !url.contains("__firebolt_endpoint") && contract_permited {
-            AppRuntimeTransport::Websocket
-        } else {
-            AppRuntimeTransport::Websocket
-        }
-    }
-
     pub async fn pre_launch(
         state: &LauncherState,
         manifest: AppManifest,
@@ -566,7 +558,7 @@ impl AppLauncher {
             },
             runtime: Some(AppRuntime {
                 id: Some(callsign),
-                transport: Self::get_transport(bool_contract, &manifest.start_page),
+                transport: AppRuntimeTransport::Websocket,
             }),
             launch: AppLaunchInfo {
                 intent: Some(intent),
