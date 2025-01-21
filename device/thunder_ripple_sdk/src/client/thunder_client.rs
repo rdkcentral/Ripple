@@ -19,6 +19,11 @@ use super::thunder_async_client::{ThunderAsyncClient, ThunderAsyncRequest, Thund
 use super::thunder_async_client_plugins_status_mgr::{AsyncCallback, AsyncSender};
 use super::thunder_client_pool::ThunderPoolCommand;
 use super::{
+    device_operator::{
+        DeviceCallRequest, DeviceChannelParams, DeviceChannelRequest, DeviceOperator,
+        DeviceResponseMessage, DeviceResponseSubscription, DeviceSubscribeRequest,
+        DeviceUnsubscribeRequest,
+    },
     jsonrpc_method_locator::JsonRpcMethodLocator,
     plugin_manager::{PluginActivatedResult, PluginManagerCommand},
 };
@@ -30,11 +35,6 @@ use jsonrpsee::types::ParamsSer;
 use jsonrpsee::ws_client::WsClientBuilder;
 use regex::Regex;
 use ripple_sdk::{
-    api::device::device_operator::{
-        DeviceCallRequest, DeviceChannelParams, DeviceChannelRequest, DeviceOperator,
-        DeviceResponseMessage, DeviceResponseSubscription, DeviceSubscribeRequest,
-        DeviceUnsubscribeRequest,
-    },
     log::{error, info, warn},
     serde_json::{self, json, Value},
     tokio,

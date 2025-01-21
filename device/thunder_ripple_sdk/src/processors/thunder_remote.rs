@@ -17,22 +17,20 @@
 
 use crate::{
     client::{
+        device_operator::{
+            DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
+            DeviceSubscribeRequest, DeviceUnsubscribeRequest,
+        },
         thunder_client::ThunderClient,
         thunder_plugin::ThunderPlugin::{self, RemoteControl},
     },
     ripple_sdk::{
         api::{
             accessory::RemoteAccessoryResponse,
-            device::{
-                device_accessory::{
-                    AccessoryDeviceListResponse, AccessoryDeviceResponse, AccessoryListRequest,
-                    AccessoryPairRequest, AccessoryProtocol, AccessoryProtocolListType,
-                    AccessoryType, RemoteAccessoryRequest,
-                },
-                device_operator::{
-                    DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
-                    DeviceSubscribeRequest, DeviceUnsubscribeRequest,
-                },
+            device::device_accessory::{
+                AccessoryDeviceListResponse, AccessoryDeviceResponse, AccessoryListRequest,
+                AccessoryPairRequest, AccessoryProtocol, AccessoryProtocolListType, AccessoryType,
+                RemoteAccessoryRequest,
             },
         },
         async_trait::async_trait,

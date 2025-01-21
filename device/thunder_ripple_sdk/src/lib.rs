@@ -16,6 +16,7 @@
 //
 
 pub mod client {
+    pub mod device_operator;
     pub mod jsonrpc_method_locator;
     pub mod plugin_manager;
     pub mod thunder_async_client;

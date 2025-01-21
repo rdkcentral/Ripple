@@ -18,9 +18,6 @@
 use std::sync::{Arc, RwLock};
 
 use ripple_sdk::{
-    api::device::device_operator::{
-        DeviceOperator, DeviceResponseMessage, DeviceUnsubscribeRequest,
-    },
     extn::{
         client::extn_client::ExtnClient,
         extn_client_message::{ExtnMessage, ExtnPayloadProvider},
@@ -33,7 +30,11 @@ use ripple_sdk::{
 use url::Url;
 
 use crate::{
-    client::{plugin_manager::ThunderPluginBootParam, thunder_client::ThunderClient},
+    client::{
+        device_operator::{DeviceOperator, DeviceResponseMessage, DeviceUnsubscribeRequest},
+        plugin_manager::ThunderPluginBootParam,
+        thunder_client::ThunderClient,
+    },
     events::thunder_event_processor::{ThunderEventHandler, ThunderEventProcessor},
 };
 

@@ -14,13 +14,12 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-
-use crate::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
-use async_trait::async_trait;
-use log::error;
+use ripple_sdk::{
+    api::gateway::rpc_gateway_api::JsonRpcApiResponse, async_trait::async_trait, log::error,
+    tokio::sync::mpsc,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tokio::sync::mpsc;
 
 pub const DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS: u64 = 5;
 
@@ -42,7 +41,7 @@ pub trait DeviceOperator: Clone {
 #[derive(Debug, Clone)]
 pub struct DeviceResponseSubscription {
     pub sub_id: Option<String>,
-    pub handlers: Vec<tokio::sync::mpsc::Sender<DeviceResponseMessage>>,
+    pub handlers: Vec<mpsc::Sender<DeviceResponseMessage>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

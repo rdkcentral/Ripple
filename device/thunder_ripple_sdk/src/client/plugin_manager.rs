@@ -15,25 +15,26 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::{HashMap, HashSet};
-use std::time::Duration;
-
 use ripple_sdk::log::info;
 use ripple_sdk::tokio;
+use ripple_sdk::{log::error, serde_json};
 use ripple_sdk::{
-    api::device::device_operator::{DeviceCallRequest, DeviceSubscribeRequest},
-    log::error,
-    serde_json,
-};
-use ripple_sdk::{
-    api::device::device_operator::{DeviceChannelParams, DeviceOperator, DeviceResponseMessage},
     tokio::sync::{mpsc, oneshot},
     utils::channel_utils::{mpsc_send_and_log, oneshot_send_and_log},
 };
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
+use std::time::Duration;
 
-use super::thunder_plugin::ThunderPlugin::Controller;
-use super::{thunder_client::ThunderClient, thunder_plugin::ThunderPlugin};
+use super::{
+    device_operator::{
+        DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
+        DeviceSubscribeRequest,
+    },
+    thunder_client::ThunderClient,
+    thunder_plugin::ThunderPlugin,
+    thunder_plugin::ThunderPlugin::Controller,
+};
 
 pub struct ActivationSubscriber {
     pub callsign: String,

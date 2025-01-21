@@ -15,15 +15,15 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use super::thunder_async_client_plugins_status_mgr::{AsyncCallback, AsyncSender, StatusManager};
+use super::{
+    device_operator::{DeviceChannelRequest, DeviceResponseMessage},
+    thunder_async_client_plugins_status_mgr::{AsyncCallback, AsyncSender, StatusManager},
+};
 use crate::utils::get_next_id;
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
-use ripple_sdk::api::device::device_operator::DeviceResponseMessage;
 use ripple_sdk::{
-    api::{
-        device::device_operator::DeviceChannelRequest, gateway::rpc_gateway_api::JsonRpcApiResponse,
-    },
+    api::gateway::rpc_gateway_api::JsonRpcApiResponse,
     log::{debug, error, info},
     tokio::{self, net::TcpStream, sync::mpsc::Receiver},
     utils::{error::RippleError, rpc_utils::extract_tcp_port},
@@ -371,8 +371,7 @@ impl ThunderAsyncClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client::thunder_client::ThunderClient;
-    use ripple_sdk::api::device::device_operator::DeviceCallRequest;
+    use crate::client::{device_operator::DeviceCallRequest, thunder_client::ThunderClient};
     use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
     use ripple_sdk::utils::error::RippleError;
     use ripple_sdk::uuid::Uuid;

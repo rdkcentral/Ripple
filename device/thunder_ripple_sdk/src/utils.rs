@@ -20,11 +20,9 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
+use crate::client::device_operator::DeviceResponseMessage;
 use jsonrpsee::core::Error;
-use ripple_sdk::{
-    api::device::{device_operator::DeviceResponseMessage, device_request::AudioProfile},
-    serde_json::Value,
-};
+use ripple_sdk::{api::device::device_request::AudioProfile, serde_json::Value};
 use serde::Deserialize;
 
 pub fn get_audio_profile_from_value(value: Value) -> HashMap<AudioProfile, bool> {

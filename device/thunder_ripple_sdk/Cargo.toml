@@ -64,4 +64,4 @@ futures-util = { version = "0.3.28", features = ["sink", "std"], default-feature
 
 [dev-dependencies]
 ripple_sdk = { path = "../../core/sdk", features = ["tdk"] }
-
+rstest = "0.18.0"

@@ -20,9 +20,11 @@ use std::sync::{
     Arc,
 };
 
-use crate::{client::thunder_client::ThunderClientBuilder, thunder_state::ThunderConnectionState};
+use crate::{
+    client::{device_operator::DeviceResponseMessage, thunder_client::ThunderClientBuilder},
+    thunder_state::ThunderConnectionState,
+};
 use ripple_sdk::{
-    api::device::device_operator::DeviceResponseMessage,
     log::{debug, error},
     tokio::sync::{mpsc, oneshot},
     utils::channel_utils::oneshot_send_and_log,
@@ -190,19 +192,19 @@ impl ThunderClientPool {
 mod tests {
     use super::*;
     use crate::{
-        client::plugin_manager::{PluginActivatedResult, PluginManagerCommand},
+        client::{
+            device_operator::{
+                DeviceCallRequest, DeviceOperator, DeviceSubscribeRequest, DeviceUnsubscribeRequest,
+            },
+            plugin_manager::{PluginActivatedResult, PluginManagerCommand},
+        },
         tests::thunder_client_pool_test_utility::{
             CustomMethodHandler, MethodHandler, MockWebSocketServer,
         },
     };
-    use ripple_sdk::api::device::device_operator::DeviceUnsubscribeRequest;
     use ripple_sdk::{
-        api::device::device_operator::DeviceSubscribeRequest,
-        utils::channel_utils::oneshot_send_and_log,
-    };
-    use ripple_sdk::{
-        api::device::device_operator::{DeviceCallRequest, DeviceOperator},
         tokio::time::{sleep, Duration},
+        utils::channel_utils::oneshot_send_and_log,
     };
     use url::Url;
 

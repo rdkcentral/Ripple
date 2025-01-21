@@ -16,15 +16,25 @@
 //
 
 use crate::{
-    client::thunder_plugin::ThunderPlugin,
+    client::thunder_plugin::ThunderPlugin::Wifi,
+    ripple_sdk::{
+        self,
+        api::device::device_wifi::WifiRequest,
+        extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider},
+    },
+};
+use crate::{
+    client::{
+        device_operator::{
+            DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
+            DeviceSubscribeRequest, DeviceUnsubscribeRequest,
+        },
+        thunder_plugin::ThunderPlugin,
+    },
     ripple_sdk::{
         api::{
-            device::{
-                device_operator::{
-                    DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
-                    DeviceSubscribeRequest,
-                },
-                device_wifi::{AccessPoint, AccessPointList, AccessPointRequest, WifiSecurityMode},
+            device::device_wifi::{
+                AccessPoint, AccessPointList, AccessPointRequest, WifiSecurityMode,
             },
             wifi::WifiResponse,
         },
@@ -41,14 +51,6 @@ use crate::{
         tokio::sync::mpsc,
     },
     thunder_state::ThunderState,
-};
-use crate::{
-    client::thunder_plugin::ThunderPlugin::Wifi,
-    ripple_sdk::{
-        self,
-        api::device::{device_operator::DeviceUnsubscribeRequest, device_wifi::WifiRequest},
-        extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider},
-    },
 };
 use serde::{Deserialize, Serialize};
 use tokio::time::{self, timeout, Duration};
