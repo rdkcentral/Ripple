@@ -295,20 +295,6 @@ impl ExtnId {
         false
     }
 
-    /// Checks if the given capability is a badger channel.
-    /// # Examples
-    /// ```
-    /// use ripple_sdk::extn::extn_id::{ExtnId,ExtnClassId};
-    ///
-    /// let badger_channel = ExtnId::new_channel(ExtnClassId::Gateway, "badger".into());
-    /// assert!(badger_channel.is_badger_channel());
-    /// ```
-    pub fn is_badger_channel(&self) -> bool {
-        self._type == ExtnType::Channel
-            && self.class == ExtnClassId::Gateway
-            && self.service == "badger"
-    }
-
     /// Checks if the given capability is a launcher channel.
     /// # Examples
     /// ```
