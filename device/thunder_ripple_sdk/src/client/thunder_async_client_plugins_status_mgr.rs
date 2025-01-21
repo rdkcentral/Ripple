@@ -34,11 +34,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 #[derive(Clone, Debug)]
-pub struct BrokerSender {
+pub struct AsyncSender {
     pub sender: Sender<ThunderAsyncRequest>,
 }
 
-impl BrokerSender {
+impl AsyncSender {
     // Method to send the request to the underlying broker for handling.
     pub async fn send(&self, request: ThunderAsyncRequest) -> RippleResponse {
         if let Err(e) = self.sender.send(request).await {
@@ -53,11 +53,11 @@ impl BrokerSender {
 /// BrokerCallback will be used by the communication broker to send the firebolt response
 /// back to the gateway for client consumption
 #[derive(Clone, Debug)]
-pub struct BrokerCallback {
+pub struct AsyncCallback {
     pub sender: Sender<ThunderAsyncResponse>,
 }
 
-impl BrokerCallback {
+impl AsyncCallback {
     pub async fn send(&self, response: ThunderAsyncResponse) {
         if (self.sender.send(response).await).is_err() {
             error!("error returning callback for request")
@@ -197,7 +197,7 @@ impl StatusManager {
         }
     }
 
-    pub fn add_broker_request_to_pending_list(
+    pub fn add_async_client_request_to_pending_list(
         &self,
         plugin_name: String,
         request: ThunderAsyncRequest,
@@ -324,8 +324,8 @@ impl StatusManager {
 
     pub async fn is_controller_response(
         &self,
-        sender: BrokerSender,
-        callback: BrokerCallback,
+        sender: AsyncSender,
+        callback: AsyncCallback,
         result: &[u8],
     ) -> bool {
         let data = match serde_json::from_slice::<JsonRpcApiResponse>(result) {
@@ -380,8 +380,8 @@ impl StatusManager {
     }
     async fn on_activate_response(
         &self,
-        sender: BrokerSender,
-        callback: BrokerCallback,
+        sender: AsyncSender,
+        callback: AsyncCallback,
         data: &JsonRpcApiResponse,
         request: &str,
     ) {
@@ -418,8 +418,8 @@ impl StatusManager {
 
     async fn on_status_response(
         &self,
-        sender: BrokerSender,
-        callback: BrokerCallback,
+        sender: AsyncSender,
+        callback: AsyncCallback,
         data: &JsonRpcApiResponse,
         request: &str,
     ) {
@@ -470,7 +470,7 @@ impl StatusManager {
 
     async fn on_thunder_error_response(
         &self,
-        callback: BrokerCallback,
+        callback: AsyncCallback,
         data: &JsonRpcApiResponse,
         plugin_name: &String,
     ) {
@@ -511,8 +511,8 @@ impl StatusManager {
 
     pub async fn handle_controller_response(
         &self,
-        sender: BrokerSender,
-        callback: BrokerCallback,
+        sender: AsyncSender,
+        callback: AsyncCallback,
         result: &[u8],
     ) {
         let data = match serde_json::from_slice::<JsonRpcApiResponse>(result) {
@@ -548,7 +548,7 @@ impl StatusManager {
     }
 }
 
-impl BrokerCallback {
+impl AsyncCallback {
     /// Default method used for sending errors via the BrokerCallback
     pub async fn send_error(&self, request: ThunderAsyncRequest, error: RippleError) {
         let response = ThunderAsyncResponse {
@@ -579,10 +579,10 @@ mod tests {
     async fn test_on_activate_response() {
         let status_manager = StatusManager::new();
         let (tx, _tr) = mpsc::channel(10);
-        let broker = BrokerSender { sender: tx };
+        let broker = AsyncSender { sender: tx };
 
         let (tx_1, _tr_1) = channel(2);
-        let callback = BrokerCallback { sender: tx_1 };
+        let callback = AsyncCallback { sender: tx_1 };
 
         let data = JsonRpcApiResponse {
             id: Some(1),
@@ -604,10 +604,10 @@ mod tests {
     async fn test_on_status_response() {
         let status_manager = StatusManager::new();
         let (tx, _tr) = mpsc::channel(10);
-        let broker = BrokerSender { sender: tx };
+        let broker = AsyncSender { sender: tx };
 
         let (tx_1, _tr_1) = channel(2);
-        let callback = BrokerCallback { sender: tx_1 };
+        let callback = AsyncCallback { sender: tx_1 };
 
         let data = JsonRpcApiResponse {
             id: Some(1),
@@ -630,7 +630,7 @@ mod tests {
         let status_manager = StatusManager::new();
 
         let (tx_1, _tr_1) = channel(2);
-        let callback = BrokerCallback { sender: tx_1 };
+        let callback = AsyncCallback { sender: tx_1 };
 
         let data = JsonRpcApiResponse {
             id: Some(1),

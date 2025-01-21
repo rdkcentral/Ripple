@@ -16,7 +16,7 @@
 //
 
 use super::thunder_async_client::{ThunderAsyncClient, ThunderAsyncRequest, ThunderAsyncResponse};
-use super::thunder_async_client_plugins_status_mgr::{BrokerCallback, BrokerSender};
+use super::thunder_async_client_plugins_status_mgr::{AsyncCallback, AsyncSender};
 use super::thunder_client_pool::ThunderPoolCommand;
 use super::{
     jsonrpc_method_locator::JsonRpcMethodLocator,
@@ -81,8 +81,8 @@ impl ThunderClientManager {
         tokio::spawn(async move {
             while let Some(response) = response_tr.recv().await {
                 if let Some(id) = response.get_id() {
-                    if let Some(broker_callbacks) = client.clone().broker_callbacks {
-                        let mut callbacks = broker_callbacks.write().unwrap();
+                    if let Some(thunder_async_callbacks) = client.clone().thunder_async_callbacks {
+                        let mut callbacks = thunder_async_callbacks.write().unwrap();
                         if let Some(Some(callback)) = callbacks.remove(&id) {
                             if let Some(resp) = response.get_device_resp_msg(None) {
                                 oneshot_send_and_log(callback, resp, "ThunderResponse");
@@ -90,7 +90,7 @@ impl ThunderClientManager {
                         }
                     }
                 } else if let Some(event_name) = response.get_method() {
-                    if let Some(broker_subs) = client.clone().broker_subscriptions {
+                    if let Some(broker_subs) = client.clone().thunder_async_subscriptions {
                         let subs = {
                             let mut br_subs = broker_subs.write().unwrap();
                             br_subs.get_mut(&event_name).cloned()
@@ -215,8 +215,8 @@ pub struct ThunderClient {
     pub plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
     pub subscriptions: Option<Arc<Mutex<HashMap<String, ThunderSubscription>>>>,
     pub thunder_async_client: Option<ThunderAsyncClient>,
-    pub broker_subscriptions: Option<Arc<RwLock<BrokerSubMap>>>,
-    pub broker_callbacks: Option<Arc<RwLock<BrokerCallbackMap>>>,
+    pub thunder_async_subscriptions: Option<Arc<RwLock<BrokerSubMap>>>,
+    pub thunder_async_callbacks: Option<Arc<RwLock<BrokerCallbackMap>>>,
     pub use_thunder_async: bool,
 }
 
@@ -560,7 +560,12 @@ impl ThunderClient {
         request: &ThunderAsyncRequest,
         dev_resp_callback: Sender<DeviceResponseMessage>,
     ) {
-        let mut callbacks = self.broker_callbacks.as_ref().unwrap().write().unwrap();
+        let mut callbacks = self
+            .thunder_async_callbacks
+            .as_ref()
+            .unwrap()
+            .write()
+            .unwrap();
         callbacks.insert(request.id, Some(dev_resp_callback));
     }
 
@@ -570,13 +575,18 @@ impl ThunderClient {
         request: &DeviceSubscribeRequest,
         handler: MpscSender<DeviceResponseMessage>,
     ) -> Option<ThunderAsyncRequest> {
-        let mut broker_subscriptions = self.broker_subscriptions.as_ref().unwrap().write().unwrap();
+        let mut thunder_async_subscriptions = self
+            .thunder_async_subscriptions
+            .as_ref()
+            .unwrap()
+            .write()
+            .unwrap();
 
         // Create a key for the subscription based on the event name
         let key = format!("client.events.{}", request.event_name);
 
         // Check if there are existing subscriptions for the given key
-        if let Some(subs) = broker_subscriptions.get_mut(&key) {
+        if let Some(subs) = thunder_async_subscriptions.get_mut(&key) {
             // If a subscription exists, add the handler to the list of handlers
             subs.handlers.push(handler);
             None
@@ -591,8 +601,8 @@ impl ThunderClient {
                 handlers: vec![handler],
             };
 
-            // Insert the new subscription into the broker_subscriptions map
-            broker_subscriptions.insert(key, dev_resp_sub);
+            // Insert the new subscription into the thunder_async_subscriptions map
+            thunder_async_subscriptions.insert(key, dev_resp_sub);
             Some(async_request)
         }
     }
@@ -730,8 +740,8 @@ impl ThunderClientBuilder {
             plugin_manager_tx: pmtx_c,
             subscriptions: Some(subscriptions),
             thunder_async_client: None,
-            broker_subscriptions: None,
-            broker_callbacks: None,
+            thunder_async_subscriptions: None,
+            thunder_async_callbacks: None,
             use_thunder_async: false,
         })
     }
@@ -804,9 +814,9 @@ impl ThunderClientBuilder {
             .await
         } else {
             let (resp_tx, resp_rx) = mpsc::channel(10);
-            let callback = BrokerCallback { sender: resp_tx };
+            let callback = AsyncCallback { sender: resp_tx };
             let (broker_tx, broker_rx) = mpsc::channel(10);
-            let broker_sender = BrokerSender { sender: broker_tx };
+            let broker_sender = AsyncSender { sender: broker_tx };
             let client = ThunderAsyncClient::new(callback, broker_sender);
 
             let thunder_client = ThunderClient {
@@ -816,8 +826,8 @@ impl ThunderClientBuilder {
                 plugin_manager_tx: None,
                 subscriptions: None,
                 thunder_async_client: Some(client),
-                broker_subscriptions: Some(Arc::new(RwLock::new(HashMap::new()))),
-                broker_callbacks: Some(Arc::new(RwLock::new(HashMap::new()))),
+                thunder_async_subscriptions: Some(Arc::new(RwLock::new(HashMap::new()))),
+                thunder_async_callbacks: Some(Arc::new(RwLock::new(HashMap::new()))),
                 use_thunder_async: true,
             };
 
@@ -840,8 +850,8 @@ impl ThunderClientBuilder {
             plugin_manager_tx: None,
             subscriptions: None,
             thunder_async_client: None,
-            broker_subscriptions: None,
-            broker_callbacks: None,
+            thunder_async_subscriptions: None,
+            thunder_async_callbacks: None,
             use_thunder_async: false,
         }
     }

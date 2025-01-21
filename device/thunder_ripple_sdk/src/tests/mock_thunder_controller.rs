@@ -174,8 +174,8 @@ impl MockThunderController {
             plugin_manager_tx: None,
             subscriptions: None,
             thunder_async_client: None,
-            broker_subscriptions: None,
-            broker_callbacks: None,
+            thunder_async_subscriptions: None,
+            thunder_async_callbacks: None,
             use_thunder_async: false,
         };
 

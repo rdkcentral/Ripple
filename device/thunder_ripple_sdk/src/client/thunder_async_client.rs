@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use super::thunder_async_client_plugins_status_mgr::{BrokerCallback, BrokerSender, StatusManager};
+use super::thunder_async_client_plugins_status_mgr::{AsyncCallback, AsyncSender, StatusManager};
 use crate::utils::get_next_id;
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
@@ -35,8 +35,8 @@ use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
 #[derive(Clone, Debug)]
 pub struct ThunderAsyncClient {
     status_manager: StatusManager,
-    sender: BrokerSender,
-    callback: BrokerCallback,
+    sender: AsyncSender,
+    callback: AsyncCallback,
 }
 
 #[derive(Clone, Debug)]
@@ -101,11 +101,11 @@ impl ThunderAsyncResponse {
 }
 
 impl ThunderAsyncClient {
-    pub fn get_sender(&self) -> BrokerSender {
+    pub fn get_sender(&self) -> AsyncSender {
         self.sender.clone()
     }
 
-    pub fn get_callback(&self) -> BrokerCallback {
+    pub fn get_callback(&self) -> AsyncCallback {
         self.callback.clone()
     }
     async fn create_ws(
@@ -114,7 +114,7 @@ impl ThunderAsyncClient {
         SplitSink<WebSocketStream<TcpStream>, Message>,
         SplitStream<WebSocketStream<TcpStream>>,
     ) {
-        info!("Broker Endpoint url {}", endpoint);
+        info!("Thunder_async_client Endpoint url {}", endpoint);
         let port = extract_tcp_port(endpoint);
         let tcp_port = port.unwrap();
         let mut index = 0;
@@ -130,7 +130,7 @@ impl ThunderAsyncClient {
             }
             if (index % 10).eq(&0) {
                 error!(
-                    "Broker with {} failed with retry for last {} secs in {}",
+                    "Thunder_async_client with {} failed with retry for last {} secs in {}",
                     endpoint, index, tcp_port
                 );
             }
@@ -155,7 +155,7 @@ impl ThunderAsyncClient {
             None => {
                 // If the plugin status is not available, add the request to the pending list
                 self.status_manager
-                    .add_broker_request_to_pending_list(callsign.clone(), request.clone());
+                    .add_async_client_request_to_pending_list(callsign.clone(), request.clone());
                 // Generate a request to check the plugin status and add it to the requests list
                 let request = self
                     .status_manager
@@ -180,7 +180,7 @@ impl ThunderAsyncClient {
         // If the plugin is not activated, add the request to the pending list and generate an activation request
         if !status.state.is_activated() {
             self.status_manager
-                .add_broker_request_to_pending_list(callsign.clone(), request.clone());
+                .add_async_client_request_to_pending_list(callsign.clone(), request.clone());
             let request = self
                 .status_manager
                 .generate_plugin_activation_request(callsign.clone());
@@ -227,7 +227,7 @@ impl ThunderAsyncClient {
         Ok(requests)
     }
 
-    pub fn new(callback: BrokerCallback, sender: BrokerSender) -> Self {
+    pub fn new(callback: AsyncCallback, sender: AsyncSender) -> Self {
         Self {
             status_manager: StatusManager::new(),
             sender,
@@ -235,7 +235,7 @@ impl ThunderAsyncClient {
         }
     }
 
-    pub async fn process_new_req(&self, request: String, url: String, callback: BrokerCallback) {
+    pub async fn process_new_req(&self, request: String, url: String, callback: AsyncCallback) {
         let (mut new_wtx, mut new_wrx) = Self::create_ws(&url).await;
         let _feed = new_wtx
             .feed(tokio_tungstenite::tungstenite::Message::Text(request))
@@ -274,7 +274,7 @@ impl ThunderAsyncClient {
     ) -> Receiver<ThunderAsyncRequest> {
         let callback = self.callback.clone();
         let (mut ws_tx, mut ws_rx) = Self::create_ws(url).await;
-        // send the first request to the broker. This is the controller statechange subscription request
+        // send the controller statechange subscription request
         let status_request = self
             .status_manager
             .generate_state_change_subscribe_request();
@@ -307,7 +307,7 @@ impl ThunderAsyncClient {
                             }
                         },
                         Err(e) => {
-                            error!("Broker Websocket error on read {:?}", e);
+                            error!("Thunder_async_client Websocket error on read {:?}", e);
                             break;
                         }
                     }
@@ -349,9 +349,9 @@ impl ThunderAsyncClient {
         tr
     }
 
-    /// Default handler method for the broker to remove the context and send it back to the
+    /// Default handler method for the thunder async client to remove the context and send it back to the
     /// client for consumption
-    async fn handle_jsonrpc_response(result: &[u8], callback: BrokerCallback) {
+    async fn handle_jsonrpc_response(result: &[u8], callback: AsyncCallback) {
         if let Ok(message) = serde_json::from_slice::<JsonRpcApiResponse>(result) {
             callback
                 .send(ThunderAsyncResponse::new_response(message))
@@ -372,10 +372,8 @@ impl ThunderAsyncClient {
 mod tests {
     use super::*;
     use crate::client::thunder_client::ThunderClient;
-    //use crate::client::thunder_client_pool::tests::Uuid;
     use ripple_sdk::api::device::device_operator::DeviceCallRequest;
     use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
-    //use ripple_sdk::async_channel::Recv;
     use ripple_sdk::utils::error::RippleError;
     use ripple_sdk::uuid::Uuid;
     use std::collections::HashMap;
@@ -466,10 +464,10 @@ mod tests {
     #[tokio::test]
     async fn test_thunder_async_client_prepare_request() {
         let (resp_tx, _resp_rx) = mpsc::channel(10);
-        let callback = BrokerCallback { sender: resp_tx };
-        let (broker_tx, _broker_rx) = mpsc::channel(10);
-        let broker_sender = BrokerSender { sender: broker_tx };
-        let client = ThunderAsyncClient::new(callback, broker_sender);
+        let callback = AsyncCallback { sender: resp_tx };
+        let (async_tx, _async_rx) = mpsc::channel(10);
+        let async_sender = AsyncSender { sender: async_tx };
+        let client = ThunderAsyncClient::new(callback, async_sender);
 
         let callrequest = DeviceCallRequest {
             method: "org.rdk.System.1.getSerialNumber".to_string(),
@@ -485,10 +483,10 @@ mod tests {
     #[tokio::test]
     async fn test_thunder_async_client_send() {
         let (resp_tx, _resp_rx) = mpsc::channel(10);
-        let callback = BrokerCallback { sender: resp_tx };
-        let (broker_tx, mut broker_rx) = mpsc::channel(10);
-        let broker_sender = BrokerSender { sender: broker_tx };
-        let client = ThunderAsyncClient::new(callback, broker_sender);
+        let callback = AsyncCallback { sender: resp_tx };
+        let (async_tx, mut async_rx) = mpsc::channel(10);
+        let async_sender = AsyncSender { sender: async_tx };
+        let client = ThunderAsyncClient::new(callback, async_sender);
 
         let callrequest = DeviceCallRequest {
             method: "org.rdk.System.1.getSerialNumber".to_string(),
@@ -498,14 +496,14 @@ mod tests {
         let request = DeviceChannelRequest::Call(callrequest);
         let async_request = ThunderAsyncRequest::new(request);
         client.send(async_request.clone()).await;
-        let received = broker_rx.recv().await;
+        let received = async_rx.recv().await;
         assert_eq!(received.unwrap().id, async_request.id);
     }
 
     #[tokio::test]
     async fn test_thunder_async_client_handle_jsonrpc_response() {
         let (resp_tx, mut resp_rx) = mpsc::channel(10);
-        let callback = BrokerCallback { sender: resp_tx };
+        let callback = AsyncCallback { sender: resp_tx };
         let response = JsonRpcApiResponse {
             jsonrpc: "2.0".to_string(),
             id: Some(6),
@@ -526,10 +524,10 @@ mod tests {
     #[tokio::test]
     async fn test_thunder_async_client_start() {
         let (resp_tx, mut resp_rx) = mpsc::channel(10);
-        let callback = BrokerCallback { sender: resp_tx };
-        let (broker_tx, _broker_rx) = mpsc::channel(10);
-        let broker_sender = BrokerSender { sender: broker_tx };
-        let client = ThunderAsyncClient::new(callback.clone(), broker_sender);
+        let callback = AsyncCallback { sender: resp_tx };
+        let (async_tx, _async_rx) = mpsc::channel(10);
+        let async_sender = AsyncSender { sender: async_tx };
+        let client = ThunderAsyncClient::new(callback.clone(), async_sender);
 
         let _thunder_client = ThunderClient {
             sender: None,
@@ -538,8 +536,8 @@ mod tests {
             plugin_manager_tx: None,
             subscriptions: None,
             thunder_async_client: Some(client),
-            broker_subscriptions: Some(Arc::new(RwLock::new(HashMap::new()))),
-            broker_callbacks: Some(Arc::new(RwLock::new(HashMap::new()))),
+            thunder_async_subscriptions: Some(Arc::new(RwLock::new(HashMap::new()))),
+            thunder_async_callbacks: Some(Arc::new(RwLock::new(HashMap::new()))),
             use_thunder_async: true,
         };
 

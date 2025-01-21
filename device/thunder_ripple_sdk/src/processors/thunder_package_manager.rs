@@ -1132,8 +1132,8 @@ pub mod tests {
             id: Uuid::new_v4(),
             plugin_manager_tx: None,
             subscriptions: None,
-            broker_callbacks: None,
-            broker_subscriptions: None,
+            thunder_async_callbacks: None,
+            thunder_async_subscriptions: None,
             thunder_async_client: None,
             use_thunder_async: false,
         };
@@ -1169,8 +1169,8 @@ pub mod tests {
             id: Uuid::new_v4(),
             plugin_manager_tx: None,
             subscriptions: None,
-            broker_callbacks: None,
-            broker_subscriptions: None,
+            thunder_async_callbacks: None,
+            thunder_async_subscriptions: None,
             thunder_async_client: None,
             use_thunder_async: false,
         };

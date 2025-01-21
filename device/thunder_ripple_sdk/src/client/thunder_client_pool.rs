@@ -162,8 +162,8 @@ impl ThunderClientPool {
             plugin_manager_tx: pmtx_c,
             subscriptions: None,
             thunder_async_client: None,
-            broker_subscriptions: None,
-            broker_callbacks: None,
+            thunder_async_subscriptions: None,
+            thunder_async_callbacks: None,
             use_thunder_async: false,
         })
     }
