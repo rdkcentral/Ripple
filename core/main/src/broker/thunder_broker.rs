@@ -107,7 +107,10 @@ impl ThunderBroker {
         let mut composite_request_list = self.composite_request_list.lock().await;
         let composite_req = CompositeRequest::new(SystemTime::now(), request);
         composite_request_list.insert(id, composite_req);
-        self.start_purge_composite_request_timer();
+        let purge_thread_started = self.composite_request_purge_started.lock().await;
+        if *purge_thread_started {
+            self.start_purge_composite_request_timer();
+        }
     }
 
     pub async fn unregister_composite_request(&self, id: u64) {
@@ -150,10 +153,6 @@ impl ThunderBroker {
         let mut interval = time::interval(Duration::from_millis(3000));
         let purge_thread_started = self.composite_request_purge_started.clone();
         tokio::spawn(async move {
-            if *purge_thread_started.lock().await {
-                debug!("Composite request purge timer already started. Terminate this thread");
-                return;
-            }
             *purge_thread_started.lock().await = true;
             debug!("Starting composite request purge timer");
             // iterate each individual composite request and check if timestamp is greater than 8 seconds
