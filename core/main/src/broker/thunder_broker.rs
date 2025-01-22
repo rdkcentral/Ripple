@@ -137,7 +137,7 @@ impl ThunderBroker {
             tokio::pin! {
                 let read = ws_rx.next();
             }
-
+            let diagnostic_context: Arc<Mutex<Option<BrokerRequest>>> = Arc::new(Mutex::new(None));
             loop {
                 tokio::select! {
 
@@ -156,9 +156,17 @@ impl ThunderBroker {
                                        let t = t.as_bytes();
                                        match Self::handle_jsonrpc_response(t,broker_c.get_broker_callback( Self::get_id_from_result(t) ).await) {
                                              Ok(okie) => {
-                                                LogSignal::new("thunder_response".to_string(), "received message from thunder".to_string(), okie.data.clone())
-                                                    //.with_diagnostic_context_item("response", &format! ("{:?}", okie))
-                                                    .emit_debug();
+                                                match diagnostic_context.lock().await.as_ref() {
+                                                    Some(ctx) => {
+                                                        LogSignal::new("thunder_response".to_string(), "received message from thunder".to_string(), ctx.rpc.ctx.clone())
+                                                            .with_diagnostic_context_item("response", &format! ("{:?}", okie))
+                                                            .emit_debug();
+                                                    },
+                                                    None => {
+                                                        LogSignal::new("thunder_response".to_string(), "received message from thunder".to_string(), okie.data)
+                                                            .emit_debug();
+                                                    }
+                                                }
                                              },
                                              Err(e) => {
                                                   error!("Broker Websocket error on handle_jsonrpc_response {:?}", e);
@@ -177,6 +185,7 @@ impl ThunderBroker {
                     },
                     Some(mut request) = broker_request_rx.recv() => {
                         debug!("Got request from receiver for broker {:?}", request);
+                        diagnostic_context.lock().await.replace(request.clone());
 
                         match broker_c.check_and_generate_plugin_activation_request(&request) {
                             Ok(requests) => {

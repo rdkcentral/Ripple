@@ -27,7 +27,7 @@ use ripple_sdk::{
             rpc_error::RpcError,
             rpc_gateway_api::{ApiMessage, ApiProtocol, RpcRequest},
         },
-        observability::metrics_util::ApiStats,
+        observability::{log_signal::LogSignal, metrics_util::ApiStats},
     },
     extn::extn_client_message::ExtnMessage,
     log::{debug, error, info, trace, warn},
@@ -155,6 +155,11 @@ impl FireboltGateway {
         let mut extn_request = false;
         // First check sender if no sender no need to process
         let callback_c = extn_msg.clone();
+        LogSignal::new(
+            "firebolt_gateway".into(),
+            "received request".into(),
+            request.clone(),
+        );
         match request.ctx.protocol {
             ApiProtocol::Extn => {
                 extn_request = true;

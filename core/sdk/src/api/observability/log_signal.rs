@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use crate::api::gateway::rpc_gateway_api::{CallContext, ClientContext, JsonRpcApiResponse};
+use crate::api::gateway::rpc_gateway_api::{
+    CallContext, ClientContext, JsonRpcApiResponse, RpcRequest,
+};
 
 /*
 
@@ -30,6 +32,7 @@ impl<T: std::fmt::Display + ContextAsJson> std::fmt::Display for LogSignal<T> {
         )
     }
 }
+
 fn map_to_jsonmap(map: HashMap<String, String>) -> serde_json::Map<String, serde_json::Value> {
     let mut json_map = serde_json::Map::new();
     for (key, value) in map {
@@ -119,6 +122,26 @@ impl ContextAsJson for JsonRpcApiResponse {
         map.insert("error".to_string(), self.error.clone().unwrap_or_default());
 
         serde_json::Value::Object(map)
+    }
+}
+impl ContextAsJson for RpcRequest {
+    fn as_json(&self) -> serde_json::Value {
+        let mut map = serde_json::Map::new();
+        map.insert(
+            "method".to_string(),
+            serde_json::Value::String(self.method.clone()),
+        );
+        map.insert(
+            "params".to_string(),
+            serde_json::Value::String(self.params_json.clone()),
+        );
+        map.insert("call_context".to_string(), self.ctx.as_json());
+        serde_json::Value::Object(map)
+    }
+}
+impl std::fmt::Display for RpcRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "rpc_request={}", self.method)
     }
 }
 
