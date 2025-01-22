@@ -216,7 +216,8 @@ impl RpcRouter {
             "rpc_router".to_string(),
             "route_extn_protocol".into(),
             req.clone(),
-        );
+        )
+        .emit_debug();
         tokio::spawn(async move {
             if let Ok(msg) = resolve_route(&mut platform_state, methods, resources, req).await {
                 return_extn_response(msg, extn_msg);

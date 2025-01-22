@@ -223,7 +223,6 @@ impl ThunderBroker {
                                                 }
                                             }
                                             Err(e) => {
-
                                                 LogSignal::new("thunder_broker".to_string(), "Prepare request failed".to_string(), request.rpc.ctx.clone())
                                                     .with_diagnostic_context_item("error", &format!("{:?}", e))
                                                     .emit_error();

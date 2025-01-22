@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::collections::HashMap;
+
 use jsonrpsee::{core::server::rpc_module::Methods, types::TwoPointZero};
 use ripple_sdk::{
     api::{
@@ -157,9 +159,10 @@ impl FireboltGateway {
         let callback_c = extn_msg.clone();
         LogSignal::new(
             "firebolt_gateway".into(),
-            "received request".into(),
+            "start_processing_request".into(),
             request.clone(),
-        );
+        )
+        .emit_debug();
         match request.ctx.protocol {
             ApiProtocol::Extn => {
                 extn_request = true;
@@ -258,6 +261,12 @@ impl FireboltGateway {
                         match request.clone().ctx.protocol {
                             ApiProtocol::Extn => {
                                 if let Some(extn_msg) = extn_msg {
+                                    LogSignal::new(
+                                        "firebolt_gateway".into(),
+                                        "routing_to_extn".into(),
+                                        request.clone(),
+                                    )
+                                    .emit_debug();
                                     RpcRouter::route_extn_protocol(
                                         &platform_state,
                                         request.clone(),
@@ -274,6 +283,12 @@ impl FireboltGateway {
                                     .session_state
                                     .get_session(&request_c.ctx)
                                 {
+                                    LogSignal::new(
+                                        "firebolt_gateway".into(),
+                                        "routing".into(),
+                                        request.clone(),
+                                    )
+                                    .emit_debug();
                                     // if the websocket disconnects before the session is recieved this leads to an error
                                     RpcRouter::route(
                                         platform_state.clone(),
@@ -304,12 +319,24 @@ impl FireboltGateway {
                         request, deny_reason
                     );
 
-                    let caps = e.caps.iter().map(|x| x.as_str()).collect();
+                    let caps: Vec<String> = e.caps.iter().map(|x| x.as_str()).collect();
+
                     let json_rpc_error = JsonRpcError {
                         code: deny_reason.get_rpc_error_code(),
-                        message: deny_reason.get_rpc_error_message(caps),
+                        message: deny_reason.get_rpc_error_message(caps.clone()),
                         data: None,
                     };
+                    let caps_diag = caps.join(",");
+                    let mut diagnostic_context = HashMap::new();
+                    diagnostic_context.insert("reason".to_string(), caps_diag);
+
+                    LogSignal::new(
+                        "firebolt_gateway".into(),
+                        "denied_no_cap".into(),
+                        request.clone(),
+                    )
+                    .with_diagnostic_context(diagnostic_context)
+                    .emit_debug();
 
                     send_json_rpc_error(&mut platform_state, &request, json_rpc_error).await;
                 }
@@ -368,6 +395,15 @@ fn validate_request(
                 for error in errors {
                     error_string.push_str(&format!("{} ", error));
                 }
+                let mut diagnostic_context = HashMap::new();
+                diagnostic_context.insert("error".to_string(), error_string.clone());
+                LogSignal::new(
+                    "firebolt_gateway".into(),
+                    "invalid_params".into(),
+                    request.clone(),
+                )
+                .with_diagnostic_context(diagnostic_context)
+                .emit_debug();
                 return Err(error_string);
             }
             // store validator in runtime for future validations of the same api
