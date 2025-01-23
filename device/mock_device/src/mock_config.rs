@@ -20,12 +20,14 @@ use serde::Deserialize;
 #[derive(Debug, Clone, Deserialize)]
 pub struct MockConfig {
     pub activate_all_plugins: bool,
+    pub stats_file: String,
 }
 
 impl Default for MockConfig {
     fn default() -> Self {
         Self {
             activate_all_plugins: true,
+            stats_file: "stats.json".to_string(),
         }
     }
 }

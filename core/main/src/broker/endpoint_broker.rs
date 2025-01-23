@@ -21,8 +21,7 @@ use ripple_sdk::{
             FireboltPermission, CAPABILITY_NOT_AVAILABLE, JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
         },
         gateway::rpc_gateway_api::{
-            ApiMessage, ApiProtocol, ApiStats, CallContext, JsonRpcApiRequest, JsonRpcApiResponse,
-            RpcRequest,
+            ApiMessage, ApiProtocol, CallContext, JsonRpcApiRequest, JsonRpcApiResponse, RpcRequest,
         },
         session::AccountSession,
     },
@@ -49,9 +48,9 @@ use crate::{
     broker::broker_utils::BrokerUtils,
     firebolt::firebolt_gateway::{FireboltGatewayCommand, JsonRpcError},
     service::extn::ripple_client::RippleClient,
-    state::{platform_state::PlatformState, session_state::Session},
+    state::{metrics_state::MetricsState, platform_state::PlatformState, session_state::Session},
     utils::router_utils::{
-        add_telemetry_status_code, get_rpc_header, return_api_message_for_transport,
+        add_telemetry_status_code, capture_stage, get_rpc_header, return_api_message_for_transport,
         return_extn_response,
     },
 };
@@ -211,6 +210,12 @@ impl Default for BrokerCallback {
 static ATOMIC_ID: AtomicU64 = AtomicU64::new(0);
 
 impl BrokerCallback {
+    pub async fn send_json_rpc_api_response(&self, response: JsonRpcApiResponse) {
+        let output = BrokerOutput { data: response };
+        if let Err(e) = self.sender.send(output).await {
+            error!("couldnt send response for {:?}", e);
+        }
+    }
     /// Default method used for sending errors via the BrokerCallback
     pub async fn send_error(&self, request: BrokerRequest, error: RippleError) {
         let value = serde_json::to_value(JsonRpcError {
@@ -227,10 +232,7 @@ impl BrokerCallback {
             method: None,
             params: None,
         };
-        let output = BrokerOutput { data };
-        if let Err(e) = self.sender.send(output).await {
-            error!("couldnt send error for {:?}", e);
-        }
+        self.send_json_rpc_api_response(data).await;
     }
 }
 
@@ -312,6 +314,7 @@ pub struct EndpointBrokerState {
     cleaner_list: Arc<RwLock<Vec<BrokerCleaner>>>,
     reconnect_tx: Sender<BrokerConnectRequest>,
     provider_broker_state: ProvideBrokerState,
+    metrics_state: MetricsState,
 }
 impl Default for EndpointBrokerState {
     fn default() -> Self {
@@ -324,12 +327,14 @@ impl Default for EndpointBrokerState {
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx: mpsc::channel(2).0,
             provider_broker_state: ProvideBrokerState::default(),
+            metrics_state: MetricsState::default(),
         }
     }
 }
 
 impl EndpointBrokerState {
     pub fn new(
+        metrics_state: MetricsState,
         tx: Sender<BrokerOutput>,
         rule_engine: RuleEngine,
         ripple_client: RippleClient,
@@ -344,6 +349,7 @@ impl EndpointBrokerState {
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx,
             provider_broker_state: ProvideBrokerState::default(),
+            metrics_state,
         };
         state.reconnect_thread(rec_tr, ripple_client);
         state
@@ -461,6 +467,10 @@ impl EndpointBrokerState {
 
     pub fn build_other_endpoints(&mut self, session: Option<AccountSession>) {
         for (key, endpoint) in self.rule_engine.rules.endpoints.clone() {
+            // skip thunder endpoint as it is already built using build_thunder_endpoint
+            if let RuleEndpointProtocol::Thunder = endpoint.protocol {
+                continue;
+            }
             let request = BrokerConnectRequest::new_with_sesssion(
                 key,
                 endpoint.clone(),
@@ -538,6 +548,8 @@ impl EndpointBrokerState {
         data.result = Some(jv);
         data.id = Some(id);
         let output = BrokerOutput { data };
+
+        capture_stage(&self.metrics_state, &rpc_request, "static_rule_request");
         tokio::spawn(async move { callback.sender.send(output).await });
     }
 
@@ -656,11 +668,28 @@ impl EndpointBrokerState {
                 self.handle_provided_request(&rpc_request, rule, callback, permissions, session);
             } else if broker_sender.is_some() {
                 trace!("handling not static request for {:?}", rpc_request);
-                let broker = broker_sender.unwrap();
+                let broker_sender = broker_sender.unwrap();
                 let (_, updated_request) =
                     self.update_request(&rpc_request, rule, extn_message, requestor_callback);
+                capture_stage(&self.metrics_state, &rpc_request, "broker_request");
+                let thunder = self.get_sender("thunder");
                 tokio::spawn(async move {
-                    if let Err(e) = broker.send(updated_request.clone()).await {
+                    /*
+                    process "unlisten" requests here - the broker layers require state, which does not exist , as the
+                    state has already been deleted by the time the unlisten request is processed.
+                    */
+                    if updated_request.rpc.is_unlisten() {
+                        let result: JsonRpcApiResponse = updated_request.clone().rpc.into();
+                        /*
+                        This is suboptimal, but the only way to handle this is to send the unlisten request to the thunder, and then
+                        */
+                        if let Some(thunder) = thunder {
+                            match thunder.send(updated_request.clone()).await {
+                                Ok(_) => callback.send_json_rpc_api_response(result).await,
+                                Err(e) => callback.send_error(updated_request, e).await,
+                            }
+                        }
+                    } else if let Err(e) = broker_sender.send(updated_request.clone()).await {
                         callback.send_error(updated_request, e).await
                     }
                 });
@@ -805,7 +834,7 @@ pub trait EndpointBroker {
 pub struct BrokerOutputForwarder;
 
 impl BrokerOutputForwarder {
-    pub fn start_forwarder(platform_state: PlatformState, mut rx: Receiver<BrokerOutput>) {
+    pub fn start_forwarder(mut platform_state: PlatformState, mut rx: Receiver<BrokerOutput>) {
         // set up the event utility
         let event_utility = Arc::new(EventManagementUtility::new());
         event_utility.register_custom_functions();
@@ -892,7 +921,7 @@ impl BrokerOutputForwarder {
                                             let message = ApiMessage::new(
                                                 protocol,
                                                 serde_json::to_string(&response).unwrap(),
-                                                request_id.to_string(),
+                                                rpc_request.ctx.request_id.clone(),
                                             );
 
                                             if let Some(session) = platform_state_c
@@ -964,7 +993,7 @@ impl BrokerOutputForwarder {
                             let mut message = ApiMessage::new(
                                 rpc_request.ctx.protocol.clone(),
                                 serde_json::to_string(&response).unwrap(),
-                                request_id.to_string(),
+                                rpc_request.ctx.request_id.clone(),
                             );
                             let mut status_code: i64 = 1;
                             if let Some(e) = &response.error {
@@ -975,13 +1004,26 @@ impl BrokerOutputForwarder {
                                 }
                             }
 
-                            message.stats = Some(ApiStats {
-                                stats_ref: add_telemetry_status_code(
+                            platform_state.metrics.update_api_stats_ref(
+                                &rpc_request.ctx.request_id,
+                                add_telemetry_status_code(
                                     &tm_str,
                                     status_code.to_string().as_str(),
                                 ),
-                                stats: rpc_request.stats,
-                            });
+                            );
+
+                            if let Some(api_stats) = platform_state
+                                .metrics
+                                .get_api_stats(&rpc_request.ctx.request_id)
+                            {
+                                message.stats = Some(api_stats);
+
+                                if rpc_request.ctx.app_id.eq_ignore_ascii_case("internal") {
+                                    platform_state
+                                        .metrics
+                                        .remove_api_stats(&rpc_request.ctx.request_id);
+                                }
+                            }
 
                             // Step 3: Handle Non Extension
                             if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
@@ -1037,10 +1079,11 @@ impl BrokerOutputForwarder {
         let session_id = rpc_request.ctx.get_id();
         let request_id = rpc_request.ctx.call_id;
         let protocol = rpc_request.ctx.protocol.clone();
-        let platform_state_c = &platform_state;
+        let mut platform_state_c = platform_state.clone();
 
         if let Ok(res) =
-            BrokerUtils::process_internal_main_request(platform_state_c, method.as_str()).await
+            BrokerUtils::process_internal_main_request(&mut platform_state_c, method.as_str(), None)
+                .await
         {
             response.result = Some(serde_json::to_value(res.clone()).unwrap());
         }
@@ -1049,7 +1092,7 @@ impl BrokerOutputForwarder {
         let message = ApiMessage::new(
             protocol,
             serde_json::to_string(&response).unwrap(),
-            request_id.to_string(),
+            rpc_request.ctx.request_id.clone(),
         );
 
         if let Some(session) = platform_state_c
@@ -1286,7 +1329,7 @@ mod tests {
                 endpoint_broker::tests::RippleClient,
                 rules_engine::{Rule, RuleEngine, RuleSet, RuleTransform},
             },
-            state::bootstrap_state::ChannelsState,
+            state::{bootstrap_state::ChannelsState, metrics_state::MetricsState},
         };
 
         use super::EndpointBrokerState;
@@ -1296,6 +1339,7 @@ mod tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let state = EndpointBrokerState::new(
+                MetricsState::default(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),

@@ -15,11 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{collections::HashMap, env, time::Duration};
+use std::{collections::HashMap, env};
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
-    processor::storage::storage_manager::StorageManager,
     service::apps::app_events::AppEvents,
     state::platform_state::PlatformState,
     utils::rpc_utils::{rpc_add_event_listener, rpc_err},
@@ -35,26 +34,18 @@ use ripple_sdk::{
         device::{
             device_events::{
                 DeviceEvent, DeviceEventCallback, DeviceEventRequest, AUDIO_CHANGED_EVENT,
-                HDCP_CHANGED_EVENT, HDR_CHANGED_EVENT, NETWORK_CHANGED_EVENT,
-                SCREEN_RESOLUTION_CHANGED_EVENT, VIDEO_RESOLUTION_CHANGED_EVENT,
+                HDCP_CHANGED_EVENT,
             },
             device_info_request::{DeviceInfoRequest, DeviceResponse, FirmwareInfo},
-            device_operator::DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS,
-            device_peristence::SetStringProperty,
-            device_request::{
-                AudioProfile, DeviceVersionResponse, HdcpProfile, HdrProfile, NetworkResponse,
-            },
+            device_request::{AudioProfile, DeviceVersionResponse, HdcpProfile},
         },
         firebolt::fb_general::{ListenRequest, ListenerResponse},
-        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest, RpcStats},
+        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
         session::ProvisionRequest,
-        storage_property::{
-            StorageProperty, EVENT_DEVICE_DEVICE_NAME_CHANGED, EVENT_DEVICE_NAME_CHANGED,
-        },
+        storage_property::{EVENT_DEVICE_DEVICE_NAME_CHANGED, EVENT_DEVICE_NAME_CHANGED},
     },
     extn::extn_client_message::{ExtnMessage, ExtnResponse},
     log::error,
-    tokio::time::timeout,
     utils::error::RippleError,
 };
 use serde_json::json;
@@ -63,35 +54,8 @@ include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
 const KEY_FIREBOLT_DEVICE_UID: &str = "fireboltDeviceUid";
 
-// #[derive(Serialize, Clone, Debug, Deserialize)]
-// #[serde(rename_all = "camelCase")]
-// pub struct ProvisionRequest {
-//     account_id: String,
-//     device_id: String,
-//     distributor_id: Option<String>,
-// }
-
-// impl ProvisionRequest {
-//     fn get_session(self) -> DistributorSession {
-//         DistributorSession {
-//             id: None,
-//             token: None,
-//             account_id: Some(self.account_id.clone()),
-//             device_id: Some(self.device_id.clone()),
-//         }
-//     }
-// }
-
 #[rpc(server)]
 pub trait Device {
-    #[method(name = "device.name")]
-    async fn name(&self, ctx: CallContext) -> RpcResult<String>;
-    #[method(name = "device.setName")]
-    async fn set_name(
-        &self,
-        ctx: CallContext,
-        _setname_request: SetStringProperty,
-    ) -> RpcResult<()>;
     #[method(name = "device.id")]
     async fn id(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "device.uid")]
@@ -110,8 +74,6 @@ pub trait Device {
     ) -> RpcResult<ListenerResponse>;
     #[method(name = "device.model")]
     async fn model(&self, ctx: CallContext) -> RpcResult<String>;
-    #[method(name = "device.sku")]
-    async fn sku(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "device.hdcp")]
     async fn hdcp(&self, ctx: CallContext) -> RpcResult<HashMap<HdcpProfile, bool>>;
     #[method(name = "device.onHdcpChanged")]
@@ -120,44 +82,13 @@ pub trait Device {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
-    #[method(name = "device.hdr")]
-    async fn hdr(&self, ctx: CallContext) -> RpcResult<HashMap<HdrProfile, bool>>;
-    #[method(name = "device.onHdrChanged")]
-    async fn on_hdr_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
-    #[method(name = "device.screenResolution")]
-    async fn screen_resolution(&self, ctx: CallContext) -> RpcResult<Vec<i32>>;
-    #[method(name = "device.onScreenResolutionChanged")]
-    async fn on_screen_resolution_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
-    #[method(name = "device.videoResolution")]
-    async fn video_resolution(&self, ctx: CallContext) -> RpcResult<Vec<i32>>;
-    #[method(name = "device.onVideoResolutionChanged")]
-    async fn on_video_resolution_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
+
     #[method(name = "device.type")]
     async fn typ(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "device.audio")]
     async fn audio(&self, ctx: CallContext) -> RpcResult<HashMap<AudioProfile, bool>>;
     #[method(name = "device.onAudioChanged")]
     async fn on_audio_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
-    #[method(name = "device.network")]
-    async fn network(&self, ctx: CallContext) -> RpcResult<NetworkResponse>;
-    #[method(name = "device.onNetworkChanged")]
-    async fn on_network_changed(
         &self,
         ctx: CallContext,
         request: ListenRequest,
@@ -170,8 +101,7 @@ pub trait Device {
     ) -> RpcResult<()>;
     #[method(name = "device.distributor")]
     async fn distributor(&self, ctx: CallContext) -> RpcResult<String>;
-    #[method(name = "device.make")]
-    async fn make(&self, ctx: CallContext) -> RpcResult<String>;
+
     #[method(name = "device.platform")]
     async fn platform(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "device.version")]
@@ -179,7 +109,11 @@ pub trait Device {
 }
 
 pub fn filter_mac(mac_address: String) -> String {
-    mac_address.replace(':', "")
+    let filtered = mac_address.replace(':', "");
+    if filtered.len() != 12 || !filtered.chars().all(|c| c.is_ascii_hexdigit()) {
+        error!("Invalid MAC address format for mac{}", mac_address);
+    }
+    filtered
 }
 
 pub async fn get_device_id(state: &PlatformState) -> RpcResult<String> {
@@ -197,25 +131,18 @@ pub async fn get_ll_mac_addr(state: PlatformState) -> RpcResult<String> {
         .get_client()
         .send_extn_request(DeviceInfoRequest::MacAddress)
         .await;
+
     match resp {
-        Ok(response) => match response.payload.extract().unwrap() {
-            ExtnResponse::String(value) => Ok(filter_mac(value)),
+        Ok(response) => match response.payload.extract() {
+            Some(ExtnResponse::String(value)) => Ok(filter_mac(value)),
             _ => Err(jsonrpsee::core::Error::Custom(String::from(
-                "MAC Info error response TBD",
+                "device.info.mac_address error",
             ))),
         },
         Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-            "MAC Info error response TBD",
+            "device.info.mac_address error",
         ))),
     }
-}
-
-pub async fn set_device_name(state: &PlatformState, prop: SetStringProperty) -> RpcResult<()> {
-    StorageManager::set_string(state, StorageProperty::DeviceName, prop.value, None).await
-}
-
-pub async fn get_device_name(state: &PlatformState) -> RpcResult<String> {
-    StorageManager::get_string(state, StorageProperty::DeviceName).await
 }
 
 #[derive(Debug)]
@@ -225,21 +152,19 @@ pub struct DeviceImpl {
 
 impl DeviceImpl {
     async fn firmware_info(&self, _ctx: CallContext) -> RpcResult<FirmwareInfo> {
-        let resp = self
+        match self
             .state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::FirmwareInfo)
-            .await;
-
-        match resp {
-            Ok(dab_payload) => match dab_payload.payload.extract().unwrap() {
-                DeviceResponse::FirmwareInfo(value) => Ok(value),
+            .extn_request(DeviceInfoRequest::FirmwareInfo)
+            .await
+        {
+            Ok(response) => match response.payload.extract() {
+                Some(DeviceResponse::FirmwareInfo(value)) => Ok(value),
                 _ => Err(jsonrpsee::core::Error::Custom(String::from(
-                    "Firmware Info error response TBD",
+                    "device.hdcp error",
                 ))),
             },
             Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-                "Firmware Info error response TBD",
+                "device.hdcp error",
             ))),
         }
     }
@@ -247,18 +172,6 @@ impl DeviceImpl {
 
 #[async_trait]
 impl DeviceServer for DeviceImpl {
-    async fn name(&self, _ctx: CallContext) -> RpcResult<String> {
-        get_device_name(&self.state).await
-    }
-
-    async fn set_name(
-        &self,
-        _ctx: CallContext,
-        setname_request: SetStringProperty,
-    ) -> RpcResult<()> {
-        set_device_name(&self.state, setname_request).await
-    }
-
     async fn on_name_changed(
         &self,
         ctx: CallContext,
@@ -329,36 +242,20 @@ impl DeviceServer for DeviceImpl {
         Err(rpc_err("FB error response TBD"))
     }
 
-    async fn sku(&self, _ctx: CallContext) -> RpcResult<String> {
-        if let Ok(response) = self
+    async fn hdcp(&self, _ctx: CallContext) -> RpcResult<HashMap<HdcpProfile, bool>> {
+        match self
             .state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::Model)
+            .extn_request(DeviceInfoRequest::HdcpSupport)
             .await
         {
-            if let Some(ExtnResponse::String(v)) = response.payload.extract() {
-                return Ok(v);
-            }
-        }
-        Err(rpc_err("FB error response TBD"))
-    }
-
-    async fn hdcp(&self, _ctx: CallContext) -> RpcResult<HashMap<HdcpProfile, bool>> {
-        let resp = self
-            .state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::HdcpSupport)
-            .await;
-
-        match resp {
-            Ok(payload) => match payload.payload.extract().unwrap() {
-                DeviceResponse::HdcpSupportResponse(value) => Ok(value),
+            Ok(response) => match response.payload.extract() {
+                Some(DeviceResponse::HdcpSupportResponse(value)) => Ok(value),
                 _ => Err(jsonrpsee::core::Error::Custom(String::from(
-                    "Hdcp capabilities error response TBD",
+                    "device.hdcp error",
                 ))),
             },
             Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-                "Hdcp capabilities error response TBD",
+                "device.hdcp error",
             ))),
         }
     }
@@ -397,180 +294,6 @@ impl DeviceServer for DeviceImpl {
         })
     }
 
-    async fn hdr(&self, _ctx: CallContext) -> RpcResult<HashMap<HdrProfile, bool>> {
-        let resp = self
-            .state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::Hdr)
-            .await;
-
-        match resp {
-            Ok(response) => match response.payload.extract().unwrap() {
-                DeviceResponse::HdrResponse(value) => Ok(value
-                    .into_iter()
-                    .filter(|&(p, _)| p != HdrProfile::Technicolor)
-                    .collect()),
-                _ => Err(jsonrpsee::core::Error::Custom(String::from(
-                    "Hdr capabilities error response TBD",
-                ))),
-            },
-            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-                "Hdr capabilities error response TBD",
-            ))),
-        }
-    }
-
-    async fn on_hdr_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        let listen = request.listen;
-        AppEvents::add_listener(
-            &self.state,
-            HDR_CHANGED_EVENT.to_string(),
-            ctx.clone(),
-            request,
-        );
-
-        if self
-            .state
-            .get_client()
-            .send_extn_request(DeviceEventRequest {
-                event: DeviceEvent::HdrChanged,
-                subscribe: listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
-            })
-            .await
-            .is_err()
-        {
-            error!("Error while registration");
-        }
-
-        Ok(ListenerResponse {
-            listening: listen,
-            event: HDR_CHANGED_EVENT.to_string(),
-        })
-    }
-
-    async fn screen_resolution(&self, _ctx: CallContext) -> RpcResult<Vec<i32>> {
-        if let Ok(Ok(resp)) = timeout(
-            Duration::from_secs(DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS),
-            self.state
-                .get_client()
-                .send_extn_request(DeviceInfoRequest::ScreenResolution),
-        )
-        .await
-        {
-            if let Some(DeviceResponse::ScreenResolutionResponse(value)) = resp.payload.extract() {
-                return Ok(value);
-            }
-        }
-
-        Err(jsonrpsee::core::Error::Custom(String::from(
-            "screen_resolution error response TBD",
-        )))
-    }
-
-    async fn on_screen_resolution_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        let listen = request.listen;
-        AppEvents::add_listener(
-            &self.state,
-            SCREEN_RESOLUTION_CHANGED_EVENT.to_string(),
-            ctx.clone(),
-            request,
-        );
-
-        if self
-            .state
-            .get_client()
-            .send_extn_request(DeviceEventRequest {
-                event: DeviceEvent::ScreenResolutionChanged,
-                subscribe: listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
-            })
-            .await
-            .is_err()
-        {
-            error!("Error while registration");
-        }
-
-        Ok(ListenerResponse {
-            listening: listen,
-            event: SCREEN_RESOLUTION_CHANGED_EVENT.to_string(),
-        })
-    }
-
-    async fn video_resolution(&self, _ctx: CallContext) -> RpcResult<Vec<i32>> {
-        if let Ok(Ok(resp)) = timeout(
-            Duration::from_secs(DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS),
-            self.state
-                .get_client()
-                .send_extn_request(DeviceInfoRequest::VideoResolution),
-        )
-        .await
-        {
-            if let Some(DeviceResponse::VideoResolutionResponse(value)) = resp.payload.extract() {
-                return Ok(value);
-            }
-        }
-
-        Err(jsonrpsee::core::Error::Custom(String::from(
-            "video_resolution error response TBD",
-        )))
-    }
-
-    async fn on_video_resolution_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        let listen = request.listen;
-        AppEvents::add_listener(
-            &self.state,
-            VIDEO_RESOLUTION_CHANGED_EVENT.to_string(),
-            ctx.clone(),
-            request,
-        );
-
-        if self
-            .state
-            .get_client()
-            .send_extn_request(DeviceEventRequest {
-                event: DeviceEvent::VideoResolutionChanged,
-                subscribe: listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
-            })
-            .await
-            .is_err()
-        {
-            error!("Error while registration");
-        }
-
-        Ok(ListenerResponse {
-            listening: listen,
-            event: VIDEO_RESOLUTION_CHANGED_EVENT.to_string(),
-        })
-    }
-
-    async fn make(&self, _ctx: CallContext) -> RpcResult<String> {
-        if let Ok(response) = self
-            .state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::Make)
-            .await
-        {
-            if let Some(ExtnResponse::String(v)) = response.payload.extract() {
-                return Ok(v);
-            }
-        }
-        Err(rpc_err("FB error response TBD"))
-    }
-
     async fn typ(&self, _ctx: CallContext) -> RpcResult<String> {
         Ok(self.state.get_device_manifest().get_form_factor())
     }
@@ -583,18 +306,17 @@ impl DeviceServer for DeviceImpl {
             .await;
 
         match resp {
-            Ok(response) => match response.payload.extract().unwrap() {
-                DeviceResponse::AudioProfileResponse(audio) => Ok(audio),
+            Ok(response) => match response.payload.extract() {
+                Some(DeviceResponse::AudioProfileResponse(audio)) => {
+                    return Ok(audio);
+                }
                 _ => Err(jsonrpsee::core::Error::Custom(String::from(
-                    "Audio error response TBD",
+                    "device.audio error",
                 ))),
             },
-            Err(_e) => {
-                // TODO: What do error responses look like?
-                Err(jsonrpsee::core::Error::Custom(String::from(
-                    "Audio error response TBD",
-                )))
-            }
+            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
+                "device.audio error",
+            ))),
         }
     }
 
@@ -632,59 +354,6 @@ impl DeviceServer for DeviceImpl {
         })
     }
 
-    async fn network(&self, _ctx: CallContext) -> RpcResult<NetworkResponse> {
-        let resp = self
-            .state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::Network)
-            .await;
-
-        match resp {
-            Ok(response) => match response.payload.extract().unwrap() {
-                ExtnResponse::NetworkResponse(value) => Ok(value),
-                _ => Err(jsonrpsee::core::Error::Custom(String::from(
-                    "Network Status error response TBD",
-                ))),
-            },
-            Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
-                "Network status error response TBD",
-            ))),
-        }
-    }
-
-    async fn on_network_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        let listen = request.listen;
-        AppEvents::add_listener(
-            &self.state,
-            NETWORK_CHANGED_EVENT.to_string(),
-            ctx.clone(),
-            request,
-        );
-
-        if self
-            .state
-            .get_client()
-            .send_extn_request(DeviceEventRequest {
-                event: DeviceEvent::NetworkChanged,
-                subscribe: listen,
-                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id),
-            })
-            .await
-            .is_err()
-        {
-            error!("Error while registration");
-        }
-
-        Ok(ListenerResponse {
-            listening: listen,
-            event: NETWORK_CHANGED_EVENT.to_string(),
-        })
-    }
-
     async fn provision(
         &self,
         mut _ctx: CallContext,
@@ -701,6 +370,12 @@ impl DeviceServer for DeviceImpl {
             ));
         };
         _ctx.protocol = ApiProtocol::Extn;
+
+        let mut platform_state = self.state.clone();
+        platform_state
+            .metrics
+            .add_api_stats(&_ctx.request_id, "account.setServiceAccountId");
+
         let success = rpc_request_setter(
             self.state
                 .get_client()
@@ -712,7 +387,6 @@ impl DeviceServer for DeviceImpl {
                         Some(json!({"serviceAccountId": provision_request.account_id})),
                         &_ctx,
                     ),
-                    stats: RpcStats::default(),
                 })
                 .await,
         ) && rpc_request_setter(
@@ -726,7 +400,6 @@ impl DeviceServer for DeviceImpl {
                         Some(json!({"xDeviceId": provision_request.device_id})),
                         &_ctx,
                     ),
-                    stats: RpcStats::default(),
                 })
                 .await,
         ) && rpc_request_setter(
@@ -740,7 +413,6 @@ impl DeviceServer for DeviceImpl {
                         Some(json!({"partnerId": provision_request.distributor_id })),
                         &_ctx,
                     ),
-                    stats: RpcStats::default(),
                 })
                 .await,
         );

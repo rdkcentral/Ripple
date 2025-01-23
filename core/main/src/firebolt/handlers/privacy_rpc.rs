@@ -27,7 +27,6 @@ use jsonrpsee::{
     types::error::CallError,
     RpcModule,
 };
-use ripple_sdk::api::gateway::rpc_gateway_api::RpcStats;
 use ripple_sdk::{
     api::{
         device::device_peristence::SetBoolProperty,
@@ -83,19 +82,21 @@ impl AllowAppContentAdTargetingSettings {
 
     pub async fn get_allow_app_content_ad_targeting_settings(
         &self,
-        platform_state: &PlatformState,
+        platform_state: &mut PlatformState,
         ctx: &CallContext,
     ) -> HashMap<String, String> {
         let mut new_ctx = ctx.clone();
         new_ctx.protocol = ApiProtocol::Extn;
 
+        platform_state
+            .metrics
+            .add_api_stats(&ctx.request_id, "localization.countryCode");
+
         let rpc_request = RpcRequest {
             ctx: new_ctx.clone(),
             method: "localization.countryCode".into(),
             params_json: RpcRequest::prepend_ctx(None, &new_ctx),
-            stats: RpcStats::default(),
         };
-
         let resp = platform_state
             .get_client()
             .get_extn_client()
@@ -320,7 +321,7 @@ pub trait Privacy {
 }
 
 pub async fn get_allow_app_content_ad_targeting_settings(
-    platform_state: &PlatformState,
+    platform_state: &mut PlatformState,
     scope_option: Option<&ScopeOption>,
     caller_app: &String,
     ctx: &CallContext,

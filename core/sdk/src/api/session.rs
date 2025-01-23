@@ -250,19 +250,6 @@ impl ExtnPayloadProvider for SessionTokenRequest {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub enum PubSubAdjective {
-    Provider,
-    Listener,
-    Publish,
-}
-impl ContractAdjective for PubSubAdjective {
-    fn get_contract(&self) -> RippleContract {
-        RippleContract::PubSub(self.clone())
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-#[serde(rename_all = "snake_case")]
 pub enum SessionAdjective {
     Account,
     Platform,
@@ -281,11 +268,7 @@ impl ContractAdjective for SessionAdjective {
 #[serde(rename_all = "snake_case")]
 pub enum EventAdjective {
     Input,
-    Hdr,
-    ScreenResolution,
-    VideoResolution,
     VoiceGuidance,
-    Network,
     Internet,
     Audio,
     SystemPowerState,

@@ -64,7 +64,6 @@ use crate::{
         manifest::device_manifest::AppLibraryEntry,
         observability::analytics::AnalyticsRequest,
         protocol::BridgeProtocolRequest,
-        pubsub::{PubSubEvents, PubSubRequest, PubSubResponse},
         session::{AccountSessionRequest, AccountSessionResponse, SessionTokenRequest},
         settings::{SettingValue, SettingsRequest},
         status_update::ExtnStatus,
@@ -158,6 +157,12 @@ impl ExtnMessage {
             callback: self.callback.clone(),
             ts: None,
         }
+    }
+    pub fn as_value(&self) -> Option<Value> {
+        if let Some(ExtnResponse::Value(val)) = self.payload.extract::<ExtnResponse>() {
+            return Some(val);
+        }
+        None
     }
 }
 
@@ -308,7 +313,6 @@ pub enum ExtnRequest {
     StorageManager(StorageManagerRequest),
     AccountLink(AccountLinkRequest),
     Settings(SettingsRequest),
-    PubSub(PubSubRequest),
     CloudSync(SyncAndMonitorRequest),
     UserGrantsCloudStore(UserGrantsCloudStoreRequest),
     UserGrantsStore(UserGrantsStoreRequest),
@@ -364,7 +368,6 @@ pub enum ExtnResponse {
     Token(TokenResult),
     DefaultApp(AppLibraryEntry),
     Settings(HashMap<String, SettingValue>),
-    PubSub(PubSubResponse),
     BoolMap(HashMap<String, bool>),
     Advertising(AdvertisingResponse),
     SecureStorage(SecureStorageResponse),
@@ -400,7 +403,6 @@ pub enum ExtnEvent {
     OperationalMetrics(TelemetryPayload),
     Context(RippleContext),
     VoiceGuidanceState(VoiceGuidanceState),
-    PubSubEvent(PubSubEvents),
     TimeZone(TimeZone),
     AppsUpdate(AppsUpdate),
 }
@@ -618,5 +620,14 @@ mod tests {
         let extn_event_payload = ExtnPayload::Event(event_payload);
         assert!(value.id.eq_ignore_ascii_case("test_id"));
         assert!(value.payload.eq(&extn_event_payload));
+    }
+    #[test]
+    fn test_analytics_request_serialization() {
+        let analytics_request = ExtnRequest::Analytics(AnalyticsRequest::default());
+        let payload = ExtnPayload::Request(analytics_request.clone());
+
+        // Test extraction
+        let extracted: Option<ExtnRequest> = payload.extract();
+        assert_eq!(extracted, Some(analytics_request));
     }
 }

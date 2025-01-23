@@ -65,7 +65,7 @@ pub enum DeviceInfoRequest {
     FullCapabilities(Vec<String>),
     PowerState,
     SerialNumber,
-    StartMonitoringInternetChanges,
+    StartMonitoringInternetChanges(u32),
     StopMonitoringInternetChanges,
     PlatformBuildInfo,
 }
