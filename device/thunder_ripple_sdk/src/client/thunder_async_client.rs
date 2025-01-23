@@ -254,8 +254,9 @@ impl ThunderAsyncClient {
                             if self.status_manager.is_controller_response(self.get_sender(), callback.clone(), t.as_bytes()).await {
                                 self.status_manager.handle_controller_response(self.get_sender(), callback.clone(), t.as_bytes()).await;
                             } else {
-                            // send the incoming text without context back to the sender
-                            Self::handle_jsonrpc_response(t.as_bytes(),callback.clone()).await
+                                Self::handle_jsonrpc_response(t.as_bytes(), callback.clone()).await;
+                                //close the newly created websocket here.
+                                let _ = new_wtx.close().await;
                             }
                         }
                     },
@@ -319,14 +320,19 @@ impl ThunderAsyncClient {
                         Ok(updated_request) => {
                             debug!("Sending request to thunder {:?}", updated_request);
                             for r in updated_request {
-                                let url_clone = url.to_string();
-                                let callback_clone = callback.clone();
-                                let self_clone = self.clone();
-                                tokio::spawn({
-                                    async move {
-                                       Self::process_new_req(&self_clone, r, url_clone, callback_clone.clone()).await;
-                                    }
-                                });
+                                //check if it's subscription call use the already existing websocket for sending
+                                if r.contains(".register") {
+                                    let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
+                                    let _flush = ws_tx.flush().await;
+                                } else {
+                                    let url_clone = url.to_string();
+                                    let callback_clone = callback.clone();
+                                    let self_clone = self.clone();
+                                    tokio::spawn(async move {
+                                        self_clone.process_new_req(r, url_clone, callback_clone.clone()).await;
+                                        }
+                                    );
+                                }
                             }
                         }
                         Err(e) => {
