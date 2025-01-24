@@ -25,12 +25,12 @@ use super::{
 use crate::broker::broker_utils::BrokerUtils;
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
-    api::{gateway::rpc_gateway_api::{JsonRpcApiResponse, observability::log_signal::LogSignal}, RpcRequest},
+    api::{gateway::rpc_gateway_api::{JsonRpcApiResponse, RpcRequest}, observability::log_signal::LogSignal},
     log::{debug, error, info, trace},
     tokio::{
         self,
         sync::{mpsc, Mutex},
-        time,
+        time
     },
     utils::error::RippleError,
 };
@@ -243,8 +243,8 @@ impl ThunderBroker {
                                         // send the incoming text without context back to the sender
                                         let id = Self::get_id_from_result(t.as_bytes());
                                         let composite_resp_params = Self::get_composite_response_params_by_id(broker_c.clone(), id).await;
-                                        Self::handle_jsonrpc_response(t.as_bytes(),broker_c.get_broker_callback(id).await, composite_resp_params)
-                                    }
+                                        let _ = Self::handle_jsonrpc_response(t.as_bytes(),broker_c.get_broker_callback(id).await, composite_resp_params);
+                                    };
                                 }
                             },
                             Err(e) => {
