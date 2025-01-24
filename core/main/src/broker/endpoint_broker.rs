@@ -829,6 +829,7 @@ pub trait EndpointBroker {
     fn handle_jsonrpc_response(
         result: &[u8],
         callback: BrokerCallback,
+        _params: Option<Value>,
     ) -> Result<BrokerOutput, RippleError> {
         let mut final_result = Err(RippleError::ParseError);
         if let Ok(data) = serde_json::from_slice::<JsonRpcApiResponse>(result) {
@@ -1023,12 +1024,34 @@ impl BrokerOutputForwarder {
                         }
 
                         if apply_response_needed {
-                            if let Some(filter) = broker_request.rule.transform.get_transform_data(
-                                super::rules_engine::RuleTransformType::Response,
-                            ) {
-                                apply_response(filter, &rule_context_name, &mut response);
-                            } else if response.result.is_none() && response.error.is_none() {
-                                response.result = Some(Value::Null);
+                            // Apply response rule using params if there is any; otherwise, apply response rule using main broker request's response rule
+                            let mut apply_response_using_main_req_needed = true;
+                            if let Some(params) = output.data.params {
+                                if let Some(param) = params.as_object() {
+                                    for (key, value) in param {
+                                        if key == "response" {
+                                            if let Some(filter) = value.as_str() {
+                                                apply_response_using_main_req_needed = false;
+                                                apply_response(
+                                                    filter.to_string(),
+                                                    &rpc_request.ctx.method,
+                                                    &mut response,
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if apply_response_using_main_req_needed {
+                                if let Some(filter) =
+                                    broker_request.rule.transform.get_transform_data(
+                                        super::rules_engine::RuleTransformType::Response,
+                                    )
+                                {
+                                    apply_response(filter, &rule_context_name, &mut response);
+                                } else if response.result.is_none() && response.error.is_none() {
+                                    response.result = Some(Value::Null);
+                                }
                             }
                         }
 
