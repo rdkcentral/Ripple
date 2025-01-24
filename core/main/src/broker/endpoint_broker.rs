@@ -828,7 +828,8 @@ pub trait EndpointBroker {
     /// client for consumption
     fn handle_jsonrpc_response(
         result: &[u8],
-        callback: BrokerCallback, _params: Option<Value>,
+        callback: BrokerCallback,
+        _params: Option<Value>,
     ) -> Result<BrokerOutput, RippleError> {
         let mut final_result = Err(RippleError::ParseError);
         if let Ok(data) = serde_json::from_slice::<JsonRpcApiResponse>(result) {

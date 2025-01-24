@@ -25,12 +25,15 @@ use super::{
 use crate::broker::broker_utils::BrokerUtils;
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
-    api::{gateway::rpc_gateway_api::{JsonRpcApiResponse, RpcRequest}, observability::log_signal::LogSignal},
+    api::{
+        gateway::rpc_gateway_api::{JsonRpcApiResponse, RpcRequest},
+        observability::log_signal::LogSignal,
+    },
     log::{debug, error, info, trace},
     tokio::{
         self,
         sync::{mpsc, Mutex},
-        time
+        time,
     },
     utils::error::RippleError,
 };
@@ -610,7 +613,8 @@ impl EndpointBroker for ThunderBroker {
     /// client for consumption
     fn handle_jsonrpc_response(
         result: &[u8],
-        callback: BrokerCallback, params: Option<Value>,
+        callback: BrokerCallback,
+        params: Option<Value>,
     ) -> Result<BrokerOutput, RippleError> {
         let mut final_result = Err(RippleError::ParseError);
         if let Ok(data) = serde_json::from_slice::<JsonRpcApiResponse>(result) {
