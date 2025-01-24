@@ -202,7 +202,6 @@ impl ThunderBroker {
         let broker_c = thunder_broker.clone();
         let broker_for_cleanup = thunder_broker.clone();
         let broker_for_reconnect = thunder_broker.clone();
-        broker_c.start_purge_composite_request_timer();
         tokio::spawn(async move {
             let (ws_tx, mut ws_rx) = BrokerUtils::get_ws_broker(&endpoint.get_url(), None).await;
 
