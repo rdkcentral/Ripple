@@ -31,6 +31,7 @@ use ripple_sdk::{
     api::{
         firebolt::fb_metrics::Timer,
         gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
+        observability::log_signal::LogSignal,
     },
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
@@ -175,7 +176,7 @@ impl RpcRouter {
         if let Some(overridden_method) = state.get_manifest().has_rpc_override_method(&req.method) {
             req.method = overridden_method;
         }
-
+        LogSignal::new("rpc_router".to_string(), "routing".into(), req.clone());
         tokio::spawn(async move {
             let start = Utc::now().timestamp_millis();
             let resp = resolve_route(&mut state, methods, resources, req.clone()).await;
@@ -212,6 +213,12 @@ impl RpcRouter {
         let resources = state.router_state.resources.clone();
 
         let mut platform_state = state.clone();
+        LogSignal::new(
+            "rpc_router".to_string(),
+            "route_extn_protocol".into(),
+            req.clone(),
+        )
+        .emit_debug();
         tokio::spawn(async move {
             if let Ok(msg) = resolve_route(&mut platform_state, methods, resources, req).await {
                 return_extn_response(msg, extn_msg);

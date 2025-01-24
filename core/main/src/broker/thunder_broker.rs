@@ -26,7 +26,7 @@ use crate::broker::broker_utils::BrokerUtils;
 use futures_util::{SinkExt, StreamExt};
 
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::JsonRpcApiResponse,
+    api::{gateway::rpc_gateway_api::JsonRpcApiResponse, observability::log_signal::LogSignal},
     log::{debug, error, info, trace},
     tokio::{
         self,
@@ -102,17 +102,20 @@ impl ThunderBroker {
 
     fn start(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
         let endpoint = request.endpoint.clone();
-        let (tx, mut tr) = mpsc::channel(10);
+        let (broker_request_tx, mut broker_request_rx) = mpsc::channel(10);
         let (c_tx, mut c_tr) = mpsc::channel(2);
-        let sender = BrokerSender { sender: tx };
+        let broker_sender = BrokerSender {
+            sender: broker_request_tx,
+        };
         let subscription_map = Arc::new(RwLock::new(request.sub_map.clone()));
         let cleaner = BrokerCleaner {
             cleaner: Some(c_tx.clone()),
         };
-        let broker = Self::new(sender, subscription_map, cleaner, callback).with_data_migtator();
-        let broker_c = broker.clone();
-        let broker_for_cleanup = broker.clone();
-        let broker_for_reconnect = broker.clone();
+        let thunder_broker =
+            Self::new(broker_sender, subscription_map, cleaner, callback).with_data_migtator();
+        let broker_c = thunder_broker.clone();
+        let broker_for_cleanup = thunder_broker.clone();
+        let broker_for_reconnect = thunder_broker.clone();
         tokio::spawn(async move {
             let (ws_tx, mut ws_rx) = BrokerUtils::get_ws_broker(&endpoint.get_url(), None).await;
 
@@ -134,19 +137,41 @@ impl ThunderBroker {
             tokio::pin! {
                 let read = ws_rx.next();
             }
+            let diagnostic_context: Arc<Mutex<Option<BrokerRequest>>> = Arc::new(Mutex::new(None));
             loop {
                 tokio::select! {
+
                     Some(value) = &mut read => {
                         match value {
                             Ok(v) => {
+
                                 if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
+                                    debug!("Broker Websocket message {:?}", t);
+
                                     if broker_c.status_manager.is_controller_response(broker_c.get_sender(), broker_c.get_default_callback(), t.as_bytes()).await {
                                         broker_c.status_manager.handle_controller_response(broker_c.get_sender(), broker_c.get_default_callback(), t.as_bytes()).await;
                                     }
                                     else {
                                         // send the incoming text without context back to the sender
-                                        let id = Self::get_id_from_result(t.as_bytes());
-                                        Self::handle_jsonrpc_response(t.as_bytes(),broker_c.get_broker_callback(id).await)
+                                       let t = t.as_bytes();
+                                       match Self::handle_jsonrpc_response(t,broker_c.get_broker_callback( Self::get_id_from_result(t) ).await) {
+                                             Ok(okie) => {
+                                                match diagnostic_context.lock().await.as_ref() {
+                                                    Some(ctx) => {
+                                                        LogSignal::new("thunder_response".to_string(), "received message from thunder".to_string(), ctx.rpc.ctx.clone())
+                                                            .with_diagnostic_context_item("response", &format! ("{:?}", okie))
+                                                            .emit_debug();
+                                                    },
+                                                    None => {
+                                                        LogSignal::new("thunder_response".to_string(), "received message from thunder".to_string(), okie.data)
+                                                            .emit_debug();
+                                                    }
+                                                }
+                                             },
+                                             Err(e) => {
+                                                  error!("Broker Websocket error on handle_jsonrpc_response {:?}", e);
+                                             }
+                                       }
                                     }
                                 }
                             },
@@ -158,8 +183,9 @@ impl ThunderBroker {
                         }
 
                     },
-                    Some(mut request) = tr.recv() => {
+                    Some(mut request) = broker_request_rx.recv() => {
                         debug!("Got request from receiver for broker {:?}", request);
+                        diagnostic_context.lock().await.replace(request.clone());
 
                         match broker_c.check_and_generate_plugin_activation_request(&request) {
                             Ok(requests) => {
@@ -180,17 +206,26 @@ impl ThunderBroker {
 
                                     // If the request is not consumed by the data migrator, continue with the request
                                     if !request_consumed {
+
                                         match broker_c.prepare_request(&request) {
                                             Ok(updated_request) => {
-                                                debug!("Sending request to broker {:?}", updated_request);
+
+                                                LogSignal::new("thunder_broker".to_string(),"sending message to thunder".to_string(), request.rpc.ctx.clone())
+                                                    .with_diagnostic_context_item("updated_request", &format!("{:?}", updated_request))
+                                                    .emit_debug();
+
                                                 let binding = ws_tx_wrap.clone();
                                                 let mut ws_tx = binding.lock().await;
                                                 for r in updated_request {
-                                                    let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
-                                                    let _flush = ws_tx.flush().await;
+                                                    let _ = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
+
+                                                    let _ = ws_tx.flush().await;
                                                 }
                                             }
                                             Err(e) => {
+                                                LogSignal::new("thunder_broker".to_string(), "Prepare request failed".to_string(), request.rpc.ctx.clone())
+                                                    .with_diagnostic_context_item("error", &format!("{:?}", e))
+                                                    .emit_error();
                                                 broker_c.get_default_callback().send_error(request,e).await
                                             }
                                         }
@@ -240,7 +275,7 @@ impl ThunderBroker {
                 error!("Error reconnecting to thunder");
             }
         });
-        broker
+        thunder_broker
     }
 
     fn update_response(response: &JsonRpcApiResponse) -> JsonRpcApiResponse {
@@ -459,17 +494,21 @@ impl EndpointBroker for ThunderBroker {
 
     /// Default handler method for the broker to remove the context and send it back to the
     /// client for consumption
-    fn handle_jsonrpc_response(result: &[u8], callback: BrokerCallback) {
+    fn handle_jsonrpc_response(
+        result: &[u8],
+        callback: BrokerCallback,
+    ) -> Result<BrokerOutput, RippleError> {
         let mut final_result = Err(RippleError::ParseError);
         if let Ok(data) = serde_json::from_slice::<JsonRpcApiResponse>(result) {
             let updated_data = Self::update_response(&data);
-            final_result = Ok(BrokerOutput { data: updated_data });
+            final_result = Ok(BrokerOutput::new(updated_data));
         }
-        if let Ok(output) = final_result {
+        if let Ok(output) = final_result.clone() {
             tokio::spawn(async move { callback.sender.send(output).await });
         } else {
             error!("Bad broker response {}", String::from_utf8_lossy(result));
         }
+        final_result
     }
 }
 
@@ -619,12 +658,13 @@ mod tests {
             }
         });
 
-        ThunderBroker::handle_jsonrpc_response(
+        assert!(ThunderBroker::handle_jsonrpc_response(
             response.to_string().as_bytes(),
             BrokerCallback {
                 sender: sender.clone(),
             },
-        );
+        )
+        .is_ok());
 
         let v = tokio::time::timeout(Duration::from_secs(2), rec.recv())
             .await
@@ -688,12 +728,13 @@ mod tests {
             }
         });
 
-        ThunderBroker::handle_jsonrpc_response(
+        assert!(ThunderBroker::handle_jsonrpc_response(
             response.to_string().as_bytes(),
             BrokerCallback {
                 sender: sender.clone(),
             },
-        );
+        )
+        .is_ok());
 
         let v = tokio::time::timeout(Duration::from_secs(2), rec.recv())
             .await
@@ -742,12 +783,13 @@ mod tests {
             }
         });
 
-        ThunderBroker::handle_jsonrpc_response(
+        assert!(ThunderBroker::handle_jsonrpc_response(
             response.to_string().as_bytes(),
             BrokerCallback {
                 sender: sender.clone(),
             },
-        );
+        )
+        .is_ok());
 
         let v = tokio::time::timeout(Duration::from_secs(2), rec.recv())
             .await

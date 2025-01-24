@@ -276,7 +276,7 @@ impl SettingsProcessor {
                     }
                 }
                 SettingKey::ShareWatchHistory => {
-                    if Self::subscribe_event(
+                    if !Self::subscribe_event(
                         state,
                         ctx.clone(),
                         EVENT_SHARE_WATCH_HISTORY,
@@ -303,7 +303,6 @@ impl SettingsProcessor {
                 }
                 SettingKey::PowerSaving | SettingKey::LegacyMiniGuide => {
                     warn!("{} Not implemented", key.to_string());
-                    resp = false
                 }
             }
         }

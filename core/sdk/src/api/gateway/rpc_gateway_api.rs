@@ -66,6 +66,35 @@ pub struct CallContext {
     pub cid: Option<String>,
     pub gateway_secure: bool,
 }
+impl From<CallContext> for serde_json::Value {
+    fn from(ctx: CallContext) -> Self {
+        json!({
+            "session_id": ctx.session_id,
+            "request_id": ctx.request_id,
+            "app_id": ctx.app_id,
+            "call_id": ctx.call_id,
+            "protocol": ctx.protocol,
+            "method": ctx.method,
+            "cid": ctx.cid,
+            "gateway_secure": ctx.gateway_secure,
+        })
+    }
+}
+impl std::fmt::Display for CallContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "session_id={}, request_id={}, app_id={}, call_id={}, protocol={}, method={}, cid={}",
+            self.session_id,
+            self.request_id,
+            self.app_id,
+            self.call_id,
+            self.protocol,
+            self.method,
+            self.cid.as_ref().unwrap_or(&"no_cid".to_string())
+        )
+    }
+}
 
 impl CallContext {
     // TODO: refactor this to use less arguments
@@ -135,7 +164,15 @@ pub enum ApiProtocol {
     #[default]
     JsonRpc,
 }
-
+impl std::fmt::Display for ApiProtocol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ApiProtocol::Bridge => write!(f, "Bridge"),
+            ApiProtocol::Extn => write!(f, "Extn"),
+            ApiProtocol::JsonRpc => write!(f, "JsonRpc"),
+        }
+    }
+}
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct ApiMessage {
     pub protocol: ApiProtocol,
@@ -584,6 +621,15 @@ pub struct ClientContext {
     pub session_id: String,
     pub app_id: String,
     pub gateway_secure: bool,
+}
+impl std::fmt::Display for ClientContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "session_id={}, app_id={}, gateway_secure={}",
+            self.session_id, self.app_id, self.gateway_secure
+        )
+    }
 }
 
 #[derive(Debug)]
