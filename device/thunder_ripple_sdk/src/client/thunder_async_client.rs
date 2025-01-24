@@ -235,38 +235,93 @@ impl ThunderAsyncClient {
         }
     }
 
-    pub async fn process_new_req(&self, request: String, url: String, callback: AsyncCallback) {
-        let (mut new_wtx, mut new_wrx) = Self::create_ws(&url).await;
-        let _feed = new_wtx
+    // <pca>
+    // pub async fn process_new_req(&self, request: String, url: String, callback: AsyncCallback) {
+    //     let (mut new_wtx, mut new_wrx) = Self::create_ws(&url).await;
+    //     let _feed = new_wtx
+    //         .feed(tokio_tungstenite::tungstenite::Message::Text(request))
+    //         .await;
+    //     let _flush = new_wtx.flush().await;
+
+    //     tokio::pin! {
+    //         let read = new_wrx.next();
+    //     }
+
+    //     tokio::select! {
+    //         Some(value) = &mut read => {
+    //             match value {
+    //                 Ok(v) => {
+    //                     if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
+    //                         if self.status_manager.is_controller_response(self.get_sender(), callback.clone(), t.as_bytes()).await {
+    //                             self.status_manager.handle_controller_response(self.get_sender(), callback.clone(), t.as_bytes()).await;
+    //                         } else {
+    //                             Self::handle_jsonrpc_response(t.as_bytes(), callback.clone()).await;
+    //                             //close the newly created websocket here.
+    //                             let _ = new_wtx.close().await;
+    //                         }
+    //                     }
+    //                 },
+    //                 Err(e) => {
+    //                     error!("thunder_async_client Websocket error on read {:?}", e);
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+    pub async fn process_new_req(&self, request: String, url: String) {
+        let (mut ws_tx, mut ws_rx) = Self::create_ws(&url).await;
+        let _feed = ws_tx
             .feed(tokio_tungstenite::tungstenite::Message::Text(request))
             .await;
-        let _flush = new_wtx.flush().await;
+        let _flush = ws_tx.flush().await;
 
-        tokio::pin! {
-            let read = new_wrx.next();
-        }
+        // tokio::pin! {
+        //     let read = new_wrx.next();
+        // }
 
-        tokio::select! {
-            Some(value) = &mut read => {
-                match value {
-                    Ok(v) => {
-                        if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
-                            if self.status_manager.is_controller_response(self.get_sender(), callback.clone(), t.as_bytes()).await {
-                                self.status_manager.handle_controller_response(self.get_sender(), callback.clone(), t.as_bytes()).await;
-                            } else {
-                                Self::handle_jsonrpc_response(t.as_bytes(), callback.clone()).await;
-                                //close the newly created websocket here.
-                                let _ = new_wtx.close().await;
-                            }
-                        }
-                    },
-                    Err(e) => {
-                        error!("thunder_async_client Websocket error on read {:?}", e);
-                    }
+        // tokio::select! {
+        //     Some(value) = &mut read => {
+        //         match value {
+        //             Ok(v) => {
+        //                 self.handle_response(v).await;
+        //             },
+        //             Err(e) => {
+        //                 error!("thunder_async_client Websocket error on read {:?}", e);
+        //             }
+        //         }
+        //     }
+        // }
+        if let Some(resp) = ws_rx.next().await {
+            match resp {
+                Ok(message) => {
+                    self.handle_response(message).await;
+                }
+                Err(e) => {
+                    error!("thunder_async_client Websocket error on read {:?}", e);
                 }
             }
         }
     }
+    // </pca>
+
+    // <pca>
+    async fn handle_response(&self, message: Message) {
+        if let Message::Text(t) = message {
+            let request = t.as_bytes();
+            if self
+                .status_manager
+                .is_controller_response(self.get_sender(), self.callback.clone(), request)
+                .await
+            {
+                self.status_manager
+                    .handle_controller_response(self.get_sender(), self.callback.clone(), request)
+                    .await;
+            } else {
+                Self::handle_jsonrpc_response(request, self.callback.clone()).await
+            }
+        }
+    }
+    // </pca>
 
     pub async fn start(
         &self,
@@ -296,16 +351,19 @@ impl ThunderAsyncClient {
                 Some(value) = &mut read => {
                     match value {
                         Ok(v) => {
-                            if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
-                                if client_c.status_manager.is_controller_response(client_c.get_sender(), callback.clone(), t.as_bytes()).await {
-                                    client_c.status_manager.handle_controller_response(client_c.get_sender(), callback.clone(), t.as_bytes()).await;
-                                }
-                                else {
-                                    //let _id = Self::get_id_from_result(t.as_bytes()); for debug purpose
-                                    // send the incoming text without context back to the sender
-                                    Self::handle_jsonrpc_response(t.as_bytes(),callback.clone()).await
-                                }
-                            }
+                            // <pca>
+                            //if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
+                                // if client_c.status_manager.is_controller_response(client_c.get_sender(), callback.clone(), t.as_bytes()).await {
+                                //     client_c.status_manager.handle_controller_response(client_c.get_sender(), callback.clone(), t.as_bytes()).await;
+                                // }
+                                // else {
+                                //     //let _id = Self::get_id_from_result(t.as_bytes()); for debug purpose
+                                //     // send the incoming text without context back to the sender
+                                //     Self::handle_jsonrpc_response(t.as_bytes(),callback.clone()).await
+                                // }
+                            //}
+                                self.handle_response(v).await;
+                                // </pca>
                         },
                         Err(e) => {
                             error!("Thunder_async_client Websocket error on read {:?}", e);
@@ -320,26 +378,44 @@ impl ThunderAsyncClient {
                         Ok(updated_request) => {
                             debug!("Sending request to thunder {:?}", updated_request);
                             for r in updated_request {
+                                // <pca>
+                                // match request.request {
+                                //     DeviceChannelRequest::Subscribe(_) => {
+                                //         let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
+                                //         let _flush = ws_tx.flush().await;
+                                //     },
+                                //     DeviceChannelRequest::Unsubscribe(_) => {
+                                //         let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
+                                //         let _flush = ws_tx.flush().await;
+                                //     },
+                                //     DeviceChannelRequest::Call(_) =>{
+                                //         let url_clone = url.to_string();
+                                //         let callback_clone = callback.clone();
+                                //         let self_clone = self.clone();
+                                //         tokio::spawn(async move {
+                                //             self_clone.process_new_req(r, url_clone, callback_clone.clone()).await;
+                                //             }
+                                //         );
+                                //     }
+
+                                // }
                                 match request.request {
                                     DeviceChannelRequest::Subscribe(_) => {
                                         let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
                                         let _flush = ws_tx.flush().await;
+
                                     },
-                                    DeviceChannelRequest::Unsubscribe(_) => {
-                                        let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
-                                        let _flush = ws_tx.flush().await;
-                                    },
-                                    DeviceChannelRequest::Call(_) =>{
+                                    _ => {
+                                        let thunder_async_client = self.clone();
                                         let url_clone = url.to_string();
-                                        let callback_clone = callback.clone();
-                                        let self_clone = self.clone();
                                         tokio::spawn(async move {
-                                            self_clone.process_new_req(r, url_clone, callback_clone.clone()).await;
+                                            thunder_async_client.process_new_req(r, url_clone).await;
                                             }
                                         );
                                     }
 
                                 }
+                                // </pca>
                             }
                         }
                         Err(e) => {
