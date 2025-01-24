@@ -23,9 +23,10 @@ use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiError;
 use ripple_sdk::async_channel::unbounded;
 use ripple_sdk::extn::extn_client_message::{ExtnMessage, ExtnPayload, ExtnRequest};
 use ripple_sdk::framework::ripple_contract::RippleContract;
-use ripple_sdk::log::trace;
+use ripple_sdk::log::{trace, Log};
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
+    api::observability::log_signal::LogSignal,
     chrono::Utc,
     extn::extn_id::ExtnId,
     log::error,
@@ -48,6 +49,11 @@ impl ExtnBroker {
         tokio::spawn(async move {
             while let Some(broker_request) = rx.recv().await {
                 trace!("Received message {:?}", broker_request);
+                LogSignal::new(
+                    "extn_broker".to_string(),
+                    format!("Received broker request: {:?}", broker_request),
+                    broker_request.rpc.ctx.clone(),
+                ).emit_debug();
                 let rpc_request = broker_request.rpc.clone();
                 let rule = broker_request.rule.clone();
                 let alias = rule.alias;
@@ -97,6 +103,11 @@ impl ExtnBroker {
                                 let composed: JsonRpcApiResponse = broker_request.clone().into();
                                 let composed = composed.with_result(Some(value));
 
+                                LogSignal::new(
+                                    "extn_broker".to_string(),
+                                    format!("Received broker response: {:?}", composed),
+                                    broker_request.rpc.ctx.clone(),
+                                ).emit_debug();
                                 Self::send_broker_success_response(&callback, composed);
                             }
                             Err(error) => {
@@ -108,6 +119,11 @@ impl ExtnBroker {
                                     ))
                                     .with_id(broker_request.rpc.ctx.call_id)
                                     .into();
+                                LogSignal::new(
+                                    "extn_broker".to_string(),
+                                    format!("Received broker error: {:?}", error_message),
+                                    broker_request.rpc.ctx.clone(),
+                                ).emit_error();
 
                                 Self::send_broker_failure_response(&callback, error_message);
                             }
