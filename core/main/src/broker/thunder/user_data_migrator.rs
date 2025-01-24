@@ -792,12 +792,7 @@ impl UserDataMigrator {
         );
         self.set_migration_status(&config_entry.namespace, &config_entry.key)
             .await;
-        Ok((
-            true,
-            Some(BrokerOutput {
-                data: data_for_callback,
-            }),
-        ))
+        Ok((true, Some(BrokerOutput::new(data_for_callback))))
     }
 
     async fn handle_non_default_plugin_value(
@@ -825,12 +820,7 @@ impl UserDataMigrator {
         }
         self.set_migration_status(&config_entry.namespace, &config_entry.key)
             .await;
-        Ok((
-            true,
-            Some(BrokerOutput {
-                data: data_for_callback,
-            }),
-        ))
+        Ok((true, Some(BrokerOutput::new(data_for_callback))))
     }
 
     async fn handle_default_plugin_value(

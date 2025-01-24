@@ -60,7 +60,12 @@ impl WebsocketBroker {
                                 Ok(v) => {
                                     if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
                                         // send the incoming text without context back to the sender
-                                        Self::handle_jsonrpc_response(t.as_bytes(),callback.clone())
+                                       match  Self::handle_jsonrpc_response(t.as_bytes(),callback.clone()) {
+                                             Ok(_) => {},
+                                             Err(e) => {
+                                                  error!("error forwarding {}", e);
+                                             }
+                                       }
                                     }
                                 },
                                 Err(e) => {
