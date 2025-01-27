@@ -18,7 +18,7 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot::error::RecvError};
 
 pub const DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS: u64 = 5;
 
@@ -32,7 +32,9 @@ pub trait DeviceOperator: Clone {
         &self,
         request: DeviceSubscribeRequest,
         handler: mpsc::Sender<DeviceResponseMessage>,
-    ) -> DeviceResponseMessage;
+        // <pca>
+        //) -> DeviceResponseMessage;
+    ) -> Result<DeviceResponseMessage, RecvError>;
 
     async fn unsubscribe(&self, request: DeviceUnsubscribeRequest);
 }
