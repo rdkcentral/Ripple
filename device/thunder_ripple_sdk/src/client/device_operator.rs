@@ -64,18 +64,6 @@ impl DeviceChannelRequest {
             DeviceChannelRequest::Unsubscribe(u) => (u.module.clone(), u.event_name.clone()),
         }
     }
-
-    pub fn is_subscription(&self) -> bool {
-        !matches!(self, DeviceChannelRequest::Call(_))
-    }
-
-    pub fn is_unsubscribe(&self) -> Option<DeviceUnsubscribeRequest> {
-        if let DeviceChannelRequest::Unsubscribe(u) = self {
-            Some(u.clone())
-        } else {
-            None
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

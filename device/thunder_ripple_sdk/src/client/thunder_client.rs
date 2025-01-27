@@ -75,7 +75,6 @@ impl ThunderClientManager {
                     .start(&thndr_endpoint_url, request_tr)
                     .await;
             }
-            error!("Thunder disconnected so reconnecting");
         });
         /*thunder async response will get here */
         tokio::spawn(async move {
