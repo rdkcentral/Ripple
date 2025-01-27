@@ -264,11 +264,8 @@ impl ThunderWifiRequestProcessor {
                 },
                 sub_tx,
             )
-            // <pca>
-            //.await;
             .await
             .ok();
-        // </pca>
         // spawn a thread that handles all scan events, handle the success and error events
         tokio::spawn(async move {
             if let Ok(Some(m)) = timeout(Duration::from_secs(timeout_value), sub_rx.recv()).await {
@@ -383,11 +380,8 @@ impl ThunderWifiRequestProcessor {
                 },
                 sub_tx,
             )
-            // <pca>
-            //.await;
             .await
             .ok();
-        // </pca>
         info!("subscribed to onWIFIStateChanged events");
 
         let (err_tx, mut err_rx) = mpsc::channel::<DeviceResponseMessage>(32);
@@ -402,11 +396,8 @@ impl ThunderWifiRequestProcessor {
                 },
                 err_tx,
             )
-            // <pca>
-            //.await;
             .await
             .ok();
-        // </pca>
         info!("subscribed to wifi onError events");
 
         let _handle = tokio::spawn(async move {

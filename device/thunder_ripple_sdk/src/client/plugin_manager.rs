@@ -234,11 +234,8 @@ impl PluginManager {
                 },
                 sub_tx,
             )
-            // <pca>
-            //.await;
             .await
             .ok();
-        // </pca>
         // Spawn command thread
         tokio::spawn(async move {
             while let Some(command) = rx.recv().await {

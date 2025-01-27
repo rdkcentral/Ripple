@@ -221,11 +221,8 @@ impl ThunderRemoteAccessoryRequestProcessor {
                 },
                 sub_tx,
             )
-            // <pca>
-            //.await;
             .await
             .ok();
-        // </pca>
         info!("subscribed to remote onStatus events");
 
         let _handle = tokio::spawn(async move {

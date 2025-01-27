@@ -209,25 +209,6 @@ impl DeviceOperator for ThunderClient {
         }
     }
 
-    // <pca>
-    // async fn subscribe(
-    //     &self,
-    //     request: DeviceSubscribeRequest,
-    //     handler: mpsc::Sender<DeviceResponseMessage>,
-    // ) -> DeviceResponseMessage {
-    //     let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
-    //     let message = ThunderSubscribeMessage {
-    //         module: request.module,
-    //         event_name: request.event_name,
-    //         params: request.params,
-    //         handler,
-    //         callback: Some(tx),
-    //         sub_id: request.sub_id,
-    //     };
-    //     let msg = ThunderMessage::ThunderSubscribeMessage(message);
-    //     self.send_message(msg).await;
-    //     rx.await.unwrap()
-    // }
     async fn subscribe(
         &self,
         request: DeviceSubscribeRequest,
@@ -250,7 +231,6 @@ impl DeviceOperator for ThunderClient {
         }
         result
     }
-    // </pca>
 
     async fn unsubscribe(&self, request: DeviceUnsubscribeRequest) {
         let message = ThunderUnsubscribeMessage {
