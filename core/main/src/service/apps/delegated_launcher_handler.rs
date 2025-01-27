@@ -1018,7 +1018,7 @@ impl DelegatedLauncherHandler {
     async fn end_session(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
         debug!("end_session: entry: app_id={}", app_id);
         let app = self.platform_state.app_manager_state.remove(app_id);
-        if let Some(_app) = app {
+        if app.is_some() {
             if let Some(timer) = self.timer_map.remove(app_id) {
                 timer.cancel();
             }
