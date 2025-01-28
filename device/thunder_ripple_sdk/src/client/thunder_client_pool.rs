@@ -296,7 +296,7 @@ mod tests {
                     assert_eq!(resp.message, "Subscribed".to_string());
                 }
                 Err(e) => {
-                    assert!(false, "Error subscribing: {:?}", e);
+                    panic!("Error subscribing: {:?}", e);
                 }
             }
         }
