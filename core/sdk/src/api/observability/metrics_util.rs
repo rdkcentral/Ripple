@@ -143,7 +143,6 @@ mod tests {
             serial_number: "test_serial_number".to_string(),
             firmware: "test_firmware".to_string(),
             ripple_version: "test_ripple_version".to_string(),
-            env: Some("test_env".to_string()),
             data_governance_tags: None,
             activated: None,
             proposition: "test_proposition".to_string(),

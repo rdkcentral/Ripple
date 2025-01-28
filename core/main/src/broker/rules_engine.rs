@@ -245,7 +245,41 @@ impl RuleEngine {
         self.rules.rules.get(&method.to_lowercase()).cloned()
     }
 }
-
+/// Compiles and executes a JQ filter on a given JSON input value.
+///
+/// # Arguments
+///
+/// * `input` - A `serde_json::Value` representing the JSON input to be processed.
+/// * `filter` - A string slice that holds the JQ filter to be applied.
+/// * `reference` - A string used for logging purposes to identify the rule being processed.
+///
+/// # Returns
+///
+/// * `Ok(Value)` - If the filter is successfully compiled and executed, returns the resulting JSON value.
+/// * `Err(RippleError)` - If there is an error during the compilation or execution of the filter, returns a `RippleError`.
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// * The JQ filter contains syntax errors.
+/// * There are errors during the compilation of the filter.
+/// * The execution of the filter does not produce a valid output.
+///
+/// # Example
+///
+/// ```
+/// use serde_json::json;
+/// use ripple_sdk::utils::error::RippleError;
+/// use crate::jq_compile;
+///
+/// let filter = "if .success then .stbVersion else { code: -32100, message: \"couldn't get version\" } end";
+/// let input = json!({
+///     "stbVersion": "SCXI11BEI_VBN_24Q2_sprint_20240620140024sdy_FG_GRT",
+///     "success": true
+/// });
+/// let result = jq_compile(input, filter, String::new());
+/// assert_eq!(result.unwrap(), json!("SCXI11BEI_VBN_24Q2_sprint_20240620140024sdy_FG_GRT"));
+/// ```
 pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value, RippleError> {
     info!(
         "Jq rule {}  input {:?}, reference {}",

@@ -26,10 +26,7 @@ use ripple_sdk::{
         context::RippleContextUpdateRequest,
         device::device_info_request::{DeviceInfoRequest, DeviceResponse, FirmwareInfo},
         distributor::distributor_privacy::{DataEventType, PrivacySettingsData},
-        firebolt::{
-            fb_metrics::{MetricsContext, MetricsEnvironment},
-            fb_openrpc::FireboltSemanticVersion,
-        },
+        firebolt::{fb_metrics::MetricsContext, fb_openrpc::FireboltSemanticVersion},
         gateway::rpc_gateway_api::rpc_value_result_to_string_result,
         manifest::device_manifest::DataGovernanceConfig,
         observability::metrics_util::ApiStats,
@@ -286,6 +283,21 @@ impl MetricsState {
         };
 
         debug!("got os_info={:?}", &os_info);
+
+        let os_ver =
+            BrokerUtils::process_internal_main_request(state, "ripple.device_os_version", None)
+                .await
+                .and_then(|val| {
+                    from_value::<String>(val).map_err(|_| {
+                        jsonrpsee::core::Error::Call(CallError::Custom {
+                            code: -32100,
+                            message: "Failed to parse ripple.device_os_version".into(),
+                            data: None,
+                        })
+                    })
+                })
+                .unwrap_or_default();
+
         let device_name = rpc_value_result_to_string_result(
             BrokerUtils::process_internal_main_request(state, "device.name", None).await,
             Some(Self::unset("device.name")),
@@ -306,25 +318,15 @@ impl MetricsState {
         */
 
         let mut firmware = String::default();
-        let mut env = None;
-
-        match state
+        if let Ok(resp) = state
             .get_client()
-            .send_extn_request(DeviceInfoRequest::PlatformBuildInfo)
+            .send_extn_request(DeviceInfoRequest::FirmwareInfo)
             .await
         {
-            Ok(resp) => {
-                if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp.payload.extract() {
-                    firmware = info.name;
-                    env = if info.debug {
-                        Some(MetricsEnvironment::Dev.to_string())
-                    } else {
-                        Some(MetricsEnvironment::Prod.to_string())
-                    };
-                }
+            if let Some(DeviceResponse::FirmwareInfo(info)) = resp.payload.extract() {
+                firmware = info.name;
             }
-            Err(_) => env = None,
-        };
+        }
 
         let activated = Some(true);
         let proposition =
@@ -415,7 +417,7 @@ impl MetricsState {
 
             context.device_language = language;
             context.os_name = os_info.name;
-            context.os_ver = os_info.version.readable;
+            context.os_ver = os_ver;
             context.device_name = Some(device_name);
             context.device_session_id = state.device_session_id.clone().into();
             context.firmware = firmware;
@@ -429,7 +431,6 @@ impl MetricsState {
                 context.device_timezone = t;
             }*/
 
-            context.env = env;
             context.activated = activated;
             context.proposition = proposition;
             context.retailer = retailer;
