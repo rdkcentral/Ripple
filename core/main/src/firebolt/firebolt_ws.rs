@@ -217,11 +217,7 @@ impl FireboltWs {
             app_id: app_id.clone(),
             gateway_secure,
         };
-        let session = Session::new(
-            identity.app_id.clone(),
-            Some(session_tx.clone()),
-            ripple_sdk::api::apps::EffectiveTransport::Websocket,
-        );
+        let session = Session::new(identity.app_id.clone(), Some(session_tx.clone()));
         let app_id_c = app_id.clone();
         let session_id_c = identity.session_id.clone();
 
@@ -337,18 +333,12 @@ impl FireboltWs {
                                 .session_state
                                 .get_session_for_connection_id(&connection_id)
                             {
-                                use ripple_sdk::api::apps::EffectiveTransport;
                                 let err =
                                     ErrorResponse::new(ErrorCode::InvalidRequest.into(), Id::Null);
                                 let msg = serde_json::to_string(&err).unwrap();
                                 let api_msg =
                                     ApiMessage::new(ApiProtocol::JsonRpc, msg, req_id.clone());
-                                // No Stats here its an invalid RPC request
-                                match session.get_transport() {
-                                    EffectiveTransport::Websocket => {
-                                        let _ = session.send_json_rpc(api_msg).await;
-                                    }
-                                }
+                                let _ = session.send_json_rpc(api_msg).await;
                             }
                             error!("invalid message {}", req_text)
                         }

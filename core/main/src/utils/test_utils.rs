@@ -73,11 +73,7 @@ pub async fn cap_state_listener(
 ) -> Receiver<ApiMessage> {
     let ctx = CallContext::mock();
     let (session_tx, resp_rx) = mpsc::channel(32);
-    let session = Session::new(
-        ctx.app_id.clone(),
-        Some(session_tx.clone()),
-        ripple_sdk::api::apps::EffectiveTransport::Websocket,
-    );
+    let session = Session::new(ctx.app_id.clone(), Some(session_tx.clone()));
     state
         .session_state
         .add_session(ctx.session_id.clone(), session);

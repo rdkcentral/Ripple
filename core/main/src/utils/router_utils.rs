@@ -15,27 +15,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 use ripple_sdk::{
-    api::{
-        apps::EffectiveTransport,
-        gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
-    },
+    api::gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
     extn::extn_client_message::{ExtnMessage, ExtnResponse},
     log::{error, trace},
     serde_json::{self, Result as SResult},
     utils::error::RippleError,
 };
 
-use crate::state::{metrics_state::MetricsState, session_state::Session};
-
-pub async fn return_api_message_for_transport(session: Session, msg: ApiMessage) {
-    match session.get_transport() {
-        EffectiveTransport::Websocket => {
-            if let Err(e) = session.send_json_rpc(msg).await {
-                error!("Error while responding back message {:?}", e)
-            }
-        }
-    }
-}
+use crate::state::metrics_state::MetricsState;
 
 pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage) {
     let callback = match extn_msg.clone().callback {

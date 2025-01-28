@@ -207,9 +207,7 @@ pub struct AppSessionRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::apps::{
-        AppBasicInfo, AppLaunchInfo, AppRuntime, AppRuntimeTransport, AppSession,
-    };
+    use crate::api::apps::{AppBasicInfo, AppLaunchInfo, AppRuntime, AppSession};
     use crate::api::device::entertainment_data::{
         HomeIntent, InternalNavigationIntent, InternalNavigationIntentStrict,
         NavigationIntentLoose, NavigationIntentStrict,
@@ -291,7 +289,6 @@ mod tests {
                 },
                 runtime: Some(AppRuntime {
                     id: Some("sample_runtime_id".to_string()),
-                    transport: AppRuntimeTransport::Websocket,
                 }),
                 launch: AppLaunchInfo::default(),
             },

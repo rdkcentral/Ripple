@@ -20,7 +20,6 @@ use std::collections::HashMap;
 use jsonrpsee::{core::server::rpc_module::Methods, types::TwoPointZero};
 use ripple_sdk::{
     api::{
-        apps::EffectiveTransport,
         firebolt::{
             fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
             fb_openrpc::FireboltOpenRpcMethod,
@@ -460,15 +459,11 @@ async fn send_json_rpc_error(
                 get_rpc_header_with_status(request, status_code),
             );
 
-            match session.get_transport() {
-                EffectiveTransport::Websocket => {
-                    if let Err(e) = session.send_json_rpc(api_message).await {
-                        error!(
-                            "send_json_rpc_error: Error sending websocket message: e={:?}",
-                            e
-                        )
-                    }
-                }
+            if let Err(e) = session.send_json_rpc(api_message).await {
+                error!(
+                    "send_json_rpc_error: Error sending websocket message: e={:?}",
+                    e
+                )
             }
         } else {
             error!("send_json_rpc_error: Could not serialize error message");

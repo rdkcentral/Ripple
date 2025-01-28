@@ -21,7 +21,7 @@ use jsonrpsee::{
 };
 use ripple_sdk::{
     api::{
-        apps::{AppEventRequest, EffectiveTransport},
+        apps::AppEventRequest,
         firebolt::fb_general::ListenRequest,
         gateway::rpc_gateway_api::{ApiMessage, CallContext},
     },
@@ -126,7 +126,6 @@ pub struct EventListener {
     pub call_ctx: CallContext,
     // Keep the session_tx package private
     session_tx: Option<mpsc::Sender<ApiMessage>>,
-    transport: EffectiveTransport,
     decorator: Option<Box<dyn AppEventDecorator + Send + Sync>>,
 }
 
@@ -251,7 +250,6 @@ impl AppEvents {
             event_listeners.push(EventListener {
                 call_ctx,
                 session_tx: session.get_sender(),
-                transport: session.get_transport(),
                 decorator,
             });
         } else if let Some(entry) = listeners.get_mut(&event_name) {
@@ -276,14 +274,10 @@ impl AppEvents {
             listener.call_ctx.request_id.clone(),
         );
 
-        match listener.transport.clone() {
-            EffectiveTransport::Websocket => {
-                if let Some(session_tx) = listener.session_tx.clone() {
-                    mpsc_send_and_log(&session_tx, api_message, "GatewayResponse").await;
-                } else {
-                    error!("JsonRPC sender missing");
-                }
-            }
+        if let Some(session_tx) = listener.session_tx.clone() {
+            mpsc_send_and_log(&session_tx, api_message, "GatewayResponse").await;
+        } else {
+            error!("JsonRPC sender missing");
         }
     }
 
@@ -432,16 +426,8 @@ pub mod tests {
         let platform_state = PlatformState::mock();
         let call_context = CallContext::mock();
         let listen_request = ListenRequest { listen: true };
-        Session::new(
-            call_context.clone().app_id,
-            None,
-            EffectiveTransport::Websocket,
-        );
-        let session = Session::new(
-            call_context.clone().app_id,
-            None,
-            EffectiveTransport::Websocket,
-        );
+        Session::new(call_context.clone().app_id, None);
+        let session = Session::new(call_context.clone().app_id, None);
         platform_state
             .session_state
             .add_session(call_context.clone().session_id, session);

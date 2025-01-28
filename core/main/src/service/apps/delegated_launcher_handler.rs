@@ -617,7 +617,6 @@ impl DelegatedLauncherHandler {
         &mut self,
         mut session: AppSession,
     ) -> Result<AppManagerResponse, AppError> {
-        let _transport = session.get_transport();
         let app_id = session.app.id.clone();
 
         if let Some(app_title) = session.app.title.as_ref() {
@@ -869,7 +868,6 @@ impl DelegatedLauncherHandler {
         emit_event: bool,
     ) -> CompletedSessionResponse {
         let app_id = session.app.id.clone();
-        let _transport = session.get_transport();
         let session_id = Uuid::new_v4().to_string();
         let loaded_session_id = Uuid::new_v4().to_string();
         let mut active_session_id = None;

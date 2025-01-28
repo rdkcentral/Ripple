@@ -25,7 +25,7 @@ use ripple_sdk::{
     api::{
         apps::{
             AppBasicInfo, AppError, AppLaunchInfo, AppManagerResponse, AppResponse, AppRuntime,
-            AppRuntimeTransport, AppSession, CloseReason, Dimensions, StateChange,
+            AppSession, CloseReason, Dimensions, StateChange,
         },
         device::{
             device_browser::{BrowserNameRequestParams, BrowserRequest},
@@ -558,7 +558,6 @@ impl AppLauncher {
             },
             runtime: Some(AppRuntime {
                 id: Some(callsign),
-                transport: AppRuntimeTransport::Websocket,
             }),
             launch: AppLaunchInfo {
                 intent: Some(intent),
