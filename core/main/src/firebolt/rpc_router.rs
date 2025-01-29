@@ -46,10 +46,7 @@ use crate::{
     service::telemetry_builder::TelemetryBuilder,
     state::{platform_state::PlatformState, session_state::Session},
     utils::router_utils::{
-        add_telemetry_status_code,
-        capture_stage,
-        get_rpc_header,
-        return_extn_response,
+        add_telemetry_status_code, capture_stage, get_rpc_header, return_extn_response,
     },
 };
 

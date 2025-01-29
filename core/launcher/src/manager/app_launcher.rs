@@ -556,9 +556,7 @@ impl AppLauncher {
                 catalog: manifest.content_catalog.clone(),
                 url: Some(manifest.start_page.clone()),
             },
-            runtime: Some(AppRuntime {
-                id: Some(callsign),
-            }),
+            runtime: Some(AppRuntime { id: Some(callsign) }),
             launch: AppLaunchInfo {
                 intent: Some(intent),
                 second_screen: None,
