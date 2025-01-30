@@ -19,8 +19,6 @@ use super::{
     device_operator::{DeviceChannelRequest, DeviceResponseMessage},
     thunder_async_client_plugins_status_mgr::{AsyncCallback, AsyncSender, StatusManager},
 };
-use crate::client::thunder_client;
-use crate::thunder_state::ThunderConnectionState;
 use crate::utils::get_next_id;
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
@@ -31,10 +29,7 @@ use ripple_sdk::{
     utils::{error::RippleError, rpc_utils::extract_tcp_port},
 };
 use serde_json::json;
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::time::{sleep, Duration};
-//use std::time::Duration;
+use std::time::Duration;
 use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
 
 #[derive(Clone, Debug)]
@@ -42,7 +37,6 @@ pub struct ThunderAsyncClient {
     status_manager: StatusManager,
     sender: AsyncSender,
     callback: AsyncCallback,
-    sub_map: HashMap<u64, ThunderAsyncRequest>,
 }
 
 #[derive(Clone, Debug)]
@@ -65,6 +59,8 @@ pub struct ThunderAsyncResponse {
     pub id: Option<u64>,
     pub result: Result<JsonRpcApiResponse, RippleError>,
 }
+
+impl ThunderAsyncClient {}
 
 impl ThunderAsyncResponse {
     fn new_response(response: JsonRpcApiResponse) -> Self {
@@ -236,7 +232,6 @@ impl ThunderAsyncClient {
             status_manager: StatusManager::new(),
             sender,
             callback,
-            sub_map: HashMap::new(),
         }
     }
 
@@ -281,8 +276,6 @@ impl ThunderAsyncClient {
 
     pub async fn start(
         &self,
-        thunder_connectionstate: Option<Arc<ThunderConnectionState>>,
-        thunder_client: &thunder_client::ThunderClient,
         url: &str,
         mut tr: Receiver<ThunderAsyncRequest>,
     ) -> Receiver<ThunderAsyncRequest> {
@@ -301,7 +294,6 @@ impl ThunderAsyncClient {
         let _flush = ws_tx.flush().await;
         let client_c = self.clone();
         let callback_for_sender = callback.clone();
-
         tokio::pin! {
             let read = ws_rx.next();
         }
@@ -358,26 +350,7 @@ impl ThunderAsyncClient {
                 }
             }
         }
-
-        // {
-        //     let thunder_connectionstate = thunder_connectionstate.clone().unwrap();
-        //     let mut is_connecting = thunder_connectionstate.conn_status_mutex.lock().await;
-        //     // check if we are already reconnecting
-        //     if *is_connecting {
-        //         drop(is_connecting);
-        //         // wait for the connection to be ready
-        //         thunder_connectionstate.conn_status_notify.notified().await;
-        //     } else {
-        //         //Mark the connection as reconnecting
-        //         *is_connecting = true;
-        //     }
-        // } // Lock is released here
-
-        let url_clone = url.to_string();
-        let delay: Duration = tokio::time::Duration::from_millis(50);
-        sleep(delay).await;
-        let (mut ws_tx, mut ws_rx) = Self::create_ws(&url_clone).await;
-
+        // when WS is disconnected return the tr back to caller helps restabilish connection
         tr
     }
 
@@ -397,12 +370,6 @@ impl ThunderAsyncClient {
         if let Err(e) = self.sender.send(request).await {
             error!("Failed to send thunder Async Request: {:?}", e);
         }
-    }
-
-    pub async fn add_sub_req_list(&mut self, request: ThunderAsyncRequest) {
-        let mut sub_map = self.sub_map.clone();
-        sub_map.insert(request.id, request);
-        self.sub_map = sub_map;
     }
 }
 

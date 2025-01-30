@@ -66,19 +66,13 @@ impl ThunderClientManager {
         request_tr: Receiver<ThunderAsyncRequest>,
         mut response_tr: Receiver<ThunderAsyncResponse>,
         thndr_endpoint_url: String,
-        thunder_connection_state: Option<Arc<ThunderConnectionState>>,
     ) {
         let client_c = client.clone();
 
         tokio::spawn(async move {
             if let Some(thndr_asynclient) = &client_c.thunder_async_client {
                 thndr_asynclient
-                    .start(
-                        thunder_connection_state,
-                        &client_c,
-                        &thndr_endpoint_url,
-                        request_tr,
-                    )
+                    .start(&thndr_endpoint_url, request_tr)
                     .await;
             }
         });
@@ -292,10 +286,8 @@ impl DeviceOperator for ThunderClient {
         } else if let Some(subscribe_request) =
             self.add_subscription_handler(&request, handler.clone())
         {
-            
             let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
             self.add_callback(&subscribe_request, tx);
-
             if let Some(async_client) = &self.thunder_async_client {
                 async_client.send(subscribe_request).await;
             }
@@ -843,7 +835,6 @@ impl ThunderClientBuilder {
                 broker_rx,
                 resp_rx,
                 url.to_string(),
-                thunder_connection_state,
             );
             Ok(thunder_client)
         }
