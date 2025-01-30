@@ -24,22 +24,30 @@ use super::{
 };
 use crate::{broker::broker_utils::BrokerUtils, state::platform_state::PlatformState};
 use futures_util::{SinkExt, StreamExt};
-
 use ripple_sdk::{
-    api::{gateway::rpc_gateway_api::JsonRpcApiResponse, observability::log_signal::LogSignal},
+    api::{
+        gateway::rpc_gateway_api::{JsonRpcApiResponse, RpcRequest},
+        observability::log_signal::LogSignal,
+    },
     log::{debug, error, info, trace},
     tokio::{
         self,
         sync::{mpsc, Mutex},
+        time,
     },
     utils::error::RippleError,
 };
 use serde_json::json;
+use serde_json::Value;
+use std::time::SystemTime;
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
+    time::Duration,
     vec,
 };
+
+pub const COMPOSITE_REQUEST_TIME_OUT: u64 = 8;
 
 #[derive(Clone)]
 pub struct ThunderBroker {
@@ -50,6 +58,23 @@ pub struct ThunderBroker {
     default_callback: BrokerCallback,
     data_migrator: Option<UserDataMigrator>,
     custom_callback_list: Arc<Mutex<HashMap<u64, BrokerCallback>>>,
+    composite_request_list: Arc<Mutex<HashMap<u64, CompositeRequest>>>,
+    composite_request_purge_started: Arc<Mutex<bool>>,
+}
+
+#[derive(Clone)]
+pub struct CompositeRequest {
+    pub time_stamp: SystemTime,
+    pub rpc_request: RpcRequest,
+}
+
+impl CompositeRequest {
+    pub fn new(time_stamp: SystemTime, rpc_request: RpcRequest) -> CompositeRequest {
+        CompositeRequest {
+            time_stamp,
+            rpc_request,
+        }
+    }
 }
 
 impl ThunderBroker {
@@ -67,6 +92,8 @@ impl ThunderBroker {
             default_callback,
             data_migrator: None,
             custom_callback_list: Arc::new(Mutex::new(HashMap::new())),
+            composite_request_list: Arc::new(Mutex::new(HashMap::new())),
+            composite_request_purge_started: Arc::new(Mutex::new(false)),
         }
     }
 
@@ -77,6 +104,29 @@ impl ThunderBroker {
 
     pub fn get_default_callback(&self) -> BrokerCallback {
         self.default_callback.clone()
+    }
+
+    pub async fn register_composite_request(&self, id: u64, request: RpcRequest) {
+        let mut composite_request_list = self.composite_request_list.lock().await;
+        let composite_req = CompositeRequest::new(SystemTime::now(), request);
+        composite_request_list.insert(id, composite_req);
+        let purge_thread_started = self.composite_request_purge_started.lock().await;
+        if *purge_thread_started {
+            self.start_purge_composite_request_timer();
+        }
+    }
+
+    pub async fn unregister_composite_request(&self, id: u64) {
+        let mut composite_request_list = self.composite_request_list.lock().await;
+        composite_request_list.remove(&id);
+    }
+
+    async fn get_composite_request(&self, id: Option<u64>) -> Option<RpcRequest> {
+        let rid = id?;
+        let composite_request_list = self.composite_request_list.lock().await;
+        composite_request_list
+            .get(&rid)
+            .map(|req| req.rpc_request.clone())
     }
 
     pub async fn register_custom_callback(&self, id: u64, callback: BrokerCallback) {
@@ -98,6 +148,45 @@ impl ThunderBroker {
             return callback.clone();
         }
         self.default_callback.clone()
+    }
+
+    // Start a timer to purge individual composite request that are older than 8 seconds
+    fn start_purge_composite_request_timer(&self) {
+        let composite_request_list = self.composite_request_list.clone();
+        let mut interval = time::interval(Duration::from_millis(3000));
+        let purge_thread_started = self.composite_request_purge_started.clone();
+        tokio::spawn(async move {
+            *purge_thread_started.lock().await = true;
+            debug!("Starting composite request purge timer");
+            // iterate each individual composite request and check if timestamp is greater than 8 seconds
+            loop {
+                interval.tick().await;
+                let mut composite_request_list = composite_request_list.lock().await;
+                let mut keys_to_remove = Vec::new();
+                for (key, value) in composite_request_list.iter() {
+                    match value.time_stamp.elapsed() {
+                        Ok(elapsed) => {
+                            if elapsed.as_secs() > COMPOSITE_REQUEST_TIME_OUT {
+                                keys_to_remove.push(*key);
+                            }
+                        }
+                        Err(e) => {
+                            error!("Error while calculating elapsed time {:?}", e);
+                        }
+                    }
+                }
+                // remove request from the list
+                for key in keys_to_remove {
+                    composite_request_list.remove(&key);
+                    debug!("Removed composite request with id {}", key);
+                }
+                if composite_request_list.is_empty() {
+                    *purge_thread_started.lock().await = false;
+                    debug!("Composite request list is empty, stop timer");
+                    break;
+                }
+            }
+        });
     }
 
     fn start(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
@@ -142,6 +231,7 @@ impl ThunderBroker {
                 tokio::select! {
 
                     Some(value) = &mut read => {
+                        /* receive response here */
                         match value {
                             Ok(v) => {
 
@@ -153,26 +243,10 @@ impl ThunderBroker {
                                     }
                                     else {
                                         // send the incoming text without context back to the sender
-                                       let t = t.as_bytes();
-                                       match Self::handle_jsonrpc_response(t,broker_c.get_broker_callback( Self::get_id_from_result(t) ).await) {
-                                             Ok(okie) => {
-                                                match diagnostic_context.lock().await.as_ref() {
-                                                    Some(ctx) => {
-                                                        LogSignal::new("thunder_response".to_string(), "received message from thunder".to_string(), ctx.rpc.ctx.clone())
-                                                            .with_diagnostic_context_item("response", &format! ("{:?}", okie))
-                                                            .emit_debug();
-                                                    },
-                                                    None => {
-                                                        LogSignal::new("thunder_response".to_string(), "received message from thunder".to_string(), okie.data)
-                                                            .emit_debug();
-                                                    }
-                                                }
-                                             },
-                                             Err(e) => {
-                                                  error!("Broker Websocket error on handle_jsonrpc_response {:?}", e);
-                                             }
-                                       }
-                                    }
+                                        let id = Self::get_id_from_result(t.as_bytes());
+                                        let composite_resp_params = Self::get_composite_response_params_by_id(broker_c.clone(), id).await;
+                                        let _ = Self::handle_jsonrpc_response(t.as_bytes(),broker_c.get_broker_callback(id).await, composite_resp_params);
+                                    };
                                 }
                             },
                             Err(e) => {
@@ -214,6 +288,19 @@ impl ThunderBroker {
                                                     .with_diagnostic_context_item("updated_request", &format!("{:?}", updated_request))
                                                     .emit_debug();
 
+                                                // Add composite request to thunder broker; this is for later params_json referencing when response is received
+                                                // response key in params_json is used for response rule transformation.
+                                                if !request.rpc.params_json.is_empty() {
+                                                    let pp: &str = request.rpc.params_json.as_str();
+                                                    let pp_json = &serde_json::from_str::<Value>(pp).unwrap();
+                                                    for pp in pp_json.as_array().unwrap() {
+                                                        for (key, _value) in pp.as_object().unwrap() {
+                                                            if key == "response" {
+                                                                broker_c.register_composite_request(request.rpc.ctx.call_id, request.rpc.clone()).await;
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                                 let binding = ws_tx_wrap.clone();
                                                 let mut ws_tx = binding.lock().await;
                                                 for r in updated_request {
@@ -278,12 +365,42 @@ impl ThunderBroker {
         thunder_broker
     }
 
-    fn update_response(response: &JsonRpcApiResponse) -> JsonRpcApiResponse {
+    fn update_response(response: &JsonRpcApiResponse, params: Option<Value>) -> JsonRpcApiResponse {
         let mut new_response = response.clone();
         if response.params.is_some() {
             new_response.result = response.params.clone();
         }
+        if let Some(p) = params {
+            let _ = new_response.params.insert(p);
+        }
         new_response
+    }
+
+    async fn get_composite_response_params_by_id(
+        broker: ThunderBroker,
+        id: Option<u64>,
+    ) -> Option<Value> {
+        /* Get composite req params by call_id*/
+        let rpc_req = broker.get_composite_request(id).await;
+        let mut new_param: Option<Value> = None;
+        if let Some(request) = rpc_req {
+            let pp: &str = request.params_json.as_str();
+            let pp_json = &serde_json::from_str::<Value>(pp).unwrap();
+
+            // iterate pp_json array and extract object with response key
+            for pp in pp_json.as_array().unwrap() {
+                for (key, value) in pp.as_object().unwrap() {
+                    if key == "response" {
+                        new_param = Some(json!({"response": value}));
+                    }
+                }
+            }
+        }
+        // remove composite request from list
+        if let Some(id) = id {
+            broker.unregister_composite_request(id).await;
+        }
+        new_param
     }
 
     fn get_id_from_result(result: &[u8]) -> Option<u64> {
@@ -498,10 +615,11 @@ impl EndpointBroker for ThunderBroker {
     fn handle_jsonrpc_response(
         result: &[u8],
         callback: BrokerCallback,
+        params: Option<Value>,
     ) -> Result<BrokerOutput, RippleError> {
         let mut final_result = Err(RippleError::ParseError);
         if let Ok(data) = serde_json::from_slice::<JsonRpcApiResponse>(result) {
-            let updated_data = Self::update_response(&data);
+            let updated_data = Self::update_response(&data, params);
             final_result = Ok(BrokerOutput::new(updated_data));
         }
         if let Ok(output) = final_result.clone() {
@@ -664,6 +782,7 @@ mod tests {
             BrokerCallback {
                 sender: sender.clone(),
             },
+            None,
         )
         .is_ok());
 
@@ -734,6 +853,7 @@ mod tests {
             BrokerCallback {
                 sender: sender.clone(),
             },
+            None,
         )
         .is_ok());
 
@@ -789,6 +909,7 @@ mod tests {
             BrokerCallback {
                 sender: sender.clone(),
             },
+            None,
         )
         .is_ok());
 
@@ -821,7 +942,7 @@ mod tests {
             method: None,
         };
 
-        let updated_response = ThunderBroker::update_response(&response);
+        let updated_response = ThunderBroker::update_response(&response, None);
         assert_eq!(updated_response.result, response.params);
     }
 

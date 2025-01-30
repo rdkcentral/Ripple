@@ -6,17 +6,16 @@ use super::rules_engine::JsonDataSource;
 use crate::broker::endpoint_broker::{BrokerOutput, EndpointBrokerState};
 use crate::broker::rules_engine::{compose_json_values, make_name_json_safe};
 use crate::state::platform_state::PlatformState;
-use futures::future::BoxFuture;
+use futures::future::{join_all, BoxFuture};
 use futures::FutureExt;
+use serde_json::json;
 
-use futures::future::try_join_all;
 use ripple_sdk::api::gateway::rpc_gateway_api::{JsonRpcApiError, JsonRpcApiResponse, RpcRequest};
 use ripple_sdk::utils::error::RippleError;
 use ripple_sdk::{
     log::{error, trace},
     tokio::{self, sync::mpsc},
 };
-use serde_json::json;
 pub struct WorkflowBroker {
     sender: BrokerSender,
 }
@@ -137,26 +136,20 @@ impl WorkflowBroker {
         // Define your batch size here
         let batch_size = 10;
         let mut results = vec![];
-
         for chunk in futures.chunks_mut(batch_size) {
-            match try_join_all(chunk.iter_mut().map(|f| f.as_mut()).collect::<Vec<_>>()).await {
-                Ok(success) => {
-                    results.extend(success);
-                }
-                Err(e) => {
-                    error!(
-                        "Error {:?} in subbroker call for workflow: {}",
-                        e, broker_request.rpc.method
-                    );
-                    return Err(SubBrokerErr::JsonRpcApiError(
-                        JsonRpcApiError::default()
-                            .with_code(-32001)
-                            .with_message(format!(
-                                "workflow error {:?}: for api {}",
-                                e, broker_request.rpc.method
-                            ))
-                            .with_id(broker_request.rpc.ctx.call_id),
-                    ));
+            let vec = join_all(chunk.iter_mut().map(|f| f.as_mut()).collect::<Vec<_>>()).await;
+            for res in vec {
+                match res {
+                    Ok(success) => {
+                        results.push(success);
+                    }
+                    Err(e) => {
+                        error!(
+                            "Error {:?} in subbroker call for workflow: {} id: {}",
+                            e, broker_request.rpc.method, broker_request.rpc.ctx.call_id
+                        );
+                        results.push(json!({"error": format!("{:?}", e)}));
+                    }
                 }
             }
         }
@@ -313,6 +306,6 @@ pub mod tests {
 
         let foo = WorkflowBroker::run_workflow(&request, broker);
         let foo = foo.await;
-        assert!(foo.is_err());
+        assert!(foo.is_ok());
     }
 }
