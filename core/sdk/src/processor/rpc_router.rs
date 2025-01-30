@@ -17,7 +17,7 @@
 
 use crate::{
     api::gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
-    log::error,
+    log::{error, trace},
     utils::error::RippleError,
 };
 use futures::{future::join_all, StreamExt};
@@ -74,6 +74,7 @@ impl RpcRouter {
         req: RpcRequest,
         router_state: &RouterState,
     ) -> Result<ApiMessage, RippleError> {
+        trace!("SDK: Resolving route for {:?}", req);
         let id = Id::Number(req.ctx.call_id);
         let methods = router_state.get_methods();
         let resources = router_state.resources.clone();

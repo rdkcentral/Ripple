@@ -27,6 +27,7 @@ use crate::{
         extn_client_message::{ExtnMessage, ExtnResponse},
     },
     framework::ripple_contract::RippleContract,
+    log::trace,
     processor::rpc_router::{RouterState, RpcRouter},
     tokio::sync::mpsc::{Receiver, Sender},
     utils::error::RippleError,
@@ -77,10 +78,6 @@ impl ExtnStreamProcessor for RPCRequestProcessor {
     fn receiver(&mut self) -> Receiver<ExtnMessage> {
         self.streamer.receiver()
     }
-
-    fn contract(&self) -> RippleContract {
-        RippleContract::JsonRpsee
-    }
 }
 
 #[async_trait]
@@ -94,6 +91,7 @@ impl ExtnRequestProcessor for RPCRequestProcessor {
         extn_msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
+        trace!("SDK: Processing RPC Request");
         let client = state.client.clone();
         tokio::spawn(async move {
             let router_state = state.router_state.clone();

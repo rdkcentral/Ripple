@@ -23,7 +23,7 @@ use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiError;
 use ripple_sdk::async_channel::unbounded;
 use ripple_sdk::extn::extn_client_message::{ExtnMessage, ExtnPayload, ExtnRequest};
 use ripple_sdk::framework::ripple_contract::RippleContract;
-use ripple_sdk::log::{trace, Log};
+use ripple_sdk::log::trace;
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
     api::observability::log_signal::LogSignal,
@@ -53,7 +53,8 @@ impl ExtnBroker {
                     "extn_broker".to_string(),
                     format!("Received broker request: {:?}", broker_request),
                     broker_request.rpc.ctx.clone(),
-                ).emit_debug();
+                )
+                .emit_debug();
                 let rpc_request = broker_request.rpc.clone();
                 let rule = broker_request.rule.clone();
                 let alias = rule.alias;
@@ -76,7 +77,7 @@ impl ExtnBroker {
                     let msg = ExtnMessage {
                         id: rpc_request.ctx.call_id.to_string(),
                         requestor: ExtnId::get_main_target("main".into()),
-                        target: RippleContract::JsonRpsee,
+                        target: RippleContract::Rpc,
                         target_id: Some(id),
                         payload: ExtnPayload::Request(ExtnRequest::Rpc(rpc_request.clone())),
                         callback: Some(callback_tx),
@@ -107,7 +108,8 @@ impl ExtnBroker {
                                     "extn_broker".to_string(),
                                     format!("Received broker response: {:?}", composed),
                                     broker_request.rpc.ctx.clone(),
-                                ).emit_debug();
+                                )
+                                .emit_debug();
                                 Self::send_broker_success_response(&callback, composed);
                             }
                             Err(error) => {
@@ -123,7 +125,8 @@ impl ExtnBroker {
                                     "extn_broker".to_string(),
                                     format!("Received broker error: {:?}", error_message),
                                     broker_request.rpc.ctx.clone(),
-                                ).emit_error();
+                                )
+                                .emit_error();
 
                                 Self::send_broker_failure_response(&callback, error_message);
                             }

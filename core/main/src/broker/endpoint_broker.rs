@@ -610,6 +610,7 @@ impl EndpointBrokerState {
     }
 
     fn get_sender(&self, hash: &str) -> Option<BrokerSender> {
+        trace!("getting sender for {}", hash);
         self.endpoint_map.read().unwrap().get(hash).cloned()
     }
 
