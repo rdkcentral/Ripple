@@ -189,11 +189,11 @@ impl ThunderAsyncClient {
 
         // Generate the appropriate JSON-RPC request based on the type of DeviceChannelRequest
         let r = match &request.request {
-            DeviceChannelRequest::Call(c) => json!({
+            DeviceChannelRequest::Call(device_call_request) => json!({
                 "jsonrpc": "2.0",
                 "id": id,
-                "method": c.method,
-                "params": c.params
+                "method": device_call_request.method,
+                "params": device_call_request.params
             })
             .to_string(),
             DeviceChannelRequest::Unsubscribe(_) => json!({
