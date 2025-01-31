@@ -67,15 +67,13 @@ impl ThunderClientManager {
         mut response_tr: Receiver<ThunderAsyncResponse>,
         thndr_endpoint_url: String,
     ) {
-        let client_c = client.clone();
+        if let Some(ref thunder_async_client) = client.thunder_async_client {
+            let mut tac = thunder_async_client.clone();
+            tokio::spawn(async move {
+                tac.start(&thndr_endpoint_url, request_tr).await;
+            });
+        }
 
-        tokio::spawn(async move {
-            if let Some(thndr_asynclient) = &client_c.thunder_async_client {
-                thndr_asynclient
-                    .start(&thndr_endpoint_url, request_tr)
-                    .await;
-            }
-        });
         /*thunder async response will get here */
         tokio::spawn(async move {
             while let Some(response) = response_tr.recv().await {

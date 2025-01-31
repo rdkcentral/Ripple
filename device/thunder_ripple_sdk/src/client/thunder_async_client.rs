@@ -23,13 +23,13 @@ use crate::utils::get_next_id;
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::JsonRpcApiResponse,
+    api::gateway::rpc_gateway_api::{JsonRpcApiRequest, JsonRpcApiResponse},
     log::{debug, error, info},
     tokio::{self, net::TcpStream, sync::mpsc::Receiver},
     utils::{error::RippleError, rpc_utils::extract_tcp_port},
 };
-use serde_json::json;
-use std::time::Duration;
+use serde_json::{json, Value};
+use std::{collections::HashMap, time::Duration};
 use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
 
 #[derive(Clone, Debug)]
@@ -37,6 +37,7 @@ pub struct ThunderAsyncClient {
     status_manager: StatusManager,
     sender: AsyncSender,
     callback: AsyncCallback,
+    subscriptions: HashMap<String, JsonRpcApiRequest>,
 }
 
 #[derive(Clone, Debug)]
@@ -114,7 +115,7 @@ impl ThunderAsyncClient {
         SplitSink<WebSocketStream<TcpStream>, Message>,
         SplitStream<WebSocketStream<TcpStream>>,
     ) {
-        info!("Thunder_async_client Endpoint url {}", endpoint);
+        debug!("create_ws: {}", endpoint);
         let port = extract_tcp_port(endpoint);
         let tcp_port = port.unwrap();
         let mut index = 0;
@@ -122,6 +123,7 @@ impl ThunderAsyncClient {
         loop {
             // Try connecting to the tcp port first
             if let Ok(v) = TcpStream::connect(&tcp_port).await {
+                debug!("create_ws: Connected");
                 // Setup handshake for websocket with the tcp port
                 // Some WS servers lock on to the Port but not setup handshake till they are fully setup
                 if let Ok((stream, _)) = client_async(endpoint, v).await {
@@ -130,7 +132,7 @@ impl ThunderAsyncClient {
             }
             if (index % 10).eq(&0) {
                 error!(
-                    "Thunder_async_client with {} failed with retry for last {} secs in {}",
+                    "create_ws: endpoint {} failed with retry for last {} secs in {}",
                     endpoint, index, tcp_port
                 );
             }
@@ -139,8 +141,7 @@ impl ThunderAsyncClient {
         }
     }
 
-    fn prepare_request(&self, request: &ThunderAsyncRequest) -> Result<Vec<String>, RippleError> {
-        let mut requests = Vec::new();
+    fn prepare_request(&self, request: &ThunderAsyncRequest) -> Result<String, RippleError> {
         let id: u64 = request.id;
         let (callsign, method) = request.request.get_callsign_method();
 
@@ -160,8 +161,7 @@ impl ThunderAsyncClient {
                 let request = self
                     .status_manager
                     .generate_plugin_status_request(callsign.clone());
-                requests.push(request.to_string());
-                return Ok(requests);
+                return Ok(request.to_string());
             }
         };
 
@@ -184,47 +184,41 @@ impl ThunderAsyncClient {
             let request = self
                 .status_manager
                 .generate_plugin_activation_request(callsign.clone());
-            requests.push(request.to_string());
-            return Ok(requests);
+            return Ok(request.to_string());
         }
 
         // Generate the appropriate JSON-RPC request based on the type of DeviceChannelRequest
-        match &request.request {
-            DeviceChannelRequest::Call(c) => requests.push(
-                json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "method": c.method,
-                    "params": c.params
+        let r = match &request.request {
+            DeviceChannelRequest::Call(c) => json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "method": c.method,
+                "params": c.params
+            })
+            .to_string(),
+            DeviceChannelRequest::Unsubscribe(_) => json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "method": format!("{}.unregister", callsign),
+                "params": {
+                    "event": method,
+                    "id": "client.events"
+                }
+            })
+            .to_string(),
+            DeviceChannelRequest::Subscribe(_) => json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "method": format!("{}.register", callsign),
+                "params": json!({
+                    "event": method,
+                    "id": "client.events"
                 })
-                .to_string(),
-            ),
-            DeviceChannelRequest::Unsubscribe(_) => requests.push(
-                json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "method": format!("{}.unregister", callsign),
-                    "params": {
-                        "event": method,
-                        "id": "client.events"
-                    }
-                })
-                .to_string(),
-            ),
-            DeviceChannelRequest::Subscribe(_) => requests.push(
-                json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "method": format!("{}.register", callsign),
-                    "params": json!({
-                        "event": method,
-                        "id": "client.events"
-                    })
-                })
-                .to_string(),
-            ),
-        }
-        Ok(requests)
+            })
+            .to_string(),
+        };
+
+        Ok(r)
     }
 
     pub fn new(callback: AsyncCallback, sender: AsyncSender) -> Self {
@@ -232,10 +226,11 @@ impl ThunderAsyncClient {
             status_manager: StatusManager::new(),
             sender,
             callback,
+            subscriptions: HashMap::new(),
         }
     }
 
-    pub async fn process_new_req(&self, request: String, url: String) {
+    pub async fn process_new_req(&mut self, request: String, url: String) {
         let (mut ws_tx, mut ws_rx) = Self::create_ws(&url).await;
         let _feed = ws_tx
             .feed(tokio_tungstenite::tungstenite::Message::Text(request))
@@ -256,7 +251,7 @@ impl ThunderAsyncClient {
         }
     }
 
-    async fn handle_response(&self, message: Message) {
+    async fn handle_response(&mut self, message: Message) {
         if let Message::Text(t) = message {
             let request = t.as_bytes();
             //check controller response or not
@@ -269,100 +264,139 @@ impl ThunderAsyncClient {
                     .handle_controller_response(self.get_sender(), self.callback.clone(), request)
                     .await;
             } else {
-                Self::handle_jsonrpc_response(request, self.callback.clone()).await
+                self.handle_jsonrpc_response(request).await
             }
         }
     }
 
-    pub async fn start(
-        &self,
-        url: &str,
-        mut tr: Receiver<ThunderAsyncRequest>,
-    ) -> Receiver<ThunderAsyncRequest> {
-        let callback = self.callback.clone();
-        let (mut ws_tx, mut ws_rx) = Self::create_ws(url).await;
-        // send the controller statechange subscription request
-        let status_request = self
-            .status_manager
-            .generate_state_change_subscribe_request();
+    async fn process_subscribe_requests(
+        &mut self,
+        ws_tx: &mut SplitSink<WebSocketStream<TcpStream>, Message>,
+    ) {
+        for (_, subscription_request) in self.subscriptions.iter_mut() {
+            let new_id = get_next_id();
 
-        let _feed = ws_tx
-            .feed(tokio_tungstenite::tungstenite::Message::Text(
-                status_request.to_string(),
-            ))
-            .await;
-        let _flush = ws_tx.flush().await;
-        let client_c = self.clone();
-        let callback_for_sender = callback.clone();
-        tokio::pin! {
-            let read = ws_rx.next();
+            debug!(
+                "process_subscribe_requests: method={}, params={:?}, old_id={:?}, new_id={}",
+                subscription_request.method,
+                subscription_request.params,
+                subscription_request.id,
+                new_id
+            );
+
+            subscription_request.id = Some(new_id);
+
+            let request_json = serde_json::to_string(&subscription_request).unwrap();
+            let _feed = ws_tx
+                .feed(tokio_tungstenite::tungstenite::Message::Text(request_json))
+                .await;
         }
+    }
+
+    pub async fn start(
+        &mut self,
+        url: &str,
+        mut thunder_async_request_rx: Receiver<ThunderAsyncRequest>,
+    ) {
         loop {
-            tokio::select! {
-                Some(value) = &mut read => {
-                    match value {
-                        Ok(v) => {
-                            self.handle_response(v).await;
-                        },
-                        Err(e) => {
-                            error!("Thunder_async_client Websocket error on read {:?}", e);
-                            break;
+            info!("start: (re)establishing websocket connection: url={}", url);
+
+            let (mut subscriptions_tx, mut subscriptions_rx) = Self::create_ws(url).await;
+
+            // send the controller statechange subscription request
+            let status_request = self
+                .status_manager
+                .generate_state_change_subscribe_request();
+
+            let _feed = subscriptions_tx
+                .feed(tokio_tungstenite::tungstenite::Message::Text(
+                    status_request.to_string(),
+                ))
+                .await;
+
+            self.process_subscribe_requests(&mut subscriptions_tx).await;
+
+            let _flush = subscriptions_tx.flush().await;
+
+            tokio::pin! {
+                let subscriptions_socket = subscriptions_rx.next();
+            }
+
+            loop {
+                tokio::select! {
+                    Some(value) = &mut subscriptions_socket => {
+                        match value {
+                            Ok(message) => {
+                                self.handle_response(message).await;
+                            },
+                            Err(e) => {
+                                error!("Thunder_async_client Websocket error on read {:?}", e);
+                                break;
+                            }
                         }
-                    }
-                },
-                Some(request) = tr.recv() => {
-                    debug!("Got request from receiver for thunder {:?}", request);
-                    // here prepare_request will check the plugin status and add json rpc format
-                    match client_c.prepare_request(&request) {
-                        Ok(updated_request) => {
-                            debug!("Sending request to thunder {:?}", updated_request);
-                            for r in updated_request {
-                                match request.request {
-                                    //if request type is subscription send the request through existing websocket
-                                    DeviceChannelRequest::Subscribe(_) => {
-                                        let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
-                                        let _flush = ws_tx.flush().await;
-                                    },
-                                    _ => {
-                                        let thunder_async_client = self.clone();
-                                        let url_clone = url.to_string();
-                                        tokio::spawn(async move {
-                                            thunder_async_client.process_new_req(r, url_clone).await;
+                    },
+                    Some(request) = thunder_async_request_rx.recv() => {
+                        debug!("thunder_async_request_rx: request={:?}", request);
+                        // here prepare_request will check the plugin status and add json rpc format
+                        match self.prepare_request(&request) {
+                            Ok(updated_request) => {
+                                if let Ok(jsonrpc_request) = serde_json::from_str::<JsonRpcApiRequest>(&updated_request) {
+                                    if jsonrpc_request.method.ends_with(".register") {
+                                        if let Some(Value::Object(ref params)) = jsonrpc_request.params {
+                                            if let Some(Value::String(event)) = params.get("event") {
+                                                debug!("thunder_async_request_rx: Rerouting subscription request for {}", event);
+
+                                                // Store the subscription request in the subscriptions list in case we need to
+                                                // resubscribe later due to a socket disconnect.
+                                                self.subscriptions.insert(event.to_string(), jsonrpc_request.clone());
+
+                                                // Reroute subsubscription requests through the persistent websocket so all notifications
+                                                // are sent to the same websocket connection.
+                                                let _feed = subscriptions_tx.feed(tokio_tungstenite::tungstenite::Message::Text(updated_request)).await;
+                                                let _flush = subscriptions_tx.flush().await;
+                                            } else {
+                                                error!("thunder_async_request_rx: Missing 'event' parameter");
                                             }
-                                        );
+                                        } else {
+                                            error!("thunder_async_request_rx: Missing 'params' object");
+                                        }
+                                    } else {
+                                        // TODO: I don't like that we have to clone the client, we should refactor this. -pca
+                                        let mut thunder_async_client = self.clone();
+                                            let url_clone = url.to_string();
+                                            tokio::spawn(async move {
+                                                thunder_async_client.process_new_req(updated_request, url_clone).await;
+                                                }
+                                            );
                                     }
                                 }
                             }
-                        }
-                        Err(e) => {
-                            let response = ThunderAsyncResponse::new_error(request.id,e.clone());
-                            match e {
-                                RippleError::ServiceNotReady => {
-                                    info!("Thunder Service not ready, request is now in pending list {:?}", request);
-                                },
-                                _ => {
-                                    error!("error preparing request {:?}", e)
+                            Err(e) => {
+                                let response = ThunderAsyncResponse::new_error(request.id,e.clone());
+                                match e {
+                                    RippleError::ServiceNotReady => {
+                                        info!("Thunder Service not ready, request is now in pending list {:?}", request);
+                                    },
+                                    _ => {
+                                        error!("error preparing request {:?}", e)
+                                    }
                                 }
+                                self.callback.send(response).await;
                             }
-                            callback_for_sender.send(response).await;
                         }
                     }
                 }
             }
         }
-        // when WS is disconnected return the tr back to caller helps restabilish connection
-        tr
     }
 
-    /// Default handler method for the thunder async client to remove the context and send it back to the
-    /// client for consumption
-    async fn handle_jsonrpc_response(result: &[u8], callback: AsyncCallback) {
+    async fn handle_jsonrpc_response(&mut self, result: &[u8]) {
         if let Ok(message) = serde_json::from_slice::<JsonRpcApiResponse>(result) {
-            callback
+            self.callback
                 .send(ThunderAsyncResponse::new_response(message))
                 .await
         } else {
-            error!("Invalid JSON RPC message sent by Thunder");
+            error!("handle_jsonrpc_response: Invalid JSON RPC message sent by Thunder");
         }
     }
 
@@ -376,12 +410,9 @@ impl ThunderAsyncClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client::{device_operator::DeviceCallRequest, thunder_client::ThunderClient};
+    use crate::client::device_operator::DeviceCallRequest;
     use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
     use ripple_sdk::utils::error::RippleError;
-    use ripple_sdk::uuid::Uuid;
-    use std::collections::HashMap;
-    use std::sync::{Arc, RwLock};
     use tokio::sync::mpsc;
 
     #[tokio::test]
@@ -517,7 +548,11 @@ mod tests {
             params: None,
         };
         let response_bytes = serde_json::to_vec(&response).unwrap();
-        ThunderAsyncClient::handle_jsonrpc_response(&response_bytes, callback).await;
+        let (async_tx, _async_rx) = mpsc::channel(1);
+        let async_sender = AsyncSender { sender: async_tx };
+        let mut client = ThunderAsyncClient::new(callback, async_sender);
+        client.handle_jsonrpc_response(&response_bytes).await;
+
         let received = resp_rx.recv().await;
         assert_eq!(
             received.unwrap().result.unwrap().result,
@@ -531,19 +566,7 @@ mod tests {
         let callback = AsyncCallback { sender: resp_tx };
         let (async_tx, _async_rx) = mpsc::channel(10);
         let async_sender = AsyncSender { sender: async_tx };
-        let client = ThunderAsyncClient::new(callback.clone(), async_sender);
-
-        let _thunder_client = ThunderClient {
-            sender: None,
-            pooled_sender: None,
-            id: Uuid::new_v4(),
-            plugin_manager_tx: None,
-            subscriptions: None,
-            thunder_async_client: Some(client),
-            thunder_async_subscriptions: Some(Arc::new(RwLock::new(HashMap::new()))),
-            thunder_async_callbacks: Some(Arc::new(RwLock::new(HashMap::new()))),
-            use_thunder_async: true,
-        };
+        let mut client = ThunderAsyncClient::new(callback.clone(), async_sender);
 
         let response = json!({
             "jsonrpc": "2.0",
@@ -552,7 +575,8 @@ mod tests {
             }
         });
 
-        ThunderAsyncClient::handle_jsonrpc_response(response.to_string().as_bytes(), callback)
+        client
+            .handle_jsonrpc_response(response.to_string().as_bytes())
             .await;
         let received = resp_rx.recv().await;
         assert!(received.is_some());
