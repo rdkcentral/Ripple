@@ -39,6 +39,7 @@ use ripple_sdk::{
         session::{SessionTokenRequest, TokenContext, TokenType},
     },
     extn::extn_client_message::ExtnResponse,
+    utils::rpc_utils::{rpc_custom_error, rpc_error_with_code, rpc_error_with_code_result},
 };
 
 #[rpc(server)]
@@ -72,11 +73,10 @@ impl AuthenticationServer for AuthenticationImpl {
                 if supported_caps.contains(&cap) {
                     self.token(TokenType::Platform, ctx).await
                 } else {
-                    return Err(jsonrpsee::core::Error::Call(CallError::Custom {
-                        code: CAPABILITY_NOT_SUPPORTED,
-                        message: format!("{} is not supported", cap.as_str()),
-                        data: None,
-                    }));
+                    return rpc_error_with_code_result(
+                        format!("{} is not supported", cap.as_str()),
+                        CAPABILITY_NOT_SUPPORTED,
+                    );
                 }
             }
             TokenType::Root => self.get_root_token().await,
@@ -93,11 +93,10 @@ impl AuthenticationServer for AuthenticationImpl {
                 if supported_caps.contains(&cap) {
                     self.token(TokenType::Distributor, ctx).await
                 } else {
-                    return Err(jsonrpsee::core::Error::Call(CallError::Custom {
-                        code: CAPABILITY_NOT_SUPPORTED,
-                        message: format!("{} is not supported", cap.as_str()),
-                        data: None,
-                    }));
+                    return rpc_error_with_code_result(
+                        format!("{} is not supported", cap.as_str()),
+                        CAPABILITY_NOT_SUPPORTED,
+                    );
                 }
             }
         }
@@ -130,12 +129,10 @@ impl AuthenticationServer for AuthenticationImpl {
 
 impl AuthenticationImpl {
     fn send_dist_token_not_supported() -> jsonrpsee::core::Error {
-        jsonrpsee::core::Error::Call(CallError::Custom {
-            code: CAPABILITY_NOT_SUPPORTED,
-            message: "capability xrn:firebolt:capability:token:session is not supported"
-                .to_string(),
-            data: None,
-        })
+        rpc_error_with_code::<String>(
+            "capability xrn:firebolt:capability:token:session is not supported".to_owned(),
+            CAPABILITY_NOT_SUPPORTED,
+        )
     }
 
     async fn token(&self, token_type: TokenType, ctx: CallContext) -> RpcResult<TokenResult> {

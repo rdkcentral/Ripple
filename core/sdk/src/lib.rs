@@ -39,3 +39,6 @@ pub extern crate uuid;
 pub trait Mockable {
     fn mock() -> Self;
 }
+
+pub type JsonRpcErrorType = jsonrpsee::core::error::Error;
+pub type JsonRpcErrorCode = jsonrpsee::types::error::ErrorCode;

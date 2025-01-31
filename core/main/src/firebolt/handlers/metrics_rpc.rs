@@ -41,6 +41,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::CallContext,
     },
     log::{error, trace},
+    utils::rpc_utils::rpc_error_with_code_result,
 };
 
 use serde::Deserialize;
@@ -81,11 +82,10 @@ pub struct StopContentParams {
 fn validate_metrics_action_type(metrics_action: &str) -> RpcResult<bool> {
     match metrics_action.len() {
         1..=256 => Ok(true),
-        _ => Err(jsonrpsee::core::Error::Call(CallError::Custom {
-            code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
-            message: "metrics.action.action_type out of range".to_string(),
-            data: None,
-        })),
+        _ => rpc_error_with_code_result(
+            "metrics.action.action_type out of range".to_string(),
+            JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+        ),
     }
 }
 
@@ -102,22 +102,20 @@ fn convert_to_media_position_type(media_position: Option<f32>) -> RpcResult<Medi
                 Ok(MediaPositionType::PercentageProgress(position))
             } else {
                 if position.fract() != 0.0 {
-                    return Err(jsonrpsee::core::Error::Call(CallError::Custom {
-                        code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
-                        message: ERROR_BAD_ABSOLUTE_MEDIA_POSITION.to_string(),
-                        data: None,
-                    }));
+                    return rpc_error_with_code_result(
+                        ERROR_BAD_ABSOLUTE_MEDIA_POSITION.to_string(),
+                        JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+                    );
                 };
                 let abs_position = position.round() as i32;
 
                 if (1..=86400).contains(&abs_position) {
                     Ok(MediaPositionType::AbsolutePosition(abs_position))
                 } else {
-                    Err(jsonrpsee::core::Error::Call(CallError::Custom {
-                        code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
-                        message: ERROR_MEDIA_POSITION_OUT_OF_RANGE.to_string(),
-                        data: None,
-                    }))
+                    rpc_error_with_code_result(
+                        ERROR_MEDIA_POSITION_OUT_OF_RANGE.to_string(),
+                        JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+                    )
                 }
             }
         }

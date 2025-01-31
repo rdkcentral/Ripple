@@ -31,22 +31,10 @@ use crate::{
 use jsonrpsee::{
     core::{async_trait, Error, RpcResult},
     proc_macros::rpc,
-    types::error::CallError,
+    types::{error::CallError, ErrorObject},
     RpcModule,
 };
 
-use ripple_sdk::api::{
-    account_link::WatchedRequest,
-    device::entertainment_data::*,
-    firebolt::{
-        fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
-        fb_discovery::{EVENT_ON_SIGN_IN, EVENT_ON_SIGN_OUT},
-        fb_general::{ListenRequest, ListenerResponse},
-        provider::ExternalProviderResponse,
-    },
-    gateway::rpc_gateway_api::CallContext,
-    manifest::device_manifest::IntentValidation,
-};
 use ripple_sdk::{
     api::{
         account_link::AccountLinkRequest,
@@ -66,6 +54,21 @@ use ripple_sdk::{
     extn::extn_client_message::ExtnResponse,
     log::{error, info},
     tokio::{sync::oneshot, time::timeout},
+};
+use ripple_sdk::{
+    api::{
+        account_link::WatchedRequest,
+        device::entertainment_data::*,
+        firebolt::{
+            fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+            fb_discovery::{EVENT_ON_SIGN_IN, EVENT_ON_SIGN_OUT},
+            fb_general::{ListenRequest, ListenerResponse},
+            provider::ExternalProviderResponse,
+        },
+        gateway::rpc_gateway_api::CallContext,
+        manifest::device_manifest::IntentValidation,
+    },
+    utils::rpc_utils::{rpc_custom_error_result, rpc_error_with_code_result},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -860,11 +863,15 @@ pub async fn validate_navigation_intent(
             let request_intent = serde_json::to_string(&intent).unwrap_or_default();
             if let Err(err) = serde_json::from_str::<NavigationIntentStrict>(&request_intent) {
                 if intent_validation_config == IntentValidation::Fail {
-                    return Err(jsonrpsee::core::Error::Call(CallError::Custom {
-                        code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
-                        message: format!("{:?} ", err),
-                        data: None,
-                    }));
+                    return rpc_error_with_code_result::<()>(
+                        format!("{:?} ", err),
+                        JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+                    );
+                    // return Err(jsonrpsee::core::Error::Call(CallError::Custom {
+                    //     code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+                    //     message: format!("{:?} ", err),
+                    //     data: None,
+                    // }));
                 } else {
                     ripple_sdk::log::warn!("Intents do not match the spec : {:?} ", err);
                 }

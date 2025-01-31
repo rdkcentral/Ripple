@@ -29,7 +29,8 @@ use ripple_sdk::{
     log::trace,
     serde_json::{json, Value},
     tokio,
-    utils::error::RippleError,
+    utils::{error::RippleError, rpc_utils::rpc_error_with_code},
+    JsonRpcErrorCode, JsonRpcErrorType,
 };
 use std::collections::HashMap;
 
@@ -603,24 +604,19 @@ impl StorageManager {
         }
     }
 
-    pub fn get_firebolt_error(property: &StorageProperty) -> jsonrpsee::core::Error {
+    pub fn get_firebolt_error(property: &StorageProperty) -> JsonRpcErrorType {
         let data = property.as_data();
-        jsonrpsee::core::Error::Call(CallError::Custom {
-            code: CAPABILITY_NOT_AVAILABLE,
-            message: format!("{}.{} is not available", data.namespace, data.key),
-            data: None,
-        })
+        rpc_error_with_code::<String>(
+            format!("{}.{} is not available", data.namespace, data.key),
+            CAPABILITY_NOT_AVAILABLE,
+        )
     }
 
-    pub fn get_firebolt_error_namespace(
-        namespace: &String,
-        key: &'static str,
-    ) -> jsonrpsee::core::Error {
-        jsonrpsee::core::Error::Call(CallError::Custom {
-            code: CAPABILITY_NOT_AVAILABLE,
-            message: format!("{}.{} is not available", namespace, key),
-            data: None,
-        })
+    pub fn get_firebolt_error_namespace(namespace: &String, key: &'static str) -> JsonRpcErrorType {
+        rpc_error_with_code::<String>(
+            format!("{}.{} is not available", namespace, key),
+            CAPABILITY_NOT_AVAILABLE,
+        )
     }
 
     pub async fn set_vec_string(

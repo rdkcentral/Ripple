@@ -46,6 +46,7 @@ use ripple_sdk::{
     },
     log::{error, info},
     tokio::{sync::oneshot, time::timeout},
+    utils::rpc_utils::rpc_error_with_code_result,
 };
 use serde_json::{Map, Value};
 
@@ -583,11 +584,9 @@ impl ProviderRegistrar {
                 }
                 Ok(Value::Object(response_map))
             }
-            ProviderResponsePayload::GenericError(e) => Err(Error::Call(CallError::Custom {
-                code: e.code,
-                message: e.message,
-                data: None,
-            })),
+            ProviderResponsePayload::GenericError(e) => {
+                rpc_error_with_code_result::<Value>(e.message, e.code)
+            }
             _ => Ok(provider_response_payload.as_value()),
         }
     }
