@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{collections::HashMap, f64::consts::E};
+use std::collections::HashMap;
 
 use jsonrpsee::core::Error;
 use ripple_sdk::{

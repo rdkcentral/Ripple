@@ -31,7 +31,6 @@ use crate::{
 use jsonrpsee::{
     core::{async_trait, Error, RpcResult},
     proc_macros::rpc,
-    types::{error::CallError, ErrorObject},
     RpcModule,
 };
 
@@ -68,7 +67,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::CallContext,
         manifest::device_manifest::IntentValidation,
     },
-    utils::rpc_utils::{rpc_custom_error_result, rpc_error_with_code_result},
+    utils::rpc_utils::rpc_error_with_code_result,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

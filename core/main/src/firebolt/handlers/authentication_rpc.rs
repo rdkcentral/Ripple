@@ -22,7 +22,6 @@ use crate::{
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
-    types::error::CallError,
     RpcModule,
 };
 use ripple_sdk::{
@@ -39,7 +38,7 @@ use ripple_sdk::{
         session::{SessionTokenRequest, TokenContext, TokenType},
     },
     extn::extn_client_message::ExtnResponse,
-    utils::rpc_utils::{rpc_custom_error, rpc_error_with_code, rpc_error_with_code_result},
+    utils::rpc_utils::{rpc_error_with_code, rpc_error_with_code_result},
 };
 
 #[rpc(server)]

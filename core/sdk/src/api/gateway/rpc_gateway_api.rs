@@ -299,7 +299,7 @@ impl<'a> From<JsonRpcApiError> for ErrorObject<'a> {
 }
 use jsonrpsee::core::Error as JsonRpSeeError;
 //use jsonrpsee_core::Error as JsonRpseeError;
-impl<'a> From<JsonRpcApiError> for JsonRpSeeError {
+impl From<JsonRpcApiError> for JsonRpSeeError {
     fn from(error: JsonRpcApiError) -> Self {
         JsonRpSeeError::Custom(error.message.clone())
         //ErrorObject::owned(error.code, error.message.clone(), error.params.clone())

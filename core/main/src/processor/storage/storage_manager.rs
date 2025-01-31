@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use jsonrpsee::{core::RpcResult, types::error::CallError};
+use jsonrpsee::core::RpcResult;
 use ripple_sdk::{
     api::{
         device::device_peristence::{
@@ -30,7 +30,7 @@ use ripple_sdk::{
     serde_json::{json, Value},
     tokio,
     utils::{error::RippleError, rpc_utils::rpc_error_with_code},
-    JsonRpcErrorCode, JsonRpcErrorType,
+    JsonRpcErrorType,
 };
 use std::collections::HashMap;
 

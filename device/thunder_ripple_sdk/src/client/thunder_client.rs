@@ -15,22 +15,17 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::array;
 use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 use std::sync::Arc;
 
 use jsonrpsee::core::client::{Client, ClientT, SubscriptionClientT};
 use jsonrpsee::core::params::*;
-use jsonrpsee::core::traits::ToRpcParams;
-use jsonrpsee::rpc_params;
-use jsonrpsee::types::Params;
 use jsonrpsee::ws_client::WsClientBuilder;
 
 use jsonrpsee::core::{async_trait, error::Error as JsonRpcError};
 use regex::Regex;
 use ripple_sdk::serde_json::json;
-use ripple_sdk::utils::rpc_utils::rpc_err;
 use ripple_sdk::{
     api::device::device_operator::DeviceResponseMessage,
     tokio::sync::mpsc::{self, Sender as MpscSender},
@@ -744,22 +739,20 @@ pub struct ThunderParamRequest<'a> {
 /*
 Polymorph wrapper needed to be able to properly call `client.requse` */
 enum ParamWrapper {
-    ObjectParams(ObjectParams),
-    ArrayParams(ArrayParams),
-    NoParams,
+    Object(ObjectParams),
+    Array(ArrayParams),
+    None,
 }
 impl<'a> ThunderParamRequest<'a> {
     async fn send_request(self: Box<Self>, client: &Client) -> Value {
         let method = self.method;
 
         let result = match &self.get_params() {
-            ParamWrapper::ObjectParams(object_params) => {
-                client.request(&method, object_params.clone()).await
+            ParamWrapper::Object(object_params) => {
+                client.request(method, object_params.clone()).await
             }
-            ParamWrapper::ArrayParams(array_params) => {
-                client.request(&method, array_params.clone()).await
-            }
-            ParamWrapper::NoParams => client.request(&method, ArrayParams::new()).await,
+            ParamWrapper::Array(array_params) => client.request(method, array_params.clone()).await,
+            ParamWrapper::None => client.request(method, ArrayParams::new()).await,
         };
 
         if let Err(e) = result {
@@ -782,31 +775,18 @@ impl<'a> ThunderParamRequest<'a> {
                         for kvp in v_tree_map {
                             let _ = params.insert(kvp.0, kvp.1);
                         }
-                        ParamWrapper::ObjectParams(params)
+                        ParamWrapper::Object(params)
                     }
-                    Err(_e) => ParamWrapper::NoParams,
+                    Err(_e) => ParamWrapper::None,
                 }
             }
             /*array */
             false => {
-                //let param_array =
-                //   serde_json::to_string(&Value::String(String::from(self.params)));
-                // let p = Value::String(String::from(self.params));
-
                 let mut arrayparams = ArrayParams::new();
                 match arrayparams.insert(Value::String(String::from(self.params))) {
-                    Ok(_) => ParamWrapper::ArrayParams(arrayparams),
-                    Err(_e) => ParamWrapper::NoParams,
+                    Ok(_) => ParamWrapper::Array(arrayparams),
+                    Err(_e) => ParamWrapper::None,
                 }
-
-                // match param_array {
-                //     Ok(array) => {
-                //         let mut arrayparams = ArrayParams::new();
-                //         arrayparams.insert(array).unwrap();
-                //         ParamWrapper::ArrayParams(arrayparams)
-                //     }
-                //     Err(_e) => ParamWrapper::NoParams,
-                // }
             }
         }
     }
@@ -819,6 +799,8 @@ fn return_message(callback: OneShotSender<DeviceResponseMessage>, response: Valu
 
 #[cfg(test)]
 mod tests {
+    use jsonrpsee::core::traits::ToRpcParams;
+
     use super::*;
 
     #[tokio::test]
@@ -866,7 +848,7 @@ mod tests {
             json_based: true,
         };
         match request.get_params() {
-            ParamWrapper::ObjectParams(params) => {
+            ParamWrapper::Object(params) => {
                 let r = params.to_rpc_params();
                 let r = r.unwrap();
                 let r = r.unwrap();
@@ -885,7 +867,7 @@ mod tests {
             json_based: false,
         };
         match request.get_params() {
-            ParamWrapper::ArrayParams(params) => {
+            ParamWrapper::Array(params) => {
                 let r = params.to_rpc_params();
                 let r = r.unwrap();
                 let r = r.unwrap();
@@ -904,7 +886,7 @@ mod tests {
             json_based: true,
         };
         match request.get_params() {
-            ParamWrapper::NoParams => {}
+            ParamWrapper::None => {}
             _ => panic!("Expected NoParams"),
         }
     }

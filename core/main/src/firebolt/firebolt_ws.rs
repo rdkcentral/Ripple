@@ -27,10 +27,7 @@ use crate::{
 };
 use futures::SinkExt;
 use futures::StreamExt;
-use jsonrpsee::types::{
-    error::{ErrorCode, INVALID_REQUEST_CODE},
-    ErrorObject, ErrorResponse, Id,
-};
+use jsonrpsee::types::{error::INVALID_REQUEST_CODE, ErrorObject, ErrorResponse, Id};
 use ripple_sdk::{
     api::{
         gateway::rpc_gateway_api::{ApiMessage, ApiProtocol, ClientContext, RpcRequest},
@@ -349,7 +346,7 @@ impl FireboltWs {
                                     ),
                                     Id::Null,
                                 );
-                                ///ErrorResponse::new(ErrorCode::InvalidRequest.into(), Id::Null);
+
                                 let msg = serde_json::to_string(&err).unwrap();
                                 let api_msg =
                                     ApiMessage::new(ApiProtocol::JsonRpc, msg, req_id.clone());

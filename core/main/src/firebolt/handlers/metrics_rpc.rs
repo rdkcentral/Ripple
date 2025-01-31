@@ -18,7 +18,6 @@
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
-    types::error::CallError,
     RpcModule,
 };
 use std::collections::HashMap;

@@ -15,17 +15,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use jsonrpsee::{
-    core::{Error, RpcResult},
-    types::{error::CallError, ErrorObject},
-};
+use jsonrpsee::core::RpcResult;
 use ripple_sdk::{
     api::{
         firebolt::fb_general::{ListenRequest, ListenerResponse},
         gateway::rpc_gateway_api::CallContext,
     },
     tokio::sync::oneshot,
-    utils::rpc_utils::{rpc_custom_error, rpc_error_with_code},
+    utils::rpc_utils::rpc_error_with_code,
 };
 
 use crate::{

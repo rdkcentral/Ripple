@@ -24,7 +24,6 @@ use crate::{
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
-    types::error::CallError,
     RpcModule,
 };
 use ripple_sdk::utils::rpc_utils::rpc_error_with_code_result;
