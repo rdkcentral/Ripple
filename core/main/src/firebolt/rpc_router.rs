@@ -98,7 +98,8 @@ async fn resolve_route(
     let params = Params::new(Some(req.params_json.as_str()));
     match methods.method_with_name(&req.method) {
         None => {
-            MethodSink::new_with_limit(sink_tx.clone(), TEN_MB_SIZE_BYTES, 1024).send_error(id, ErrorCode::MethodNotFound.into());
+            MethodSink::new_with_limit(sink_tx.clone(), TEN_MB_SIZE_BYTES, 1024)
+                .send_error(id, ErrorCode::MethodNotFound.into());
         }
         Some((name, method)) => match &method.inner() {
             MethodKind::Sync(callback) => match method.claim(name, &resources) {
@@ -106,7 +107,8 @@ async fn resolve_route(
                     (callback)(id, params, sink_size);
                 }
                 Err(_) => {
-                    MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES, 1024).send_error(id, ErrorCode::MethodNotFound.into());
+                    MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES, 1024)
+                        .send_error(id, ErrorCode::MethodNotFound.into());
                 }
             },
             MethodKind::Async(callback) => match method.claim(name, &resources) {
@@ -120,7 +122,8 @@ async fn resolve_route(
                 }
                 Err(e) => {
                     error!("{:?}", e);
-                    MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES, 1024).send_error(id, ErrorCode::MethodNotFound.into());
+                    MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES, 1024)
+                        .send_error(id, ErrorCode::MethodNotFound.into());
                 }
             },
             _ => {

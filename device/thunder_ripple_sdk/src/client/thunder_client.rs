@@ -789,16 +789,24 @@ impl<'a> ThunderParamRequest<'a> {
             }
             /*array */
             false => {
-                let param_array =
-                    serde_json::to_string(&Value::String(String::from(self.params)));
-                match param_array {
-                    Ok(array) => {
-                        let mut arrayparams = ArrayParams::new();
-                        arrayparams.insert(array).unwrap();
-                        ParamWrapper::ArrayParams(arrayparams)
-                    }
+                //let param_array =
+                //   serde_json::to_string(&Value::String(String::from(self.params)));
+                // let p = Value::String(String::from(self.params));
+
+                let mut arrayparams = ArrayParams::new();
+                match arrayparams.insert(Value::String(String::from(self.params))) {
+                    Ok(_) => ParamWrapper::ArrayParams(arrayparams),
                     Err(_e) => ParamWrapper::NoParams,
                 }
+
+                // match param_array {
+                //     Ok(array) => {
+                //         let mut arrayparams = ArrayParams::new();
+                //         arrayparams.insert(array).unwrap();
+                //         ParamWrapper::ArrayParams(arrayparams)
+                //     }
+                //     Err(_e) => ParamWrapper::NoParams,
+                // }
             }
         }
     }
@@ -870,7 +878,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_params_array_params() {
+    fn test_get_params_array_param_non_json_based() {
         let request = ThunderParamRequest {
             method: "test.method",
             params: "value1",
