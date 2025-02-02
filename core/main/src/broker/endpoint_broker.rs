@@ -1361,7 +1361,9 @@ fn apply_filter(broker_request: &BrokerRequest, result: &Value, rpc_request: &Rp
 mod tests {
     use super::*;
     use crate::broker::rules_engine::RuleTransform;
-    use ripple_sdk::{tokio::sync::mpsc::channel, Mockable};
+    use ripple_sdk::{
+        mock::mock_thunder::boot_for_unit_test, tokio::sync::mpsc::channel, Mockable,
+    };
 
     #[tokio::test]
     async fn test_send_error() {
@@ -1639,5 +1641,11 @@ mod tests {
         response.result = Some(result);
         apply_response(filter, &rpc_request.ctx.method, &mut response);
         assert_eq!(response.result.unwrap(), "GB");
+    }
+    #[tokio::test]
+    async fn test_mock_thunder() {
+        let r = boot_for_unit_test(HashMap::new()).await;
+        assert!(r.clone().is_ok());
+        println!("{:?}", r.unwrap().0);
     }
 }

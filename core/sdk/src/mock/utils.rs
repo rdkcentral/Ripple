@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use ripple_sdk::{
+use crate::{
     api::config::Config,
     extn::{client::extn_client::ExtnClient, extn_client_message::ExtnResponse},
     log::{debug, error},
@@ -28,16 +28,16 @@ use std::net::TcpListener;
 use std::{fs::File, io::BufReader, path::PathBuf, sync::Arc};
 use url::{Host, Url};
 
-use crate::errors::MockServerWebSocketError;
-use ripple_sdk::mock::mock_data::ParamResponse;
-use ripple_sdk::mock::{
+use crate::mock::errors::MockServerWebSocketError;
+use crate::mock::mock_data::ParamResponse;
+use crate::mock::{
     errors::{BootFailedError, LoadMockDataError, MockDeviceError},
     mock_config::MockConfig,
     mock_data::MockData,
     mock_web_socket_server::{MockWebSocketServer, WsServerParameters},
 };
 fn get_available_port() -> Option<u16> {
-    (20000..21000).find(|port| port_is_available(*port))
+    (3000..10000).find(|port| port_is_available(*port))
 }
 
 fn port_is_available(port: u16) -> bool {
@@ -46,14 +46,31 @@ fn port_is_available(port: u16) -> bool {
         Err(_) => false,
     }
 }
+pub fn load_mock_data_v2_from_file(path: &PathBuf) -> Result<MockData, MockDeviceError> {
+    let file = File::open(path).map_err(|e| {
+        error!("Failed to open mock data file {e:?}");
+        LoadMockDataError::FileOpenFailed(path.to_owned())
+    })?;
+    let reader = BufReader::new(file);
+
+    if let Ok(v) = serde_json::from_reader(reader) {
+        return Ok(v);
+    }
+    Err(MockDeviceError::LoadMockDataFailed(
+        LoadMockDataError::MockDataNotValidJson,
+    ))
+}
 pub async fn boot_for_unit_test(
     mock_data_v2: MockData,
 ) -> Result<(Url, Arc<MockWebSocketServer>), MockDeviceError> {
     let port = get_available_port().ok_or(MockDeviceError::NoAvailablePort)?;
     let hostname = "localhost";
     let uri = "jsonrpc";
-    let gateway_url = Url::parse(&format!("ws://{}:{}/{}", hostname, uri, port))
-        .map_err(|_| MockDeviceError::NoAvailablePort)?;
+    let gateway_url = Url::parse(&format!("ws://{}:{}/{}", hostname, port, uri)).map_err(|e| {
+        MockDeviceError::BadUrlScheme(
+            format!("{} for ws://{}:{}/{}", e, hostname, port, uri).to_string(),
+        )
+    })?;
     Ok((
         gateway_url.clone(),
         boot_ws_server(
@@ -107,10 +124,7 @@ pub async fn start_ws_server(
 
     let mut ws_server_params = WsServerParameters::new();
     let mock_data_v2 = load_mock_data_v2(client.clone()).await?;
-    // server_config
-    //     .port(gateway.port().unwrap_or(0))
-    //     .path(gateway.path());
-    // s
+
     Ok(boot_ws_server(
         mock_config,
         gateway_url,
@@ -211,23 +225,7 @@ pub fn create_mock_config(activate_all_plugins: bool) -> MockConfig {
 
 pub async fn load_mock_data_v2(client: ExtnClient) -> Result<MockData, MockDeviceError> {
     let path = find_mock_device_data_file(client).await?;
-    debug!("path={:?}", path);
-    if !path.is_file() {
-        return Err(LoadMockDataError::PathDoesNotExist(path))?;
-    }
-
-    let file = File::open(path.clone()).map_err(|e| {
-        error!("Failed to open mock data file {e:?}");
-        LoadMockDataError::FileOpenFailed(path)
-    })?;
-    let reader = BufReader::new(file);
-
-    if let Ok(v) = serde_json::from_reader::<_, MockData>(reader) {
-        return Ok(v);
-    }
-    Err(MockDeviceError::LoadMockDataFailed(
-        LoadMockDataError::MockDataNotValidJson,
-    ))
+    load_mock_data_v2_from_file(&path)
 }
 
 pub fn is_value_jsonrpc(value: &Value) -> bool {
@@ -252,5 +250,20 @@ mod tests {
     #[test]
     fn test_is_value_jsonrpc_false() {
         assert!(!is_value_jsonrpc(&json!({"key": "value"})));
+    }
+    #[test]
+    fn test_boot_for_unit_test() {
+        let mock_data = MockData::default();
+        let result = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(boot_for_unit_test(mock_data.clone()));
+        let r = result.unwrap();
+        println!("url={}", r.0);
+
+        let result = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(boot_for_unit_test(mock_data));
+        let r = result.unwrap();
+        println!("url={}", r.0);
     }
 }

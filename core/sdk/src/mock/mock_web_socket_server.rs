@@ -21,9 +21,7 @@ use std::{
     time::Duration,
 };
 
-use http::{HeaderMap, StatusCode};
-use jsonrpsee::tracing::info;
-use ripple_sdk::{
+use crate::{
     api::gateway::rpc_gateway_api::JsonRpcApiRequest,
     futures::{stream::SplitSink, SinkExt, StreamExt},
     log::{debug, error, warn},
@@ -33,6 +31,8 @@ use ripple_sdk::{
         sync::Mutex,
     },
 };
+use http::{HeaderMap, StatusCode};
+use jsonrpsee::tracing::info;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio_tungstenite::{
@@ -41,7 +41,7 @@ use tokio_tungstenite::{
     WebSocketStream,
 };
 
-use crate::{
+use crate::mock::{
     errors::MockServerWebSocketError,
     mock_config::MockConfig,
     mock_data::{MockData, MockDataError, ParamResponse, ResponseSink},
@@ -117,11 +117,11 @@ pub struct MockWebSocketServer {
     /*
     track thunder methods called and their count per method
     */
-    stats_channel: ripple_sdk::tokio::sync::mpsc::Sender<String>,
+    stats_channel: crate::tokio::sync::mpsc::Sender<String>,
 }
 pub struct StatsCollector {
     thunder_histogram: Arc<RwLock<HashMap<String, u32>>>,
-    messages: ripple_sdk::tokio::sync::mpsc::Receiver<String>,
+    messages: crate::tokio::sync::mpsc::Receiver<String>,
     stats_file: String,
 }
 #[derive(Debug, Serialize, Deserialize)]
@@ -135,10 +135,7 @@ struct ApiStats {
     total: u32,
 }
 impl StatsCollector {
-    pub fn new(
-        messages: ripple_sdk::tokio::sync::mpsc::Receiver<String>,
-        stats_file: String,
-    ) -> Self {
+    pub fn new(messages: crate::tokio::sync::mpsc::Receiver<String>, stats_file: String) -> Self {
         info!(
             "starting mock StatsCollector with stats file: {}",
             stats_file
@@ -524,6 +521,7 @@ impl MockWebSocketServer {
 
 #[cfg(test)]
 mod tests {
+    use jsonrpsee::types::params;
     use ripple_sdk::tokio::time::{self, error::Elapsed, Duration};
 
     use super::*;

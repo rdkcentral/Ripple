@@ -14,6 +14,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
+use crate::mock_device_ffi::EXTN_NAME;
+use ripple_sdk::mock::{
+    mock_server::{
+        AddRequestResponseResponse, EmitEventResponse, MockServerRequest, MockServerResponse,
+        RemoveRequestResponse,
+    },
+    mock_web_socket_server::MockWebSocketServer,
+};
 use ripple_sdk::{
     async_trait::async_trait,
     extn::{
@@ -32,15 +40,6 @@ use ripple_sdk::{
     utils::error::RippleError,
 };
 use std::sync::Arc;
-
-use crate::{
-    mock_device_ffi::EXTN_NAME,
-    mock_server::{
-        AddRequestResponseResponse, EmitEventResponse, MockServerRequest, MockServerResponse,
-        RemoveRequestResponse,
-    },
-    mock_web_socket_server::MockWebSocketServer,
-};
 
 #[derive(Debug, Clone)]
 pub struct MockDeviceState {

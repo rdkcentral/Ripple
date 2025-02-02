@@ -35,6 +35,15 @@ pub extern crate serde_json;
 pub extern crate serde_yaml;
 pub extern crate tokio;
 pub extern crate uuid;
+pub mod mock {
+    pub mod errors;
+    pub mod mock_config;
+    pub mod mock_data;
+    pub mod mock_server;
+    pub mod mock_thunder;
+    pub mod mock_web_socket_server;
+    pub mod utils;
+}
 
 pub trait Mockable {
     fn mock() -> Self;

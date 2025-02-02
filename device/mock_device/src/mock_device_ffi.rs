@@ -15,7 +15,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use crate::{
+    mock_device_controller::{MockDeviceController, MockDeviceControllerServer},
+    mock_device_processor::MockDeviceProcessor,
+};
 use jsonrpsee::core::server::rpc_module::Methods;
+use ripple_sdk::mock::utils::{boot_ws_server, start_ws_server};
 use ripple_sdk::{
     api::status_update::ExtnStatus,
     async_channel::Receiver as CReceiver,
@@ -35,12 +40,6 @@ use ripple_sdk::{
     semver::Version,
     tokio::{self, runtime::Runtime},
     utils::{error::RippleError, logger::init_logger},
-};
-
-use crate::{
-    mock_device_controller::{MockDeviceController, MockDeviceControllerServer},
-    mock_device_processor::MockDeviceProcessor,
-    utils::{boot_ws_server, start_ws_server},
 };
 
 pub const EXTN_NAME: &str = "mock_device";

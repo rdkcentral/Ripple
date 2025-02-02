@@ -15,14 +15,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::fmt::Display;
-
-use crate::{
+use crate::mock_device_ffi::EXTN_NAME;
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use ripple_sdk::mock::{
     mock_data::MockData,
-    mock_device_ffi::EXTN_NAME,
     mock_server::{EmitEventParams, MockServerRequest},
 };
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::CallContext,
     async_trait::async_trait,
@@ -34,6 +32,7 @@ use ripple_sdk::{
     tokio::runtime::Runtime,
     utils::{error::RippleError, rpc_utils::rpc_err},
 };
+use std::fmt::Display;
 
 #[derive(Debug, Clone)]
 enum MockDeviceControllerError {
