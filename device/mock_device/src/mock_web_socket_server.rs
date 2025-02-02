@@ -74,22 +74,22 @@ impl WsServerParameters {
             port: None,
         }
     }
-    pub fn path(&mut self, path: &str) -> &mut Self {
+    pub fn with_path(&mut self, path: &str) -> &mut Self {
         self.path = Some(path.into());
 
         self
     }
-    pub fn headers(&mut self, headers: HeaderMap) -> &mut Self {
+    pub fn with_headers(&mut self, headers: HeaderMap) -> &mut Self {
         self.headers = Some(headers);
 
         self
     }
-    pub fn query_params(&mut self, query_params: HashMap<String, String>) -> &mut Self {
+    pub fn with_query_params(&mut self, query_params: HashMap<String, String>) -> &mut Self {
         self.query_params = Some(query_params);
 
         self
     }
-    pub fn port(&mut self, port: u16) -> &mut Self {
+    pub fn with_port(&mut self, port: u16) -> &mut Self {
         self.port = Some(port);
 
         self
@@ -577,17 +577,16 @@ mod tests {
 
     #[test]
     fn test_ws_server_parameters_props() {
-        let mut params = WsServerParameters::new();
         let headers: HeaderMap = {
             let hm = HashMap::from([("Sec-WebSocket-Protocol".to_owned(), "jsonrpc".to_owned())]);
             (&hm).try_into().expect("valid headers")
         };
         let qp = HashMap::from([("appId".to_owned(), "test".to_owned())]);
-        params
-            .headers(headers.clone())
-            .port(16789)
-            .path("/some/path")
-            .query_params(qp.clone());
+        let params = WsServerParameters::new()
+            .with_headers(headers.clone())
+            .with_port(16789)
+            .with_path("/some/path")
+            .with_query_params(qp.clone());
 
         assert_eq!(params.headers, Some(headers));
         assert_eq!(params.port, Some(16789));

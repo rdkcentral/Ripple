@@ -40,7 +40,7 @@ use ripple_sdk::{
 use crate::{
     mock_device_controller::{MockDeviceController, MockDeviceControllerServer},
     mock_device_processor::MockDeviceProcessor,
-    utils::boot_ws_server,
+    utils::{boot_ws_server, start_ws_server},
 };
 
 pub const EXTN_NAME: &str = "mock_device";
@@ -80,7 +80,7 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     runtime.block_on(async move {
         let client_c = client.clone();
         tokio::spawn(async move {
-            match boot_ws_server(client.clone()).await {
+            match start_ws_server(client.clone()).await {
                 Ok(server) => {
                     client.add_request_processor(MockDeviceProcessor::new(client.clone(), server))
                 }

@@ -15,12 +15,29 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use ripple_sdk::serde_yaml::with;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct MockConfig {
     pub activate_all_plugins: bool,
     pub stats_file: String,
+}
+impl MockConfig {
+    pub fn new(activate_all_plugins: bool, stats_file: String) -> Self {
+        Self {
+            activate_all_plugins,
+            stats_file,
+        }
+    }
+    pub fn with_activate_all_plugins(&mut self, activate_all_plugins: bool) -> &mut Self {
+        self.activate_all_plugins = activate_all_plugins;
+        self
+    }
+    pub fn with_stats_file(&mut self, stats_file: String) -> &mut Self {
+        self.stats_file = stats_file;
+        self
+    }
 }
 
 impl Default for MockConfig {

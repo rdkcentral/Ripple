@@ -40,6 +40,7 @@ impl Display for MockServerWebSocketError {
 pub enum MockDeviceError {
     BootFailed(BootFailedError),
     LoadMockDataFailed(LoadMockDataError),
+    NoAvailablePort,
 }
 
 impl std::error::Error for MockDeviceError {}
@@ -53,6 +54,9 @@ impl Display for MockDeviceError {
             Self::LoadMockDataFailed(reason) => {
                 format!("Failed to load mock data from file. Reason: {reason}")
             }
+            MockDeviceError::BootFailed(boot_failed_error) => todo!(),
+            MockDeviceError::LoadMockDataFailed(load_mock_data_error) => todo!(),
+            MockDeviceError::NoAvailablePort => todo!(),
         };
 
         f.write_str(msg.as_str())

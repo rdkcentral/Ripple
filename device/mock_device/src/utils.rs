@@ -15,8 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{fs::File, io::BufReader, path::PathBuf, sync::Arc};
-
 use ripple_sdk::{
     api::config::Config,
     extn::{client::extn_client::ExtnClient, extn_client_message::ExtnResponse},
@@ -25,37 +23,60 @@ use ripple_sdk::{
     utils::error::RippleError,
 };
 use serde_json::Value;
+use std::collections::HashMap;
+use std::net::TcpListener;
+use std::{fs::File, io::BufReader, path::PathBuf, sync::Arc};
 use url::{Host, Url};
 
+use crate::errors::MockServerWebSocketError;
+use crate::mock_data::ParamResponse;
 use crate::{
     errors::{BootFailedError, LoadMockDataError, MockDeviceError},
     mock_config::MockConfig,
     mock_data::MockData,
     mock_web_socket_server::{MockWebSocketServer, WsServerParameters},
 };
+fn get_available_port() -> Option<u16> {
+    (20000..21000).find(|port| port_is_available(*port))
+}
+
+fn port_is_available(port: u16) -> bool {
+    match TcpListener::bind(("127.0.0.1", port)) {
+        Ok(_) => true,
+        Err(_) => false,
+    }
+}
+pub async fn boot_for_unit_test(
+    mock_data_v2: MockData,
+) -> Result<(Url, Arc<MockWebSocketServer>), MockDeviceError> {
+    let port = get_available_port().ok_or(MockDeviceError::NoAvailablePort)?;
+    let hostname = "localhost";
+    let uri = "jsonrpc";
+    let gateway_url = Url::parse(&format!("ws://{}:{}/{}", hostname, uri, port))
+        .map_err(|_| MockDeviceError::NoAvailablePort)?;
+    Ok((
+        gateway_url.clone(),
+        boot_ws_server(
+            MockConfig::default(),
+            gateway_url,
+            mock_data_v2,
+            WsServerParameters::new().with_port(port),
+        )
+        .await?,
+    ))
+}
 
 pub async fn boot_ws_server(
-    mut client: ExtnClient,
+    server_config: MockConfig,
+    gateway_url: Url,
+    mock_data_v2: MockData,
+    ws_server_params: &mut WsServerParameters,
 ) -> Result<Arc<MockWebSocketServer>, MockDeviceError> {
-    debug!("Booting WS Server for mock device");
-    let gateway = platform_gateway_url(&mut client).await?;
-
-    if gateway.scheme() != "ws" {
-        return Err(BootFailedError::BadUrlScheme)?;
-    }
-
-    if !is_valid_host(gateway.host()) {
-        return Err(BootFailedError::BadHostname)?;
-    }
-
-    let config = load_config(&client);
-
-    let mut server_config = WsServerParameters::new();
-    let mock_data_v2 = load_mock_data_v2(client.clone()).await?;
-    server_config
-        .port(gateway.port().unwrap_or(0))
-        .path(gateway.path());
-    let ws_server = MockWebSocketServer::new(mock_data_v2, server_config, config)
+    let params = ws_server_params
+        .with_port(gateway_url.port().unwrap_or(0))
+        .with_path(gateway_url.path())
+        .to_owned();
+    let ws_server = MockWebSocketServer::new(mock_data_v2, params, server_config)
         .await
         .map_err(BootFailedError::ServerStartFailed)?;
 
@@ -67,6 +88,36 @@ pub async fn boot_ws_server(
     });
 
     Ok(ws_server)
+}
+pub async fn start_ws_server(
+    mut client: ExtnClient,
+) -> Result<Arc<MockWebSocketServer>, MockDeviceError> {
+    debug!("Booting WS Server for mock device");
+    let gateway_url = platform_gateway_url(&mut client).await?;
+
+    if gateway_url.scheme() != "ws" {
+        return Err(BootFailedError::BadUrlScheme)?;
+    }
+
+    if !is_valid_host(gateway_url.host()) {
+        return Err(BootFailedError::BadHostname)?;
+    }
+
+    let mock_config = load_config(&client);
+
+    let mut ws_server_params = WsServerParameters::new();
+    let mock_data_v2 = load_mock_data_v2(client.clone()).await?;
+    // server_config
+    //     .port(gateway.port().unwrap_or(0))
+    //     .path(gateway.path());
+    // s
+    Ok(boot_ws_server(
+        mock_config,
+        gateway_url,
+        mock_data_v2,
+        &mut ws_server_params,
+    )
+    .await?)
 }
 
 async fn platform_gateway_url(client: &mut ExtnClient) -> Result<Url, MockDeviceError> {
@@ -138,12 +189,24 @@ async fn find_mock_device_data_file(mut client: ExtnClient) -> Result<PathBuf, M
 }
 
 pub fn load_config(client: &ExtnClient) -> MockConfig {
-    let mut config = MockConfig::default();
-
-    if let Some(c) = client.get_config("activate_all_plugins") {
-        config.activate_all_plugins = c.parse::<bool>().unwrap_or(false);
+    match client
+        .get_config("key")
+        .unwrap_or("true".into())
+        .parse::<bool>()
+    {
+        Ok(v) => MockConfig::default()
+            .with_activate_all_plugins(v)
+            .to_owned(),
+        Err(e) => {
+            error!("Failed to parse activate_all_plugins config value: {e:?}");
+            MockConfig::default()
+        }
     }
-    config
+}
+pub fn create_mock_config(activate_all_plugins: bool) -> MockConfig {
+    MockConfig::default()
+        .with_activate_all_plugins(activate_all_plugins)
+        .to_owned()
 }
 
 pub async fn load_mock_data_v2(client: ExtnClient) -> Result<MockData, MockDeviceError> {
