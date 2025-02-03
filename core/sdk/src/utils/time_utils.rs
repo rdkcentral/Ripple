@@ -85,3 +85,29 @@ impl Timer {
         self.handle.abort();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_timestamp_2_iso8601() {
+        let timestamp = 1656000970; // 2022-06-23T16:16:10Z
+        let iso8601 = timestamp_2_iso8601(timestamp);
+        assert_eq!(iso8601, "2022-06-23T09:16:10-07:00");
+    }
+
+    #[test]
+    fn test_convert_timestamp_to_iso8601_seconds() {
+        let timestamp = 1656000970; // 2022-06-23T16:16:10Z
+        let iso8601 = convert_timestamp_to_iso8601(timestamp);
+        assert_eq!(iso8601, "2022-06-23T16:16:10+00:00");
+    }
+
+    #[test]
+    fn test_convert_timestamp_to_iso8601_milliseconds() {
+        let timestamp = 1656000970; // 2022-06-23T16:16:10Z in milliseconds
+        let iso8601 = convert_timestamp_to_iso8601(timestamp);
+        assert_eq!(iso8601, "2022-06-23T16:16:10+00:00");
+    }
+}
