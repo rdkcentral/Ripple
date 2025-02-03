@@ -67,7 +67,13 @@ pub struct ConnectionCallback(ConnectionCallbackConfig);
 /**
  * Gets a query parameter from the request at the given key.
  * If required=true, then return an error if the param is missing
+ *
+ *
+ * clippy: the `Err`-variant is at least 136 bytes
+ * It is not possible to reduce the size of the error message without boxing, and upsetting
+ * consumers
  */
+#[allow(clippy::result_large_err)]
 fn get_query(
     req: &tungstenite::handshake::server::Request,
     key: &'static str,

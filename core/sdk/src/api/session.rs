@@ -197,13 +197,13 @@ pub enum TokenType {
     Root,
 }
 
-impl ToString for TokenType {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for TokenType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TokenType::Platform => String::from("platform"),
-            TokenType::Device => String::from("device"),
-            TokenType::Distributor => String::from("distributor"),
-            TokenType::Root => String::from("root"),
+            TokenType::Platform => write!(f, "platform"),
+            TokenType::Device => write!(f, "device"),
+            TokenType::Distributor => write!(f, "distributor"),
+            TokenType::Root => write!(f, "root"),
         }
     }
 }

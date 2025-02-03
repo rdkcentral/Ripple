@@ -287,11 +287,11 @@ impl FromStr for AppsOperationType {
         }
     }
 }
-impl ToString for AppsOperationType {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for AppsOperationType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AppsOperationType::Install => "install".to_string(),
-            AppsOperationType::Uninstall => "uninstall".to_string(),
+            AppsOperationType::Install => write!(f, "install"),
+            AppsOperationType::Uninstall => write!(f, "uninstall"),
         }
     }
 }
