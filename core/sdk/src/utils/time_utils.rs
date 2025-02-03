@@ -89,8 +89,7 @@ impl Timer {
 #[cfg(test)]
 mod tests {
     use super::*;
-   
-    
+
     #[test]
     fn test_convert_timestamp_to_iso8601_seconds() {
         let timestamp = 1656000970; // 2022-06-23T16:16:10Z
