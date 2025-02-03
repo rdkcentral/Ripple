@@ -32,8 +32,11 @@ use futures::SinkExt;
 use futures::StreamExt;
 use jsonrpsee::types::{error::ErrorCode, ErrorResponse, Id};
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{
-        ApiMessage, ApiProtocol, ClientContext, JsonRpcApiResponse, RpcRequest,
+    api::{
+        gateway::rpc_gateway_api::{
+            ApiMessage, ApiProtocol, ClientContext, JsonRpcApiResponse, RpcRequest,
+        },
+        observability::log_signal::LogSignal,
     },
     log::{error, info, trace},
     tokio::{
@@ -258,16 +261,30 @@ impl FireboltWs {
 
         let (mut sender, mut receiver) = ws_stream.split();
         let mut platform_state = state.clone();
+        let context_clone = ctx.clone();
+
         tokio::spawn(async move {
-            while let Some(rs) = resp_rx.recv().await {
-                let send_result = sender.send(Message::Text(rs.jsonrpc_msg.clone())).await;
+            while let Some(api_message) = resp_rx.recv().await {
+                let send_result = sender
+                    .send(Message::Text(api_message.jsonrpc_msg.clone()))
+                    .await;
                 match send_result {
                     Ok(_) => {
                         platform_state
                             .metrics
-                            .update_api_stage(&rs.request_id, "response");
+                            .update_api_stage(&api_message.request_id, "response");
 
-                        if let Some(stats) = platform_state.metrics.get_api_stats(&rs.request_id) {
+                        LogSignal::new(
+                            "sent_firebolt_response".to_string(),
+                            "firebolt message sent".to_string(),
+                            context_clone.clone(),
+                        )
+                        .with_diagnostic_context_item("cid", &connection_id_c.clone())
+                        .emit_debug();
+                        if let Some(stats) = platform_state
+                            .metrics
+                            .get_api_stats(&api_message.request_id)
+                        {
                             info!(
                                 "Sending Firebolt response: {:?},{}",
                                 stats.stats_ref,
@@ -278,11 +295,15 @@ impl FireboltWs {
                                 stats.stats_ref,
                                 stats.stats.get_stage_durations()
                             );
-                            platform_state.metrics.remove_api_stats(&rs.request_id);
+                            platform_state
+                                .metrics
+                                .remove_api_stats(&api_message.request_id);
                         }
+
                         info!(
                             "Sent Firebolt response cid={} msg={}",
-                            connection_id_c, rs.jsonrpc_msg
+                            connection_id_c.clone(),
+                            api_message.jsonrpc_msg
                         );
                     }
                     Err(err) => error!("{:?}", err),
@@ -290,9 +311,14 @@ impl FireboltWs {
             }
             debug!(
                 "api msg rx closed {} {} {}",
-                app_id_c, session_id_c, connection_id_c
+                app_id_c.clone(),
+                session_id_c.clone(),
+                connection_id_c.clone()
             );
         });
+
+        let session_id_c = identity.session_id.clone();
+        let app_id_c = identity.app_id.clone();
         while let Some(msg) = receiver.next().await {
             match msg {
                 Ok(msg) => {
@@ -302,11 +328,11 @@ impl FireboltWs {
                         let context = { rpc_context.read().unwrap().clone() };
                         if let Ok(request) = RpcRequest::parse(
                             req_text.clone(),
-                            ctx.app_id.clone(),
-                            ctx.session_id.clone(),
+                            app_id_c.clone(),
+                            session_id_c.clone(),
                             req_id.clone(),
                             Some(connection_id.clone()),
-                            ctx.gateway_secure,
+                            gateway_secure,
                             context,
                         ) {
                             info!("Received Firebolt request {}", request.params_json);
