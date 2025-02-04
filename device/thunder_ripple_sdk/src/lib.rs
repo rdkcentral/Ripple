@@ -35,7 +35,6 @@ pub mod events {
 }
 
 pub mod processors {
-    pub mod thunder_browser;
     pub mod thunder_device_info;
     pub mod thunder_events;
     pub mod events {
@@ -44,11 +43,8 @@ pub mod processors {
     pub mod thunder_analytics;
     pub mod thunder_package_manager;
     pub mod thunder_persistent_store;
-    pub mod thunder_remote;
     pub mod thunder_rfc;
     pub mod thunder_telemetry;
-    pub mod thunder_wifi;
-    pub mod thunder_window_manager;
 }
 
 pub mod utils;
@@ -65,8 +61,6 @@ pub mod tests {
         pub mod thunder_device_info_pacts;
         pub mod thunder_package_manager_pacts;
         pub mod thunder_persistent_store_pacts;
-        pub mod thunder_remote_pacts;
-        pub mod thunder_wifi_pacts;
     }
     pub mod mock_thunder_controller;
     pub mod thunder_client_pool_test_utility;
