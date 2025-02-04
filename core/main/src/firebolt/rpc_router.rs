@@ -46,8 +46,7 @@ use crate::{
     service::telemetry_builder::TelemetryBuilder,
     state::{platform_state::PlatformState, session_state::Session},
     utils::router_utils::{
-        add_telemetry_status_code, capture_stage, get_rpc_header, return_api_message_for_transport,
-        return_extn_response,
+        add_telemetry_status_code, capture_stage, get_rpc_header, return_extn_response,
     },
 };
 
@@ -198,7 +197,7 @@ impl RpcRouter {
                 let now = Utc::now().timestamp_millis();
                 let success = !msg.is_error();
                 TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success, &msg);
-                return_api_message_for_transport(session, msg, state).await;
+                let _ = session.send_json_rpc(msg).await;
             }
         });
     }

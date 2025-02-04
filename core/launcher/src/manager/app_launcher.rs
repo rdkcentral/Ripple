@@ -25,7 +25,7 @@ use ripple_sdk::{
     api::{
         apps::{
             AppBasicInfo, AppError, AppLaunchInfo, AppManagerResponse, AppResponse, AppRuntime,
-            AppRuntimeTransport, AppSession, CloseReason, Dimensions, StateChange,
+            AppSession, CloseReason, Dimensions, StateChange,
         },
         device::{
             device_browser::{BrowserNameRequestParams, BrowserRequest},
@@ -540,14 +540,6 @@ impl AppLauncher {
         }
     }
 
-    fn get_transport(contract_permited: bool, url: &str) -> AppRuntimeTransport {
-        if !url.contains("__firebolt_endpoint") && contract_permited {
-            AppRuntimeTransport::Bridge
-        } else {
-            AppRuntimeTransport::Websocket
-        }
-    }
-
     pub async fn pre_launch(
         state: &LauncherState,
         manifest: AppManifest,
@@ -564,10 +556,7 @@ impl AppLauncher {
                 catalog: manifest.content_catalog.clone(),
                 url: Some(manifest.start_page.clone()),
             },
-            runtime: Some(AppRuntime {
-                id: Some(callsign),
-                transport: Self::get_transport(bool_contract, &manifest.start_page),
-            }),
+            runtime: Some(AppRuntime { id: Some(callsign) }),
             launch: AppLaunchInfo {
                 intent: Some(intent),
                 second_screen: None,

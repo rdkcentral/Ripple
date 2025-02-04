@@ -291,7 +291,14 @@ mod tests {
                     sub_tx,
                 )
                 .await;
-            assert_eq!(resp.message, "Subscribed".to_string());
+            match resp {
+                Ok(resp) => {
+                    assert_eq!(resp.message, "Subscribed".to_string());
+                }
+                Err(e) => {
+                    panic!("Error subscribing: {:?}", e);
+                }
+            }
         }
 
         // 4. Re-start server to test Thunder client reset

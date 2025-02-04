@@ -26,6 +26,7 @@ use jsonrpsee::core::{async_trait, error::Error as JsonRpcError};
 use jsonrpsee::types::ParamsSer;
 use regex::Regex;
 use ripple_sdk::serde_json::json;
+use ripple_sdk::tokio::sync::oneshot::error::RecvError;
 use ripple_sdk::{
     api::device::device_operator::DeviceResponseMessage,
     tokio::sync::mpsc::{self, Sender as MpscSender},
@@ -212,7 +213,7 @@ impl DeviceOperator for ThunderClient {
         &self,
         request: DeviceSubscribeRequest,
         handler: mpsc::Sender<DeviceResponseMessage>,
-    ) -> DeviceResponseMessage {
+    ) -> Result<DeviceResponseMessage, RecvError> {
         let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
         let message = ThunderSubscribeMessage {
             module: request.module,
@@ -224,7 +225,11 @@ impl DeviceOperator for ThunderClient {
         };
         let msg = ThunderMessage::ThunderSubscribeMessage(message);
         self.send_message(msg).await;
-        rx.await.unwrap()
+        let result = rx.await;
+        if let Err(ref e) = result {
+            error!("subscribe: e={:?}", e);
+        }
+        result
     }
 
     async fn unsubscribe(&self, request: DeviceUnsubscribeRequest) {
