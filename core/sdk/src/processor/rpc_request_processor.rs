@@ -25,6 +25,7 @@ use crate::{
             },
         },
         extn_client_message::{ExtnMessage, ExtnResponse},
+        extn_id::{ExtnId, ExtnProviderAdjective, ExtnProviderRequest},
     },
     framework::ripple_contract::RippleContract,
     log::trace,
@@ -39,6 +40,7 @@ use jsonrpsee::core::server::rpc_module::Methods;
 pub struct RPCRequestState {
     client: ExtnClient,
     router_state: RouterState,
+    extn_id: ExtnId,
 }
 
 /// Processor to service incoming RPC Requests used by extensions and other local rpc handlers for aliasing.
@@ -49,7 +51,7 @@ pub struct RPCRequestProcessor {
 }
 
 impl RPCRequestProcessor {
-    pub fn new(client: ExtnClient, methods: Methods) -> RPCRequestProcessor {
+    pub fn new(client: ExtnClient, methods: Methods, extn_id: ExtnId) -> RPCRequestProcessor {
         let router_state = RouterState::new();
         router_state.update_methods(methods.clone());
 
@@ -57,6 +59,7 @@ impl RPCRequestProcessor {
             state: RPCRequestState {
                 client,
                 router_state,
+                extn_id,
             },
             streamer: DefaultExtnStreamer::new(),
         }
@@ -65,7 +68,7 @@ impl RPCRequestProcessor {
 
 impl ExtnStreamProcessor for RPCRequestProcessor {
     type STATE = RPCRequestState;
-    type VALUE = RpcRequest;
+    type VALUE = ExtnProviderRequest;
 
     fn get_state(&self) -> Self::STATE {
         self.state.clone()
@@ -77,6 +80,12 @@ impl ExtnStreamProcessor for RPCRequestProcessor {
 
     fn receiver(&mut self) -> Receiver<ExtnMessage> {
         self.streamer.receiver()
+    }
+
+    fn contract(&self) -> RippleContract {
+        RippleContract::ExtnProvider(ExtnProviderAdjective {
+            id: self.state.extn_id.clone(),
+        })
     }
 }
 
@@ -95,33 +104,22 @@ impl ExtnRequestProcessor for RPCRequestProcessor {
         let client = state.client.clone();
         tokio::spawn(async move {
             let router_state = state.router_state.clone();
-            let req = extracted_message.clone();
+            let req: RpcRequest = serde_json::from_value(extracted_message.value).unwrap();
             let resp = RpcRouter::resolve_route(req.clone(), &router_state).await;
-            let mut resp_extn_msg = extn_msg.clone();
-            resp_extn_msg.target = RippleContract::Rpc;
 
             match resp {
                 Ok(response_msg) => {
-                    if response_msg.is_error() {
-                        Self::handle_error(client, resp_extn_msg, RippleError::ProcessorError)
-                            .await;
-                    } else if let Ok(json_value) = serde_json::from_str(&response_msg.jsonrpc_msg) {
-                        if Self::respond(client, resp_extn_msg, ExtnResponse::Value(json_value))
-                            .await
-                            .is_ok()
-                        {
-                            return true;
-                        }
-                    } else {
-                        Self::handle_error(client, resp_extn_msg, RippleError::ProcessorError)
-                            .await;
+                    if Self::respond(client, extn_msg, ExtnResponse::String(response_msg))
+                        .await
+                        .is_ok()
+                    {
+                        return true;
                     }
                 }
                 Err(_) => {
-                    Self::handle_error(client, resp_extn_msg, RippleError::ProcessorError).await;
+                    Self::handle_error(client, extn_msg, RippleError::ProcessorError).await;
                 }
             };
-
             true
         });
 

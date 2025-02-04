@@ -20,14 +20,12 @@ use super::endpoint_broker::{
 };
 use crate::state::platform_state::PlatformState;
 use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiError;
-use ripple_sdk::async_channel::unbounded;
-use ripple_sdk::extn::extn_client_message::{ExtnMessage, ExtnPayload, ExtnRequest};
-use ripple_sdk::framework::ripple_contract::RippleContract;
+use ripple_sdk::extn::extn_client_message:: ExtnResponse;
+use ripple_sdk::extn::extn_id::ExtnProviderRequest;
 use ripple_sdk::log::trace;
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
     api::observability::log_signal::LogSignal,
-    chrono::Utc,
     extn::extn_id::ExtnId,
     log::error,
     tokio::{self, sync::mpsc},
@@ -65,80 +63,79 @@ impl ExtnBroker {
                         continue;
                     }
                 };
+                
+                let request = ExtnProviderRequest {
+                    value: serde_json::to_value(rpc_request.clone()).unwrap(),
+                    id: id.clone(),
+                };
 
-                let extn_client = if let Some(platform_state) = &ps {
-                    platform_state.get_client().get_extn_client()
+                let client = if let Some(platform_state) = &ps {
+                    platform_state.get_client()
                 } else {
                     return;
                 };
 
-                if let Some(sender) = extn_client.get_extn_sender_with_extn_id(&alias) {
-                    let (callback_tx, callback_rx) = unbounded();
-                    let msg = ExtnMessage {
-                        id: rpc_request.ctx.call_id.to_string(),
-                        requestor: ExtnId::get_main_target("main".into()),
-                        target: RippleContract::Rpc,
-                        target_id: Some(id),
-                        payload: ExtnPayload::Request(ExtnRequest::Rpc(rpc_request.clone())),
-                        callback: Some(callback_tx),
-                        ts: Some(Utc::now().timestamp_millis()),
-                    };
-
-                    if sender.try_send(msg.into()).is_ok() {
-                        match callback_rx.recv().await {
-                            Ok(message) => {
-                                let value =
-                                    serde_json::from_str::<serde_json::Value>(&message.payload)
-                                        .ok()
-                                        .and_then(|payload| payload.get("Response").cloned())
-                                        .and_then(|response| response.get("Value").cloned())
-                                        .and_then(|value| {
-                                            serde_json::from_str::<serde_json::Value>(
-                                                value.as_str().unwrap_or(""),
-                                            )
-                                            .ok()
-                                        })
-                                        .and_then(|value_json| value_json.get("result").cloned())
-                                        .unwrap_or(serde_json::Value::Null);
-
-                                let composed: JsonRpcApiResponse = broker_request.clone().into();
-                                let composed = composed.with_result(Some(value));
-
+                match client.send_extn_request(request.clone()).await {
+                    Ok(response) => {
+                        if let Some(ExtnResponse::String(v)) = response.payload.extract() {
+                            if let Ok(value) = serde_json::from_str::<JsonRpcApiResponse>(&v) {
                                 LogSignal::new(
                                     "extn_broker".to_string(),
-                                    format!("Received broker response: {:?}", composed),
+                                    format!("Received response from extn: {:?}", value),
                                     broker_request.rpc.ctx.clone(),
                                 )
                                 .emit_debug();
-                                Self::send_broker_success_response(&callback, composed);
+                                Self::send_broker_success_response(&callback, value);
+                            } else {
+                                trace!("serde failed in extn_broker");
+                                Self::send_broker_failure_response(
+                                    &callback,
+                                    JsonRpcApiError::default()
+                                        .with_code(-32001)
+                                        .with_message(format!(
+                                            "extn_broker error for api {}: serde failed",
+                                            broker_request.rpc.method,
+                                        ))
+                                        .with_id(broker_request.rpc.ctx.call_id)
+                                        .into(),
+                                );
                             }
-                            Err(error) => {
-                                let error_message = JsonRpcApiError::default()
+                        } else {
+                            trace!("Received invalid response payload: {:?}", response.payload);
+                            Self::send_broker_failure_response(
+                                &callback,
+                                JsonRpcApiError::default()
                                     .with_code(-32001)
                                     .with_message(format!(
-                                        "extn_broker error for api {}: {}",
-                                        broker_request.rpc.method, error
+                                        "extn_broker error for api {}: invalid response payload: {:?}",
+                                        broker_request.rpc.method,
+                                        response.payload,
                                     ))
                                     .with_id(broker_request.rpc.ctx.call_id)
-                                    .into();
-                                LogSignal::new(
-                                    "extn_broker".to_string(),
-                                    format!("Received broker error: {:?}", error_message),
-                                    broker_request.rpc.ctx.clone(),
-                                )
-                                .emit_error();
-
-                                Self::send_broker_failure_response(&callback, error_message);
-                            }
+                                    .into(),
+                            );
                         }
-                    } else {
-                        error!("No sender available");
                     }
-                } else {
-                    error!("No sender available");
+                    Err(e) => {
+                        let error_message = format!(
+                            "Extn error for api {}: failed to send request - {}",
+                            broker_request.rpc.method,
+                            e
+                        );
+                        Self::send_broker_failure_response(
+                            &callback,
+                            JsonRpcApiError::default()
+                                .with_code(-32001)
+                                .with_message(error_message.clone())
+                                .with_id(broker_request.rpc.ctx.call_id)
+                                .into(),
+                        );
+                        error!("{}", error_message);
+                    }
                 }
             }
         });
+
         BrokerSender { sender: tx }
     }
 }

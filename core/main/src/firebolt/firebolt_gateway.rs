@@ -147,7 +147,7 @@ impl FireboltGateway {
         }
     }
 
-    pub async fn handle(&self, request: RpcRequest, extn_msg: Option<ExtnMessage>) {
+    pub async fn handle(&self, request: RpcRequest, mut extn_msg: Option<ExtnMessage>) {
         trace!(
             "firebolt_gateway Received Firebolt request {} {} {}",
             request.ctx.request_id,
@@ -163,6 +163,7 @@ impl FireboltGateway {
             request.clone(),
         )
         .emit_debug();
+        let mut extn_cb = None;
         match request.ctx.protocol {
             ApiProtocol::Extn => {
                 extn_request = true;
@@ -171,8 +172,20 @@ impl FireboltGateway {
                 if !request.is_subscription()
                     && (callback_c.is_none() || callback_c.unwrap().callback.is_none())
                 {
-                    error!("No callback for request {:?} ", request);
-                    return;
+                    trace!("No callback for request {:?} ", request);
+                    if let Some(extn_message) = extn_msg.clone() {
+                        let extn_id = extn_message.requestor;
+                        extn_cb = self
+                            .state
+                            .platform_state
+                            .get_client()
+                            .get_extn_client()
+                            .get_extn_sender_with_extn_id(&extn_id.to_string());
+                    }
+                    if extn_cb.is_none() {
+                        error!("No sender for request {:?} ", request);
+                        return;
+                    }
                 }
             }
             _ => {
@@ -257,6 +270,13 @@ impl FireboltGateway {
                         .has_rpc_override_method(&request_c.method)
                     {
                         request_c.method = overridden_method;
+                    }
+
+                    if extn_cb.is_some() {
+                        if let Some(mut msg) = extn_msg.clone() {
+                            msg.callback = extn_cb;
+                            let _ = extn_msg.insert(msg);
+                        }
                     }
 
                     if !platform_state.endpoint_state.handle_brokerage(

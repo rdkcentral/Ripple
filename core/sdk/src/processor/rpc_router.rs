@@ -16,7 +16,7 @@
 //
 
 use crate::{
-    api::gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
+    api::gateway::rpc_gateway_api::RpcRequest,
     log::{error, trace},
     utils::error::RippleError,
 };
@@ -73,7 +73,7 @@ impl RpcRouter {
     pub async fn resolve_route(
         req: RpcRequest,
         router_state: &RouterState,
-    ) -> Result<ApiMessage, RippleError> {
+    ) -> Result<String, RippleError> {
         trace!("SDK: Resolving route for {:?}", req);
         let id = Id::Number(req.ctx.call_id);
         let methods = router_state.get_methods();
@@ -116,16 +116,7 @@ impl RpcRouter {
         join_all(method_executors).await;
 
         if let Some(r) = sink_rx.next().await {
-            let protocol = req.ctx.protocol.clone();
-            let request_id = req.ctx.request_id;
-
-            let msg = ApiMessage::new(
-                protocol,
-                serde_json::to_string(&r).unwrap(),
-                request_id.clone(),
-            );
-
-            return Ok(msg);
+            return Ok(r);
         }
         Err(RippleError::InvalidOutput)
     }
