@@ -866,11 +866,6 @@ pub async fn validate_navigation_intent(
                         format!("{:?} ", err),
                         JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
                     );
-                    // return Err(jsonrpsee::core::Error::Call(CallError::Custom {
-                    //     code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
-                    //     message: format!("{:?} ", err),
-                    //     data: None,
-                    // }));
                 } else {
                     ripple_sdk::log::warn!("Intents do not match the spec : {:?} ", err);
                 }

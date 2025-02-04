@@ -38,7 +38,7 @@ base64 = { version = "0.21.5", default-features = false }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 futures = { version = "0.3.21", default-features = false }
 futures-channel = { version = "0.3.21", default-features = false }
-jsonrpsee = { version = "=0.16.2", default-features = false }
+jsonrpsee = { version = "=0.16.3", default-features = false }
 querystring = { version = "1.1.0", default-features = false }
 regex = { version = "1.10.4", features = ["std"], default-features = false }
 serde_json = { version = "1.0", default-features = false}
