@@ -22,7 +22,7 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        apps::{AppSession, EffectiveTransport},
+        apps::AppSession,
         gateway::rpc_gateway_api::{ApiMessage, CallContext},
         session::{AccountSession, ProvisionRequest},
     },
@@ -33,7 +33,6 @@ use ripple_sdk::{
 #[derive(Debug, Clone)]
 pub struct SessionData {
     app_id: String,
-    transport: EffectiveTransport,
 }
 
 #[derive(Debug, Clone)]
@@ -43,14 +42,10 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(
-        app_id: String,
-        sender: Option<Sender<ApiMessage>>,
-        transport: EffectiveTransport,
-    ) -> Session {
+    pub fn new(app_id: String, sender: Option<Sender<ApiMessage>>) -> Session {
         Session {
             sender,
-            data: SessionData { app_id, transport },
+            data: SessionData { app_id },
         }
     }
 
@@ -69,10 +64,6 @@ impl Session {
 
     fn get_app_id(&self) -> String {
         self.data.app_id.clone()
-    }
-
-    pub fn get_transport(&self) -> EffectiveTransport {
-        self.data.transport.clone()
     }
 }
 
