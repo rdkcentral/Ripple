@@ -20,7 +20,7 @@ use super::endpoint_broker::{
 };
 use crate::state::platform_state::PlatformState;
 use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiError;
-use ripple_sdk::extn::extn_client_message:: ExtnResponse;
+use ripple_sdk::extn::extn_client_message::ExtnResponse;
 use ripple_sdk::extn::extn_id::ExtnProviderRequest;
 use ripple_sdk::log::trace;
 use ripple_sdk::{
@@ -63,7 +63,7 @@ impl ExtnBroker {
                         continue;
                     }
                 };
-                
+
                 let request = ExtnProviderRequest {
                     value: serde_json::to_value(rpc_request.clone()).unwrap(),
                     id: id.clone(),
@@ -119,8 +119,7 @@ impl ExtnBroker {
                     Err(e) => {
                         let error_message = format!(
                             "Extn error for api {}: failed to send request - {}",
-                            broker_request.rpc.method,
-                            e
+                            broker_request.rpc.method, e
                         );
                         Self::send_broker_failure_response(
                             &callback,
