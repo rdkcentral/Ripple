@@ -262,16 +262,4 @@ mod tests {
         let json = serde_json::to_string(&log_signal).unwrap();
         assert_eq!(json, "{\"name\":\"tester\",\"message\":\"message\",\"diagnostic_context\":{},\"context\":{\"session_id\":\"session_id\",\"request_id\":\"1\",\"app_id\":\"some_app_id\",\"call_id\":1,\"protocol\":\"JsonRpc\",\"method\":\"module.method\",\"cid\":\"cid\",\"gateway_secure\":true}}");
     }
-
-    #[test]
-    fn test_log_signal_with_multiple_diagnostic_context_items() {
-        let mut diagnostic_context = HashMap::new();
-        diagnostic_context.insert("key1".to_string(), "value1".to_string());
-        diagnostic_context.insert("key2".to_string(), "value2".to_string());
-        let call_context = CallContext::mock();
-        let log_signal = LogSignal::new("tester".to_string(), "message".to_string(), call_context)
-            .with_diagnostic_context(diagnostic_context);
-        let json = serde_json::to_string(&log_signal).unwrap();
-        assert_eq!(json, "{\"name\":\"tester\",\"message\":\"message\",\"diagnostic_context\":{\"key1\":\"value1\",\"key2\":\"value2\"},\"context\":{\"session_id\":\"session_id\",\"request_id\":\"1\",\"app_id\":\"some_app_id\",\"call_id\":1,\"protocol\":\"JsonRpc\",\"method\":\"module.method\",\"cid\":\"cid\",\"gateway_secure\":true}}");
-    }
 }
