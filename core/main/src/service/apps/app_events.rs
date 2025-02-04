@@ -21,10 +21,9 @@ use jsonrpsee::{
 };
 use ripple_sdk::{
     api::{
-        apps::{AppEventRequest, EffectiveTransport},
+        apps::AppEventRequest,
         firebolt::fb_general::ListenRequest,
         gateway::rpc_gateway_api::{ApiMessage, CallContext},
-        protocol::BridgeProtocolRequest,
     },
     log::error,
     serde_json::{json, Value},
@@ -127,7 +126,6 @@ pub struct EventListener {
     pub call_ctx: CallContext,
     // Keep the session_tx package private
     session_tx: Option<mpsc::Sender<ApiMessage>>,
-    transport: EffectiveTransport,
     decorator: Option<Box<dyn AppEventDecorator + Send + Sync>>,
 }
 
@@ -252,7 +250,6 @@ impl AppEvents {
             event_listeners.push(EventListener {
                 call_ctx,
                 session_tx: session.get_sender(),
-                transport: session.get_transport(),
                 decorator,
             });
         } else if let Some(entry) = listeners.get_mut(&event_name) {
@@ -262,7 +259,7 @@ impl AppEvents {
         }
     }
 
-    pub async fn send_event(state: &PlatformState, listener: &EventListener, data: &Value) {
+    pub async fn send_event(listener: &EventListener, data: &Value) {
         let protocol = listener.call_ctx.protocol.clone();
         let event = Response {
             jsonrpc: TwoPointZero,
@@ -277,25 +274,10 @@ impl AppEvents {
             listener.call_ctx.request_id.clone(),
         );
 
-        match listener.transport.clone() {
-            EffectiveTransport::Websocket => {
-                if let Some(session_tx) = listener.session_tx.clone() {
-                    mpsc_send_and_log(&session_tx, api_message, "GatewayResponse").await;
-                } else {
-                    error!("JsonRPC sender missing");
-                }
-            }
-            EffectiveTransport::Bridge(id) => {
-                if state.supports_bridge() {
-                    let client = state.get_client();
-                    let request = BridgeProtocolRequest::Send(id, api_message);
-                    if let Err(e) = client.send_extn_request(request).await {
-                        error!("Error sending event to bridge {:?}", e);
-                    }
-                } else {
-                    error!("Bridge not supported");
-                }
-            }
+        if let Some(session_tx) = listener.session_tx.clone() {
+            mpsc_send_and_log(&session_tx, api_message, "GatewayResponse").await;
+        } else {
+            error!("JsonRPC sender missing");
         }
     }
 
@@ -351,7 +333,6 @@ impl AppEvents {
             }
             if context.is_some() {
                 AppEvents::send_event(
-                    state,
                     &i,
                     &json!({
                         "context": context.clone(),
@@ -360,7 +341,7 @@ impl AppEvents {
                 )
                 .await;
             } else {
-                AppEvents::send_event(state, &i, &decorated_res.unwrap()).await;
+                AppEvents::send_event(&i, &decorated_res.unwrap()).await;
             }
         }
 
@@ -373,7 +354,7 @@ impl AppEvents {
                 event_ctx_string.clone(),
             );
             for i in listeners {
-                AppEvents::send_event(state, &i, result).await;
+                AppEvents::send_event(&i, result).await;
             }
         }
     }
@@ -392,7 +373,7 @@ impl AppEvents {
         for i in listeners_vec {
             let decorated_res = i.decorate(state, event_name, result).await;
             if let Ok(res) = decorated_res {
-                AppEvents::send_event(state, &i, &res).await;
+                AppEvents::send_event(&i, &res).await;
             } else {
                 error!("could not generate event for '{}'", event_name);
             }
@@ -445,16 +426,8 @@ pub mod tests {
         let platform_state = PlatformState::mock();
         let call_context = CallContext::mock();
         let listen_request = ListenRequest { listen: true };
-        Session::new(
-            call_context.clone().app_id,
-            None,
-            EffectiveTransport::Websocket,
-        );
-        let session = Session::new(
-            call_context.clone().app_id,
-            None,
-            EffectiveTransport::Websocket,
-        );
+        Session::new(call_context.clone().app_id, None);
+        let session = Session::new(call_context.clone().app_id, None);
         platform_state
             .session_state
             .add_session(call_context.clone().session_id, session);

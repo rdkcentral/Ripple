@@ -17,21 +17,20 @@
 
 use ripple_sdk::{
     api::{
-        gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
+        gateway::rpc_gateway_api::RpcRequest,
         manifest::{
             app_library::AppLibraryState,
             device_manifest::{AppLibraryEntry, DeviceManifest},
             exclusory::ExclusoryImpl,
             extn_manifest::ExtnManifest,
         },
-        protocol::BridgeProtocolRequest,
         session::SessionAdjective,
     },
     extn::{
         extn_client_message::{ExtnMessage, ExtnPayloadProvider},
         extn_id::ExtnId,
     },
-    framework::{ripple_contract::RippleContract, RippleResponse},
+    framework::ripple_contract::RippleContract,
     utils::error::RippleError,
     uuid::Uuid,
 };
@@ -184,11 +183,6 @@ impl PlatformState {
         self.get_client().respond(msg).await
     }
 
-    pub fn supports_bridge(&self) -> bool {
-        let contract = RippleContract::BridgeProtocol.as_clear_string();
-        self.extn_manifest.required_contracts.contains(&contract)
-    }
-
     pub fn supports_cloud_sync(&self) -> bool {
         let contract = RippleContract::CloudSync.as_clear_string();
         self.extn_manifest.required_contracts.contains(&contract)
@@ -207,12 +201,6 @@ impl PlatformState {
     pub fn supports_session(&self) -> bool {
         let contract = RippleContract::Session(SessionAdjective::Account).as_clear_string();
         self.extn_manifest.required_contracts.contains(&contract)
-    }
-
-    pub async fn send_to_bridge(&self, id: String, msg: ApiMessage) -> RippleResponse {
-        let request = BridgeProtocolRequest::Send(id, msg);
-        self.get_client().send_extn_request(request).await?;
-        Ok(())
     }
 
     pub fn supports_device_tokens(&self) -> bool {
