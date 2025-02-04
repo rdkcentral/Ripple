@@ -46,6 +46,16 @@ pub struct ThunderAsyncRequest {
     request: DeviceChannelRequest,
 }
 
+impl std::fmt::Display for ThunderAsyncRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ThunderAsyncRequest {{ id: {}, request: {:?} }}",
+            self.id, self.request
+        )
+    }
+}
+
 impl ThunderAsyncRequest {
     pub fn new(request: DeviceChannelRequest) -> Self {
         Self {
@@ -141,8 +151,10 @@ impl ThunderAsyncClient {
         }
     }
 
-    fn prepare_request(&self, request: &ThunderAsyncRequest) -> Result<String, RippleError> {
-        let id: u64 = request.id;
+    fn check_and_generate_plugin_activation_request(
+        &self,
+        request: &ThunderAsyncRequest,
+    ) -> Result<String, RippleError> {
         let (callsign, method) = request.request.get_callsign_method();
 
         // Check if the method is empty and return an error if it is
@@ -186,9 +198,19 @@ impl ThunderAsyncClient {
                 .generate_plugin_activation_request(callsign.clone());
             return Ok(request.to_string());
         }
+        Ok(request.to_string())
+    }
 
+    fn prepare_request(&self, request: &ThunderAsyncRequest) -> Result<String, RippleError> {
+        let id: u64 = request.id;
+        let (callsign, method) = request.request.get_callsign_method();
+
+        // Check if the method is empty and return an error if it is
+        if method.is_empty() {
+            return Err(RippleError::InvalidInput);
+        }
         // Generate the appropriate JSON-RPC request based on the type of DeviceChannelRequest
-        let r = match &request.request {
+        let r: String = match &request.request {
             DeviceChannelRequest::Call(device_call_request) => json!({
                 "jsonrpc": "2.0",
                 "id": id,
@@ -227,27 +249,6 @@ impl ThunderAsyncClient {
             sender,
             callback,
             subscriptions: HashMap::new(),
-        }
-    }
-
-    pub async fn process_new_req(&mut self, request: String, url: String) {
-        let (mut ws_tx, mut ws_rx) = Self::create_ws(&url).await;
-        let _feed = ws_tx
-            .feed(tokio_tungstenite::tungstenite::Message::Text(request))
-            .await;
-        let _flush = ws_tx.flush().await;
-
-        if let Some(resp) = ws_rx.next().await {
-            match resp {
-                Ok(message) => {
-                    self.handle_response(message).await;
-                    //close the newly created websocket
-                    let _ = ws_tx.close().await;
-                }
-                Err(e) => {
-                    error!("thunder_async_client Websocket error on read {:?}", e);
-                }
-            }
         }
     }
 
@@ -337,38 +338,47 @@ impl ThunderAsyncClient {
                     },
                     Some(request) = thunder_async_request_rx.recv() => {
                         debug!("thunder_async_request_rx: request={:?}", request);
-                        // here prepare_request will check the plugin status and add json rpc format
-                        match self.prepare_request(&request) {
-                            Ok(updated_request) => {
-                                if let Ok(jsonrpc_request) = serde_json::from_str::<JsonRpcApiRequest>(&updated_request) {
-                                    if jsonrpc_request.method.ends_with(".register") {
-                                        if let Some(Value::Object(ref params)) = jsonrpc_request.params {
-                                            if let Some(Value::String(event)) = params.get("event") {
-                                                debug!("thunder_async_request_rx: Rerouting subscription request for {}", event);
 
-                                                // Store the subscription request in the subscriptions list in case we need to
-                                                // resubscribe later due to a socket disconnect.
-                                                self.subscriptions.insert(event.to_string(), jsonrpc_request.clone());
+                        match self.check_and_generate_plugin_activation_request(&request){
+                            Ok(_updated_request) => match self.prepare_request(&request){
+                                Ok(rpc_req) => {
+                                    if let Ok(jsonrpc_request) = serde_json::from_str::<JsonRpcApiRequest>(&rpc_req) {
+                                        if jsonrpc_request.method.ends_with(".register") {
+                                            if let Some(Value::Object(ref params)) = jsonrpc_request.params {
+                                                if let Some(Value::String(event)) = params.get("event") {
+                                                    debug!("thunder_async_request_rx: Rerouting subscription request for {}", event);
 
-                                                // Reroute subsubscription requests through the persistent websocket so all notifications
-                                                // are sent to the same websocket connection.
-                                                let _feed = subscriptions_tx.feed(tokio_tungstenite::tungstenite::Message::Text(updated_request)).await;
-                                                let _flush = subscriptions_tx.flush().await;
+                                                    // Store the subscription request in the subscriptions list in case we need to
+                                                    // resubscribe later due to a socket disconnect.
+                                                    self.subscriptions.insert(event.to_string(), jsonrpc_request.clone());
+
+                                                    // Reroute subsubscription requests through the persistent websocket so all notifications
+                                                    // are sent to the same websocket connection.
+                                                    let _feed = subscriptions_tx.feed(tokio_tungstenite::tungstenite::Message::Text(rpc_req)).await;
+                                                    let _flush = subscriptions_tx.flush().await;
+                                                } else {
+                                                    error!("thunder_async_request_rx: Missing 'event' parameter");
+                                                }
                                             } else {
-                                                error!("thunder_async_request_rx: Missing 'event' parameter");
+                                                error!("thunder_async_request_rx: Missing 'params' object");
                                             }
                                         } else {
-                                            error!("thunder_async_request_rx: Missing 'params' object");
+                                            let _feed = subscriptions_tx.feed(tokio_tungstenite::tungstenite::Message::Text(rpc_req)).await;
+                                            let _flush = subscriptions_tx.flush().await;
                                         }
-                                    } else {
-                                        // TODO: I don't like that we have to clone the client, we should refactor this. -pca
-                                        let mut thunder_async_client = self.clone();
-                                            let url_clone = url.to_string();
-                                            tokio::spawn(async move {
-                                                thunder_async_client.process_new_req(updated_request, url_clone).await;
-                                                }
-                                            );
                                     }
+                                }
+                                Err(e) => {
+                                    let response = ThunderAsyncResponse::new_error(request.id,e.clone());
+                                    match e {
+                                        RippleError::ServiceNotReady => {
+                                            info!("prepare request failed for request {:?}", request);
+                                        },
+                                        _ => {
+                                            error!("error preparing request {:?}", e)
+                                        }
+                                    }
+                                    self.callback.send(response).await;
                                 }
                             }
                             Err(e) => {

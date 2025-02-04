@@ -154,8 +154,9 @@ impl DeviceResponseMessage {
             device_response_msg = Some(DeviceResponseMessage::new(er.clone(), sub_id));
         } else if json_resp.clone().method.is_some() {
             if let Some(params) = &json_resp.params {
-                let dev_resp = serde_json::to_value(params).unwrap();
-                device_response_msg = Some(DeviceResponseMessage::new(dev_resp, sub_id));
+                if let Ok(dev_resp) = serde_json::to_value(params) {
+                    device_response_msg = Some(DeviceResponseMessage::new(dev_resp, sub_id));
+                }
             }
         } else {
             error!("deviceresponse msg extraction failed.");
