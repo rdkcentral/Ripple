@@ -1979,7 +1979,6 @@ mod tests {
         };
         use ripple_sdk::{
             api::{
-                apps::EffectiveTransport,
                 device::device_user_grants_data::GrantRequirements,
                 firebolt::{
                     fb_general::ListenRequest,
@@ -2008,8 +2007,7 @@ mod tests {
                 ack_response: ChallengeResponse,
             ) {
                 let (tx, mut rx) = tokio::sync::mpsc::channel(32);
-                let sample_app_session =
-                    Session::new("app_id".to_owned(), Some(tx), EffectiveTransport::Websocket);
+                let sample_app_session = Session::new("app_id".to_owned(), Some(tx));
                 let state_c = state.clone();
                 let ctx_c = ctx.clone();
                 state
