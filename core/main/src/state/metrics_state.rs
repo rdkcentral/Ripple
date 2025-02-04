@@ -296,7 +296,7 @@ impl MetricsState {
                         })
                     })
                 })
-                .unwrap_or_default();
+                .unwrap_or("not.set".into());
 
         let device_name = rpc_value_result_to_string_result(
             BrokerUtils::process_internal_main_request(state, "device.name", None).await,
