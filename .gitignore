@@ -13,3 +13,4 @@ Cargo.lock
 
 /device/thunder_ripple_sdk/target/
 .DS_Store
+device/mock_device/stats.json

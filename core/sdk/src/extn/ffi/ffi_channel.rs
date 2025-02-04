@@ -33,6 +33,7 @@ pub struct ExtnChannel {
 #[repr(C)]
 #[derive(Debug)]
 pub struct ExtnChannelBuilder {
+    pub get_extended_capabilities: fn() -> Option<String>,
     pub build: fn(extn_id: String) -> Result<Box<ExtnChannel>, RippleError>,
     pub service: String,
 }
@@ -68,11 +69,16 @@ pub unsafe fn load_channel_builder(lib: &Library) -> Result<Box<ExtnChannelBuild
 /// fn start(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
 ///  // snip
 /// }
-///  fn init_builder_channel() -> ExtnChannelBuilder {
-///    ExtnChannelBuilder {
-///        build,
-///        service: "info".into()
-///    }
+/// fn get_extended_capabilities() -> Option<String> {
+///     Some("capabilities".to_string())
+/// }
+///
+/// fn init_builder_channel() -> ExtnChannelBuilder {
+///     ExtnChannelBuilder {
+///         get_extended_capabilities,
+///         build,
+///         service: "info".into()
+///     }
 /// }
 ///
 /// fn build(extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
@@ -119,6 +125,7 @@ mod tests {
 
         // Create an instance of ExtnChannelBuilder with the mock build function
         let extn_channel_builder = ExtnChannelBuilder {
+            get_extended_capabilities: || Some("mock_capabilities".to_string()),
             build: build_fn,
             service,
         };
