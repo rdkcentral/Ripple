@@ -27,6 +27,8 @@ use ripple_sdk::{
 
 use tokio_tungstenite::tungstenite::http::uri::InvalidUri;
 
+use crate::state::platform_state::PlatformState;
+
 use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerRequest,
     BrokerSender, EndpointBroker, EndpointBrokerState,
@@ -115,6 +117,7 @@ async fn body_to_bytes(body: Body) -> Vec<u8> {
 
 impl EndpointBroker for HttpBroker {
     fn get_broker(
+        _ps: Option<PlatformState>,
         request: BrokerConnectRequest,
         callback: BrokerCallback,
         _broker_state: &mut EndpointBrokerState,

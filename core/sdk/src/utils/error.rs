@@ -40,6 +40,7 @@ pub enum RippleError {
     RuleError,
     ServiceNotReady,
     BrokerError(String),
+    TimeoutError,
 }
 
 impl std::fmt::Display for RippleError {
@@ -67,6 +68,7 @@ impl std::fmt::Display for RippleError {
                 let msg = format!("BrokerError {}", msg);
                 write!(f, "{}", msg)
             }
+            RippleError::TimeoutError => write!(f, "Timeout"),
         }
     }
 }

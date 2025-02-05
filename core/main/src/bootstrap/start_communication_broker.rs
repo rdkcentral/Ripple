@@ -45,7 +45,7 @@ impl Bootstep<BootstrapState> for StartCommunicationBroker {
             BrokerOutputForwarder::start_forwarder(ps.clone(), rx)
         }
         // Setup the endpoints from the manifests
-        let mut endpoint_state = ps.endpoint_state;
+        let mut endpoint_state = ps.clone().endpoint_state;
         endpoint_state.build_thunder_endpoint();
         Ok(())
     }
@@ -66,8 +66,8 @@ impl Bootstep<BootstrapState> for StartOtherBrokers {
             BrokerOutputForwarder::start_forwarder(ps.clone(), rx)
         }
         // Setup the endpoints from the manifests
-        let mut endpoint_state = ps.endpoint_state;
-        endpoint_state.build_other_endpoints(ps.session_state.get_account_session());
+        let mut endpoint_state = ps.clone().endpoint_state;
+        endpoint_state.build_other_endpoints(ps.clone(), ps.session_state.get_account_session());
         Ok(())
     }
 }
