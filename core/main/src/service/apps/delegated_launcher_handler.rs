@@ -339,11 +339,13 @@ impl AppManagerState {
         intents.remove(app_id)
     }
 
-    pub fn set_app_metrics_version(&self, app_id: &str, version: String) {
+    pub fn set_app_metrics_version(&self, app_id: &str, version: String) -> Result<(), AppError> {
         let mut apps = self.apps.write().unwrap();
         if let Some(app) = apps.get_mut(app_id) {
             app.app_metrics_version = Some(version);
+            return Ok(());
         }
+        Err(AppError::NotFound)
     }
 }
 
@@ -554,10 +556,11 @@ impl DelegatedLauncherHandler {
 
         let context = BehavioralMetricContext {
             app_id: app_id.to_string(),
-            app_version: SEMVER_LIGHTWEIGHT.to_string(),
+            product_version: SEMVER_LIGHTWEIGHT.to_string(),
             partner_id: String::from("partner.id.not.set"),
             app_session_id: String::from("app_session_id.not.set"),
             durable_app_id: app_id.to_string(),
+            app_version: None,
             app_user_session_id: None,
             governance_state: None,
         };

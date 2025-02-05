@@ -16,7 +16,7 @@
 //
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse, async_trait::async_trait, log::error,
-    tokio::sync::mpsc,
+    tokio::sync::{mpsc,oneshot::error::RecvError},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -33,7 +33,7 @@ pub trait DeviceOperator: Clone {
         &self,
         request: DeviceSubscribeRequest,
         handler: mpsc::Sender<DeviceResponseMessage>,
-    ) -> DeviceResponseMessage;
+    ) -> Result<DeviceResponseMessage, RecvError>;
 
     async fn unsubscribe(&self, request: DeviceUnsubscribeRequest);
 }

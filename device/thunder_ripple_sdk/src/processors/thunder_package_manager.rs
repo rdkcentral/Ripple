@@ -465,7 +465,8 @@ impl ThunderPackageManagerRequestProcessor {
                 },
                 sub_tx,
             )
-            .await;
+            .await
+            .ok();
         Self::ack(state.thunder_state.get_client(), req)
             .await
             .is_ok()

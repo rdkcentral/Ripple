@@ -34,12 +34,13 @@ use jsonrpsee::core::{async_trait, error::Error as JsonRpcError};
 use jsonrpsee::types::ParamsSer;
 use jsonrpsee::ws_client::WsClientBuilder;
 use regex::Regex;
+
 use ripple_sdk::{
     log::{error, info, warn},
     serde_json::{self, json, Value},
     tokio,
     tokio::sync::mpsc::{self, Receiver, Sender as MpscSender},
-    tokio::sync::oneshot::{self, Sender as OneShotSender},
+    tokio::sync::oneshot::{self, Sender as OneShotSender, error::RecvError},
     tokio::{sync::Mutex, task::JoinHandle, time::sleep},
     utils::channel_utils::{mpsc_send_and_log, oneshot_send_and_log},
     utils::error::RippleError,
@@ -267,7 +268,7 @@ impl DeviceOperator for ThunderClient {
         &self,
         request: DeviceSubscribeRequest,
         handler: mpsc::Sender<DeviceResponseMessage>,
-    ) -> DeviceResponseMessage {
+    ) -> Result<DeviceResponseMessage, RecvError> {
         if !self.use_thunder_async {
             let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
             let message = ThunderSubscribeMessage {
@@ -280,7 +281,11 @@ impl DeviceOperator for ThunderClient {
             };
             let msg = ThunderMessage::ThunderSubscribeMessage(message);
             self.send_message(msg).await;
-            rx.await.unwrap()
+            let result = rx.await;
+            if let Err(ref e) = result {
+                error!("subscribe: e={:?}", e);
+            }
+            result
         } else if let Some(subscribe_request) =
             self.add_subscription_handler(&request, handler.clone())
         {
@@ -289,12 +294,16 @@ impl DeviceOperator for ThunderClient {
             if let Some(async_client) = &self.thunder_async_client {
                 async_client.send(subscribe_request).await;
             }
-            rx.await.unwrap()
+            let result = rx.await;
+            if let Err(ref e) = result {
+                error!("subscribe: e={:?}", e);
+            }
+            result
         } else {
-            DeviceResponseMessage {
+            Ok(DeviceResponseMessage {
                 message: Value::Null,
                 sub_id: None,
-            }
+            })
         }
     }
 
