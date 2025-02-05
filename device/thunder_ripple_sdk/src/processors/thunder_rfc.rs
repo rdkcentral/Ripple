@@ -18,10 +18,7 @@
 use std::collections::HashMap;
 
 use ripple_sdk::{
-    api::{
-        config::RfcRequest,
-        device::device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
-    },
+    api::config::RfcRequest,
     async_trait::async_trait,
     extn::{
         client::{
@@ -39,7 +36,13 @@ use ripple_sdk::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{client::thunder_plugin::ThunderPlugin, thunder_state::ThunderState};
+use crate::{
+    client::{
+        device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
+        thunder_plugin::ThunderPlugin,
+    },
+    thunder_state::ThunderState,
+};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ThunderRFCResponse {

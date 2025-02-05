@@ -109,13 +109,3 @@ pub fn get_base_method(method: &str) -> String {
     let method_vec: Vec<&str> = method.split('.').collect();
     method_vec.first().unwrap().to_string().to_lowercase()
 }
-
-pub fn extract_tcp_port(url: &str) -> String {
-    let url_split: Vec<&str> = url.split("://").collect();
-    if let Some(domain) = url_split.get(1) {
-        let domain_split: Vec<&str> = domain.split('/').collect();
-        domain_split.first().unwrap().to_string()
-    } else {
-        url.to_owned()
-    }
-}

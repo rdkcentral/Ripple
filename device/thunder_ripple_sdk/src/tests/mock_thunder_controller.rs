@@ -1,7 +1,6 @@
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use ripple_sdk::{
-    api::device::device_operator::DeviceResponseMessage,
     async_channel::{unbounded, Receiver},
     extn::{ffi::ffi_message::CExtnMessage, mock_extension_client::MockExtnClient},
     serde_json,
@@ -13,6 +12,7 @@ use serde_json::Value;
 
 use crate::{
     client::{
+        device_operator::DeviceResponseMessage,
         jsonrpc_method_locator::JsonRpcMethodLocator,
         plugin_manager::{PluginState, PluginStateChangeEvent, PluginStatus},
         thunder_client::{
@@ -173,6 +173,10 @@ impl MockThunderController {
             id: Uuid::new_v4(),
             plugin_manager_tx: None,
             subscriptions: None,
+            thunder_async_client: None,
+            thunder_async_subscriptions: None,
+            thunder_async_callbacks: None,
+            use_thunder_async: false,
         };
 
         let (s, r) = unbounded();

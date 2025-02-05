@@ -224,7 +224,7 @@ impl ApiBaseRequest {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcApiRequest {
     pub jsonrpc: String,
     pub id: Option<u64>,
