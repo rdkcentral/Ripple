@@ -15,8 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::JsonRpcApiResponse, async_trait::async_trait, log::error,
-    tokio::sync::{mpsc,oneshot::error::RecvError},
+    api::gateway::rpc_gateway_api::JsonRpcApiResponse,
+    async_trait::async_trait,
+    log::error,
+    tokio::sync::{mpsc, oneshot::error::RecvError},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

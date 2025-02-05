@@ -40,7 +40,7 @@ use ripple_sdk::{
     serde_json::{self, json, Value},
     tokio,
     tokio::sync::mpsc::{self, Receiver, Sender as MpscSender},
-    tokio::sync::oneshot::{self, Sender as OneShotSender, error::RecvError},
+    tokio::sync::oneshot::{self, error::RecvError, Sender as OneShotSender},
     tokio::{sync::Mutex, task::JoinHandle, time::sleep},
     utils::channel_utils::{mpsc_send_and_log, oneshot_send_and_log},
     utils::error::RippleError,
