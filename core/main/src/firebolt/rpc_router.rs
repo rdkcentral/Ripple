@@ -24,8 +24,7 @@ use jsonrpsee::{
             rpc_module::{MethodKind, Methods},
         },
         TEN_MB_SIZE_BYTES,
-    },
-    types::{error::ErrorCode, Id, Params},
+    }, tracing::field::debug, types::{error::ErrorCode, Id, Params}
 };
 use ripple_sdk::{
     api::{
@@ -35,7 +34,7 @@ use ripple_sdk::{
     },
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
-    log::{error, info},
+    log::{debug, error, info},
     tokio,
     utils::error::RippleError,
 };
@@ -91,22 +90,22 @@ async fn resolve_route(
     info!("Routing {}", req.method);
     let id = Id::Number(req.ctx.call_id);
     let request_c = req.clone();
-    let sink_size = 1024;
+    let sink_size = 1024 *1024;
     let (sink_tx, mut sink_rx) = futures_channel::mpsc::unbounded::<String>();
+    let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES, 512*1024);
     let mut method_executors = Vec::new();
     let params = Params::new(Some(req.params_json.as_str()));
     match methods.method_with_name(&req.method) {
         None => {
-            MethodSink::new_with_limit(sink_tx.clone(), TEN_MB_SIZE_BYTES, 1024)
-                .send_error(id, ErrorCode::MethodNotFound.into());
+            sink.send_error(id, ErrorCode::MethodNotFound.into());
         }
         Some((name, method)) => match &method.inner() {
             MethodKind::Sync(callback) => match method.claim(name, &resources) {
                 Ok(_guard) => {
-                    (callback)(id, params, sink_size);
+                    (callback)(id, params, 512 * 1024);
                 }
                 Err(_) => {
-                    MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES, 1024)
+                    sink
                         .send_error(id, ErrorCode::MethodNotFound.into());
                 }
             },
@@ -115,14 +114,13 @@ async fn resolve_route(
                     let id = id.into_owned();
                     let params = params.into_owned();
                     let fut = async move {
-                        (callback)(id, params, sink_size, 1, Some(guard)).await;
+                        (callback)(id, params, sink_size, 1024 * 1024, Some(guard)).await;
                     };
                     method_executors.push(fut);
                 }
                 Err(e) => {
                     error!("{:?}", e);
-                    MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES, 1024)
-                        .send_error(id, ErrorCode::MethodNotFound.into());
+                    sink.send_error(id, ErrorCode::MethodNotFound.into());
                 }
             },
             _ => {
@@ -130,9 +128,12 @@ async fn resolve_route(
             }
         },
     }
-
+    debug!("Waiting for method sink response");
     join_all(method_executors).await;
+    debug!("done Waiting for method sink response");
+    
     if let Some(r) = sink_rx.next().await {
+        debug!("Received response from method sink {}", r.clone());
         let rpc_header = get_rpc_header(&req);
         let protocol = req.ctx.protocol.clone();
         let request_id = req.ctx.request_id;
@@ -161,6 +162,7 @@ async fn resolve_route(
 
         return Ok(msg);
     }
+    error!("Invalid output from method sink");
     Err(RippleError::InvalidOutput)
 }
 
