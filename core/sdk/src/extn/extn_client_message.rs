@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use async_channel::Sender as CSender;
 #[cfg(not(test))]
 use log::error;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use std::fmt::Debug;
 
@@ -182,7 +182,7 @@ impl From<ExtnPayload> for String {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub enum ExtnPayload {
     Request(ExtnRequest),
@@ -226,6 +226,41 @@ impl ExtnPayload {
         } else {
             None
         }
+    }
+}
+
+impl Serialize for ExtnPayload {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            ExtnPayload::Response(resp) => resp.serialize(serializer),
+            ExtnPayload::Event(event) => event.serialize(serializer),
+            ExtnPayload::Request(_) => Err(serde::ser::Error::custom(
+                "ExtnRequest cannot be serialized",
+            )),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ExtnPayload {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = <serde_json::Value>::deserialize(deserializer)?;
+
+        if let Ok(request) = serde_json::from_value::<ExtnRequest>(value.clone()) {
+            return Ok(ExtnPayload::Request(request));
+        }
+        if let Ok(event) = serde_json::from_value::<ExtnEvent>(value) {
+            return Ok(ExtnPayload::Event(event));
+        }
+
+        Err(serde::de::Error::custom(
+            "Unsupported variant for deserialization",
+        ))
     }
 }
 
@@ -290,7 +325,7 @@ where
     fn contract() -> RippleContract;
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[cfg_attr(test, derive(PartialEq))]
 pub enum ExtnRequest {
     Config(Config),
@@ -345,7 +380,7 @@ impl ExtnPayloadProvider for ExtnRequest {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum ExtnResponse {
     None(()),
     String(String),
