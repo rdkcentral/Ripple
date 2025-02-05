@@ -504,7 +504,7 @@ impl EndpointBrokerState {
             BrokerRequest::new(&rpc_request_c, rule, workflow_callback),
         )
     }
-    pub fn build_thunder_endpoint(&mut self, _ps: PlatformState) {
+    pub fn build_thunder_endpoint(&mut self) {
         if let Some(endpoint) = self.rule_engine.rules.endpoints.get("thunder").cloned() {
             let request = BrokerConnectRequest::new(
                 "thunder".to_owned(),
