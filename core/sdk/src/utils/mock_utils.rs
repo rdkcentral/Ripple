@@ -24,11 +24,11 @@ use crate::extn::extn_id::ExtnId;
 use crate::framework::ripple_contract::RippleContract;
 use async_channel::unbounded;
 use chrono::Utc;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct MockEvent {
     pub event_name: String,
     pub result: Value,
@@ -46,8 +46,38 @@ impl ExtnPayloadProvider for MockEvent {
 
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         if let ExtnPayload::Event(ExtnEvent::Value(v)) = payload {
-            if let Ok(v) = serde_json::from_value(v) {
-                return Some(v);
+            if let Ok(mock_event_value) = serde_json::from_value::<serde_json::Value>(v) {
+                if let Some(event_name) =
+                    mock_event_value.get("event_name").and_then(|v| v.as_str())
+                {
+                    if let Some(result) = mock_event_value.get("result").cloned() {
+                        let context = mock_event_value.get("context").cloned();
+                        let app_id = mock_event_value
+                            .get("app_id")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+                        let expected_response =
+                            mock_event_value.get("expected_response").map(|v| {
+                                if let Some(response_str) = v.as_str() {
+                                    ExtnResponse::String(response_str.to_string())
+                                } else if let Some(response_bool) = v.as_bool() {
+                                    ExtnResponse::Boolean(response_bool)
+                                } else if let Some(response_number) = v.as_u64() {
+                                    ExtnResponse::Number(response_number as u32)
+                                } else {
+                                    ExtnResponse::None(())
+                                }
+                            });
+
+                        return Some(MockEvent {
+                            event_name: event_name.to_string(),
+                            result,
+                            context,
+                            app_id,
+                            expected_response,
+                        });
+                    }
+                }
             }
         }
 
@@ -59,7 +89,7 @@ impl ExtnPayloadProvider for MockEvent {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct MockRequest {
     pub app_id: String,
     pub contract: RippleContract,
@@ -70,9 +100,36 @@ pub struct MockRequest {
 impl ExtnPayloadProvider for MockRequest {
     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
         if let ExtnPayload::Request(ExtnRequest::Extn(mock_request)) = payload {
-            return Some(serde_json::from_value(mock_request).unwrap());
-        }
+            if let Ok(mock_request_value) =
+                serde_json::from_value::<serde_json::Value>(mock_request)
+            {
+                if let Some(app_id) = mock_request_value.get("app_id").and_then(|v| v.as_str()) {
+                    if let Some(contract) = mock_request_value
+                        .get("contract")
+                        .and_then(|v| serde_json::from_value(v.clone()).ok())
+                    {
+                        let expected_response =
+                            mock_request_value.get("expected_response").map(|v| {
+                                if let Some(response_str) = v.as_str() {
+                                    ExtnResponse::String(response_str.to_string())
+                                } else if let Some(response_bool) = v.as_bool() {
+                                    ExtnResponse::Boolean(response_bool)
+                                } else if let Some(response_number) = v.as_u64() {
+                                    ExtnResponse::Number(response_number as u32)
+                                } else {
+                                    ExtnResponse::None(())
+                                }
+                            });
 
+                        return Some(MockRequest {
+                            app_id: app_id.to_string(),
+                            contract,
+                            expected_response,
+                        });
+                    }
+                }
+            }
+        }
         None
     }
 
