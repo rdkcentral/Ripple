@@ -153,7 +153,10 @@ async fn get_advertisting_policy(platform_state: &PlatformState) -> AdvertisingP
 }
 
 #[derive(Clone)]
-struct AdvertisingPolicyEventDecorator {}
+//Clippy does not seem to know this is not actually dead code. It is used in the decorator, but
+//maybe dynamic nature of rules is confusing it.
+#[allow(dead_code)]
+struct AdvertisingPolicyEventDecorator;
 #[async_trait]
 impl AppEventDecorator for AdvertisingPolicyEventDecorator {
     async fn decorate(

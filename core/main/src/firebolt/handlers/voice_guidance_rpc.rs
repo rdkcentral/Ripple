@@ -25,7 +25,6 @@ use crate::{
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
-    types::error::CallError,
     RpcModule,
 };
 
@@ -49,6 +48,7 @@ use ripple_sdk::{
     },
     extn::extn_client_message::ExtnResponse,
     log::error,
+    utils::rpc_utils::rpc_error_with_code_result,
 };
 use serde_json::{json, Value};
 
@@ -311,11 +311,10 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
                 )))
             }
         } else {
-            Err(jsonrpsee::core::Error::Call(CallError::Custom {
-                code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
-                message: "Invalid Value for set speed".to_owned(),
-                data: None,
-            }))
+            rpc_error_with_code_result(
+                "Invalid Value for set speed".to_owned(),
+                JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+            )
         }
     }
 

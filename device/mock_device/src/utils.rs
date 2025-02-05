@@ -115,9 +115,8 @@ async fn find_mock_device_data_file(mut client: ExtnClient) -> Result<PathBuf, M
         .await
         .and_then(|response| -> Result<PathBuf, RippleError> {
             if let Some(ExtnResponse::String(value)) = response.payload.extract() {
-                if let Ok(buf) = value.parse::<PathBuf>() {
-                    return Ok(buf);
-                }
+                let Ok(buf) = value.parse::<PathBuf>();
+                return Ok(buf);
             }
 
             Err(RippleError::ParseError)

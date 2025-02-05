@@ -66,4 +66,31 @@ mod tests {
         let contract_type: RippleContract = RippleContract::Storage(StorageAdjective::Local);
         test_extn_payload_provider(accessibility_response, contract_type);
     }
+    #[test]
+    fn test_extn_payload_provider_for_string_response() {
+        let accessibility_response = AccessibilityResponse::String("test".to_string());
+        let contract_type: RippleContract = RippleContract::Storage(StorageAdjective::Local);
+        test_extn_payload_provider(accessibility_response, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_boolean_response() {
+        let accessibility_response = AccessibilityResponse::Boolean(true);
+        let contract_type: RippleContract = RippleContract::Storage(StorageAdjective::Local);
+        test_extn_payload_provider(accessibility_response, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_number_response() {
+        let accessibility_response = AccessibilityResponse::Number(42);
+        let contract_type: RippleContract = RippleContract::Storage(StorageAdjective::Local);
+        test_extn_payload_provider(accessibility_response, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_error_response() {
+        let accessibility_response = AccessibilityResponse::Error(RippleError::MissingInput);
+        let contract_type: RippleContract = RippleContract::Storage(StorageAdjective::Local);
+        test_extn_payload_provider(accessibility_response, contract_type);
+    }
 }
