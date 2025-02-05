@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use futures::{future::join_all, StreamExt};
+use futures::StreamExt;
 use jsonrpsee::{
     core::{
         server::{
@@ -24,7 +24,8 @@ use jsonrpsee::{
             rpc_module::{MethodKind, Methods},
         },
         TEN_MB_SIZE_BYTES,
-    }, tracing::field::debug, types::{error::ErrorCode, Id, Params}
+    },
+    types::{error::ErrorCode, Id, Params},
 };
 use ripple_sdk::{
     api::{
@@ -90,53 +91,88 @@ async fn resolve_route(
     info!("Routing {}", req.method);
     let id = Id::Number(req.ctx.call_id);
     let request_c = req.clone();
-    let sink_size = 1024 *1024;
+    let sink_size = 1024 * 1024;
     let (sink_tx, mut sink_rx) = futures_channel::mpsc::unbounded::<String>();
-    let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES, 512*1024);
-    let mut method_executors = Vec::new();
-    let params = Params::new(Some(req.params_json.as_str()));
-    match methods.method_with_name(&req.method) {
-        None => {
-            sink.send_error(id, ErrorCode::MethodNotFound.into());
-        }
-        Some((name, method)) => match &method.inner() {
-            MethodKind::Sync(callback) => match method.claim(name, &resources) {
-                Ok(_guard) => {
-                    (callback)(id, params, 512 * 1024);
-                }
-                Err(_) => {
-                    sink
-                        .send_error(id, ErrorCode::MethodNotFound.into());
-                }
-            },
-            MethodKind::Async(callback) => match method.claim(name, &resources) {
-                Ok(guard) => {
-                    let id = id.into_owned();
-                    let params = params.into_owned();
-                    let fut = async move {
-                        (callback)(id, params, sink_size, 1024 * 1024, Some(guard)).await;
-                    };
-                    method_executors.push(fut);
-                }
-                Err(e) => {
-                    error!("{:?}", e);
-                    sink.send_error(id, ErrorCode::MethodNotFound.into());
-                }
-            },
-            _ => {
-                error!("Unsupported method call");
+    let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES, 512 * 1024);
+    let method = request_c.method.clone();
+
+    tokio::spawn(async move {
+        let params_json = request_c.params_json.as_ref();
+        let params = Params::new(Some(params_json));
+
+        match methods.method_with_name(&method) {
+            None => {
+                LogSignal::new(
+                    "rpc_router".to_string(),
+                    "resolve_route".into(),
+                    request_c.clone(),
+                )
+                .with_diagnostic_context_item("error", &format!("Method not found: {}", method))
+                .emit_error();
+                sink.send_error(id, ErrorCode::MethodNotFound.into());
             }
-        },
-    }
-    debug!("Waiting for method sink response");
-    join_all(method_executors).await;
-    debug!("done Waiting for method sink response");
-    
+            Some((name, method)) => match &method.inner() {
+                MethodKind::Sync(callback) => match method.claim(name, &resources) {
+                    Ok(_guard) => {
+                        if let Err(e) =
+                            sink.send_raw((callback)(id.clone(), params, 512 * 1024).result)
+                        {
+                            LogSignal::new(
+                                "rpc_router".to_string(),
+                                "resolve_route".into(),
+                                request_c.clone(),
+                            )
+                            .with_diagnostic_context_item(
+                                "error",
+                                &format!("Sync method error: {}", e),
+                            )
+                            .emit_error();
+                            sink.send_error(id, ErrorCode::InvalidRequest.into());
+                        }
+                    }
+                    Err(_) => {
+                        sink.send_error(id, ErrorCode::MethodNotFound.into());
+                    }
+                },
+                MethodKind::Async(callback) => match method.claim(name, &resources) {
+                    Ok(guard) => {
+                        let id = id.into_owned();
+                        let params = params.into_owned();
+                        if let Err(e) = sink.send_raw(
+                            (callback)(id.clone(), params, sink_size, 1024 * 1024, Some(guard))
+                                .await
+                                .result,
+                        ) {
+                            LogSignal::new(
+                                "rpc_router".to_string(),
+                                "resolve_route".into(),
+                                request_c.clone(),
+                            )
+                            .with_diagnostic_context_item(
+                                "error",
+                                &format!("Async method error: {}", e),
+                            )
+                            .emit_error();
+                            sink.send_error(id, ErrorCode::InvalidRequest.into());
+                        }
+                    }
+                    Err(e) => {
+                        error!("{:?}", e);
+                        sink.send_error(id, ErrorCode::MethodNotFound.into());
+                    }
+                },
+                _ => {
+                    error!("Unsupported method call");
+                }
+            },
+        }
+    });
+
     if let Some(r) = sink_rx.next().await {
         debug!("Received response from method sink {}", r.clone());
         let rpc_header = get_rpc_header(&req);
         let protocol = req.ctx.protocol.clone();
-        let request_id = req.ctx.request_id;
+        let request_id = req.clone().ctx.request_id;
 
         let status_code = if let Ok(r) = serde_json::from_str::<JsonRpcMessage>(&r) {
             if let Some(ec) = r.error {
@@ -148,7 +184,7 @@ async fn resolve_route(
             1
         };
 
-        capture_stage(&platform_state.metrics, &request_c, "routing");
+        capture_stage(&platform_state.metrics, &req, "routing");
 
         platform_state.metrics.update_api_stats_ref(
             &request_id,
