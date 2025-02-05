@@ -25,7 +25,11 @@ pub fn extract_tcp_port(url: &str) -> Result<String, Error> {
     let url_split: Vec<&str> = url.split("://").collect();
     if let Some(domain) = url_split.get(1) {
         let domain_split: Vec<&str> = domain.split('/').collect();
-        Ok(domain_split.first().unwrap().to_string())
+        if let Some(first_part) = domain_split.first() {
+            Ok(first_part.to_string())
+        } else {
+            Err(Error::Custom("Invalid domain format".to_string()))
+        }
     } else {
         Err(Error::Custom("Invalid URL format".to_string()))
     }
