@@ -185,3 +185,52 @@ impl EndpointBroker for HttpBroker {
         self.cleaner.clone()
     }
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use ripple_sdk::tokio::runtime::Runtime;
+
+    #[test]
+    fn test_send_broker_response() {
+        let rt = Runtime::new().unwrap();
+        let callback = BrokerCallback::default();
+        let request = BrokerRequest::default();
+        let body = b"test response";
+
+        rt.block_on(async {
+            let _ = send_broker_response(&callback, &request, body).await;
+
+            // TODO Add assertions to verify the behavior of send_broker_response
+        });
+    }
+
+    #[test]
+    fn test_error_string_to_json() {
+        let msg = "test error";
+        let json = error_string_to_json(msg);
+        assert_eq!(json["error"], msg);
+    }
+
+    #[test]
+    fn test_body_to_bytes() {
+        let rt = Runtime::new().unwrap();
+        let body = Body::from("test body");
+
+        rt.block_on(async {
+            let bytes = body_to_bytes(body).await;
+            assert_eq!(bytes, b"test body");
+        });
+    }
+
+    #[test]
+    fn test_get_broker() {
+        let request = BrokerConnectRequest::default();
+        let callback = BrokerCallback::default();
+        let mut broker_state = EndpointBrokerState::default();
+
+        let broker = HttpBroker::get_broker(request, callback, &mut broker_state);
+        assert!(broker.get_sender().sender.is_closed());
+        assert!(broker.get_cleaner().cleaner.is_none());
+    }
+}

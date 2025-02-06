@@ -37,17 +37,17 @@ pub enum ExtnClassId {
     Internal,
 }
 
-impl ToString for ExtnClassId {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for ExtnClassId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Gateway => "gateway".into(),
-            Self::Device => "device".into(),
-            Self::DataGovernance => "data-governance".into(),
-            Self::Distributor => "distributor".into(),
-            Self::Protected => "rpc".into(),
-            Self::Jsonrpsee => "jsonrpsee".into(),
-            Self::Launcher => "launcher".into(),
-            Self::Internal => "internal".into(),
+            Self::Gateway => write!(f, "gateway"),
+            Self::Device => write!(f, "device"),
+            Self::DataGovernance => write!(f, "data-governance"),
+            Self::Distributor => write!(f, "distributor"),
+            Self::Protected => write!(f, "rpc"),
+            Self::Jsonrpsee => write!(f, "jsonrpsee"),
+            Self::Launcher => write!(f, "launcher"),
+            Self::Internal => write!(f, "internal"),
         }
     }
 }
@@ -76,12 +76,12 @@ pub enum ExtnType {
     Extn,
 }
 
-impl ToString for ExtnType {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for ExtnType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Main => "main".into(),
-            Self::Channel => "channel".into(),
-            Self::Extn => "extn".into(),
+            Self::Main => write!(f, "main"),
+            Self::Channel => write!(f, "channel"),
+            Self::Extn => write!(f, "extn"),
         }
     }
 }
@@ -172,15 +172,9 @@ impl<'de> Deserialize<'de> for ExtnId {
     }
 }
 
-impl ToString for ExtnId {
-    fn to_string(&self) -> String {
-        let r = format!(
-            "ripple:{}:{}:{}",
-            self._type.to_string(),
-            self.class.to_string(),
-            self.service
-        );
-        r
+impl std::fmt::Display for ExtnId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ripple:{}:{}:{}", self._type, self.class, self.service)
     }
 }
 
