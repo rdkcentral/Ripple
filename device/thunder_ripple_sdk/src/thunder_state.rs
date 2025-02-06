@@ -151,6 +151,7 @@ impl ThunderState {
             tokio::spawn(async move {
                 while let Some(request) = r.recv().await {
                     if let Some(id) = request.sub_id {
+<<<<<<< HEAD
                         //check the back_off value
                         if state_c.event_processor.get_backoff(&id).is_some() {
                             warn!("back_off is not None. can't process event of ID:{}", id);
@@ -162,6 +163,26 @@ impl ThunderState {
                                 request.message.clone(),
                                 handler.callback_type.clone(),
                             );
+=======
+                        let value = request.message.clone();
+                        if let Some(handler) = state_c.event_processor.get_handler(&id) {
+                            let back_off = state_c.event_processor.get_backoff(&id);
+                            let thunder_backoff = back_off.unwrap();
+                            if thunder_backoff.back_off <= 0 {
+                                handler.process(
+                                    state_c.clone(),
+                                    &id,
+                                    value,
+                                    handler.callback_type.clone(),
+                                )
+                            }
+                            // handler.process(
+                            //     state_c.clone(),
+                            //     &id,
+                            //     value,
+                            //     handler.callback_type.clone(),
+                            // )
+>>>>>>> 06502715 (feat: Ripple Session Token Change Throttling ability added)
                         }
                     }
                 }
