@@ -84,6 +84,7 @@ pub enum RuleEndpointProtocol {
     Http,
     Thunder,
     Workflow,
+    Extn,
 }
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct JsonDataSource {
@@ -225,15 +226,18 @@ impl RuleEngine {
     }
 
     pub fn get_rule(&self, rpc_request: &RpcRequest) -> Option<Rule> {
-        if let Some(mut rule) = self
-            .rules
-            .rules
-            .get(&rpc_request.method.to_lowercase())
-            .cloned()
-        {
+        let method = rpc_request.method.to_lowercase();
+        if let Some(mut rule) = self.rules.rules.get(&method).cloned() {
             rule.transform.apply_context(rpc_request);
             return Some(rule);
         } else {
+            for (key, value) in &self.rules.rules {
+                if key.ends_with(".*") && method.starts_with(&key[..key.len() - 2]) {
+                    let mut rule = value.clone();
+                    rule.transform.apply_context(rpc_request);
+                    return Some(rule);
+                }
+            }
             trace!(
                 "Rule not available for {}, hence falling back to extension handler",
                 rpc_request.method

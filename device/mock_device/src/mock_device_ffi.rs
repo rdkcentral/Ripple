@@ -112,6 +112,7 @@ fn build(extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
 
 fn init_extn_builder() -> ExtnChannelBuilder {
     ExtnChannelBuilder {
+        get_extended_capabilities,
         build,
         service: EXTN_NAME.into(),
     }

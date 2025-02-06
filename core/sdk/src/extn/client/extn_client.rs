@@ -318,7 +318,8 @@ impl ExtnClient {
                         }
                     }
                     // Forward the message to an extn sender
-                    else if let Some(sender) = self.get_extn_sender_with_contract(target_contract)
+                    else if let Some(sender) =
+                        self.get_extn_sender_with_contract(target_contract.clone())
                     {
                         let mut new_message = message.clone();
                         if new_message.callback.is_none() {
@@ -557,7 +558,7 @@ impl ExtnClient {
         None
     }
 
-    fn get_extn_sender_with_extn_id(&self, id: &str) -> Option<CSender<CExtnMessage>> {
+    pub fn get_extn_sender_with_extn_id(&self, id: &str) -> Option<CSender<CExtnMessage>> {
         return self.extn_sender_map.read().unwrap().get(id).cloned();
     }
 
@@ -616,6 +617,28 @@ impl ExtnClient {
         }
 
         Err(RippleError::ExtnError)
+    }
+
+    pub async fn send_rpc_main(
+        &mut self,
+        payload: impl ExtnPayloadProvider,
+    ) -> Result<ExtnMessage, RippleError> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let (tx, rx) = oneshot::channel();
+        add_single_processor(id.clone(), Some(tx), self.response_processors.clone());
+
+        match self.sender.send_request(id, payload, None, None) {
+            Ok(_) => {
+                if let Ok(r) = rx.await {
+                    return Ok(r);
+                }
+                Err(RippleError::ExtnError)
+            }
+            Err(e) => {
+                error!("Error sending rpc request {:?}", e);
+                Err(RippleError::ExtnError)
+            }
+        }
     }
 
     /// Subscribe method which accepts a impl [ExtnPayloadProvider] and a [MSender<ExtnMessage>]
@@ -699,6 +722,70 @@ impl ExtnClient {
                     Ok(r)
                 }
             }
+        }
+    }
+
+    /// Request method which accepts an implementation of [ExtnPayloadProvider] and uses the capability provided by the trait to send the request.
+    /// This method can be called synchronously with a timeout.
+    ///
+    /// # Arguments
+    /// `payload` - An implementation of [ExtnPayloadProvider] that represents the request payload.
+    /// `timeout_in_msecs` - The timeout duration in milliseconds for the request.
+    ///
+    /// # Returns
+    /// A `Result` containing the extracted payload of type `T` if successful, or a [RippleError] if an error occurs.
+    pub async fn request_with_timeout<T: ExtnPayloadProvider>(
+        &mut self,
+        payload: impl ExtnPayloadProvider,
+        timeout_in_msecs: u64,
+    ) -> Result<T, RippleError> {
+        let resp = tokio::time::timeout(
+            Duration::from_millis(timeout_in_msecs),
+            self.request(payload),
+        )
+        .await;
+        match resp {
+            Ok(Ok(message)) => {
+                if let Some(payload) = message.payload.extract() {
+                    Ok(payload)
+                } else {
+                    Err(RippleError::ParseError)
+                }
+            }
+            Ok(Err(e)) => Err(e),
+            Err(_) => Err(RippleError::TimeoutError),
+        }
+    }
+
+    /// Request method which accepts an implementation of [ExtnPayloadProvider] and uses the capability provided by the trait to send the request.
+    /// This method can be called synchronously with a timeout.
+    ///
+    /// # Arguments
+    /// `payload` - An implementation of [ExtnPayloadProvider] that represents the request payload.
+    /// `timeout_in_msecs` - The timeout duration in milliseconds for the request.
+    ///
+    /// # Returns
+    /// A `Result` containing the extracted payload of type `T` if successful, or a [RippleError] if an error occurs.
+    pub async fn request_with_timeout_main<T: ExtnPayloadProvider>(
+        &mut self,
+        payload: impl ExtnPayloadProvider,
+        timeout_in_msecs: u64,
+    ) -> Result<T, RippleError> {
+        let resp = tokio::time::timeout(
+            Duration::from_millis(timeout_in_msecs),
+            self.send_rpc_main(payload),
+        )
+        .await;
+        match resp {
+            Ok(Ok(message)) => {
+                if let Some(payload) = message.payload.extract() {
+                    Ok(payload)
+                } else {
+                    Err(RippleError::ParseError)
+                }
+            }
+            Ok(Err(e)) => Err(e),
+            Err(_) => Err(RippleError::TimeoutError),
         }
     }
 
