@@ -678,7 +678,7 @@ impl UserDataMigrator {
                     self.handle_no_legacy_response_getter_migration(
                         &broker_clone,
                         ws_tx_clone.clone(),
-                        request_clone
+                        request_clone,
                     )
                     .await
                 }
@@ -695,7 +695,7 @@ impl UserDataMigrator {
                     self.handle_no_legacy_response_getter_migration(
                         &broker_clone,
                         ws_tx_clone,
-                        request_clone
+                        request_clone,
                     )
                     .await
                 }
@@ -707,7 +707,7 @@ impl UserDataMigrator {
         self: Arc<Self>,
         broker_clone: &ThunderBroker,
         ws_tx_clone: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
-        request_clone: BrokerRequest
+        request_clone: BrokerRequest,
     ) {
         // Handle the case where no output is returned. Read the value from the plugin and send the response
         // The response will be sent to the default callback of the broker.
