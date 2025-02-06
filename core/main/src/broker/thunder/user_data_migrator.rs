@@ -65,6 +65,7 @@ enum UserDataMigratorError {
     SetterRuleNotAvailable,
     RequestTransformError(String),
     TimeoutError,
+    UnknownKeyError,
 }
 
 impl fmt::Display for UserDataMigratorError {
@@ -83,6 +84,7 @@ impl fmt::Display for UserDataMigratorError {
             UserDataMigratorError::RequestTransformError(msg) => {
                 write!(f, "Request transform error: {}", msg)
             }
+            UserDataMigratorError::UnknownKeyError => write!(f, "Unknown key error"),
         }
     }
 }
@@ -334,6 +336,14 @@ impl UserDataMigrator {
             error!("Failed to get response: {}", e);
             UserDataMigratorError::ThunderResponseError(e.to_string())
         })?;
+
+        if let Some(error) = response.data.error {
+            for (k, v) in error.as_object().unwrap() {
+                if k == "message" && v == "ERROR_UNKNOWN_KEY" {
+                    return Err(UserDataMigratorError::UnknownKeyError);
+                }
+            }
+        }
 
         let result = response.data.result.ok_or_else(|| {
             UserDataMigratorError::ThunderResponseError("No result field in response".to_string())
@@ -664,39 +674,66 @@ impl UserDataMigrator {
                         error!("Failed to send response: {:?}", e);
                     }
                 }
-                Ok((_, None)) | Err(_) => {
-                    // Handle the case where no output is returned. Read the value from the plugin and send the response
-                    // The response will be sent to the default callback of the broker.
-                    // The response structure will be upated with the originial request id for the callback handler to match the response.
-                    let value_from_thunder_plugin = self_clone
-                        .read_from_thunder_plugin(
-                            &broker_clone,
-                            ws_tx_clone.clone(),
-                            &request_clone,
+                Ok((_, None)) => {
+                    self.handle_no_legacy_response_getter_migration(
+                        &broker_clone,
+                        ws_tx_clone.clone(),
+                        request_clone,
+                    )
+                    .await
+                }
+                Err(e) => {
+                    // Handle UnknownKeyError migration error, this is identified when legacy storage has not been used previously hence migration is not required.
+                    // In this case, migration status is set to true so that migration interception is not perform for subsequent requests.
+                    if UserDataMigratorError::UnknownKeyError.to_string() == e.to_string() {
+                        self.set_migration_status(
+                            &config_entry_clone.namespace,
+                            &config_entry_clone.key,
                         )
                         .await;
-                    match value_from_thunder_plugin {
-                        Ok(mut value_from_thunder_plugin) => {
-                            value_from_thunder_plugin.data.id = Some(request_clone.rpc.ctx.call_id);
-                            if let Err(e) = broker_clone
-                                .get_default_callback()
-                                .sender
-                                .send(value_from_thunder_plugin)
-                                .await
-                            {
-                                error!("Failed to send response: {:?}", e);
-                            }
-                        }
-                        Err(_e) => {
-                            broker_clone
-                                .get_default_callback()
-                                .send_error(request_clone, RippleError::ProcessorError)
-                                .await
-                        }
                     }
+                    self.handle_no_legacy_response_getter_migration(
+                        &broker_clone,
+                        ws_tx_clone,
+                        request_clone,
+                    )
+                    .await
                 }
             }
         });
+    }
+
+    async fn handle_no_legacy_response_getter_migration(
+        self: Arc<Self>,
+        broker_clone: &ThunderBroker,
+        ws_tx_clone: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
+        request_clone: BrokerRequest,
+    ) {
+        // Handle the case where no output is returned. Read the value from the plugin and send the response
+        // The response will be sent to the default callback of the broker.
+        // The response structure will be upated with the originial request id for the callback handler to match the response.
+        let value_from_thunder_plugin = self
+            .read_from_thunder_plugin(broker_clone, ws_tx_clone.clone(), &request_clone)
+            .await;
+        match value_from_thunder_plugin {
+            Ok(mut value_from_thunder_plugin) => {
+                value_from_thunder_plugin.data.id = Some(request_clone.rpc.ctx.call_id);
+                if let Err(e) = broker_clone
+                    .get_default_callback()
+                    .sender
+                    .send(value_from_thunder_plugin)
+                    .await
+                {
+                    error!("Failed to send response: {:?}", e);
+                }
+            }
+            Err(_e) => {
+                broker_clone
+                    .get_default_callback()
+                    .send_error(request_clone, RippleError::ProcessorError)
+                    .await
+            }
+        }
     }
 
     async fn perform_getter_migration(
