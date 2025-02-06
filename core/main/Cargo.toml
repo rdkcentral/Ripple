@@ -37,7 +37,7 @@ contract_tests = []
 [dependencies]
 base64.workspace = true
 ripple_sdk = { workspace = true, features = ["full"] }
-jsonrpsee = { workspace = true, features = ["macros", "server"] }
+jsonrpsee = { workspace = true, features = ["macros"] }
 futures-channel.workspace = true
 futures.workspace = true
 tokio-tungstenite = { workspace = true, features = ["handshake"] }
