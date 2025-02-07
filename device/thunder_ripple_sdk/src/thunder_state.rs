@@ -168,7 +168,7 @@ impl ThunderState {
                         if let Some(handler) = state_c.event_processor.get_handler(&id) {
                             let back_off = state_c.event_processor.get_backoff(&id);
                             let thunder_backoff = back_off.unwrap();
-                            if thunder_backoff.back_off <= 0 {
+                            if thunder_backoff.current_back_off <= 0 {
                                 handler.process(
                                     state_c.clone(),
                                     &id,
@@ -176,6 +176,7 @@ impl ThunderState {
                                     handler.callback_type.clone(),
                                 )
                             }
+<<<<<<< HEAD
                             // handler.process(
                             //     state_c.clone(),
                             //     &id,
@@ -183,6 +184,8 @@ impl ThunderState {
                             //     handler.callback_type.clone(),
                             // )
 >>>>>>> 06502715 (feat: Ripple Session Token Change Throttling ability added)
+=======
+>>>>>>> 18000c48 (chore: rename done for thunder_backoff struct fields for readability)
                         }
                     }
                 }
