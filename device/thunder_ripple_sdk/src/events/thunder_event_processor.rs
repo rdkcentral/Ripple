@@ -247,8 +247,8 @@ pub trait DeviceSubscribeRequestProvider {
 
 #[derive(Debug, Clone)]
 pub struct ThunderBackOff {
-    pub jitter: i32,
-    pub back_off: i32,
+    pub previous_back_off: i32,
+    pub current_back_off: i32,
 }
 
 #[derive(Debug, Clone)]
@@ -325,13 +325,13 @@ impl ThunderEventProcessor {
         false
     }
 
-    pub fn add_backoff(&self, event_name: &str, jitter: i32, back_off_value: i32) {
+    pub fn add_backoff(&self, event_name: &str, previous_back_off: i32, back_off_value: i32) {
         let mut back_off = self.back_off.write().unwrap();
         back_off.insert(
             event_name.to_string(),
             ThunderBackOff {
-                jitter,
-                back_off: back_off_value,
+                previous_back_off,
+                current_back_off: back_off_value,
             },
         );
     }

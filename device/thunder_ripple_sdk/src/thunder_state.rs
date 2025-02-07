@@ -153,7 +153,7 @@ impl ThunderState {
                         if let Some(handler) = state_c.event_processor.get_handler(&id) {
                             let back_off = state_c.event_processor.get_backoff(&id);
                             let thunder_backoff = back_off.unwrap();
-                            if thunder_backoff.back_off <= 0 {
+                            if thunder_backoff.current_back_off <= 0 {
                                 handler.process(
                                     state_c.clone(),
                                     &id,
@@ -161,12 +161,6 @@ impl ThunderState {
                                     handler.callback_type.clone(),
                                 )
                             }
-                            // handler.process(
-                            //     state_c.clone(),
-                            //     &id,
-                            //     value,
-                            //     handler.callback_type.clone(),
-                            // )
                         }
                     }
                 }
