@@ -347,12 +347,6 @@ impl ProviderRegistrar {
                 _ => event_data.clone(),
             };
 
-            // AppEvents::emit(
-            //     &context.platform_state,
-            //     &FireboltOpenRpcMethod::name_with_lowercase_module(event),
-            //     &result_value,
-            // )
-            // .await;
             if let Some(app_event) = is_app_event {
                 let app_id = SerdeClearString::as_clear_string(&app_event);
                 AppEvents::emit_to_app(
