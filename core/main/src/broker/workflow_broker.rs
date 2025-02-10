@@ -8,11 +8,13 @@ use crate::broker::rules_engine::{compose_json_values, make_name_json_safe};
 use crate::state::platform_state::PlatformState;
 use futures::future::{join_all, BoxFuture};
 use futures::FutureExt;
+use jsonrpsee::types::request;
 use serde_json::json;
 
 use ripple_sdk::api::gateway::rpc_gateway_api::{JsonRpcApiError, JsonRpcApiResponse, RpcRequest};
 use ripple_sdk::utils::error::RippleError;
 use ripple_sdk::{
+    api::observability::log_signal::LogSignal,
     log::{error, trace},
     tokio::{self, sync::mpsc},
 };
@@ -169,15 +171,25 @@ impl WorkflowBroker {
             loop {
                 match rx.recv().await {
                     Some(broker_request) => {
-                        trace!("Received message {:?}", broker_request);
-
+                        LogSignal::new(
+                            "workflow_broker".to_string(),
+                            format!("received workflow broker request: {:?}", broker_request),
+                            broker_request.rpc.ctx.clone(),
+                        )
+                        .emit_debug();
                         match Self::run_workflow(&broker_request, endpoint_broker.clone()).await {
                             Ok(yay) => {
+                                LogSignal::new(
+                                    "workflow_broker".to_string(),
+                                    format!("received response: {:?}", yay),
+                                    broker_request.rpc.ctx.clone(),
+                                )
+                                .emit_debug();
                                 Self::send_broker_success_response(&callback, yay);
                             }
                             Err(boo) => match boo {
                                 SubBrokerErr::JsonRpcApiError(e) => {
-                                    Self::send_broker_failure_response(&callback, e.into());
+                                    Self::log_error_and_send_broker_failure_response(broker_request, &callback, e);
                                 }
                                 SubBrokerErr::RpcError(ripple_error) => {
                                     let boo = JsonRpcApiError::default()
@@ -188,7 +200,8 @@ impl WorkflowBroker {
                                         ))
                                         .with_id(broker_request.rpc.ctx.call_id)
                                         .into();
-                                    Self::send_broker_failure_response(&callback, boo);
+
+                                        Self::log_error_and_send_broker_failure_response(broker_request, &callback, boo);
                                 }
                             },
                         }
@@ -201,6 +214,21 @@ impl WorkflowBroker {
             }
         });
         BrokerSender { sender: tx }
+    }
+
+    fn log_error_and_send_broker_failure_response(
+        request: BrokerRequest,
+        callback: &BrokerCallback,
+        error: JsonRpcApiError,
+    ) {
+        LogSignal::new(
+            "workflow_broker".to_string(),
+            format!("broker request failed: {:?} error: {:?}", request, error),
+            request.rpc.ctx.clone(),
+        )
+        .with_diagnostic_context_item("error", &format!("{:?}", error))
+        .emit_error();
+        Self::send_broker_failure_response(callback, error.into());
     }
 }
 
