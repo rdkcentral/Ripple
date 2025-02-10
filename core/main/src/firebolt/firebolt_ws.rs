@@ -59,9 +59,7 @@ pub struct FireboltWs {}
 pub struct ClientIdentity {
     session_id: String,
     app_id: String,
-    // <pca>
     rpc_v2: bool,
-    // </pca>
 }
 
 struct ConnectionCallbackConfig {
@@ -143,7 +141,6 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
             }
         };
 
-        // <pca>
         // If RPCv2 is set as a query param then Ripple will use logic more complicit with the RPCv2 spec.
         // Non-complicit behavior is still available for compatibility with older firebolt clients.
         let rpc_v2 = match get_query(request, "RPCv2", false)? {
@@ -151,14 +148,10 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
             None => false,
         };
 
-        // </pca>
-
         let cid = ClientIdentity {
             session_id: session_id.clone(),
             app_id,
-            // <pca>
             rpc_v2,
-            // </pca>
         };
         oneshot_send_and_log(cfg.next, cid, "ResolveClientIdentity");
         /*
@@ -275,15 +268,12 @@ impl FireboltWs {
             error!("Couldnt pre cache permissions");
         }
 
-        // <pca>
-        //let rpc_context: Arc<RwLock<Vec<String>>> = Arc::new(RwLock::new(Vec::new()));
         let mut context = vec![];
         if identity.rpc_v2 {
             context.push(RPC_V2.to_string());
         }
-        let rpc_context: Arc<RwLock<Vec<String>>> = Arc::new(RwLock::new(context));
-        // </pca>
 
+        let rpc_context: Arc<RwLock<Vec<String>>> = Arc::new(RwLock::new(context));
         let (mut sender, mut receiver) = ws_stream.split();
         let mut platform_state = state.clone();
         let context_clone = ctx.clone();
@@ -361,46 +351,6 @@ impl FireboltWs {
                             context,
                         ) {
                             info!("Received Firebolt request {}", request.params_json);
-                            // <pca>
-                            // if request.method.contains("rpc.initialize") {
-                            //     if let Some(p) = request.get_params() {
-                            //         if let Some(c) = p.get("context") {
-                            //             if let Some(c1) = c.as_array() {
-                            //                 let mut context = rpc_context.write().unwrap();
-                            //                 let v: Vec<String> = c1
-                            //                     .iter()
-                            //                     .map(|x| {
-                            //                         let s = x.to_string();
-                            //                         s[1..s.len() - 1].into()
-                            //                     })
-                            //                     .collect();
-                            //                 context.extend(v);
-                            //                 debug!("Added Call Context {:?}", context)
-                            //             }
-                            //         }
-                            //     }
-                            //     if let Some(session) = &state
-                            //         .session_state
-                            //         .get_session_for_connection_id(&connection_id)
-                            //     {
-                            //         let r = JsonRpcApiResponse {
-                            //             id: Some(request.ctx.call_id),
-                            //             result: Some(serde_json::Value::Null),
-                            //             jsonrpc: "2.0".to_string(),
-                            //             error: None,
-                            //             method: None,
-                            //             params: None,
-                            //         };
-                            //         let msg = serde_json::to_string(&r).unwrap();
-                            //         let api_msg =
-                            //             ApiMessage::new(ApiProtocol::JsonRpc, msg, req_id.clone());
-                            //         let _ = session.send_json_rpc(api_msg).await;
-                            //     }
-
-                            //     continue;
-                            // }
-                            // </pca>
-
                             let msg = FireboltGatewayCommand::HandleRpc { request };
                             if let Err(e) = client.clone().send_gateway_command(msg) {
                                 error!("failed to send request {:?}", e);

@@ -29,9 +29,7 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
-// <pca>
 pub const RPC_V2: &str = "rpc_v2";
-// </pca>
 
 #[derive(Debug, Clone, Default)]
 pub struct CallerSession {
@@ -135,10 +133,7 @@ impl CallContext {
     }
 
     pub fn is_rpc_v2(&self) -> bool {
-        // <pca>
-        //self.context.contains(&"eventBased".to_owned())
         self.context.contains(&RPC_V2.to_owned())
-        // </pca>
     }
 
     pub fn internal(method: &str) -> Self {
@@ -378,10 +373,7 @@ impl JsonRpcApiResponse {
         if request.is_rpc_v2() {
             self.params = self.result.take();
             self.id = None;
-            // <pca>
-            //self.method = Some(format!("{}.{}", request.ctx.method, request.ctx.call_id));
             self.method = Some(request.ctx.method.clone());
-            // </pca>
         } else {
             self.method = None;
             self.params = None;

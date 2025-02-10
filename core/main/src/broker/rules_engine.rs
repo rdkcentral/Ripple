@@ -117,29 +117,13 @@ pub struct RuleTransform {
     pub response: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub event: Option<String>,
-    // <pca>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rpcv2_event: Option<String>,
-    // </pca>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub event_decorator_method: Option<String>,
 }
 
 impl RuleTransform {
-    // <pca>
-    // pub fn apply_context(&mut self, rpc_request: &RpcRequest) {
-    //     if let Some(value) = self.request.take() {
-    //         trace!("Check if value contains {}", value);
-    //         if value.contains("$context.appId") {
-    //             trace!("has context");
-    //             let new_value = value.replace("$context.appId", &rpc_request.ctx.app_id);
-    //             trace!("changed value {}", new_value);
-    //             let _ = self.request.insert(new_value);
-    //         } else {
-    //             let _ = self.request.insert(value);
-    //         }
-    //     }
-    // }
     fn check_and_replace(&self, input: &str, rpc_request: &RpcRequest) -> String {
         trace!(
             "check_and_replace: input: {}, rpc_request: {:?}",
@@ -175,13 +159,10 @@ impl RuleTransform {
                 .insert(self.check_and_replace(&value, rpc_request));
         }
     }
-    // </pca>
 
     pub fn get_transform_data(&self, typ: RuleTransformType) -> Option<String> {
         match typ {
             RuleTransformType::Request => self.request.clone(),
-            // <pca>
-            //RuleTransformType::Event => self.event.clone(),
             RuleTransformType::Event(rpc_v2) => {
                 if rpc_v2 {
                     self.rpcv2_event.clone()
@@ -189,7 +170,6 @@ impl RuleTransform {
                     self.event.clone()
                 }
             }
-            // </pca>
             RuleTransformType::Response => self.response.clone(),
         }
     }
@@ -198,10 +178,7 @@ impl RuleTransform {
 pub enum RuleTransformType {
     Request,
     Response,
-    // <pca>
-    //Event,
     Event(bool),
-    // </pca>
 }
 
 #[derive(Debug, Clone, Default)]

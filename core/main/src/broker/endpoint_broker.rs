@@ -977,9 +977,6 @@ impl BrokerOutputForwarder {
                         */
                         let rule_context_name = broker_request.rpc.method.clone();
 
-                        // <pca>
-                        //let trigger_event_handling = broker_request.rule.event_handler.is_some();
-                        // </pca>
                         let workflow_callback = broker_request.clone().workflow_callback;
                         let sub_processed = broker_request.is_subscription_processed();
                         let rpc_request = broker_request.rpc.clone();
@@ -995,8 +992,8 @@ impl BrokerOutputForwarder {
                                 broker_request.clone(),
                             )
                             .emit_debug();
+
                             if is_event {
-                                // <pca>
                                 if let Some(method) = broker_request.rule.event_handler.clone() {
                                     let platform_state_c = platform_state.clone();
                                     let rpc_request_c = rpc_request.clone();
@@ -1013,14 +1010,7 @@ impl BrokerOutputForwarder {
 
                                     continue;
                                 }
-                                // </pca>
-                                // <pca>
-                                // apply_rule_for_event(
-                                //     &broker_request,
-                                //     &result,
-                                //     &rpc_request,
-                                //     &mut response,
-                                // );
+
                                 if let Some(filter) =
                                     broker_request.rule.transform.get_transform_data(
                                         super::rules_engine::RuleTransformType::Event(
@@ -1036,45 +1026,11 @@ impl BrokerOutputForwarder {
                                         &mut response,
                                     );
                                 }
-                                // </pca>
+
                                 if !apply_filter(&broker_request, &result, &rpc_request) {
                                     continue;
                                 }
 
-                                // <pca>
-                                // // TODO: Refactor code in the future to apply rule-based filtering and transformations as required.
-                                // if trigger_event_handling {
-                                //     if let Some(method) = broker_request.rule.event_handler.clone()
-                                //     {
-                                //         let platform_state_c = platform_state.clone();
-                                //         let rpc_request_c = rpc_request.clone();
-                                //         let response_c = response.clone();
-                                //         tokio::spawn(Self::handle_event(
-                                //             platform_state_c,
-                                //             method,
-                                //             rpc_request_c,
-                                //             response_c,
-                                //         ));
-                                //         continue;
-                                //     }
-                                // }
-                                // if let Some(method) = broker_request.rule.event_handler.clone() {
-                                //     let platform_state_c = platform_state.clone();
-                                //     let rpc_request_c = rpc_request.clone();
-                                //     let response_c = response.clone();
-                                //     let broker_request_c = broker_request.clone();
-
-                                //     tokio::spawn(Self::handle_event(
-                                //         platform_state_c,
-                                //         method,
-                                //         broker_request_c,
-                                //         rpc_request_c,
-                                //         response_c,
-                                //     ));
-
-                                //     continue;
-                                // }
-                                // </pca>
                                 // check if the request transform has event_decorator_method
                                 if let Some(decorator_method) =
                                     broker_request.rule.transform.event_decorator_method.clone()
@@ -1300,9 +1256,7 @@ impl BrokerOutputForwarder {
     async fn handle_event(
         platform_state: PlatformState,
         method: String,
-        // <pca>
         broker_request: BrokerRequest,
-        // </pca>
         rpc_request: RpcRequest,
         mut response: JsonRpcApiResponse,
     ) {
@@ -1316,9 +1270,6 @@ impl BrokerOutputForwarder {
                 .await
         {
             let mut filter = res.clone();
-            // <pca>
-            //response.result = Some(serde_json::to_value(res.clone()).unwrap());
-            //apply_rule_for_event(&broker_request, &res, &rpc_request, &mut response);
             if let Some(transform_data) = broker_request.rule.transform.get_transform_data(
                 super::rules_engine::RuleTransformType::Event(
                     rpc_request.ctx.context.contains(&RPC_V2.into()),
@@ -1337,16 +1288,13 @@ impl BrokerOutputForwarder {
                 &filter,
                 &mut response,
             );
-            // </pca>
         } else {
             error!("handle_event: error processing internal main request");
         }
 
         response.id = Some(request_id);
 
-        // <pca>
         response.update_event_message(&rpc_request);
-        // </pca>
 
         let message = ApiMessage::new(
             protocol,
@@ -1478,60 +1426,6 @@ pub fn apply_response(
     }
 }
 
-// <pca>
-// fn apply_rule_for_event(
-//     broker_request: &BrokerRequest,
-//     result: &Value,
-//     rpc_request: &RpcRequest,
-//     response: &mut JsonRpcApiResponse,
-// ) {
-//     println!(
-//         "*** _DEBUG: apply_rule_for_event: broker_request={:?}",
-//         broker_request
-//     );
-//     println!("*** _DEBUG: apply_rule_for_event: result={:?}", result);
-//     println!(
-//         "*** _DEBUG: apply_rule_for_event: rpc_request={:?}",
-//         rpc_request
-//     );
-//     println!("*** _DEBUG: apply_rule_for_event: response={:?}", response);
-//     if let Some(filter) = broker_request
-//         .rule
-//         .transform
-//         // <pca>
-//         //.get_transform_data(super::rules_engine::RuleTransformType::Event)
-//         .get_transform_data(super::rules_engine::RuleTransformType::Event(
-//             rpc_request.ctx.context.contains(&EVENT_BASED.into()),
-//         ))
-//     // </pca>
-//     {
-//         println!("*** _DEBUG: apply_rule_for_event: filter={:?}", filter);
-//         if let Ok(r) = jq_compile(
-//             result.clone(),
-//             &filter,
-//             format!("{}_event", rpc_request.ctx.method),
-//         ) {
-//             println!("*** _DEBUG: apply_rule_for_event: r={:?}", r);
-//             LogSignal::new(
-//                 "apply_rule_for_event".to_string(),
-//                 "broker request found".to_string(),
-//                 broker_request.clone(),
-//             )
-//             .with_diagnostic_context_item("success", "true")
-//             .with_diagnostic_context_item("result", r.to_string().as_str())
-//             .emit_debug();
-//             response.result = Some(r);
-//         } else {
-//             LogSignal::new(
-//                 "apply_rule_for_event".to_string(),
-//                 "broker request found".to_string(),
-//                 broker_request.clone(),
-//             )
-//             .with_diagnostic_context_item("success", "false")
-//             .emit_debug();
-//         }
-//     }
-// }
 fn apply_rule_for_event(
     broker_request: &BrokerRequest,
     result: &Value,
@@ -1563,7 +1457,6 @@ fn apply_rule_for_event(
         .emit_debug();
     }
 }
-// </pca>
 
 fn apply_filter(broker_request: &BrokerRequest, result: &Value, rpc_request: &RpcRequest) -> bool {
     if let Some(filter) = broker_request.rule.filter.clone() {
