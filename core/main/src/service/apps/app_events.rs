@@ -263,7 +263,7 @@ impl AppEvents {
         debug!("get_rpc_v2_result: event={}, input={:?}", event, input);
 
         let mut result = input.clone();
-        let method = event.split(".").collect::<Vec<&str>>()[1];
+        let method = event.split('.').collect::<Vec<&str>>()[1];
 
         if let Some(start) = method.find("on") {
             if let Some(end) = method.find("Changed") {
