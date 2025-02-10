@@ -33,7 +33,7 @@ local_dev = []
 sysd = ["sd-notify"]
 pre_prod = []
 contract_tests = []
-
+tdk=[]
 [dependencies]
 base64.workspace = true
 ripple_sdk = { workspace = true, features = ["full"] }
