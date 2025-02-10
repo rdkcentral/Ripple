@@ -8,7 +8,6 @@ use crate::broker::rules_engine::{compose_json_values, make_name_json_safe};
 use crate::state::platform_state::PlatformState;
 use futures::future::{join_all, BoxFuture};
 use futures::FutureExt;
-use jsonrpsee::types::request;
 use serde_json::json;
 
 use ripple_sdk::api::gateway::rpc_gateway_api::{JsonRpcApiError, JsonRpcApiResponse, RpcRequest};
@@ -189,7 +188,11 @@ impl WorkflowBroker {
                             }
                             Err(boo) => match boo {
                                 SubBrokerErr::JsonRpcApiError(e) => {
-                                    Self::log_error_and_send_broker_failure_response(broker_request, &callback, e);
+                                    Self::log_error_and_send_broker_failure_response(
+                                        broker_request,
+                                        &callback,
+                                        e,
+                                    );
                                 }
                                 SubBrokerErr::RpcError(ripple_error) => {
                                     let boo = JsonRpcApiError::default()
@@ -198,10 +201,13 @@ impl WorkflowBroker {
                                             "workflow error {:?}: for api {}",
                                             ripple_error, broker_request.rpc.method
                                         ))
-                                        .with_id(broker_request.rpc.ctx.call_id)
-                                        .into();
+                                        .with_id(broker_request.rpc.ctx.call_id);
 
-                                        Self::log_error_and_send_broker_failure_response(broker_request, &callback, boo);
+                                    Self::log_error_and_send_broker_failure_response(
+                                        broker_request,
+                                        &callback,
+                                        boo,
+                                    );
                                 }
                             },
                         }

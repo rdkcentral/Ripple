@@ -109,8 +109,7 @@ impl ExtnBroker {
                                         "extn_broker error for api {}: received response: {:?}",
                                         broker_request.rpc.method, response.payload,
                                     ))
-                                    .with_id(broker_request.rpc.ctx.call_id)
-                                    .into(),
+                                    .with_id(broker_request.rpc.ctx.call_id),
                             );
                         }
                     }
@@ -124,8 +123,7 @@ impl ExtnBroker {
                                     "Extn error for api {}: received response: {}",
                                     broker_request.rpc.method, e
                                 ))
-                                .with_id(broker_request.rpc.ctx.call_id)
-                                .into(),
+                                .with_id(broker_request.rpc.ctx.call_id),
                         );
                     }
                 }
