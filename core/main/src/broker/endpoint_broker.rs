@@ -52,8 +52,7 @@ use crate::{
     service::extn::ripple_client::RippleClient,
     state::{metrics_state::MetricsState, platform_state::PlatformState, session_state::Session},
     utils::router_utils::{
-        add_telemetry_status_code, capture_stage, get_rpc_header, return_api_message_for_transport,
-        return_extn_response,
+        add_telemetry_status_code, capture_stage, get_rpc_header, return_extn_response,
     },
 };
 
@@ -1072,12 +1071,7 @@ impl BrokerOutputForwarder {
                                                 .session_state
                                                 .get_session_for_connection_id(&session_id)
                                             {
-                                                return_api_message_for_transport(
-                                                    session,
-                                                    message,
-                                                    platform_state_c,
-                                                )
-                                                .await
+                                                let _ = session.send_json_rpc(message).await;
                                             }
                                         });
                                         continue;
@@ -1228,12 +1222,7 @@ impl BrokerOutputForwarder {
                                 .session_state
                                 .get_session_for_connection_id(&session_id)
                             {
-                                return_api_message_for_transport(
-                                    session,
-                                    message,
-                                    platform_state.clone(),
-                                )
-                                .await
+                                let _ = session.send_json_rpc(message).await;
                             }
                         }
                     } else {
@@ -1306,7 +1295,7 @@ impl BrokerOutputForwarder {
             .session_state
             .get_session_for_connection_id(&session_id)
         {
-            return_api_message_for_transport(session, message, platform_state.clone()).await;
+            let _ = session.send_json_rpc(message).await;
         }
     }
 

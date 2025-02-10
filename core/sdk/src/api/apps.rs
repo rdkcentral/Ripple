@@ -47,22 +47,6 @@ pub struct AppSession {
 }
 
 impl AppSession {
-    // Gets the actual transport that will be used based on fallbacks
-    // If no runtime or runtime.id is given, use Websocket
-    // Otherwise use the transport given in the runtime
-    pub fn get_transport(&self) -> EffectiveTransport {
-        match &self.runtime {
-            Some(rt) => match rt.transport {
-                AppRuntimeTransport::Bridge => match &rt.id {
-                    Some(id) => EffectiveTransport::Bridge(id.clone()),
-                    None => EffectiveTransport::Websocket,
-                },
-                AppRuntimeTransport::Websocket => EffectiveTransport::Websocket,
-            },
-            None => EffectiveTransport::Websocket,
-        }
-    }
-
     pub fn update_intent(&mut self, intent: NavigationIntent) {
         let _ = self.launch.intent.insert(intent);
     }
@@ -77,21 +61,8 @@ pub struct AppBasicInfo {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "lowercase")]
-pub enum AppRuntimeTransport {
-    Bridge,
-    Websocket,
-}
-
-fn runtime_transport_default() -> AppRuntimeTransport {
-    AppRuntimeTransport::Websocket
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppRuntime {
     pub id: Option<String>,
-    #[serde(default = "runtime_transport_default")]
-    pub transport: AppRuntimeTransport,
 }
 
 #[derive(Debug, PartialEq, Default, Serialize, Deserialize, Clone)]
@@ -106,22 +77,6 @@ pub struct AppLaunchInfo {
     pub second_screen: Option<SecondScreenEvent>,
     #[serde(default = "bool::default")]
     pub inactive: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[cfg_attr(test, derive(PartialEq))]
-pub enum EffectiveTransport {
-    Bridge(String),
-    Websocket,
-}
-
-impl std::fmt::Display for EffectiveTransport {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            EffectiveTransport::Bridge(id) => write!(f, "bridge_{}", id),
-            EffectiveTransport::Websocket => write!(f, "websocket"),
-        }
-    }
 }
 
 pub type AppResponse = Result<AppManagerResponse, AppError>;
@@ -322,82 +277,6 @@ mod tests {
         },
         utils::test_utils::test_extn_payload_provider,
     };
-
-    #[test]
-    fn test_get_transport_with_bridge_runtime_and_id() {
-        let app = AppSession {
-            app: AppBasicInfo {
-                id: "app_id".to_string(),
-                catalog: None,
-                url: None,
-                title: None,
-            },
-            runtime: Some(AppRuntime {
-                id: Some("runtime_id".to_string()),
-                transport: AppRuntimeTransport::Bridge,
-            }),
-            launch: AppLaunchInfo::default(),
-        };
-
-        assert_eq!(
-            app.get_transport(),
-            EffectiveTransport::Bridge("runtime_id".to_string())
-        );
-    }
-
-    #[test]
-    fn test_get_transport_with_bridge_runtime_and_no_id() {
-        let app = AppSession {
-            app: AppBasicInfo {
-                id: "app_id".to_string(),
-                catalog: None,
-                url: None,
-                title: None,
-            },
-            runtime: Some(AppRuntime {
-                id: None,
-                transport: AppRuntimeTransport::Bridge,
-            }),
-            launch: AppLaunchInfo::default(),
-        };
-
-        assert_eq!(app.get_transport(), EffectiveTransport::Websocket);
-    }
-
-    #[test]
-    fn test_get_transport_with_websocket_runtime() {
-        let app = AppSession {
-            app: AppBasicInfo {
-                id: "app_id".to_string(),
-                catalog: None,
-                url: None,
-                title: None,
-            },
-            runtime: Some(AppRuntime {
-                id: Some("runtime_id".to_string()),
-                transport: AppRuntimeTransport::Websocket,
-            }),
-            launch: AppLaunchInfo::default(),
-        };
-
-        assert_eq!(app.get_transport(), EffectiveTransport::Websocket);
-    }
-
-    #[test]
-    fn test_get_transport_with_no_runtime() {
-        let app = AppSession {
-            app: AppBasicInfo {
-                id: "app_id".to_string(),
-                catalog: None,
-                url: None,
-                title: None,
-            },
-            runtime: None,
-            launch: AppLaunchInfo::default(),
-        };
-
-        assert_eq!(app.get_transport(), EffectiveTransport::Websocket);
-    }
 
     #[test]
     fn test_update_intent() {
