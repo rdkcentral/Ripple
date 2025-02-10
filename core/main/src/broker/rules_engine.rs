@@ -134,7 +134,7 @@ impl RuleTransform {
         let mut output = input.replace("$context.appId", &rpc_request.ctx.app_id);
 
         if let Some(event) = &self.event {
-            output = output.replace("$event", &event);
+            output = output.replace("$event", event);
         }
 
         output

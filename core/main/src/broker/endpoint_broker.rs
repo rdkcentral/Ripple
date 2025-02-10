@@ -1424,7 +1424,7 @@ fn apply_rule_for_event(
 ) {
     if let Ok(r) = jq_compile(
         result.clone(),
-        &filter,
+        filter,
         format!("{}_event", rpc_request.ctx.method),
     ) {
         LogSignal::new(
