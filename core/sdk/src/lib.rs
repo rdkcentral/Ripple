@@ -18,6 +18,7 @@
 pub mod api;
 pub mod extn;
 pub mod framework;
+pub mod processor;
 pub mod utils;
 
 // Externalize the reusable crates to avoid version

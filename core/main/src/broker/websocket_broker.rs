@@ -22,6 +22,7 @@ use super::endpoint_broker::{
     BrokerSender, EndpointBroker,
 };
 use crate::broker::endpoint_broker::EndpointBrokerState;
+use crate::state::platform_state::PlatformState;
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
     log::{debug, error},
@@ -191,6 +192,7 @@ impl WSNotificationBroker {
 
 impl EndpointBroker for WebsocketBroker {
     fn get_broker(
+        _ps: Option<PlatformState>,
         request: BrokerConnectRequest,
         callback: BrokerCallback,
         _broker_state: &mut EndpointBrokerState,

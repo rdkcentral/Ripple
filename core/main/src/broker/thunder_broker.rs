@@ -22,7 +22,7 @@ use super::{
     thunder::thunder_plugins_status_mgr::StatusManager,
     thunder::user_data_migrator::UserDataMigrator,
 };
-use crate::broker::broker_utils::BrokerUtils;
+use crate::{broker::broker_utils::BrokerUtils, state::platform_state::PlatformState};
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
     api::{
@@ -521,6 +521,7 @@ impl ThunderBroker {
 
 impl EndpointBroker for ThunderBroker {
     fn get_broker(
+        _ps: Option<PlatformState>,
         request: BrokerConnectRequest,
         callback: BrokerCallback,
         _broker_state: &mut EndpointBrokerState,
@@ -664,7 +665,7 @@ mod tests {
         let (tx, _) = mpsc::channel(1);
         let request = BrokerConnectRequest::new("somekey".to_owned(), endpoint, tx);
         let callback = BrokerCallback { sender };
-        ThunderBroker::get_broker(request, callback, &mut EndpointBrokerState::default())
+        ThunderBroker::get_broker(None, request, callback, &mut EndpointBrokerState::default())
     }
 
     //function to create a BrokerRequest
