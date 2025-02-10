@@ -105,6 +105,7 @@ impl MockCallContext {
             method: "some_method".to_owned(),
             cid: Some("cid".to_owned()),
             gateway_secure: false,
+            context: Vec::new(),
         }
     }
 }

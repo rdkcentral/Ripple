@@ -15,17 +15,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use jsonrpsee::{
-    core::async_trait,
-    types::{Id, Response, TwoPointZero},
-};
+use jsonrpsee::core::async_trait;
 use ripple_sdk::{
     api::{
         apps::AppEventRequest,
         firebolt::fb_general::ListenRequest,
-        gateway::rpc_gateway_api::{ApiMessage, CallContext},
+        gateway::rpc_gateway_api::{ApiMessage, CallContext, JsonRpcApiResponse},
     },
-    log::error,
+    log::{debug, error},
     serde_json::{json, Value},
     tokio::sync::mpsc,
     utils::channel_utils::mpsc_send_and_log,
@@ -259,13 +256,43 @@ impl AppEvents {
         }
     }
 
+    fn get_rpc_v2_result(event: &str, input: Value) -> Value {
+        // FIXME: This is a temporary hack to get the event field name from the event string.
+        // We'll need to extract this from the firebolt schema when it's available.
+
+        debug!("get_rpc_v2_result: event={}, input={:?}", event, input);
+
+        let mut result = input.clone();
+        let method = event.split('.').collect::<Vec<&str>>()[1];
+
+        if let Some(start) = method.find("on") {
+            if let Some(end) = method.find("Changed") {
+                if start < end {
+                    let field_name = &method[start + 2..end];
+                    let field_name_cased =
+                        format!("{}{}", &field_name[0..1].to_lowercase(), &field_name[1..]);
+                    result = json!({field_name_cased: input});
+                }
+            }
+        }
+
+        debug!("get_rpc_v2_result: result={:?}", result);
+        result
+    }
+
     pub async fn send_event(listener: &EventListener, data: &Value) {
         let protocol = listener.call_ctx.protocol.clone();
-        let event = Response {
-            jsonrpc: TwoPointZero,
-            result: data,
-            id: Id::Number(listener.call_ctx.call_id),
-        };
+        debug!("Sending event for call context {:?}", listener.call_ctx);
+        let mut event = JsonRpcApiResponse::default();
+
+        if listener.call_ctx.is_rpc_v2() {
+            let params = AppEvents::get_rpc_v2_result(&listener.call_ctx.method, data.clone());
+            event.params = Some(params);
+            event.method = Some(listener.call_ctx.method.clone());
+        } else {
+            event.result = Some(data.clone());
+            event.id = Some(listener.call_ctx.call_id);
+        }
 
         // Events are pass through no stats
         let api_message = ApiMessage::new(
