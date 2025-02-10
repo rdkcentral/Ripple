@@ -29,6 +29,10 @@ use crate::{
     framework::ripple_contract::RippleContract,
 };
 
+// <pca>
+pub const RPC_V2: &str = "rpc_v2";
+// </pca>
+
 #[derive(Debug, Clone, Default)]
 pub struct CallerSession {
     pub session_id: Option<String>,
@@ -130,8 +134,11 @@ impl CallContext {
         self.session_id.clone()
     }
 
-    pub fn is_event_based(&self) -> bool {
-        self.context.contains(&"eventBased".to_owned())
+    pub fn is_rpc_v2(&self) -> bool {
+        // <pca>
+        //self.context.contains(&"eventBased".to_owned())
+        self.context.contains(&RPC_V2.to_owned())
+        // </pca>
     }
 
     pub fn internal(method: &str) -> Self {
@@ -368,10 +375,13 @@ impl From<RpcRequest> for JsonRpcApiResponse {
 
 impl JsonRpcApiResponse {
     pub fn update_event_message(&mut self, request: &RpcRequest) {
-        if request.is_event_based() {
+        if request.is_rpc_v2() {
             self.params = self.result.take();
             self.id = None;
-            self.method = Some(format!("{}.{}", request.ctx.method, request.ctx.call_id))
+            // <pca>
+            //self.method = Some(format!("{}.{}", request.ctx.method, request.ctx.call_id));
+            self.method = Some(request.ctx.method.clone());
+            // </pca>
         } else {
             self.method = None;
             self.params = None;
@@ -624,8 +634,8 @@ impl RpcRequest {
         }
     }
 
-    pub fn is_event_based(&self) -> bool {
-        self.ctx.is_event_based()
+    pub fn is_rpc_v2(&self) -> bool {
+        self.ctx.is_rpc_v2()
     }
 
     pub fn add_context(&mut self, context: Vec<String>) {

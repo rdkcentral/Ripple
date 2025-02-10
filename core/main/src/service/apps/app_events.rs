@@ -259,16 +259,47 @@ impl AppEvents {
         }
     }
 
+    // <pca>
+    fn get_rpc_v2_result(event: &str, input: Value) -> Value {
+        // FIXME: This is a temporary hack to get the event field name from the event string.
+        // We'll need to extract this from the firebolt schema when it's available.
+
+        debug!("get_rpc_v2_result: event={}, input={:?}", event, input);
+
+        let mut result = input.clone();
+        let method = event.split(".").collect::<Vec<&str>>()[1];
+
+        if let Some(start) = method.find("on") {
+            if let Some(end) = method.find("Changed") {
+                if start < end {
+                    let field_name = &method[start + 2..end];
+                    let field_name_cased =
+                        format!("{}{}", &field_name[0..1].to_lowercase(), &field_name[1..]);
+                    result = json!({field_name_cased: input});
+                }
+            }
+        }
+
+        debug!("get_rpc_v2_result: result={:?}", result);
+        result
+    }
+    // </pca>
+
     pub async fn send_event(state: &PlatformState, listener: &EventListener, data: &Value) {
         let protocol = listener.call_ctx.protocol.clone();
         debug!("Sending event for call context {:?}", listener.call_ctx);
         let mut event = JsonRpcApiResponse::default();
-        if listener.call_ctx.is_event_based() {
-            event.params = Some(data.clone());
-            event.method = Some(format!(
-                "{}.{}",
-                listener.call_ctx.method, listener.call_ctx.call_id
-            ));
+        if listener.call_ctx.is_rpc_v2() {
+            // <pca>
+            // event.params = Some(data.clone());
+            // event.method = Some(format!(
+            //     "{}.{}",
+            //     listener.call_ctx.method, listener.call_ctx.call_id
+            // ));
+            let params = AppEvents::get_rpc_v2_result(&listener.call_ctx.method, data.clone());
+            event.params = Some(params);
+            event.method = Some(listener.call_ctx.method.clone());
+            // </pca>
         } else {
             event.result = Some(data.clone());
             event.id = Some(listener.call_ctx.call_id);
