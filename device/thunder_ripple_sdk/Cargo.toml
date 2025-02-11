@@ -38,14 +38,15 @@ contract_tests = [
 local_dev=[]
 
 [dependencies]
-base64.workspace = true
+#base64.workspace = true
+base64 = { workspace = true, default-features = false, features=["alloc"] }
 ripple_tdk = { path = "../../core/tdk" }
 ripple_sdk.workspace = true
-regex.workspace = true
+
 jsonrpsee = { workspace = true, features = ["macros", "ws-client"] }
 serde.workspace = true
 url.workspace = true
-
+regex.workspace = true
 strum = { version = "0.24", default-features = false }
 strum_macros = "0.24"
 pact_consumer = { version = "1.0.0", optional = true }
@@ -61,4 +62,6 @@ rstest = { version = "0.18.2", optional = true, default-features = false }
 [dev-dependencies]
 tokio-tungstenite = { workspace = true, features = ["native-tls"] }
 ripple_sdk = { path = "../../core/sdk", features = ["tdk"] }
+regex =  {workspace = true, features = ["std","unicode-perl"], default-features = false}
+
 
