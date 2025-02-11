@@ -38,7 +38,7 @@ use crate::{
     },
     thunder_state::ThunderState,
 };
-use base64::{engine::general_purpose::STANDARD as base64, Engine};
+use base64::{engine::general_purpose, Engine as _};
 use ripple_sdk::api::app_catalog::{AppCatalogRequest, AppOperationComplete, AppsUpdate};
 use ripple_sdk::api::device::device_apps::DeviceAppMetadata;
 use ripple_sdk::api::device::device_operator::{DeviceResponseMessage, DeviceSubscribeRequest};
@@ -788,7 +788,7 @@ impl ThunderPackageManagerRequestProcessor {
     }
 
     fn decode_permissions(perms_encoded: String) -> Result<FireboltPermissions, ()> {
-        let perms = base64.decode(perms_encoded);
+        let perms = general_purpose::STANDARD.decode(perms_encoded);
         if let Err(e) = perms {
             error!(
                 "decode_permissions: Could not decode permissions: e={:?}",

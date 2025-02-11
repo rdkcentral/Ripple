@@ -230,7 +230,7 @@ mod tests {
         let callback = BrokerCallback::default();
         let mut broker_state = EndpointBrokerState::default();
 
-        let broker = HttpBroker::get_broker(request, callback, &mut broker_state);
+        let broker = HttpBroker::get_broker(None, request, callback, &mut broker_state);
         assert!(broker.get_sender().sender.is_closed());
         assert!(broker.get_cleaner().cleaner.is_none());
     }
