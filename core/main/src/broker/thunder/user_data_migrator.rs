@@ -903,6 +903,7 @@ impl UserDataMigrator {
         // open the status file if exists, else create a new file
         let file = OpenOptions::new()
             .create(true)
+            .truncate(false)
             .write(true)
             .read(true)
             .open(status_file_path)
@@ -917,7 +918,7 @@ impl UserDataMigrator {
 
         let file = OpenOptions::new()
             .write(true)
-            .truncate(true)
+            .truncate(false)
             .create(true)
             .open(&self.status_file_path)
             .unwrap();

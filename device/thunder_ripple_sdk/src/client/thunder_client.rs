@@ -20,10 +20,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use jsonrpsee::core::client::{Client, ClientT, SubscriptionClientT};
+use jsonrpsee::core::params::*;
 use jsonrpsee::ws_client::WsClientBuilder;
 
 use jsonrpsee::core::{async_trait, error::Error as JsonRpcError};
-use jsonrpsee::types::ParamsSer;
 use regex::Regex;
 use ripple_sdk::serde_json::json;
 use ripple_sdk::tokio::sync::oneshot::error::RecvError;
@@ -727,7 +727,7 @@ pub struct ThunderNoParamRequest {
 
 impl ThunderNoParamRequest {
     async fn send_request(self: Box<Self>, client: &Client) -> Value {
-        let result = client.request(&self.method, None).await;
+        let result = client.request(&self.method, ObjectParams::new()).await;
         if let Err(e) = result {
             error!("send_request: Error: e={}", e);
             return get_error_value(&e);
@@ -741,10 +741,25 @@ pub struct ThunderParamRequest<'a> {
     params: &'a str,
     json_based: bool,
 }
-
+/*
+Polymorph wrapper needed to be able to properly call `client.requse` */
+enum ParamWrapper {
+    Object(ObjectParams),
+    Array(ArrayParams),
+    None,
+}
 impl<'a> ThunderParamRequest<'a> {
     async fn send_request(self: Box<Self>, client: &Client) -> Value {
-        let result = client.request(self.method, self.get_params()).await;
+        let method = self.method;
+
+        let result = match &self.get_params() {
+            ParamWrapper::Object(object_params) => {
+                client.request(method, object_params.clone()).await
+            }
+            ParamWrapper::Array(array_params) => client.request(method, array_params.clone()).await,
+            ParamWrapper::None => client.request(method, ArrayParams::new()).await,
+        };
+
         if let Err(e) = result {
             error!("send_request: Error: e={}", e);
             return get_error_value(&e);
@@ -752,18 +767,32 @@ impl<'a> ThunderParamRequest<'a> {
         result.unwrap()
     }
 
-    fn get_params(self) -> Option<ParamsSer<'a>> {
+    fn get_params(self) -> ParamWrapper {
+        /*
+        Map in jsonrpsee is "ObjectParams" and Array is "ArrayParams"
+        */
         match self.json_based {
             true => {
-                let r: Result<BTreeMap<&'a str, Value>, _> = serde_json::from_str(self.params);
-                match r {
-                    Ok(v_tree_map) => Some(ParamsSer::from(v_tree_map)),
-                    Err(_e) => None,
+                /*map */
+                match serde_json::from_str::<BTreeMap<&'a str, Value>>(self.params) {
+                    Ok(v_tree_map) => {
+                        let mut params = ObjectParams::new();
+                        for kvp in v_tree_map {
+                            let _ = params.insert(kvp.0, kvp.1);
+                        }
+                        ParamWrapper::Object(params)
+                    }
+                    Err(_e) => ParamWrapper::None,
                 }
             }
-            false => Some(ParamsSer::Array(
-                [Value::String(String::from(self.params))].to_vec(),
-            )),
+            /*array */
+            false => {
+                let mut arrayparams = ArrayParams::new();
+                match arrayparams.insert(Value::String(String::from(self.params))) {
+                    Ok(_) => ParamWrapper::Array(arrayparams),
+                    Err(_e) => ParamWrapper::None,
+                }
+            }
         }
     }
 }
@@ -775,6 +804,8 @@ fn return_message(callback: OneShotSender<DeviceResponseMessage>, response: Valu
 
 #[cfg(test)]
 mod tests {
+    use jsonrpsee::core::traits::ToRpcParams;
+
     use super::*;
 
     #[tokio::test]
@@ -813,5 +844,55 @@ mod tests {
         let method = "abcd.1.register.2";
         let callsign = ThunderClient::extract_callsign_from_register_method(method);
         assert_eq!(callsign, None);
+    }
+    #[test]
+    fn test_get_params_object_params() {
+        let request = ThunderParamRequest {
+            method: "test.method",
+            params: r#"{"key1": "value1", "key2": "value2"}"#,
+            json_based: true,
+        };
+        match request.get_params() {
+            ParamWrapper::Object(params) => {
+                let r = params.to_rpc_params();
+                let r = r.unwrap();
+                let r = r.unwrap();
+                let r = r.get();
+                assert_eq!(r, r#"{"key1":"value1","key2":"value2"}"#);
+            }
+            _ => panic!("Expected ObjectParams"),
+        }
+    }
+
+    #[test]
+    fn test_get_params_array_param_non_json_based() {
+        let request = ThunderParamRequest {
+            method: "test.method",
+            params: "value1",
+            json_based: false,
+        };
+        match request.get_params() {
+            ParamWrapper::Array(params) => {
+                let r = params.to_rpc_params();
+                let r = r.unwrap();
+                let r = r.unwrap();
+                let r = r.get();
+                assert_eq!(r, r#"["value1"]"#);
+            }
+            _ => panic!("Expected ArrayParams"),
+        }
+    }
+
+    #[test]
+    fn test_get_params_no_params() {
+        let request = ThunderParamRequest {
+            method: "test.method",
+            params: "",
+            json_based: true,
+        };
+        match request.get_params() {
+            ParamWrapper::None => {}
+            _ => panic!("Expected NoParams"),
+        }
     }
 }

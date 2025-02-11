@@ -115,4 +115,59 @@ mod tests {
 
         test_extn_payload_provider(user_grants_request, contract_type);
     }
+    #[test]
+    fn test_user_grants_persistence_type_as_string() {
+        assert_eq!(UserGrantsPersistenceType::Account.as_string(), "account");
+        assert_eq!(UserGrantsPersistenceType::Cloud.as_string(), "cloud");
+    }
+
+    #[test]
+    fn test_user_grant_info_default() {
+        let default_info = UserGrantInfo::default();
+        assert_eq!(default_info.role, CapabilityRole::Use);
+        assert_eq!(default_info.capability, "");
+        assert_eq!(default_info.status, Some(GrantStatus::Denied));
+        assert_eq!(default_info.last_modified_time, Duration::new(0, 0));
+        assert_eq!(default_info.expiry_time, None);
+        assert_eq!(default_info.app_name, None);
+        assert_eq!(default_info.lifespan, GrantLifespan::Once);
+    }
+
+    #[test]
+    fn test_set_user_grants_request() {
+        let user_grant_info = UserGrantInfo {
+            role: CapabilityRole::Manage,
+            capability: "test_capability".to_string(),
+            status: Some(GrantStatus::Allowed),
+            last_modified_time: Duration::new(1000, 0),
+            expiry_time: Some(Duration::new(2000, 0)),
+            app_name: Some("test_app".to_string()),
+            lifespan: GrantLifespan::Forever,
+        };
+
+        let user_grants_request = UserGrantsStoreRequest::SetUserGrants(user_grant_info.clone());
+        let contract_type: RippleContract =
+            RippleContract::Storage(StorageAdjective::UsergrantLocal);
+
+        test_extn_payload_provider(user_grants_request, contract_type);
+    }
+
+    #[test]
+    fn test_sync_grant_map_per_policy_request() {
+        let user_grants_request = UserGrantsStoreRequest::SyncGrantMapPerPolicy();
+        let contract_type: RippleContract =
+            RippleContract::Storage(StorageAdjective::UsergrantLocal);
+
+        test_extn_payload_provider(user_grants_request, contract_type);
+    }
+
+    #[test]
+    fn test_clear_user_grants_request() {
+        let persistence_type = PolicyPersistenceType::Account;
+        let user_grants_request = UserGrantsStoreRequest::ClearUserGrants(persistence_type);
+        let contract_type: RippleContract =
+            RippleContract::Storage(StorageAdjective::UsergrantLocal);
+
+        test_extn_payload_provider(user_grants_request, contract_type);
+    }
 }

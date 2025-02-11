@@ -431,7 +431,7 @@ fn install_complete(mut state: AppsUpdaterState, op: AppOperationComplete) {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "tdk"))]
 pub mod tests {
 
     use std::{

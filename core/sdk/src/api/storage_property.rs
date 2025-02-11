@@ -680,4 +680,43 @@ mod tests {
 
         test_extn_payload_provider(storage_request, contract_type);
     }
+    #[test]
+    fn test_storage_property_as_data() {
+        let property = StorageProperty::ClosedCaptionsEnabled;
+        let data = property.as_data();
+        assert_eq!(data.key, KEY_ENABLED);
+        assert_eq!(data.namespace, NAMESPACE_CLOSED_CAPTIONS);
+    }
+
+    #[test]
+    fn test_storage_property_as_privacy_setting() {
+        let property = StorageProperty::AllowAcrCollection;
+        let privacy_setting = property.as_privacy_setting();
+        assert_eq!(privacy_setting, Some(PrivacySetting::Acr));
+    }
+
+    #[test]
+    fn test_storage_property_get_privacy_setting_value() {
+        let property = StorageProperty::AllowAcrCollection;
+        let settings = PrivacySettingsData {
+            allow_acr_collection: Some(true),
+            ..Default::default()
+        };
+        let value = property.get_privacy_setting_value(&settings);
+        assert_eq!(value, Some(true));
+    }
+
+    #[test]
+    fn test_storage_property_set_privacy_setting_value() {
+        let property = StorageProperty::AllowAcrCollection;
+        let mut settings = PrivacySettingsData::default();
+        property.set_privacy_setting_value(&mut settings, true);
+        assert_eq!(settings.allow_acr_collection, Some(true));
+    }
+
+    #[test]
+    fn test_storage_property_is_a_privacy_setting_property() {
+        let property = StorageProperty::AllowAcrCollection;
+        assert!(property.is_a_privacy_setting_property());
+    }
 }
