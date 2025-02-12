@@ -86,7 +86,7 @@ pub enum RuleEndpointProtocol {
     Workflow,
     Extn,
 }
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct JsonDataSource {
     // configurable namespace to "stuff" an in individual result payload into
     pub namespace: Option<String>,
@@ -94,7 +94,7 @@ pub struct JsonDataSource {
     pub params: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Rule {
     pub alias: String,
     // Not every rule needs transform
@@ -110,7 +110,7 @@ pub struct Rule {
     pub sources: Option<Vec<JsonDataSource>>,
 }
 
-#[derive(Debug, Clone, Deserialize, Default, Serialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct RuleTransform {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request: Option<String>,

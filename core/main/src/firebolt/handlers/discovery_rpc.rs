@@ -72,7 +72,7 @@ use serde_json::Value;
 
 use crate::state::platform_state::PlatformState;
 
-#[derive(Default, Serialize, Debug)]
+#[derive(Default, Debug)]
 pub struct DiscoveryEmptyResult {
     //Empty object to take care of OTTX-28709
 }

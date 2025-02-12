@@ -92,7 +92,7 @@ impl std::error::Error for UserDataMigratorError {}
 pub struct CoversionRule {
     conversion_rule: String,
 }
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MigrationConfigEntry {
     namespace: String,
     key: String,
