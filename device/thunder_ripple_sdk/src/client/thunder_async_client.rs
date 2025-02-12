@@ -151,17 +151,16 @@ impl ThunderAsyncClient {
         }
     }
 
-    fn check_and_generate_plugin_activation_request(
+    fn check_plugin_status_n_prepare_request(
         &self,
         request: &ThunderAsyncRequest,
     ) -> Result<String, RippleError> {
+        let id: u64 = request.id;
         let (callsign, method) = request.request.get_callsign_method();
-
         // Check if the method is empty and return an error if it is
         if method.is_empty() {
             return Err(RippleError::InvalidInput);
         }
-
         // Check the status of the plugin using the status manager
         let status = match self.status_manager.get_status(callsign.clone()) {
             Some(v) => v.clone(),
@@ -176,19 +175,16 @@ impl ThunderAsyncClient {
                 return Ok(request.to_string());
             }
         };
-
         // If the plugin is missing, return a service error
         if status.state.is_missing() {
             error!("Plugin {} is missing", callsign);
             return Err(RippleError::ServiceError);
         }
-
         // If the plugin is activating, return a service not ready error
         if status.state.is_activating() {
             info!("Plugin {} is activating", callsign);
             return Err(RippleError::ServiceNotReady);
         }
-
         // If the plugin is not activated, add the request to the pending list and generate an activation request
         if !status.state.is_activated() {
             self.status_manager
@@ -198,19 +194,8 @@ impl ThunderAsyncClient {
                 .generate_plugin_activation_request(callsign.clone());
             return Ok(request.to_string());
         }
-        Ok(request.to_string())
-    }
-
-    fn prepare_request(&self, request: &ThunderAsyncRequest) -> Result<String, RippleError> {
-        let id: u64 = request.id;
-        let (callsign, method) = request.request.get_callsign_method();
-
-        // Check if the method is empty and return an error if it is
-        if method.is_empty() {
-            return Err(RippleError::InvalidInput);
-        }
         // Generate the appropriate JSON-RPC request based on the type of DeviceChannelRequest
-        let r: String = match &request.request {
+        let r = match &request.request {
             DeviceChannelRequest::Call(device_call_request) => json!({
                 "jsonrpc": "2.0",
                 "id": id,
@@ -239,7 +224,6 @@ impl ThunderAsyncClient {
             })
             .to_string(),
         };
-
         Ok(r)
     }
 
@@ -302,25 +286,25 @@ impl ThunderAsyncClient {
         loop {
             info!("start: (re)establishing websocket connection: url={}", url);
 
-            let (mut subscriptions_tx, mut subscriptions_rx) = Self::create_ws(url).await;
+            let (mut thunder_tx, mut thunder_rx) = Self::create_ws(url).await;
 
             // send the controller statechange subscription request
             let status_request = self
                 .status_manager
                 .generate_state_change_subscribe_request();
 
-            let _feed = subscriptions_tx
+            let _feed = thunder_tx
                 .feed(tokio_tungstenite::tungstenite::Message::Text(
                     status_request.to_string(),
                 ))
                 .await;
 
-            self.process_subscribe_requests(&mut subscriptions_tx).await;
+            self.process_subscribe_requests(&mut thunder_tx).await;
 
-            let _flush = subscriptions_tx.flush().await;
+            let _flush = thunder_tx.flush().await;
 
             tokio::pin! {
-                let subscriptions_socket = subscriptions_rx.next();
+                let subscriptions_socket = thunder_rx.next();
             }
 
             loop {
@@ -337,55 +321,41 @@ impl ThunderAsyncClient {
                         }
                     },
                     Some(request) = thunder_async_request_rx.recv() => {
-                        debug!("thunder_async_request_rx: request={:?}", request);
+                        match self.check_plugin_status_n_prepare_request(&request) {
+                            Ok(updated_request) => {
+                                if let Ok(jsonrpc_request) = serde_json::from_str::<JsonRpcApiRequest>(&updated_request) {
+                                    if jsonrpc_request.method.ends_with(".register") {
+                                        if let Some(Value::Object(ref params)) = jsonrpc_request.params {
+                                            if let Some(Value::String(event)) = params.get("event") {
+                                                debug!("thunder_async_request_rx: Rerouting subscription request for {}", event);
 
-                        match self.check_and_generate_plugin_activation_request(&request){
-                            Ok(_updated_request) => match self.prepare_request(&request){
-                                Ok(rpc_req) => {
-                                    if let Ok(jsonrpc_request) = serde_json::from_str::<JsonRpcApiRequest>(&rpc_req) {
-                                        if jsonrpc_request.method.ends_with(".register") {
-                                            if let Some(Value::Object(ref params)) = jsonrpc_request.params {
-                                                if let Some(Value::String(event)) = params.get("event") {
-                                                    debug!("thunder_async_request_rx: Rerouting subscription request for {}", event);
-
-                                                    // Store the subscription request in the subscriptions list in case we need to
-                                                    // resubscribe later due to a socket disconnect.
-                                                    self.subscriptions.insert(event.to_string(), jsonrpc_request.clone());
-
-                                                    // Reroute subsubscription requests through the persistent websocket so all notifications
-                                                    // are sent to the same websocket connection.
-                                                    let _feed = subscriptions_tx.feed(tokio_tungstenite::tungstenite::Message::Text(rpc_req)).await;
-                                                    let _flush = subscriptions_tx.flush().await;
-                                                } else {
-                                                    error!("thunder_async_request_rx: Missing 'event' parameter");
-                                                }
+                                                // Store the subscription request in the subscriptions list in case we need to
+                                                // resubscribe later due to a socket disconnect.
+                                                self.subscriptions.insert(event.to_string(), jsonrpc_request.clone());
+                                                debug!("thunder_async_request_rx: subscription request={}", updated_request);
+                                                // Reroute subsubscription requests through the persistent websocket so all notifications
+                                                // are sent to the same websocket connection.
+                                                let _feed = thunder_tx.feed(tokio_tungstenite::tungstenite::Message::Text(updated_request)).await;
+                                                let _flush = thunder_tx.flush().await;
                                             } else {
-                                                error!("thunder_async_request_rx: Missing 'params' object");
+                                                error!("thunder_async_request_rx: Missing 'event' parameter");
                                             }
                                         } else {
-                                            let _feed = subscriptions_tx.feed(tokio_tungstenite::tungstenite::Message::Text(rpc_req)).await;
-                                            let _flush = subscriptions_tx.flush().await;
+                                            error!("thunder_async_request_rx: Missing 'params' object");
                                         }
                                     }
-                                }
-                                Err(e) => {
-                                    let response = ThunderAsyncResponse::new_error(request.id,e.clone());
-                                    match e {
-                                        RippleError::ServiceNotReady => {
-                                            info!("prepare request failed for request {:?}", request);
-                                        },
-                                        _ => {
-                                            error!("error preparing request {:?}", e)
-                                        }
+                                    else {
+                                        debug!("thunder_async_request_rx: call request={}", updated_request);
+                                        let _feed = thunder_tx.feed(tokio_tungstenite::tungstenite::Message::Text(updated_request)).await;
+                                        let _flush = thunder_tx.flush().await;
                                     }
-                                    self.callback.send(response).await;
                                 }
                             }
                             Err(e) => {
                                 let response = ThunderAsyncResponse::new_error(request.id,e.clone());
                                 match e {
                                     RippleError::ServiceNotReady => {
-                                        info!("Thunder Service not ready, request is now in pending list {:?}", request);
+                                        info!("prepare request failed for request {:?}", request);
                                     },
                                     _ => {
                                         error!("error preparing request {:?}", e)
