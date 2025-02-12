@@ -202,10 +202,10 @@ impl ThunderAsyncClient {
                 if let Some(device_channel_params) = &device_call_request.params {
                     match device_channel_params {
                         DeviceChannelParams::Json(params_str) => {
-                            params_value = serde_json::from_str::<Value>(&params_str).ok();
+                            params_value = serde_json::from_str::<Value>(params_str).ok();
                         }
                         DeviceChannelParams::Bool(params_bool) => {
-                            params_value = Some(Value::Bool(params_bool.clone()));
+                            params_value = Some(Value::Bool(*params_bool));
                         }
                         DeviceChannelParams::Literal(params_literal) => {
                             params_value = Some(Value::String(params_literal.clone()));
