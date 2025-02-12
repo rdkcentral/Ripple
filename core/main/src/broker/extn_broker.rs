@@ -46,10 +46,9 @@ impl ExtnBroker {
 
         tokio::spawn(async move {
             while let Some(broker_request) = rx.recv().await {
-                trace!("Received message {:?}", broker_request);
                 LogSignal::new(
                     "extn_broker".to_string(),
-                    format!("Received broker request: {:?}", broker_request),
+                    format!("received extn broker request: {:?}", broker_request),
                     broker_request.rpc.ctx.clone(),
                 )
                 .emit_debug();
@@ -101,41 +100,51 @@ impl ExtnBroker {
                                 );
                             }
                         } else {
-                            trace!("Received invalid response payload: {:?}", response.payload);
-                            Self::send_broker_failure_response(
+                            Self::log_error_and_send_broker_failure_response(
+                                broker_request.clone(),
                                 &callback,
                                 JsonRpcApiError::default()
                                     .with_code(-32001)
                                     .with_message(format!(
-                                        "extn_broker error for api {}: invalid response payload: {:?}",
-                                        broker_request.rpc.method,
-                                        response.payload,
+                                        "extn_broker error for api {}: received response: {:?}",
+                                        broker_request.rpc.method, response.payload,
                                     ))
-                                    .with_id(broker_request.rpc.ctx.call_id)
-                                    .into(),
+                                    .with_id(broker_request.rpc.ctx.call_id),
                             );
                         }
                     }
                     Err(e) => {
-                        let error_message = format!(
-                            "Extn error for api {}: failed to send request - {}",
-                            broker_request.rpc.method, e
-                        );
-                        Self::send_broker_failure_response(
+                        Self::log_error_and_send_broker_failure_response(
+                            broker_request.clone(),
                             &callback,
                             JsonRpcApiError::default()
                                 .with_code(-32001)
-                                .with_message(error_message.clone())
-                                .with_id(broker_request.rpc.ctx.call_id)
-                                .into(),
+                                .with_message(format!(
+                                    "Extn error for api {}: received response: {}",
+                                    broker_request.rpc.method, e
+                                ))
+                                .with_id(broker_request.rpc.ctx.call_id),
                         );
-                        error!("{}", error_message);
                     }
                 }
             }
         });
 
         BrokerSender { sender: tx }
+    }
+
+    fn log_error_and_send_broker_failure_response(
+        request: BrokerRequest,
+        callback: &BrokerCallback,
+        error: JsonRpcApiError,
+    ) {
+        LogSignal::new(
+            "extn_broker".to_string(),
+            format!("broker request failed: {:?} error: {:?}", request, error),
+            request.rpc.ctx.clone(),
+        )
+        .emit_error();
+        Self::send_broker_failure_response(callback, error.into());
     }
 }
 
