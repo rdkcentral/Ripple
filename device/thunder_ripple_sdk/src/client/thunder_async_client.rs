@@ -16,7 +16,7 @@
 //
 
 use super::{
-    device_operator::{DeviceChannelRequest, DeviceResponseMessage},
+    device_operator::{DeviceChannelParams, DeviceChannelRequest, DeviceResponseMessage},
     thunder_async_client_plugins_status_mgr::{AsyncCallback, AsyncSender, StatusManager},
 };
 use crate::utils::get_next_id;
@@ -194,37 +194,46 @@ impl ThunderAsyncClient {
                 .generate_plugin_activation_request(callsign.clone());
             return Ok(request.to_string());
         }
+
         // Generate the appropriate JSON-RPC request based on the type of DeviceChannelRequest
-        let r = match &request.request {
-            DeviceChannelRequest::Call(device_call_request) => json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "method": device_call_request.method,
-                "params": device_call_request.params
-            })
-            .to_string(),
-            DeviceChannelRequest::Unsubscribe(_) => json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "method": format!("{}.unregister", callsign),
-                "params": {
-                    "event": method,
-                    "id": "client.events"
+        let json_rpc_api_request = match &request.request {
+            DeviceChannelRequest::Call(device_call_request) => {
+                let mut params_value = None;
+                if let Some(device_channel_params) = &device_call_request.params {
+                    match device_channel_params {
+                        DeviceChannelParams::Json(params_str) => {
+                            params_value = serde_json::from_str::<Value>(&params_str).ok();
+                        }
+                        DeviceChannelParams::Bool(params_bool) => {
+                            params_value = Some(Value::Bool(params_bool.clone()));
+                        }
+                        DeviceChannelParams::Literal(params_literal) => {
+                            params_value = Some(Value::String(params_literal.clone()));
+                        }
+                    };
                 }
-            })
-            .to_string(),
-            DeviceChannelRequest::Subscribe(_) => json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "method": format!("{}.register", callsign),
-                "params": json!({
+
+                JsonRpcApiRequest::new(device_call_request.method.clone(), params_value).with_id(id)
+            }
+            DeviceChannelRequest::Unsubscribe(_) => JsonRpcApiRequest::new(
+                format!("{}.unregister", callsign),
+                Some(json!({
                     "event": method,
                     "id": "client.events"
-                })
-            })
-            .to_string(),
+                })),
+            )
+            .with_id(id),
+            DeviceChannelRequest::Subscribe(_) => JsonRpcApiRequest::new(
+                format!("{}.register", callsign),
+                Some(json!({
+                    "event": method,
+                    "id": "client.events"
+                })),
+            )
+            .with_id(id),
         };
-        Ok(r)
+
+        serde_json::to_string(&json_rpc_api_request).map_err(|_e| RippleError::ParseError)
     }
 
     pub fn new(callback: AsyncCallback, sender: AsyncSender) -> Self {

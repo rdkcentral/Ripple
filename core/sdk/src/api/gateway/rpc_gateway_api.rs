@@ -241,6 +241,11 @@ impl JsonRpcApiRequest {
             params,
         }
     }
+
+    pub fn with_id(mut self, id: u64) -> Self {
+        self.id = Some(id);
+        self
+    }
 }
 
 #[derive(Clone, Default, Debug)]
