@@ -369,6 +369,17 @@ impl From<RpcRequest> for JsonRpcApiResponse {
 }
 
 impl JsonRpcApiResponse {
+    pub fn new(id: Option<u64>, error: Option<Value>) -> Self {
+        Self {
+            id,
+            jsonrpc: "2.0".to_owned(),
+            result: None,
+            error,
+            method: None,
+            params: None,
+        }
+    }
+
     pub fn update_event_message(&mut self, request: &RpcRequest) {
         if request.is_rpc_v2() {
             self.params = self.result.take();

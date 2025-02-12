@@ -641,34 +641,26 @@ impl EndpointBrokerState {
             }
             Some(ProviderResult::NotAvailable(p)) => {
                 // Not Available
-                let data = JsonRpcApiResponse {
-                    jsonrpc: "2.0".to_string(),
-                    id: Some(id),
-                    result: None,
-                    error: Some(json!({
+                let data = JsonRpcApiResponse::new(
+                    Some(id),
+                    Some(json!({
                         "error": CAPABILITY_NOT_AVAILABLE,
                         "messsage": format!("{} not available", p)
                     })),
-                    method: None,
-                    params: None,
-                };
+                );
 
                 let output = BrokerOutput { data };
                 tokio::spawn(async move { callback.sender.send(output).await });
             }
             None => {
                 // Not Available
-                let data = JsonRpcApiResponse {
-                    jsonrpc: "2.0".to_string(),
-                    id: Some(id),
-                    result: None,
-                    error: Some(json!({
+                let data = JsonRpcApiResponse::new(
+                    Some(id),
+                    Some(json!({
                         "error": CAPABILITY_NOT_AVAILABLE,
                         "messsage": "capability not available".to_string()
                     })),
-                    method: None,
-                    params: None,
-                };
+                );
 
                 let output = BrokerOutput { data };
                 tokio::spawn(async move { callback.sender.send(output).await });
