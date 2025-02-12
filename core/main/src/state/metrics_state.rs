@@ -379,13 +379,11 @@ impl MetricsState {
         .await
         {
             Some(s) => s,
-            None => {
-                rpc_value_result_to_string_result(
-                    BrokerUtils::process_internal_main_request(state, "device.make", None).await,
-                    Some(Self::unset("device.make")),
-                )
-                .unwrap_or(Self::unset("device.make"))  
-            }
+            None => rpc_value_result_to_string_result(
+                BrokerUtils::process_internal_main_request(state, "device.make", None).await,
+                Some(Self::unset("device.make")),
+            )
+            .unwrap_or(Self::unset("device.make")),
         };
         let authenticated = Some(true);
 

@@ -171,11 +171,12 @@ async fn test_device_get_model() {
         ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::Model)
             .await;
 }
-/* 
-/*Cannot use DeviceInfoRequest for the following test cases as it is removed as part of handler code cleanup. 
-Use ThunderBroker to communicate with the mock device instead of using ThunderClientPool directly. 
-RPPL-2383 is required for fixing this test case.
-*/
+/*
+//
+//Cannot use DeviceInfoRequest for the following test cases as it is removed as part of handler code cleanup.
+//Use ThunderBroker to communicate with the mock device instead of using ThunderClientPool directly.
+//RPPL-2383 is required for fixing this test case.
+//
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_device_get_interfaces_wifi() {
@@ -477,11 +478,12 @@ async fn test_device_get_hdcp_status() {
     )
     .await;
 }
-/* 
-/*Cannot use DeviceInfoRequest for the following test cases as it is removed as part of handler code cleanup. 
-Use ThunderBroker to communicate with the mock device instead of using ThunderClientPool directly. 
-RPPL-2383 is required for fixing this test case.
-*/
+/*
+//
+//Cannot use DeviceInfoRequest for the following test cases as it is removed as part of handler code cleanup.
+//Use ThunderBroker to communicate with the mock device instead of using ThunderClientPool directly.
+//RPPL-2383 is required for fixing this test case.
+//
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_device_get_hdr() {

@@ -38,9 +38,7 @@ use crate::{
             device::{
                 device_info_request::{DeviceInfoRequest, DeviceResponse},
                 device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
-                device_request::{
-                    HDCPStatus, HdcpProfile, HdrProfile,Resolution,
-                },
+                device_request::{HDCPStatus, HdcpProfile, HdrProfile, Resolution},
             },
             firebolt::fb_openrpc::FireboltSemanticVersion,
         },
@@ -105,7 +103,6 @@ enum ThunderInterfaceType {
     Ethernet,
     None,
 }
-
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -745,7 +742,6 @@ impl ThunderDeviceInfoRequestProcessor {
         hm
     }
 
-
     async fn get_screen_resolution(state: &CachedState) -> Vec<i32> {
         let response = state
             .get_thunder_client()
@@ -764,7 +760,6 @@ impl ThunderDeviceInfoRequestProcessor {
         let resol = response.message["resolution"].as_str().unwrap_or_default();
         get_dimension_from_resolution(resol)
     }
-
 
     async fn get_current_resolution(state: &CachedState) -> Result<Vec<i32>, ()> {
         let response = state
