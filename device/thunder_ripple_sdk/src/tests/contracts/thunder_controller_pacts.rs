@@ -1,6 +1,10 @@
 use crate::{
     client::{
-        plugin_manager::ThunderActivatePluginParams, thunder_client::ThunderClient,
+        device_operator::{
+            DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
+        },
+        plugin_manager::ThunderActivatePluginParams,
+        thunder_client::ThunderClient,
         thunder_client_pool::ThunderClientPool,
     },
     ripple_sdk::{
@@ -8,9 +12,6 @@ use crate::{
         tokio,
     },
     thunder_state::ThunderConnectionState,
-};
-use ripple_sdk::api::device::device_operator::{
-    DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
 };
 
 use crate::mock_websocket_server;
@@ -20,9 +21,14 @@ use std::sync::Arc;
 use url::Url;
 
 async fn initialize_thunder_client(server_url: Url) -> ThunderClient {
-    ThunderClientPool::start(server_url, None, Arc::new(ThunderConnectionState::new()), 1)
-        .await
-        .unwrap()
+    ThunderClientPool::start(
+        server_url,
+        None,
+        Some(Arc::new(ThunderConnectionState::new())),
+        1,
+    )
+    .await
+    .unwrap()
 }
 
 async fn perform_device_call_request(

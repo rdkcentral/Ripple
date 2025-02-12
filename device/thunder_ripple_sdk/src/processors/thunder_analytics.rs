@@ -17,11 +17,7 @@
 
 use ripple_sdk::{
     api::{
-        device::device_operator::{
-            DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
-        },
-        firebolt::fb_metrics::BehavioralMetricsEvent,
-        observability::analytics::AnalyticsRequest,
+        firebolt::fb_metrics::BehavioralMetricsEvent, observability::analytics::AnalyticsRequest,
     },
     async_trait::async_trait,
     extn::{
@@ -38,7 +34,15 @@ use ripple_sdk::{
     utils::error::RippleError,
 };
 
-use crate::{client::thunder_plugin::ThunderPlugin, thunder_state::ThunderState};
+use crate::{
+    client::{
+        device_operator::{
+            DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
+        },
+        thunder_plugin::ThunderPlugin,
+    },
+    thunder_state::ThunderState,
+};
 
 #[derive(Debug)]
 pub struct ThunderAnalyticsProcessor {

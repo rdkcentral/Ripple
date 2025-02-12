@@ -27,7 +27,6 @@ use ripple_sdk::{
         context::RippleContextUpdateRequest,
         device::{
             device_events::{DeviceEvent, DeviceEventCallback},
-            device_operator::DeviceSubscribeRequest,
             device_request::{
                 AudioProfile, InternetConnectionStatus, NetworkResponse, PowerState,
                 SystemPowerState, VoiceGuidanceState,
@@ -41,7 +40,10 @@ use ripple_sdk::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{thunder_state::ThunderState, utils::get_audio_profile_from_value};
+use crate::{
+    client::device_operator::DeviceSubscribeRequest, thunder_state::ThunderState,
+    utils::get_audio_profile_from_value,
+};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]

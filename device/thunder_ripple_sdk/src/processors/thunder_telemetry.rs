@@ -16,10 +16,7 @@
 //
 
 use ripple_sdk::{
-    api::{
-        device::device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
-        firebolt::fb_telemetry::TelemetryPayload,
-    },
+    api::firebolt::fb_telemetry::TelemetryPayload,
     async_trait::async_trait,
     extn::{
         client::extn_processor::{
@@ -34,7 +31,13 @@ use ripple_sdk::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{client::thunder_plugin::ThunderPlugin, thunder_state::ThunderState};
+use crate::{
+    client::{
+        device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
+        thunder_plugin::ThunderPlugin,
+    },
+    thunder_state::ThunderState,
+};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]

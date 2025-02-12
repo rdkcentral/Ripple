@@ -20,9 +20,11 @@ use std::sync::{
     Arc,
 };
 
-use crate::{client::thunder_client::ThunderClientBuilder, thunder_state::ThunderConnectionState};
+use crate::{
+    client::{device_operator::DeviceResponseMessage, thunder_client::ThunderClientBuilder},
+    thunder_state::ThunderConnectionState,
+};
 use ripple_sdk::{
-    api::device::device_operator::DeviceResponseMessage,
     log::{debug, error},
     tokio::sync::{mpsc, oneshot},
     utils::channel_utils::oneshot_send_and_log,
@@ -57,7 +59,7 @@ impl ThunderClientPool {
     pub async fn start(
         url: Url,
         plugin_manager_tx: Option<mpsc::Sender<PluginManagerCommand>>,
-        thunder_connection_state: Arc<ThunderConnectionState>,
+        thunder_connection_state: Option<Arc<ThunderConnectionState>>,
         size: u32,
     ) -> Result<ThunderClient, RippleError> {
         debug!("Starting a Thunder connection pool of size {}", size);
@@ -65,12 +67,13 @@ impl ThunderClientPool {
         let thunder_connection_state = thunder_connection_state.clone();
         let mut clients = Vec::default();
         for _ in 0..size {
-            let client = ThunderClientBuilder::get_client(
+            let client = ThunderClientBuilder::start_thunder_client(
                 url.clone(),
                 plugin_manager_tx.clone(),
                 Some(s.clone()),
                 thunder_connection_state.clone(),
                 None,
+                false,
             )
             .await;
             if let Ok(c) = client {
@@ -130,12 +133,13 @@ impl ThunderClientPool {
                         let mut itr = pool.clients.iter();
                         let i = itr.position(|x| x.client.id == client_id);
                         if let Some(index) = i {
-                            let client = ThunderClientBuilder::get_client(
+                            let client = ThunderClientBuilder::start_thunder_client(
                                 url.clone(),
                                 plugin_manager_tx.clone(),
                                 Some(sender_for_thread.clone()),
                                 thunder_connection_state.clone(),
                                 pool.clients.get(index).map(|x| x.client.clone()),
+                                false,
                             )
                             .await;
                             if let Ok(client) = client {
@@ -159,6 +163,10 @@ impl ThunderClientPool {
             id: Uuid::new_v4(),
             plugin_manager_tx: pmtx_c,
             subscriptions: None,
+            thunder_async_client: None,
+            thunder_async_subscriptions: None,
+            thunder_async_callbacks: None,
+            use_thunder_async: false,
         })
     }
 
@@ -184,19 +192,19 @@ impl ThunderClientPool {
 mod tests {
     use super::*;
     use crate::{
-        client::plugin_manager::{PluginActivatedResult, PluginManagerCommand},
+        client::{
+            device_operator::{
+                DeviceCallRequest, DeviceOperator, DeviceSubscribeRequest, DeviceUnsubscribeRequest,
+            },
+            plugin_manager::{PluginActivatedResult, PluginManagerCommand},
+        },
         tests::thunder_client_pool_test_utility::{
             CustomMethodHandler, MethodHandler, MockWebSocketServer,
         },
     };
-    use ripple_sdk::api::device::device_operator::DeviceUnsubscribeRequest;
     use ripple_sdk::{
-        api::device::device_operator::DeviceSubscribeRequest,
-        utils::channel_utils::oneshot_send_and_log,
-    };
-    use ripple_sdk::{
-        api::device::device_operator::{DeviceCallRequest, DeviceOperator},
         tokio::time::{sleep, Duration},
+        utils::channel_utils::oneshot_send_and_log,
     };
     use url::Url;
 
@@ -256,9 +264,13 @@ mod tests {
 
         // Test cases
         // 1. create a client pool of size 4
-        let client =
-            ThunderClientPool::start(url, Some(tx), Arc::new(ThunderConnectionState::new()), 4)
-                .await;
+        let client = ThunderClientPool::start(
+            url,
+            Some(tx),
+            Some(Arc::new(ThunderConnectionState::new())),
+            4,
+        )
+        .await;
         assert!(client.is_ok());
         let client = client.unwrap();
 
