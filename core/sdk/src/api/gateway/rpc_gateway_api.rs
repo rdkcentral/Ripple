@@ -224,7 +224,7 @@ impl ApiBaseRequest {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcApiRequest {
     pub jsonrpc: String,
     pub id: Option<u64>,
@@ -240,6 +240,11 @@ impl JsonRpcApiRequest {
             method,
             params,
         }
+    }
+
+    pub fn with_id(mut self, id: u64) -> Self {
+        self.id = Some(id);
+        self
     }
 }
 

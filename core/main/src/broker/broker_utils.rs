@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::{state::platform_state::PlatformState, utils::rpc_utils::extract_tcp_port};
+use crate::state::platform_state::PlatformState;
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::StreamExt;
 use jsonrpsee::core::RpcResult;
@@ -23,6 +23,7 @@ use ripple_sdk::{
     api::gateway::rpc_gateway_api::{JsonRpcApiError, RpcRequest},
     log::{error, info},
     tokio::{self, net::TcpStream},
+    utils::rpc_utils::extract_tcp_port,
 };
 use serde_json::Value;
 use std::time::Duration;
@@ -46,12 +47,14 @@ impl BrokerUtils {
         };
         let url = url::Url::parse(&url_path).unwrap();
         let port = extract_tcp_port(endpoint);
+        let tcp_port = port.unwrap();
+
         info!("Url host str {}", url.host_str().unwrap());
         let mut index = 0;
 
         loop {
             // Try connecting to the tcp port first
-            if let Ok(v) = TcpStream::connect(&port).await {
+            if let Ok(v) = TcpStream::connect(&tcp_port).await {
                 // Setup handshake for websocket with the tcp port
                 // Some WS servers lock on to the Port but not setup handshake till they are fully setup
                 if let Ok((stream, _)) = client_async(url_path.clone(), v).await {
@@ -61,7 +64,7 @@ impl BrokerUtils {
             if (index % 10).eq(&0) {
                 error!(
                     "Broker with {} failed with retry for last {} secs in {}",
-                    url_path, index, port
+                    url_path, index, tcp_port
                 );
             }
             index += 1;

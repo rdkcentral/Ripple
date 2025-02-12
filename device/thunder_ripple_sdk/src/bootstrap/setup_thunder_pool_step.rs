@@ -40,13 +40,16 @@ impl ThunderPoolStep {
     pub async fn setup(
         state: ThunderBootstrapStateWithConfig,
     ) -> Result<ThunderBootstrapStateWithClient, RippleError> {
-        let pool_size = state.pool_size;
         let url = state.url.clone();
         let thunder_connection_state = state.thunder_connection_state.clone();
-        if pool_size < 2 {
-            warn!("Pool size of 1 is not recommended, there will be no dedicated connection for Controller events");
-            return Err(RippleError::BootstrapError);
-        }
+        let pool_size = match state.pool_size {
+            Some(s) => s,
+            None => {
+                warn!("Pool size of 1 is not recommended, there will be no dedicated connection for Controller events");
+                return Err(RippleError::BootstrapError);
+            }
+        };
+
         let controller_pool = ripple_sdk::tokio::time::timeout(
             Duration::from_secs(10),
             ThunderClientPool::start(url.clone(), None, thunder_connection_state.clone(), 1),
@@ -68,7 +71,13 @@ impl ThunderPoolStep {
         };
 
         info!("Received Controller pool");
-        let expected_plugins = state.plugin_param.clone();
+        let expected_plugins = match state.plugin_param.clone() {
+            Some(plugins) => plugins,
+            None => {
+                error!("Expected plugins are not provided.");
+                return Err(RippleError::BootstrapError);
+            }
+        };
         let tc = Box::new(controller_pool);
         let (plugin_manager_tx, failed_plugins) =
             PluginManager::start(tc, expected_plugins.clone()).await;
@@ -98,7 +107,7 @@ impl ThunderPoolStep {
         }
 
         let client = ThunderClientPool::start(
-            url,
+            url.clone(),
             Some(plugin_manager_tx),
             thunder_connection_state.clone(),
             pool_size - 1,

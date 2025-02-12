@@ -41,15 +41,14 @@ use ripple_sdk::{
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::broker::endpoint_broker::{
-    self, BrokerCallback, BrokerOutput, BrokerRequest, EndpointBrokerState,
+use crate::broker::{
+    endpoint_broker::{self, BrokerCallback, BrokerOutput, BrokerRequest, EndpointBrokerState},
+    rules_engine::{Rule, RuleTransformType},
+    thunder_broker::ThunderBroker,
 };
-use crate::broker::rules_engine::{Rule, RuleTransformType};
 
 use futures::stream::SplitSink;
 use futures_util::SinkExt;
-
-use crate::broker::thunder_broker::ThunderBroker;
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 // TBD get the storage dir from manifest or other Ripple config file
