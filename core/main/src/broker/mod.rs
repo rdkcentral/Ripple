@@ -17,6 +17,7 @@
 pub mod broker_utils;
 pub mod endpoint_broker;
 pub mod event_management_utility;
+pub mod extn_broker;
 pub mod http_broker;
 pub mod provider_broker_state;
 pub mod rules_engine;

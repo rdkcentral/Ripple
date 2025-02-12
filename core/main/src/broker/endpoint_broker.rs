@@ -58,6 +58,7 @@ use crate::{
 
 use super::{
     event_management_utility::EventManagementUtility,
+    extn_broker::ExtnBroker,
     http_broker::HttpBroker,
     provider_broker_state::{ProvideBrokerState, ProviderResult},
     rules_engine::{jq_compile, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine},
@@ -427,7 +428,7 @@ impl EndpointBrokerState {
                     }
                     break;
                 } else {
-                    state.build_endpoint(v)
+                    state.build_endpoint(None, v)
                 }
             }
         });
@@ -516,11 +517,11 @@ impl EndpointBrokerState {
                 endpoint.clone(),
                 self.reconnect_tx.clone(),
             );
-            self.build_endpoint(request);
+            self.build_endpoint(None, request);
         }
     }
 
-    pub fn build_other_endpoints(&mut self, session: Option<AccountSession>) {
+    pub fn build_other_endpoints(&mut self, ps: PlatformState, session: Option<AccountSession>) {
         for (key, endpoint) in self.rule_engine.rules.endpoints.clone() {
             // skip thunder endpoint as it is already built using build_thunder_endpoint
             if let RuleEndpointProtocol::Thunder = endpoint.protocol {
@@ -532,7 +533,7 @@ impl EndpointBrokerState {
                 self.reconnect_tx.clone(),
                 session.clone(),
             );
-            self.build_endpoint(request);
+            self.build_endpoint(Some(ps.clone()), request);
         }
     }
 
@@ -554,28 +555,33 @@ impl EndpointBrokerState {
         result
     }
 
-    fn build_endpoint(&mut self, request: BrokerConnectRequest) {
+    fn build_endpoint(&mut self, ps: Option<PlatformState>, request: BrokerConnectRequest) {
         let endpoint = request.endpoint.clone();
         let key = request.key.clone();
         let (broker, cleaner) = match endpoint.protocol {
             RuleEndpointProtocol::Http => (
-                HttpBroker::get_broker(request, self.callback.clone(), self).get_sender(),
+                HttpBroker::get_broker(None, request, self.callback.clone(), self).get_sender(),
                 None,
             ),
             RuleEndpointProtocol::Websocket => {
-                let ws_broker = WebsocketBroker::get_broker(request, self.callback.clone(), self);
+                let ws_broker =
+                    WebsocketBroker::get_broker(None, request, self.callback.clone(), self);
                 (ws_broker.get_sender(), Some(ws_broker.get_cleaner()))
             }
             RuleEndpointProtocol::Thunder => {
                 let thunder_broker =
-                    ThunderBroker::get_broker(request, self.callback.clone(), self);
+                    ThunderBroker::get_broker(None, request, self.callback.clone(), self);
                 (
                     thunder_broker.get_sender(),
                     Some(thunder_broker.get_cleaner()),
                 )
             }
             RuleEndpointProtocol::Workflow => (
-                WorkflowBroker::get_broker(request, self.callback.clone(), self).get_sender(),
+                WorkflowBroker::get_broker(None, request, self.callback.clone(), self).get_sender(),
+                None,
+            ),
+            RuleEndpointProtocol::Extn => (
+                ExtnBroker::get_broker(ps, request, self.callback.clone(), self).get_sender(),
                 None,
             ),
         };
@@ -732,7 +738,7 @@ impl EndpointBrokerState {
         if found_rule.is_some() {
             let rule = found_rule.unwrap();
 
-            if rule.alias == "static" {
+            if rule.alias == *"static" {
                 trace!("handling static request for {:?}", rpc_request);
                 self.handle_static_request(
                     rpc_request.clone(),
@@ -838,6 +844,7 @@ impl EndpointBrokerState {
 /// There could be Websocket or HTTP protocol implementations of the given trait
 pub trait EndpointBroker {
     fn get_broker(
+        ps: Option<PlatformState>,
         request: BrokerConnectRequest,
         callback: BrokerCallback,
         endpoint_broker: &mut EndpointBrokerState,
