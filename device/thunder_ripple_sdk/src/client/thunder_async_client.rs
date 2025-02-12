@@ -491,7 +491,7 @@ mod tests {
 
         let request = DeviceChannelRequest::Call(callrequest);
         let async_request = ThunderAsyncRequest::new(request);
-        let result = client.prepare_request(&async_request);
+        let result = client.check_plugin_status_n_prepare_request(&async_request);
         assert!(result.is_ok());
     }
 
