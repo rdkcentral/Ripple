@@ -380,19 +380,11 @@ impl MetricsState {
         {
             Some(s) => s,
             None => {
-                if let Ok(response) = state
-                    .get_client()
-                    .send_extn_request(DeviceInfoRequest::Make)
-                    .await
-                {
-                    if let Some(ExtnResponse::String(v)) = response.payload.extract() {
-                        v
-                    } else {
-                        "Device.Manufacturer.missing.from.persistent.store".to_string()
-                    }
-                } else {
-                    "Device.Manufacturer.missing.from.persistent.store".to_string()
-                }
+                rpc_value_result_to_string_result(
+                    BrokerUtils::process_internal_main_request(state, "device.make", None).await,
+                    Some(Self::unset("device.make")),
+                )
+                .unwrap_or(Self::unset("device.make"))  
             }
         };
         let authenticated = Some(true);
