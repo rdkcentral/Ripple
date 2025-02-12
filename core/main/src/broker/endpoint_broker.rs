@@ -815,11 +815,25 @@ pub trait EndpointBroker {
                         .transform
                         .get_transform_data(super::rules_engine::RuleTransformType::Request)
                     {
-                        return jq_compile(
+                        let transformed_request_res = jq_compile(
                             last,
                             &filter,
                             format!("{}_request", rpc_request.rpc.ctx.method),
                         );
+
+                        LogSignal::new(
+                            "endpoint_broker".to_string(),
+                            "apply_request_rule".to_string(),
+                            rpc_request.rpc.ctx.clone(),
+                        )
+                        .with_diagnostic_context_item("success", "true")
+                        .with_diagnostic_context_item(
+                            "result",
+                            &format!("{:?}", transformed_request_res),
+                        )
+                        .emit_debug();
+
+                        return transformed_request_res;
                     }
                     LogSignal::new(
                         "endpoint_broker".to_string(),
