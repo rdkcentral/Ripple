@@ -278,17 +278,7 @@ impl UserDataMigrator {
         let request_id = EndpointBrokerState::get_next_id();
         let call_sign = "org.rdk.PersistentStore.1.".to_owned();
 
-        let (response_tx, response_rx) = mpsc::channel(16);
-
-        // Register custom callback to handle the response
-        broker
-            .register_custom_callback(
-                request_id,
-                BrokerCallback {
-                    sender: response_tx,
-                },
-            )
-            .await;
+        let response_rx = Self::register_custom_callback(broker, request_id).await;
 
         // create the request to the legacy storage
         let thunder_request = json!({
@@ -376,17 +366,7 @@ impl UserDataMigrator {
         let request_id = EndpointBrokerState::get_next_id();
         let call_sign = "org.rdk.PersistentStore.1.".to_owned();
 
-        let (response_tx, response_rx) = mpsc::channel(16);
-
-        // Register custom callback to handle the response
-        broker
-            .register_custom_callback(
-                request_id,
-                BrokerCallback {
-                    sender: response_tx,
-                },
-            )
-            .await;
+        let response_rx = Self::register_custom_callback(broker, request_id).await;
 
         // set storage data in the format required by the legacy storage
         let data = StorageData::new(params_json.clone());
@@ -445,17 +425,7 @@ impl UserDataMigrator {
     ) -> Result<BrokerOutput, UserDataMigratorError> {
         let request_id = EndpointBrokerState::get_next_id();
 
-        let (response_tx, response_rx) = mpsc::channel(16);
-
-        // Register custom callback to handle the response
-        broker
-            .register_custom_callback(
-                request_id,
-                BrokerCallback {
-                    sender: response_tx,
-                },
-            )
-            .await;
+        let response_rx = Self::register_custom_callback(broker, request_id).await;
 
         // Create the request to the new plugin
         // The current implementation assumes no params for the getter function
@@ -538,17 +508,7 @@ impl UserDataMigrator {
         };
 
         let request_id = EndpointBrokerState::get_next_id();
-        let (response_tx, response_rx) = mpsc::channel(16);
-
-        // Register custom callback to handle the response
-        broker
-            .register_custom_callback(
-                request_id,
-                BrokerCallback {
-                    sender: response_tx,
-                },
-            )
-            .await;
+        let response_rx = Self::register_custom_callback(broker, request_id).await;
 
         // create the request to the new plugin
         let thunder_plugin_request = json!({
@@ -580,6 +540,23 @@ impl UserDataMigrator {
         let response_rx_c = Arc::new(Mutex::new(response_rx));
         // get the response from the custom callback, unregister the callback and return the response
         Self::wait_for_response(response_rx_c, broker.clone(), request_id).await
+    }
+
+    async fn register_custom_callback(
+        broker: &ThunderBroker,
+        request_id: u64,
+    ) -> tokio::sync::mpsc::Receiver<BrokerOutput> {
+        let (response_tx, response_rx) = mpsc::channel(1);
+        // Register custom callback to handle the response
+        broker
+            .register_custom_callback(
+                request_id,
+                BrokerCallback {
+                    sender: response_tx,
+                },
+            )
+            .await;
+        response_rx
     }
 
     async fn send_thunder_request(
