@@ -92,6 +92,7 @@ impl TelemetryBuilder {
     }
 
     fn send_telemetry(ps: &PlatformState, t: TelemetryPayload) -> RippleResponse {
+        println!("*** _DEBUG: send_telemetry: {:?}", t);
         let listeners = ps.metrics.get_listeners();
         let client = ps.get_client().get_extn_client();
         let mut result = Ok(());
@@ -215,6 +216,7 @@ impl TelemetryBuilder {
                 response,
             }),
         ) {
+            error!("*** _DEBUG: send_telemetry={:?}", e);
             error!("send_telemetry={:?}", e)
         }
     }
