@@ -69,7 +69,7 @@ async fn test_device_scan_wifi() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -132,7 +132,7 @@ async fn test_device_connect_wifi() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 

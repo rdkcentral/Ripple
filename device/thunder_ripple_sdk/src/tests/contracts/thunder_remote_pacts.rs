@@ -91,7 +91,7 @@ async fn test_device_remote_start_pairing() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -180,7 +180,7 @@ async fn test_device_remote_network_status() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 

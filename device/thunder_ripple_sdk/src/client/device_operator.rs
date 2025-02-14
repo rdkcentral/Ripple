@@ -14,11 +14,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-
-use async_trait::async_trait;
+use ripple_sdk::{
+    api::gateway::rpc_gateway_api::JsonRpcApiResponse,
+    async_trait::async_trait,
+    log::error,
+    tokio::sync::{mpsc, oneshot::error::RecvError},
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tokio::sync::{mpsc, oneshot::error::RecvError};
 
 pub const DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS: u64 = 5;
 
@@ -37,11 +40,32 @@ pub trait DeviceOperator: Clone {
     async fn unsubscribe(&self, request: DeviceUnsubscribeRequest);
 }
 
+#[derive(Debug, Clone)]
+pub struct DeviceResponseSubscription {
+    pub sub_id: Option<String>,
+    pub handlers: Vec<mpsc::Sender<DeviceResponseMessage>>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DeviceChannelRequest {
     Call(DeviceCallRequest),
     Subscribe(DeviceSubscribeRequest),
     Unsubscribe(DeviceUnsubscribeRequest),
+}
+
+impl DeviceChannelRequest {
+    pub fn get_callsign_method(&self) -> (String, String) {
+        match self {
+            DeviceChannelRequest::Call(c) => {
+                let mut collection: Vec<&str> = c.method.split('.').collect();
+                let method = collection.pop().unwrap_or_default();
+                let callsign = collection.join(".");
+                (callsign, method.into())
+            }
+            DeviceChannelRequest::Subscribe(s) => (s.module.clone(), s.event_name.clone()),
+            DeviceChannelRequest::Unsubscribe(u) => (u.module.clone(), u.event_name.clone()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,6 +139,31 @@ impl DeviceResponseMessage {
             message,
             sub_id: Some(sub_id),
         }
+    }
+
+    pub fn new(message: Value, sub_id: Option<String>) -> DeviceResponseMessage {
+        DeviceResponseMessage { message, sub_id }
+    }
+
+    pub fn create(
+        json_resp: &JsonRpcApiResponse,
+        sub_id: Option<String>,
+    ) -> Option<DeviceResponseMessage> {
+        let mut device_response_msg = None;
+        if let Some(res) = &json_resp.result {
+            device_response_msg = Some(DeviceResponseMessage::new(res.clone(), sub_id));
+        } else if let Some(er) = &json_resp.error {
+            device_response_msg = Some(DeviceResponseMessage::new(er.clone(), sub_id));
+        } else if json_resp.clone().method.is_some() {
+            if let Some(params) = &json_resp.params {
+                if let Ok(dev_resp) = serde_json::to_value(params) {
+                    device_response_msg = Some(DeviceResponseMessage::new(dev_resp, sub_id));
+                }
+            }
+        } else {
+            error!("deviceresponse msg extraction failed.");
+        }
+        device_response_msg
     }
 }
 
