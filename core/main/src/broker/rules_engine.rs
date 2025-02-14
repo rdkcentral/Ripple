@@ -119,28 +119,58 @@ pub struct RuleTransform {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub event: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub rpcv2_event: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub event_decorator_method: Option<String>,
 }
 
 impl RuleTransform {
+    fn check_and_replace(&self, input: &str, rpc_request: &RpcRequest) -> String {
+        trace!(
+            "check_and_replace: input: {}, rpc_request: {:?}",
+            input,
+            rpc_request
+        );
+
+        let mut output = input.replace("$context.appId", &rpc_request.ctx.app_id);
+
+        if let Some(event) = &self.event {
+            output = output.replace("$event", event);
+        }
+
+        output
+    }
+
     pub fn apply_context(&mut self, rpc_request: &RpcRequest) {
         if let Some(value) = self.request.take() {
-            trace!("Check if value contains {}", value);
-            if value.contains("$context.appId") {
-                trace!("has context");
-                let new_value = value.replace("$context.appId", &rpc_request.ctx.app_id);
-                trace!("changed value {}", new_value);
-                let _ = self.request.insert(new_value);
-            } else {
-                let _ = self.request.insert(value);
-            }
+            let _ = self
+                .request
+                .insert(self.check_and_replace(&value, rpc_request));
+        }
+
+        if let Some(value) = self.event.take() {
+            let _ = self
+                .event
+                .insert(self.check_and_replace(&value, rpc_request));
+        }
+
+        if let Some(value) = self.rpcv2_event.take() {
+            let _ = self
+                .rpcv2_event
+                .insert(self.check_and_replace(&value, rpc_request));
         }
     }
 
     pub fn get_transform_data(&self, typ: RuleTransformType) -> Option<String> {
         match typ {
             RuleTransformType::Request => self.request.clone(),
-            RuleTransformType::Event => self.event.clone(),
+            RuleTransformType::Event(rpc_v2) => {
+                if rpc_v2 {
+                    self.rpcv2_event.clone()
+                } else {
+                    self.event.clone()
+                }
+            }
             RuleTransformType::Response => self.response.clone(),
         }
     }
@@ -149,7 +179,7 @@ impl RuleTransform {
 pub enum RuleTransformType {
     Request,
     Response,
-    Event,
+    Event(bool),
 }
 
 #[derive(Debug, Clone, Default)]

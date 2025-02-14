@@ -80,6 +80,7 @@ mod tests {
             method: "some_method".to_string(),
             cid: Some("test_cid".to_string()),
             gateway_secure: true,
+            context: Vec::new(),
         };
 
         let account_link_request = AccountLinkRequest::SignIn(call_context);
