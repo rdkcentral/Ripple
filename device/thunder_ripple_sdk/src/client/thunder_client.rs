@@ -15,54 +15,101 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::{BTreeMap, HashMap};
-use std::str::FromStr;
-use std::sync::Arc;
-
-use jsonrpsee::core::client::{Client, ClientT, SubscriptionClientT};
-use jsonrpsee::ws_client::WsClientBuilder;
-
-use jsonrpsee::core::{async_trait, error::Error as JsonRpcError};
-use jsonrpsee::types::ParamsSer;
-use regex::Regex;
-use ripple_sdk::serde_json::json;
-use ripple_sdk::tokio::sync::oneshot::error::RecvError;
-use ripple_sdk::{
-    api::device::device_operator::DeviceResponseMessage,
-    tokio::sync::mpsc::{self, Sender as MpscSender},
-    tokio::{sync::Mutex, task::JoinHandle, time::sleep},
-};
-use ripple_sdk::{
-    api::device::device_operator::{
-        DeviceCallRequest, DeviceSubscribeRequest, DeviceUnsubscribeRequest,
-    },
-    serde_json::{self, Value},
-    tokio,
-};
-use ripple_sdk::{
-    api::device::device_operator::{DeviceChannelParams, DeviceOperator},
-    uuid::Uuid,
-};
-use ripple_sdk::{
-    log::{error, info, warn},
-    utils::channel_utils::{mpsc_send_and_log, oneshot_send_and_log},
-};
-use ripple_sdk::{
-    tokio::sync::oneshot::{self, Sender as OneShotSender},
-    utils::error::RippleError,
-};
-use serde::{Deserialize, Serialize};
-use url::Url;
-
-use crate::thunder_state::ThunderConnectionState;
-use crate::utils::get_error_value;
-
+use super::thunder_async_client::{ThunderAsyncClient, ThunderAsyncRequest, ThunderAsyncResponse};
+use super::thunder_async_client_plugins_status_mgr::{AsyncCallback, AsyncSender};
 use super::thunder_client_pool::ThunderPoolCommand;
 use super::{
+    device_operator::{
+        DeviceCallRequest, DeviceChannelParams, DeviceChannelRequest, DeviceOperator,
+        DeviceResponseMessage, DeviceResponseSubscription, DeviceSubscribeRequest,
+        DeviceUnsubscribeRequest,
+    },
     jsonrpc_method_locator::JsonRpcMethodLocator,
     plugin_manager::{PluginActivatedResult, PluginManagerCommand},
 };
+use crate::thunder_state::ThunderConnectionState;
+use crate::utils::get_error_value;
+use jsonrpsee::core::client::{Client, ClientT, SubscriptionClientT};
+use jsonrpsee::core::{async_trait, error::Error as JsonRpcError};
+use jsonrpsee::types::ParamsSer;
+use jsonrpsee::ws_client::WsClientBuilder;
+use regex::Regex;
+
+use ripple_sdk::{
+    log::{error, info, warn},
+    serde_json::{self, json, Value},
+    tokio,
+    tokio::sync::mpsc::{self, Receiver, Sender as MpscSender},
+    tokio::sync::oneshot::{self, error::RecvError, Sender as OneShotSender},
+    tokio::{sync::Mutex, task::JoinHandle, time::sleep},
+    utils::channel_utils::{mpsc_send_and_log, oneshot_send_and_log},
+    utils::error::RippleError,
+    uuid::Uuid,
+};
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashMap};
+use std::str::FromStr;
+use std::sync::Arc;
+use std::sync::RwLock;
 use std::{env, process::Command};
+use tokio::sync::oneshot::Sender;
+use url::Url;
+
+pub type BrokerSubMap = HashMap<String, DeviceResponseSubscription>;
+pub type BrokerCallbackMap = HashMap<u64, Option<OneShotSender<DeviceResponseMessage>>>;
+
+#[derive(Debug)]
+pub struct ThunderClientManager;
+
+impl ThunderClientManager {
+    fn start(
+        client: ThunderClient,
+        request_tr: Receiver<ThunderAsyncRequest>,
+        mut response_tr: Receiver<ThunderAsyncResponse>,
+        thndr_endpoint_url: String,
+    ) {
+        if let Some(ref thunder_async_client) = client.thunder_async_client {
+            let mut tac = thunder_async_client.clone();
+            tokio::spawn(async move {
+                tac.start(&thndr_endpoint_url, request_tr).await;
+            });
+        }
+
+        /*thunder async response will get here */
+        tokio::spawn(async move {
+            while let Some(response) = response_tr.recv().await {
+                if let Some(id) = response.get_id() {
+                    if let Some(thunder_async_callbacks) = client.clone().thunder_async_callbacks {
+                        let mut callbacks = thunder_async_callbacks.write().unwrap();
+                        if let Some(Some(callback)) = callbacks.remove(&id) {
+                            if let Some(resp) = response.get_device_resp_msg(None) {
+                                oneshot_send_and_log(callback, resp, "ThunderResponse");
+                            };
+                        }
+                    }
+                } else if let Some(event_name) = response.get_method() {
+                    if let Some(broker_subs) = client.clone().thunder_async_subscriptions {
+                        let subs = {
+                            let mut br_subs = broker_subs.write().unwrap();
+                            br_subs.get_mut(&event_name).cloned()
+                        };
+
+                        if let Some(dev_resp_sub) = subs {
+                            //let subc = subs;
+                            for s in &dev_resp_sub.handlers {
+                                if let Some(resp_msg) =
+                                    response.get_device_resp_msg(dev_resp_sub.clone().sub_id)
+                                {
+                                    mpsc_send_and_log(s, resp_msg, "ThunderResponse").await;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
 
 pub struct ThunderClientBuilder;
 
@@ -165,6 +212,10 @@ pub struct ThunderClient {
     pub id: Uuid,
     pub plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
     pub subscriptions: Option<Arc<Mutex<HashMap<String, ThunderSubscription>>>>,
+    pub thunder_async_client: Option<ThunderAsyncClient>,
+    pub thunder_async_subscriptions: Option<Arc<RwLock<BrokerSubMap>>>,
+    pub thunder_async_callbacks: Option<Arc<RwLock<BrokerCallbackMap>>>,
+    pub use_thunder_async: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -192,20 +243,24 @@ impl ThunderClient {
 #[async_trait]
 impl DeviceOperator for ThunderClient {
     async fn call(&self, request: DeviceCallRequest) -> DeviceResponseMessage {
-        let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
-        let message = ThunderMessage::ThunderCallMessage(ThunderCallMessage {
-            method: request.method,
-            params: request.params,
-            callback: tx,
-        });
-        self.send_message(message).await;
+        if !self.use_thunder_async {
+            let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
+            let message = ThunderMessage::ThunderCallMessage(ThunderCallMessage {
+                method: request.method,
+                params: request.params,
+                callback: tx,
+            });
+            self.send_message(message).await;
 
-        match rx.await {
-            Ok(response) => response,
-            Err(_) => DeviceResponseMessage {
-                message: Value::Null,
-                sub_id: None,
-            },
+            rx.await.unwrap()
+        } else {
+            let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
+            let async_request = ThunderAsyncRequest::new(DeviceChannelRequest::Call(request));
+            self.add_callback(&async_request, tx);
+            if let Some(async_client) = &self.thunder_async_client {
+                async_client.send(async_request).await;
+            }
+            rx.await.unwrap()
         }
     }
 
@@ -214,32 +269,56 @@ impl DeviceOperator for ThunderClient {
         request: DeviceSubscribeRequest,
         handler: mpsc::Sender<DeviceResponseMessage>,
     ) -> Result<DeviceResponseMessage, RecvError> {
-        let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
-        let message = ThunderSubscribeMessage {
-            module: request.module,
-            event_name: request.event_name,
-            params: request.params,
-            handler,
-            callback: Some(tx),
-            sub_id: request.sub_id,
-        };
-        let msg = ThunderMessage::ThunderSubscribeMessage(message);
-        self.send_message(msg).await;
-        let result = rx.await;
-        if let Err(ref e) = result {
-            error!("subscribe: e={:?}", e);
+        if !self.use_thunder_async {
+            let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
+            let message = ThunderSubscribeMessage {
+                module: request.module,
+                event_name: request.event_name,
+                params: request.params,
+                handler,
+                callback: Some(tx),
+                sub_id: request.sub_id,
+            };
+            let msg = ThunderMessage::ThunderSubscribeMessage(message);
+            self.send_message(msg).await;
+            let result = rx.await;
+            if let Err(ref e) = result {
+                error!("subscribe: e={:?}", e);
+            }
+            result
+        } else if let Some(subscribe_request) =
+            self.add_subscription_handler(&request, handler.clone())
+        {
+            let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
+            self.add_callback(&subscribe_request, tx);
+            if let Some(async_client) = &self.thunder_async_client {
+                async_client.send(subscribe_request).await;
+            }
+            let result = rx.await;
+            if let Err(ref e) = result {
+                error!("subscribe: e={:?}", e);
+            }
+            result
+        } else {
+            Ok(DeviceResponseMessage {
+                message: Value::Null,
+                sub_id: None,
+            })
         }
-        result
     }
 
     async fn unsubscribe(&self, request: DeviceUnsubscribeRequest) {
-        let message = ThunderUnsubscribeMessage {
-            module: request.module,
-            event_name: request.event_name,
-            subscription_id: None,
-        };
-        let msg = ThunderMessage::ThunderUnsubscribeMessage(message);
-        self.send_message(msg).await;
+        if !self.use_thunder_async {
+            let message = ThunderUnsubscribeMessage {
+                module: request.module,
+                event_name: request.event_name,
+                subscription_id: None,
+            };
+            let msg = ThunderMessage::ThunderUnsubscribeMessage(message);
+            self.send_message(msg).await;
+        } else {
+            // unsubscribe() deprecate
+        }
     }
 }
 
@@ -481,6 +560,58 @@ impl ThunderClient {
         }
         None
     }
+
+    fn add_callback(
+        &self,
+        request: &ThunderAsyncRequest,
+        dev_resp_callback: Sender<DeviceResponseMessage>,
+    ) {
+        let mut callbacks = self
+            .thunder_async_callbacks
+            .as_ref()
+            .unwrap()
+            .write()
+            .unwrap();
+        callbacks.insert(request.id, Some(dev_resp_callback));
+    }
+
+    // if already subscribed updated handlers
+    fn add_subscription_handler(
+        &self,
+        request: &DeviceSubscribeRequest,
+        handler: MpscSender<DeviceResponseMessage>,
+    ) -> Option<ThunderAsyncRequest> {
+        let mut thunder_async_subscriptions = self
+            .thunder_async_subscriptions
+            .as_ref()
+            .unwrap()
+            .write()
+            .unwrap();
+
+        // Create a key for the subscription based on the event name
+        let key = format!("client.events.{}", request.event_name);
+
+        // Check if there are existing subscriptions for the given key
+        if let Some(subs) = thunder_async_subscriptions.get_mut(&key) {
+            // If a subscription exists, add the handler to the list of handlers
+            subs.handlers.push(handler);
+            None
+        } else {
+            // If no subscription exists, create a new async request for subscription
+            let async_request =
+                ThunderAsyncRequest::new(DeviceChannelRequest::Subscribe(request.clone()));
+
+            // Create a new DeviceResponseSubscription with the handler
+            let dev_resp_sub = DeviceResponseSubscription {
+                sub_id: request.clone().sub_id,
+                handlers: vec![handler],
+            };
+
+            // Insert the new subscription into the thunder_async_subscriptions map
+            thunder_async_subscriptions.insert(key, dev_resp_sub);
+            Some(async_request)
+        }
+    }
 }
 
 impl ThunderClientBuilder {
@@ -497,69 +628,23 @@ impl ThunderClientBuilder {
         }
         None
     }
-    async fn create_client(
-        url: Url,
-        thunder_connection_state: Arc<ThunderConnectionState>,
-    ) -> Result<Client, JsonRpcError> {
-        // Ensure that only one connection attempt is made at a time
-        {
-            let mut is_connecting = thunder_connection_state.conn_status_mutex.lock().await;
-            // check if we are already reconnecting
-            if *is_connecting {
-                drop(is_connecting);
-                // wait for the connection to be ready
-                thunder_connection_state.conn_status_notify.notified().await;
-            } else {
-                //Mark the connection as reconnecting
-                *is_connecting = true;
-            }
-        } // Lock is released here
 
-        let mut client: Result<Client, JsonRpcError>;
-        let mut delay_duration = tokio::time::Duration::from_millis(50);
-        loop {
-            // get the token from the environment anew each time
-            let url_with_token = if let Ok(token) = env::var("THUNDER_TOKEN") {
-                Url::parse_with_params(url.as_str(), &[("token", token)]).unwrap()
-            } else {
-                url.clone()
-            };
-            client = WsClientBuilder::default()
-                .build(url_with_token.to_string())
-                .await;
-            if client.is_err() {
-                error!(
-                    "Thunder Websocket is not available. Attempt to connect to thunder, retrying"
-                );
-                sleep(delay_duration).await;
-                if delay_duration < tokio::time::Duration::from_secs(3) {
-                    delay_duration *= 2;
-                }
-                continue;
-            }
-            //break from the loop after signalling that we are no longer reconnecting
-            let mut is_connecting = thunder_connection_state.conn_status_mutex.lock().await;
-            *is_connecting = false;
-            thunder_connection_state.conn_status_notify.notify_waiters();
-            break;
-        }
-        client
-    }
-
-    pub async fn get_client(
+    async fn start_thunderpool_client(
         url: Url,
         plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
         pool_tx: Option<mpsc::Sender<ThunderPoolCommand>>,
-        thunder_connection_state: Arc<ThunderConnectionState>,
+        thunder_connection_state: Option<Arc<ThunderConnectionState>>,
         existing_client: Option<ThunderClient>,
     ) -> Result<ThunderClient, RippleError> {
-        let id = Uuid::new_v4();
+        let uid = Uuid::new_v4();
+        info!("initiating thunder connection URL:{} ", url);
 
-        info!("initiating thunder connection {}", url);
         let subscriptions = Arc::new(Mutex::new(HashMap::<String, ThunderSubscription>::default()));
         let (s, mut r) = mpsc::channel::<ThunderMessage>(32);
         let pmtx_c = plugin_manager_tx.clone();
-        let client = Self::create_client(url, thunder_connection_state.clone()).await;
+        let client =
+            Self::create_client(url.clone(), thunder_connection_state.clone().unwrap()).await;
+
         // add error handling here
         if client.is_err() {
             error!("Unable to connect to thunder: {client:?}");
@@ -574,17 +659,17 @@ impl ThunderClientBuilder {
                     if let Some(ptx) = pool_tx {
                         warn!(
                             "Client {} became disconnected, removing from pool message {:?}",
-                            id, message
+                            uid, message
                         );
                         // Remove the client and then try the message again with a new client
-                        let pool_msg = ThunderPoolCommand::ResetThunderClient(id);
+                        let pool_msg = ThunderPoolCommand::ResetThunderClient(uid);
                         mpsc_send_and_log(&ptx, pool_msg, "ResetThunderClient").await;
                         let pool_msg = ThunderPoolCommand::ThunderMessage(message);
                         mpsc_send_and_log(&ptx, pool_msg, "RetryThunderMessage").await;
                         return;
                     }
                 }
-                info!("Client {} sending thunder message {:?}", id, message);
+                info!("Client {} sending thunder message {:?}", uid, message);
                 match message {
                     ThunderMessage::ThunderCallMessage(thunder_message) => {
                         ThunderClient::call(&client, thunder_message, plugin_manager_tx.clone())
@@ -592,7 +677,7 @@ impl ThunderClientBuilder {
                     }
                     ThunderMessage::ThunderSubscribeMessage(thunder_message) => {
                         ThunderClient::subscribe(
-                            id,
+                            uid,
                             &client,
                             &subscriptions_c,
                             thunder_message,
@@ -657,10 +742,109 @@ impl ThunderClientBuilder {
         Ok(ThunderClient {
             sender: Some(s),
             pooled_sender: None,
-            id,
+            id: uid,
             plugin_manager_tx: pmtx_c,
             subscriptions: Some(subscriptions),
+            thunder_async_client: None,
+            thunder_async_subscriptions: None,
+            thunder_async_callbacks: None,
+            use_thunder_async: false,
         })
+    }
+
+    async fn create_client(
+        url: Url,
+        thunder_connection_state: Arc<ThunderConnectionState>,
+    ) -> Result<Client, JsonRpcError> {
+        // Ensure that only one connection attempt is made at a time
+        {
+            let mut is_connecting = thunder_connection_state.conn_status_mutex.lock().await;
+            // check if we are already reconnecting
+            if *is_connecting {
+                drop(is_connecting);
+                // wait for the connection to be ready
+                thunder_connection_state.conn_status_notify.notified().await;
+            } else {
+                //Mark the connection as reconnecting
+                *is_connecting = true;
+            }
+        } // Lock is released here
+
+        let mut client: Result<Client, JsonRpcError>;
+        let mut delay_duration = tokio::time::Duration::from_millis(50);
+        loop {
+            // get the token from the environment anew each time
+            let url_with_token = if let Ok(token) = env::var("THUNDER_TOKEN") {
+                Url::parse_with_params(url.as_str(), &[("token", token)]).unwrap()
+            } else {
+                url.clone()
+            };
+            client = WsClientBuilder::default()
+                .build(url_with_token.to_string())
+                .await;
+            if client.is_err() {
+                error!(
+                    "Thunder Websocket is not available. Attempt to connect to thunder, retrying"
+                );
+                sleep(delay_duration).await;
+                if delay_duration < tokio::time::Duration::from_secs(3) {
+                    delay_duration *= 2;
+                }
+                continue;
+            }
+            //break from the loop after signalling that we are no longer reconnecting
+            let mut is_connecting = thunder_connection_state.conn_status_mutex.lock().await;
+            *is_connecting = false;
+            thunder_connection_state.conn_status_notify.notify_waiters();
+            break;
+        }
+        client
+    }
+
+    pub async fn start_thunder_client(
+        url: Url,
+        plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
+        pool_tx: Option<mpsc::Sender<ThunderPoolCommand>>,
+        thunder_connection_state: Option<Arc<ThunderConnectionState>>,
+        existing_client: Option<ThunderClient>,
+        use_thunderasync_client: bool,
+    ) -> Result<ThunderClient, RippleError> {
+        if !use_thunderasync_client {
+            Self::start_thunderpool_client(
+                url,
+                plugin_manager_tx,
+                pool_tx,
+                thunder_connection_state,
+                existing_client,
+            )
+            .await
+        } else {
+            let (resp_tx, resp_rx) = mpsc::channel(10);
+            let callback = AsyncCallback { sender: resp_tx };
+            let (broker_tx, broker_rx) = mpsc::channel(10);
+            let broker_sender = AsyncSender { sender: broker_tx };
+            let client = ThunderAsyncClient::new(callback, broker_sender);
+
+            let thunder_client = ThunderClient {
+                sender: None,
+                pooled_sender: None,
+                id: Uuid::new_v4(),
+                plugin_manager_tx: None,
+                subscriptions: None,
+                thunder_async_client: Some(client),
+                thunder_async_subscriptions: Some(Arc::new(RwLock::new(HashMap::new()))),
+                thunder_async_callbacks: Some(Arc::new(RwLock::new(HashMap::new()))),
+                use_thunder_async: true,
+            };
+
+            ThunderClientManager::start(
+                thunder_client.clone(),
+                broker_rx,
+                resp_rx,
+                url.to_string(),
+            );
+            Ok(thunder_client)
+        }
     }
 
     #[cfg(test)]
@@ -671,6 +855,10 @@ impl ThunderClientBuilder {
             id: Uuid::new_v4(),
             plugin_manager_tx: None,
             subscriptions: None,
+            thunder_async_client: None,
+            thunder_async_subscriptions: None,
+            thunder_async_callbacks: None,
+            use_thunder_async: false,
         }
     }
 }
