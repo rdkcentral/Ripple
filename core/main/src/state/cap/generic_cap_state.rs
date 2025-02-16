@@ -46,7 +46,6 @@ impl GenericCapState {
         let cap_state = GenericCapState::default();
         cap_state.ingest_supported(manifest.get_supported_caps());
         let caps = vec![
-            FireboltCap::Short("input:keyboard".to_owned()),
             FireboltCap::Short("token:account".to_owned()),
             FireboltCap::Short("token:platform".to_owned()),
             FireboltCap::Short("usergrant:acknowledgechallenge".to_owned()),

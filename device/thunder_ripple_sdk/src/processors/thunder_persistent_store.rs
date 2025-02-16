@@ -16,14 +16,13 @@
 //
 
 use crate::{
-    client::thunder_plugin::ThunderPlugin,
+    client::{
+        device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
+        thunder_plugin::ThunderPlugin,
+    },
     ripple_sdk::{
-        api::device::{
-            device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
-            device_peristence::{
-                DeleteStorageProperty, DevicePersistenceRequest, GetStorageProperty,
-                SetStorageProperty,
-            },
+        api::device::device_peristence::{
+            DeleteStorageProperty, DevicePersistenceRequest, GetStorageProperty, SetStorageProperty,
         },
         async_trait::async_trait,
         extn::{

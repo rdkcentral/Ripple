@@ -89,7 +89,7 @@ async fn test_device_get_info_mac_address() {
     // Creating thunder client with mock server url
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -158,7 +158,7 @@ async fn test_device_get_model() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -228,7 +228,7 @@ async fn test_device_get_interfaces_wifi() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -293,7 +293,7 @@ async fn test_device_get_interfaces_ethernet() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -347,7 +347,7 @@ async fn test_device_get_audio() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -400,7 +400,7 @@ async fn test_device_get_hdcp_supported() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -462,7 +462,7 @@ async fn test_device_get_hdcp_status() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -519,7 +519,7 @@ async fn test_device_get_hdr() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -569,7 +569,7 @@ async fn test_device_get_screen_resolution_without_port() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -617,7 +617,7 @@ async fn test_device_get_make() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -678,7 +678,7 @@ async fn test_device_get_video_resolution() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -789,7 +789,7 @@ async fn test_device_get_timezone() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -861,7 +861,7 @@ async fn test_device_get_available_timezone() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -917,7 +917,7 @@ async fn test_device_get_voice_guidance_enabled() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -995,7 +995,7 @@ async fn test_device_get_voice_guidance_speed() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -1053,7 +1053,7 @@ async fn test_device_set_timezone() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -1109,7 +1109,7 @@ async fn test_device_set_voice_guidance() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -1165,7 +1165,7 @@ async fn test_device_set_voice_guidance_speed() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
@@ -1222,7 +1222,7 @@ async fn test_device_get_internet() {
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
     let thunder_client =
-        ThunderClientPool::start(url, None, Arc::new(ThunderConnectionState::new()), 1)
+        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
             .await
             .unwrap();
 
