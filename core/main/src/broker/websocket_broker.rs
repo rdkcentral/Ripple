@@ -25,6 +25,7 @@ use crate::broker::endpoint_broker::EndpointBrokerState;
 use crate::state::platform_state::PlatformState;
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
+    api::observability::log_signal::LogSignal,
     log::{debug, error},
     tokio::{self, sync::mpsc},
 };
@@ -77,9 +78,19 @@ impl WebsocketBroker {
 
                         },
                         Some(request) = tr.recv() => {
-                            debug!("Got request from receiver for broker {:?}", request);
+                            LogSignal::new(
+                                "websocket_broker".to_string(),
+                                format!("Got request from receiver for broker: {:?}", request),
+                                request.rpc.ctx.clone(),
+                            )
+                            .emit_debug();
                             if let Ok(updated_request) = Self::update_request(&request) {
-                                debug!("Sending request to broker {}", updated_request);
+                                LogSignal::new(
+                                    "websocket_broker".to_string(),
+                                    format!("update request: {:?}", request),
+                                    request.rpc.ctx.clone(),
+                                )
+                                .emit_debug();
                                 let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(updated_request)).await;
                                 let _flush = ws_tx.flush().await;
                             }
@@ -164,12 +175,16 @@ impl WSNotificationBroker {
                                         callback_c.clone(),
                                         request_c.clone(),
                                     ) {
-                                        error!("error forwarding {}", e);
+                                        LogSignal::new("websocket_broker".to_string(), "handle_jsonrpc_response".to_string(), request_c.rpc.ctx.clone())
+                                        .with_diagnostic_context_item("error forwarding", &format!("{:?}", e))
+                                        .emit_error();
                                     }
                                 }
                             },
                             Err(e) => {
-                                error!("Broker Websocket error on read {:?}", e);
+                                LogSignal::new("websocket_broker".to_string(), "Broker Websocket error on read".to_string(), request_c.rpc.ctx.clone())
+                                    .with_diagnostic_context_item("Broker Websocket error on read", &format!("{:?}", e))
+                                    .emit_error();
                                 break;
                             }
                         }
