@@ -639,7 +639,8 @@ mod tests {
             endpoint_broker::{
                 BrokerCallback, BrokerConnectRequest, BrokerOutput, BrokerRequest, EndpointBroker,
             },
-            rules_engine::{Rule, RuleEndpoint, RuleTransform},
+            rules_engine::{Rule, RuleEndpoint, RuleEndpointProtocol, RuleTransform},
+            test::mock_thunder_lite_server::start_server,
         },
         utils::test_utils::{MockWebsocket, WSMockData},
     };
@@ -682,6 +683,79 @@ mod tests {
             },
             subscription_processed: None,
             workflow_callback: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_thunder_brokerage() {
+        // start the mock thunder server
+        let mut server = start_server().await;
+        server
+            .with_canned_response(
+                "org.rdk.ripple_plugin.getter",
+                Some(serde_json::json!({"number_one_rdk_component":"unknown"})),
+                None,
+                None,
+            )
+            .await;
+
+        server
+            .with_canned_response(
+                "org.rdk.ripple_plugin.setter",
+                Some(serde_json::json!({"data":"check-event"})),
+                None,
+                Some((
+                    JsonRpcApiResponse {
+                        jsonrpc: "2.0".to_string(),
+                        result: Some(serde_json::Value::Null),
+                        error: None,
+                        id: Some(1000),
+                        method: Some("org.rdk.ripple_plugin.onValueChange".to_string()),
+                        params: Some(json!({"new_value":"ripple"})),
+                    },
+                    500,
+                )),
+            )
+            .await;
+
+        let endpoint = RuleEndpoint {
+            protocol: RuleEndpointProtocol::Thunder,
+            url: server.get_address(),
+            jsonrpc: true,
+        };
+        let (reconnect_tx, _rec_tr) = mpsc::channel(2);
+
+        let request = BrokerConnectRequest::new("thunder".to_owned(), endpoint, reconnect_tx);
+        let (tx, mut tr) = mpsc::channel(10);
+        let callback = BrokerCallback { sender: tx };
+        let thunder_broker =
+            ThunderBroker::get_broker(None, request, callback, &mut EndpointBrokerState::default());
+
+        let mut request =
+            create_broker_request("ThunderBroker.testGetter", "org.rdk.ripple_plugin.getter");
+        request.rpc.ctx.call_id = 2000;
+        request.rpc.params_json = json!([{}]).to_string();
+
+        let response = thunder_broker.sender.send(request).await;
+        assert!(response.is_ok());
+
+        // wait for 100 milliseconds
+        //tokio::time::sleep(Duration::from_millis(100)).await;
+        let mut request =
+            create_broker_request("ThunderBroker.testSetter", "org.rdk.ripple_plugin.setter");
+        request.rpc.ctx.call_id = 3000;
+        request.rpc.params_json = json!([{}]).to_string();
+
+        let response = thunder_broker.sender.send(request).await;
+        assert!(response.is_ok());
+
+        // read the responses in a loop
+        loop {
+            let v = tokio::time::timeout(Duration::from_secs(2), tr.recv()).await;
+            if v.is_err() {
+                break;
+            }
+            println!("Response: {:?}", v);
         }
     }
 

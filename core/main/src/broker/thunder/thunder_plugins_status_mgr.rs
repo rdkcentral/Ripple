@@ -305,17 +305,17 @@ impl StatusManager {
                     None => return false,
                 };
 
-                let event: StateChangeEvent = match serde_json::from_value(params) {
-                    Ok(event) => event,
+                let status: Status = match serde_json::from_value(params) {
+                    Ok(status) => status,
                     Err(_) => return false,
                 };
 
-                self.update_status(event.callsign.clone(), event.state.clone());
+                self.update_status(status.callsign.to_string(), status.to_state());
 
-                if event.state.is_activated() {
+                if status.to_state().is_activated() {
                     // get the pending BrokerRequest and process.
                     let (pending_requests, expired) =
-                        self.retrive_pending_broker_requests(event.callsign);
+                        self.retrive_pending_broker_requests(status.callsign);
                     if !pending_requests.is_empty() {
                         for pending_request in pending_requests {
                             if expired {
