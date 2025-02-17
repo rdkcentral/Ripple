@@ -4,7 +4,10 @@ use rand::Rng;
 use ripple_sdk::tokio::{
     self,
     net::{TcpListener, TcpStream},
-    sync::{mpsc, Mutex},
+    sync::{
+        mpsc::{self, Sender},
+        Mutex,
+    },
     time::sleep,
 };
 use serde::Serialize;
@@ -25,38 +28,36 @@ struct StateChangeEventData {
     callsign: String,
     state: String,
 }
-#[derive(Clone)]
 pub struct ServerHandle {
-    stop_sender: mpsc::Sender<()>,
+    stop_sender: Sender<()>,
     address: SocketAddr,
+    //canned_responses: Arc<Mutex<HashMap<String, (JsonRpcApiResponse, Option<(JsonRpcApiResponse, u64)>)>>>,
+}
+pub struct MockThunderLiteServer {
+    address: String,
     canned_responses:
         Arc<Mutex<HashMap<String, (JsonRpcApiResponse, Option<(JsonRpcApiResponse, u64)>)>>>,
+    stop_sender: Option<Sender<()>>,
 }
 
-impl std::fmt::Debug for ServerHandle {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ServerHandle")
-            .field("address", &self.address)
-            .field("canned_responses", &self.canned_responses)
-            .finish()
+impl MockThunderLiteServer {
+    pub async fn new() -> Self {
+        let port = find_available_port().await;
+        let address = format!("127.0.0.1:{}", port);
+        let canned_responses = Arc::new(Mutex::new(predefined_mock_thunder_responses()));
+        Self {
+            address,
+            canned_responses,
+            stop_sender: None,
+        }
     }
-}
-impl ServerHandle {
-    pub fn get_address(&self) -> String {
-        format!("ws://{}/jsonrpc", self.address)
-    }
-
-    pub fn stop(self) {
-        let _ = self.stop_sender.try_send(());
-    }
-
-    pub async fn with_canned_response(
-        &mut self,
+    pub async fn with_mock_thunder_response(
+        self,
         method: &str,
         result: Option<serde_json::Value>,
         error: Option<serde_json::Value>,
         event: Option<(JsonRpcApiResponse, u64)>,
-    ) {
+    ) -> Self {
         let response = JsonRpcApiResponse {
             jsonrpc: "2.0".to_string(),
             result,
@@ -66,41 +67,56 @@ impl ServerHandle {
             params: None,
         };
 
-        let mut responses = self.canned_responses.lock().await;
-        responses.insert(method.to_string(), (response, event));
+        // Clone the responses and insert the new response
+        let canned_responses = self.canned_responses.clone();
+        {
+            let mut responses = canned_responses.lock().await;
+            responses.insert(method.to_string(), (response, event));
+        }
+
+        self
+    }
+    pub async fn start(mut self) -> ServerHandle {
+        let address = self.address.parse().unwrap();
+        let listener = TcpListener::bind(address).await.unwrap();
+        let (stop_sender, mut stop_receiver) = mpsc::channel(1);
+        self.stop_sender = Some(stop_sender.clone());
+
+        let canned_responses = self.canned_responses.clone();
+        let server_handle = ServerHandle {
+            stop_sender,
+            address,
+            //canned_responses: canned_responses.clone(),
+        };
+
+        tokio::spawn(async move {
+            println!("WebSocket Server running on {}", address);
+            loop {
+                tokio::select! {
+                    _ = stop_receiver.recv() => {
+                        println!("Stopping WebSocket server...");
+                        break;
+                    }
+                    Ok((stream, _)) = listener.accept() => {
+                        let canned_responses = canned_responses.clone();
+                        tokio::spawn(handle_connection(stream, canned_responses));
+                    }
+                }
+            }
+        });
+
+        server_handle
     }
 }
 
-pub async fn start_server() -> ServerHandle {
-    let port = find_available_port().await;
-    let address = format!("127.0.0.1:{}", port).parse().unwrap();
-    let listener = TcpListener::bind(address).await.unwrap();
-    let (stop_sender, mut stop_receiver) = mpsc::channel(1);
+impl ServerHandle {
+    pub fn get_address(&self) -> String {
+        format!("ws://{}/jsonrpc", self.address)
+    }
 
-    let canned_responses = Arc::new(Mutex::new(predefined_responses()));
-    let server_handle = ServerHandle {
-        stop_sender,
-        address,
-        canned_responses: canned_responses.clone(),
-    };
-
-    tokio::spawn(async move {
-        println!("WebSocket Server running on {}", address);
-        loop {
-            tokio::select! {
-                _ = stop_receiver.recv() => {
-                    println!("Stopping WebSocket server...");
-                    break;
-                }
-                Ok((stream, _)) = listener.accept() => {
-                    let canned_responses = canned_responses.clone();
-                    tokio::spawn(handle_connection(stream, canned_responses));
-                }
-            }
-        }
-    });
-
-    server_handle
+    pub async fn stop(&self) {
+        let _ = self.stop_sender.send(()).await;
+    }
 }
 
 async fn handle_connection(
@@ -211,8 +227,8 @@ async fn handle_connection(
     }
 }
 
-fn predefined_responses() -> HashMap<String, (JsonRpcApiResponse, Option<(JsonRpcApiResponse, u64)>)>
-{
+fn predefined_mock_thunder_responses(
+) -> HashMap<String, (JsonRpcApiResponse, Option<(JsonRpcApiResponse, u64)>)> {
     let mut responses = HashMap::new();
     // id has been defined as None in the canned response table, but it will be replaced with the actual id
     // from the request when sending the response

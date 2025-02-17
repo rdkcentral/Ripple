@@ -640,7 +640,7 @@ mod tests {
                 BrokerCallback, BrokerConnectRequest, BrokerOutput, BrokerRequest, EndpointBroker,
             },
             rules_engine::{Rule, RuleEndpoint, RuleEndpointProtocol, RuleTransform},
-            test::mock_thunder_lite_server::start_server,
+            test::mock_thunder_lite_server::MockThunderLiteServer,
         },
         utils::test_utils::{MockWebsocket, WSMockData},
     };
@@ -688,19 +688,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_thunder_brokerage() {
-        // start the mock thunder server
-        let mut server = start_server().await;
-        server
-            .with_canned_response(
+        // set up and start the mock thunder lite server
+        let mock_thunder_lite_server = MockThunderLiteServer::new()
+            .await
+            .with_mock_thunder_response(
                 "org.rdk.ripple_plugin.getter",
                 Some(serde_json::json!({"number_one_rdk_component":"unknown"})),
                 None,
                 None,
             )
-            .await;
-
-        server
-            .with_canned_response(
+            .await
+            .with_mock_thunder_response(
                 "org.rdk.ripple_plugin.setter",
                 Some(serde_json::json!({"data":"check-event"})),
                 None,
@@ -717,10 +715,11 @@ mod tests {
                 )),
             )
             .await;
+        let handle = mock_thunder_lite_server.start().await;
 
         let endpoint = RuleEndpoint {
             protocol: RuleEndpointProtocol::Thunder,
-            url: server.get_address(),
+            url: handle.get_address(),
             jsonrpc: true,
         };
         let (reconnect_tx, _rec_tr) = mpsc::channel(2);
@@ -750,13 +749,17 @@ mod tests {
         assert!(response.is_ok());
 
         // read the responses in a loop
+        // Keep a counter and assert that 3 responses are received
+        let mut counter = 0;
         loop {
             let v = tokio::time::timeout(Duration::from_secs(2), tr.recv()).await;
             if v.is_err() {
                 break;
             }
+            counter += 1;
             println!("Response: {:?}", v);
         }
+        assert_eq!(counter, 3);
     }
 
     #[ignore]
