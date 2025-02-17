@@ -16,11 +16,8 @@
 //
 
 use ripple_sdk::{
-    api::device::{
-        device_browser::{
-            BrowserDestroyParams, BrowserLaunchParams, BrowserNameRequestParams, BrowserRequest,
-        },
-        device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
+    api::device::device_browser::{
+        BrowserDestroyParams, BrowserLaunchParams, BrowserNameRequestParams, BrowserRequest,
     },
     async_trait::async_trait,
     extn::{
@@ -40,7 +37,13 @@ use ripple_sdk::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{client::thunder_plugin::ThunderPlugin, thunder_state::ThunderState};
+use crate::{
+    client::{
+        device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
+        thunder_plugin::ThunderPlugin,
+    },
+    thunder_state::ThunderState,
+};
 
 #[derive(Debug)]
 pub struct ThunderBrowserRequestProcessor {
