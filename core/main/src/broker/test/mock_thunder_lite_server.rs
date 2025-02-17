@@ -1,6 +1,5 @@
 #![cfg(test)]
 use futures_util::{SinkExt, StreamExt};
-use rand::Rng;
 use ripple_sdk::log::error;
 use ripple_sdk::tokio::{
     self,
@@ -38,18 +37,14 @@ pub struct ServerHandle {
     //canned_responses: Arc<Mutex<HashMap<String, (JsonRpcApiResponse, Option<(JsonRpcApiResponse, u64)>)>>>,
 }
 pub struct MockThunderLiteServer {
-    address: String,
     canned_responses: ThunderResponseList,
     stop_sender: Option<Sender<()>>,
 }
 
 impl MockThunderLiteServer {
     pub async fn new() -> Self {
-        let port = find_available_port().await;
-        let address = format!("127.0.0.1:{}", port);
         let canned_responses = Arc::new(Mutex::new(predefined_mock_thunder_responses()));
         Self {
-            address,
             canned_responses,
             stop_sender: None,
         }
@@ -80,7 +75,8 @@ impl MockThunderLiteServer {
         self
     }
     pub async fn start(mut self) -> ServerHandle {
-        let address = self.address.parse().unwrap();
+        let port = find_available_port().await.unwrap();
+        let address = format!("127.0.0.1:{}", port).parse().unwrap();
         let listener = TcpListener::bind(address).await.unwrap();
         let (stop_sender, mut stop_receiver) = mpsc::channel(1);
         self.stop_sender = Some(stop_sender.clone());
@@ -93,11 +89,14 @@ impl MockThunderLiteServer {
         };
 
         tokio::spawn(async move {
-            println!("WebSocket Server running on {}", address);
+            println!(
+                "ThunderLite Server : WebSocket Server running on {}",
+                address
+            );
             loop {
                 tokio::select! {
                     _ = stop_receiver.recv() => {
-                        println!("Stopping WebSocket server...");
+                        println!("ThunderLite Server : Stopping WebSocket server...");
                         break;
                     }
                     Ok((stream, _)) = listener.accept() => {
@@ -122,21 +121,93 @@ impl ServerHandle {
     }
 }
 
+#[macro_export]
+macro_rules! send_response {
+    ($ws_sender:expr, $response_json:expr) => {
+        let sender_clone = Arc::clone(&$ws_sender);
+        tokio::spawn(async move {
+            let mut sender = sender_clone.lock().await;
+            println!("Sending response: {:?}", $response_json);
+            let _ = sender.send(Message::Text($response_json)).await;
+        });
+    };
+}
+
+#[macro_export]
+macro_rules! send_event_response {
+    ($ws_sender:expr, $event_response:expr, $delay:expr) => {
+        let sender_clone = Arc::clone(&$ws_sender);
+        tokio::spawn(async move {
+            sleep(Duration::from_millis($delay)).await;
+            let event_json = serde_json::to_string(&$event_response).unwrap();
+            let mut sender = sender_clone.lock().await;
+            println!("Sending Event response: {:?}", event_json);
+            let _ = sender.send(Message::Text(event_json)).await;
+        });
+    };
+}
+
+#[macro_export]
+macro_rules! extract_callsign {
+    ($req_json:expr) => {
+        $req_json
+            .params
+            .as_ref()
+            .and_then(|params| params.as_object())
+            .and_then(|obj| obj.get("callsign"))
+            .and_then(|value| value.as_str())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| {
+                error!("Failed to extract callsign from request JSON");
+                String::new()
+            })
+    };
+}
+#[macro_export]
+macro_rules! add_callsign_to_response {
+    ($response:expr, $callsign:expr) => {
+        if let Some(serde_json::Value::Array(array)) = $response.result.as_mut() {
+            if let Some(serde_json::Value::Object(obj)) = array.get_mut(0) {
+                obj.insert(
+                    "callsign".to_string(),
+                    serde_json::Value::String($callsign.to_string()),
+                );
+            }
+        }
+    };
+}
+
+fn create_state_change_event_response(req_json: &JsonRpcApiRequest) -> JsonRpcApiResponse {
+    let method = "thunder.Broker.Controller.events.statechange".to_string();
+    let event_data = StateChangeEventData {
+        callsign: extract_callsign!(req_json),
+        state: "Activated".to_string(),
+    };
+    JsonRpcApiResponse {
+        jsonrpc: "2.0".to_string(),
+        result: Some(serde_json::Value::Null),
+        error: None,
+        id: None,
+        method: Some(method),
+        params: Some(serde_json::to_value(event_data).unwrap()),
+    }
+}
+
 async fn handle_connection(stream: TcpStream, canned_responses: ThunderResponseList) {
     match accept_async(stream).await {
         Ok(websocket) => {
-            println!("WebSocket connection established.");
+            println!("ThunderLite Server : WebSocket connection established.");
             let (ws_sender, mut ws_receiver) = websocket.split();
             let ws_sender = Arc::new(Mutex::new(ws_sender));
 
             while let Some(Ok(message)) = ws_receiver.next().await {
                 if let Message::Text(text) = message {
-                    println!("Received request: {}", text);
+                    println!("ThunderLite Server : Received request: {}", text);
 
                     let req_json: JsonRpcApiRequest = match serde_json::from_str(&text) {
                         Ok(req) => req,
                         Err(_) => {
-                            println!("Invalid JSON request: {}", text);
+                            println!("ThunderLite Server : Invalid JSON request: {}", text);
                             continue;
                         }
                     };
@@ -149,43 +220,12 @@ async fn handle_connection(stream: TcpStream, canned_responses: ThunderResponseL
                             let mut resp = responses.get(&method).cloned();
                             // add call sign to the response
                             if let Some((response, _)) = resp.as_mut() {
-                                if let Some(serde_json::Value::Array(array)) =
-                                    response.result.as_mut()
-                                {
-                                    if let Some(serde_json::Value::Object(obj)) = array.get_mut(0) {
-                                        obj.insert(
-                                            "callsign".to_string(),
-                                            serde_json::Value::String(callsign.to_string()),
-                                        );
-                                    }
-                                }
+                                add_callsign_to_response!(response, callsign);
                             }
                             resp
                         } else if req_json.method == CONTROLLER_ACTIVATE_METHOD {
-                            let method = "thunder.Broker.Controller.events.statechange".to_string();
-                            let event_data = StateChangeEventData {
-                                callsign: req_json
-                                    .params
-                                    .as_ref()
-                                    .and_then(|params| params.as_object())
-                                    .and_then(|obj| obj.get("callsign"))
-                                    .and_then(|value| value.as_str())
-                                    .map(|s| s.to_string())
-                                    .unwrap_or_else(|| {
-                                        error!("Failed to extract callsign from request JSON");
-                                        String::new()
-                                    }),
-                                state: "activated".to_string(),
-                            };
-                            let event_response = JsonRpcApiResponse {
-                                jsonrpc: "2.0".to_string(),
-                                result: Some(serde_json::Value::Null),
-                                error: None,
-                                id: None,
-                                method: Some(method),
-                                params: Some(serde_json::to_value(event_data).unwrap()),
-                            };
-                            // return the tuple with None event response
+                            let event_response = create_state_change_event_response(&req_json);
+                            // return the tuple with event_response as JsonRpcApiResponse and None as any specific event.
                             Some((event_response, None))
                         } else {
                             responses.get(&req_json.method).cloned()
@@ -195,109 +235,116 @@ async fn handle_connection(stream: TcpStream, canned_responses: ThunderResponseL
                     if let Some((mut response, event)) = response_option {
                         response.id = req_json.id;
                         let response_json = serde_json::to_string(&response).unwrap();
-                        let sender_clone = Arc::clone(&ws_sender);
-
-                        // Send response in a seperate task
-                        tokio::spawn(async move {
-                            let mut sender = sender_clone.lock().await;
-                            println!("Sending response: {:?}", response_json);
-                            let _ = sender.send(Message::Text(response_json)).await;
-                        });
+                        send_response!(ws_sender, response_json);
 
                         if let Some((mut event_response, delay)) = event {
                             if event_response.id.is_none() {
                                 event_response.id = response.id;
                             }
-                            let sender_clone = Arc::clone(&ws_sender);
-
-                            // Send event after delay
-                            tokio::spawn(async move {
-                                sleep(Duration::from_millis(delay)).await;
-                                let event_json = serde_json::to_string(&event_response).unwrap();
-                                let mut sender = sender_clone.lock().await;
-                                println!("Sending Event response: {:?}", event_json);
-                                let _ = sender.send(Message::Text(event_json)).await;
-                            });
+                            send_event_response!(ws_sender, event_response, delay);
                         }
                     }
                 }
             }
         }
-        Err(e) => println!("WebSocket handshake failed: {}", e),
+        Err(e) => println!("ThunderLite Server : WebSocket handshake failed: {}", e),
     }
+}
+
+#[macro_export]
+macro_rules! insert_response {
+    ($responses:expr, $method:expr, $result:expr) => {
+        $responses.insert(
+            $method.to_string(),
+            (
+                JsonRpcApiResponse {
+                    jsonrpc: "2.0".to_string(),
+                    result: Some($result),
+                    error: None,
+                    id: None,
+                    method: None,
+                    params: None,
+                },
+                None,
+            ),
+        );
+    };
 }
 
 fn predefined_mock_thunder_responses() -> HashMap<String, JsonRpcResponseWithOptionalEvent> {
     let mut responses = HashMap::new();
+
     // id has been defined as None in the canned response table, but it will be replaced with the actual id
     // from the request when sending the response
-    responses.insert(
-        CONTROLLER_ACTIVATE_METHOD.to_string(),
-        (
-            JsonRpcApiResponse {
-                jsonrpc: "2.0".to_string(),
-                result: Some(serde_json::Value::Null),
-                error: None,
-                id: None,
-                method: None,
-                params: None,
-            },
-            None,
-        ),
+    insert_response!(
+        responses,
+        CONTROLLER_ACTIVATE_METHOD,
+        serde_json::Value::Null
     );
-    responses.insert(
-        CONTROLLER_STATUS_METHOD.to_string(),
-        (
-            JsonRpcApiResponse {
-                jsonrpc: "2.0".to_string(),
-                result: Some(serde_json::json!([{"state": "activated"}])),
-                error: None,
-                id: None,
-                method: None,
-                params: None,
-            },
-            None,
-        ),
+    insert_response!(
+        responses,
+        CONTROLLER_STATUS_METHOD,
+        serde_json::json!([{"state": "activated"}])
     );
-    responses.insert(
-        CONTROLLER_REGISTER_METHOD.to_string(),
-        (
-            JsonRpcApiResponse {
-                jsonrpc: "2.0".to_string(),
-                result: Some(serde_json::json!({ "message": "Registered successfully" })),
-                error: None,
-                id: None,
-                method: None,
-                params: None,
-            },
-            None,
-        ),
+    insert_response!(
+        responses,
+        CONTROLLER_REGISTER_METHOD,
+        serde_json::json!({ "message": "Registered successfully" })
     );
-    responses.insert(
-        CONTROLLER_UNREGISTER_METHOD.to_string(),
-        (
-            JsonRpcApiResponse {
-                jsonrpc: "2.0".to_string(),
-                result: Some(serde_json::json!({ "message": "Unregistered successfully" })),
-                error: None,
-                id: None,
-                method: None,
-                params: None,
-            },
-            None,
-        ),
+    insert_response!(
+        responses,
+        CONTROLLER_UNREGISTER_METHOD,
+        serde_json::json!({ "message": "Unregistered successfully" })
     );
+
     responses
 }
 
-async fn find_available_port() -> u16 {
-    loop {
-        let port: u16 = rand::thread_rng().gen_range(3000..9000);
-        if TcpListener::bind(format!("127.0.0.1:{}", port))
-            .await
-            .is_ok()
-        {
-            return port;
+async fn find_available_port() -> Result<u16, std::io::Error> {
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let local_addr = listener.local_addr()?;
+    Ok(local_addr.port())
+}
+
+#[macro_export]
+macro_rules! setup_and_start_mock_thunder_lite_server {
+    ($($method:expr, $result:expr, $error:expr, $event:expr),* $(,)?) => {{
+        let mock_thunder_lite_server = MockThunderLiteServer::new().await;
+        $(
+            let mock_thunder_lite_server = mock_thunder_lite_server.with_mock_thunder_response_for_alias(
+                $method,
+                $result,
+                $error,
+                $event,
+            ).await;
+        )*
+        let handle = mock_thunder_lite_server.start().await;
+        handle
+    }};
+}
+
+#[macro_export]
+macro_rules! create_and_send_broker_request {
+    ($broker:expr, $method:expr, $alias:expr, $call_id:expr, $params:expr) => {
+        let mut request = create_broker_request($method, $alias);
+        request.rpc.ctx.call_id = $call_id;
+        request.rpc.params_json = $params.to_string();
+        let response = $broker.sender.send(request).await;
+        assert!(response.is_ok());
+    };
+}
+
+#[macro_export]
+macro_rules! read_broker_responses {
+    ($receiver:expr, $counter:expr, $expected_count:expr) => {
+        loop {
+            let v = tokio::time::timeout(Duration::from_secs(2), $receiver.recv()).await;
+            if v.is_err() {
+                break;
+            }
+            $counter += 1;
+            println!("Broker Output Response: {:?}", v);
         }
-    }
+        assert_eq!($counter, $expected_count);
+    };
 }

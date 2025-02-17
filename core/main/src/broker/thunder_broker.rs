@@ -642,12 +642,35 @@ mod tests {
             rules_engine::{Rule, RuleEndpoint, RuleEndpointProtocol, RuleTransform},
             test::mock_thunder_lite_server::MockThunderLiteServer,
         },
+        create_and_send_broker_request, read_broker_responses,
+        setup_and_start_mock_thunder_lite_server,
         utils::test_utils::{MockWebsocket, WSMockData},
     };
     use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
     use serde_json::json;
     use std::time::Duration;
     use tokio::sync::mpsc;
+
+    #[macro_export]
+    macro_rules! setup_thunder_broker {
+        ($server_handle:expr) => {{
+            let endpoint = RuleEndpoint {
+                protocol: RuleEndpointProtocol::Thunder,
+                url: $server_handle.get_address(),
+                jsonrpc: true,
+            };
+            let (reconnect_tx, _rec_tr) = mpsc::channel(2);
+
+            let request = BrokerConnectRequest::new("thunder".to_owned(), endpoint, reconnect_tx);
+            let (tx, tr) = mpsc::channel(10);
+            let callback = BrokerCallback { sender: tx };
+            let mut endpoint_state = EndpointBrokerState::default();
+            let thunder_broker =
+                ThunderBroker::get_broker(None, request, callback, &mut endpoint_state);
+
+            (thunder_broker, tr)
+        }};
+    }
 
     async fn get_thunderbroker(
         tx: mpsc::Sender<bool>,
@@ -688,83 +711,53 @@ mod tests {
 
     #[tokio::test]
     async fn test_thunder_brokerage() {
-        // set up and start the mock thunder lite server
-        let mock_thunder_lite_server = MockThunderLiteServer::new()
-            .await
-            .with_mock_thunder_response_for_alias(
-                "org.rdk.ripple_plugin.getter",
-                Some(serde_json::json!({"number_one_rdk_component":"unknown"})),
-                None,
-                None,
-            )
-            .await
-            .with_mock_thunder_response_for_alias(
-                // mock response for the setter with event respose.
-                "org.rdk.ripple_plugin.setter",
-                Some(serde_json::json!({"data":"check-event"})),
-                None,
-                Some((
-                    JsonRpcApiResponse {
-                        jsonrpc: "2.0".to_string(),
-                        result: Some(serde_json::Value::Null),
-                        error: None,
-                        id: Some(1000),
-                        method: Some("org.rdk.ripple_plugin.onValueChange".to_string()),
-                        params: Some(json!({"new_value":"ripple"})),
-                    },
-                    500, // event resposne generated after 500 milliseconds of setter response
-                )),
-            )
-            .await;
-        let handle = mock_thunder_lite_server.start().await;
+        // Set up and start the mock thunder lite server
+        let server_handle = setup_and_start_mock_thunder_lite_server!(
+            // entry for getter
+            "org.rdk.mock_plugin.getter",
+            Some(serde_json::json!({"value":"unknown"})),
+            None,
+            None,
+            // entry for setter with event response
+            "org.rdk.mock_plugin.setter",
+            Some(serde_json::json!({"value":"check-event"})),
+            None,
+            Some((
+                JsonRpcApiResponse {
+                    jsonrpc: "2.0".to_string(),
+                    result: Some(serde_json::Value::Null),
+                    error: None,
+                    id: Some(1000),
+                    method: Some("org.rdk.mock_plugin.onValueChanged".to_string()),
+                    params: Some(json!({"value":"ripple"})),
+                },
+                500 // event response generated after 500 milliseconds of setter response
+            ))
+        );
 
-        let endpoint = RuleEndpoint {
-            protocol: RuleEndpointProtocol::Thunder,
-            url: handle.get_address(),
-            jsonrpc: true,
-        };
-        let (reconnect_tx, _rec_tr) = mpsc::channel(2);
+        let (thunder_broker, mut tr) = setup_thunder_broker!(server_handle);
 
-        let request = BrokerConnectRequest::new("thunder".to_owned(), endpoint, reconnect_tx);
-        let (tx, mut tr) = mpsc::channel(10);
-        let callback = BrokerCallback { sender: tx };
-        let thunder_broker =
-            ThunderBroker::get_broker(None, request, callback, &mut EndpointBrokerState::default());
-
-        // create the getter Broker request and send to the broker
-        let mut request = create_broker_request(
+        // Create and send the getter Broker request
+        create_and_send_broker_request!(
+            thunder_broker,
             "FireboltModuleName.testGetter",
-            "org.rdk.ripple_plugin.getter",
+            "org.rdk.mock_plugin.getter",
+            2000,
+            json!([{}])
         );
-        request.rpc.ctx.call_id = 2000;
-        request.rpc.params_json = json!([{}]).to_string();
 
-        let response = thunder_broker.sender.send(request).await;
-        assert!(response.is_ok());
-
-        // create the setter Broker request and send to the broker
-        let mut request = create_broker_request(
+        // Create and send the setter Broker request
+        create_and_send_broker_request!(
+            thunder_broker,
             "FireboltModuleName.testSetter",
-            "org.rdk.ripple_plugin.setter",
+            "org.rdk.mock_plugin.setter",
+            3000,
+            json!([{}])
         );
-        request.rpc.ctx.call_id = 3000;
-        request.rpc.params_json = json!([{}]).to_string();
 
-        let response = thunder_broker.sender.send(request).await;
-        assert!(response.is_ok());
-
-        // read the responses in a loop
-        // Keep a counter and assert that 3 responses are received
+        // Read the responses and assert that 3 responses are received
         let mut counter = 0;
-        loop {
-            let v = tokio::time::timeout(Duration::from_secs(2), tr.recv()).await;
-            if v.is_err() {
-                break;
-            }
-            counter += 1;
-            println!("Response: {:?}", v);
-        }
-        assert_eq!(counter, 3);
+        read_broker_responses!(tr, counter, 3);
     }
 
     #[ignore]
