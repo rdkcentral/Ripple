@@ -1,6 +1,7 @@
 #![cfg(test)]
 use futures_util::{SinkExt, StreamExt};
 use rand::Rng;
+use ripple_sdk::log::error;
 use ripple_sdk::tokio::{
     self,
     net::{TcpListener, TcpStream},
@@ -28,6 +29,9 @@ struct StateChangeEventData {
     callsign: String,
     state: String,
 }
+type JsonRpcResponseWithOptionalEvent = (JsonRpcApiResponse, Option<(JsonRpcApiResponse, u64)>);
+type ThunderResponseList = Arc<Mutex<HashMap<String, JsonRpcResponseWithOptionalEvent>>>;
+
 pub struct ServerHandle {
     stop_sender: Sender<()>,
     address: SocketAddr,
@@ -35,8 +39,7 @@ pub struct ServerHandle {
 }
 pub struct MockThunderLiteServer {
     address: String,
-    canned_responses:
-        Arc<Mutex<HashMap<String, (JsonRpcApiResponse, Option<(JsonRpcApiResponse, u64)>)>>>,
+    canned_responses: ThunderResponseList,
     stop_sender: Option<Sender<()>>,
 }
 
@@ -51,7 +54,7 @@ impl MockThunderLiteServer {
             stop_sender: None,
         }
     }
-    pub async fn with_mock_thunder_response(
+    pub async fn with_mock_thunder_response_for_alias(
         self,
         method: &str,
         result: Option<serde_json::Value>,
@@ -119,12 +122,7 @@ impl ServerHandle {
     }
 }
 
-async fn handle_connection(
-    stream: TcpStream,
-    canned_responses: Arc<
-        Mutex<HashMap<String, (JsonRpcApiResponse, Option<(JsonRpcApiResponse, u64)>)>>,
-    >,
-) {
+async fn handle_connection(stream: TcpStream, canned_responses: ThunderResponseList) {
     match accept_async(stream).await {
         Ok(websocket) => {
             println!("WebSocket connection established.");
@@ -151,9 +149,11 @@ async fn handle_connection(
                             let mut resp = responses.get(&method).cloned();
                             // add call sign to the response
                             if let Some((response, _)) = resp.as_mut() {
-                                if let Some(result) = response.result.as_mut() {
-                                    if let serde_json::Value::Array(array) = result {
-                                        array[0].as_object_mut().unwrap().insert(
+                                if let Some(serde_json::Value::Array(array)) =
+                                    response.result.as_mut()
+                                {
+                                    if let Some(serde_json::Value::Object(obj)) = array.get_mut(0) {
+                                        obj.insert(
                                             "callsign".to_string(),
                                             serde_json::Value::String(callsign.to_string()),
                                         );
@@ -167,14 +167,14 @@ async fn handle_connection(
                                 callsign: req_json
                                     .params
                                     .as_ref()
-                                    .unwrap()
-                                    .as_object()
-                                    .unwrap()
-                                    .get("callsign")
-                                    .unwrap()
-                                    .as_str()
-                                    .unwrap()
-                                    .to_string(),
+                                    .and_then(|params| params.as_object())
+                                    .and_then(|obj| obj.get("callsign"))
+                                    .and_then(|value| value.as_str())
+                                    .map(|s| s.to_string())
+                                    .unwrap_or_else(|| {
+                                        error!("Failed to extract callsign from request JSON");
+                                        String::new()
+                                    }),
                                 state: "activated".to_string(),
                             };
                             let event_response = JsonRpcApiResponse {
@@ -227,8 +227,7 @@ async fn handle_connection(
     }
 }
 
-fn predefined_mock_thunder_responses(
-) -> HashMap<String, (JsonRpcApiResponse, Option<(JsonRpcApiResponse, u64)>)> {
+fn predefined_mock_thunder_responses() -> HashMap<String, JsonRpcResponseWithOptionalEvent> {
     let mut responses = HashMap::new();
     // id has been defined as None in the canned response table, but it will be replaced with the actual id
     // from the request when sending the response

@@ -691,14 +691,15 @@ mod tests {
         // set up and start the mock thunder lite server
         let mock_thunder_lite_server = MockThunderLiteServer::new()
             .await
-            .with_mock_thunder_response(
+            .with_mock_thunder_response_for_alias(
                 "org.rdk.ripple_plugin.getter",
                 Some(serde_json::json!({"number_one_rdk_component":"unknown"})),
                 None,
                 None,
             )
             .await
-            .with_mock_thunder_response(
+            .with_mock_thunder_response_for_alias(
+                // mock response for the setter with event respose.
                 "org.rdk.ripple_plugin.setter",
                 Some(serde_json::json!({"data":"check-event"})),
                 None,
@@ -711,7 +712,7 @@ mod tests {
                         method: Some("org.rdk.ripple_plugin.onValueChange".to_string()),
                         params: Some(json!({"new_value":"ripple"})),
                     },
-                    500,
+                    500, // event resposne generated after 500 milliseconds of setter response
                 )),
             )
             .await;
@@ -730,18 +731,22 @@ mod tests {
         let thunder_broker =
             ThunderBroker::get_broker(None, request, callback, &mut EndpointBrokerState::default());
 
-        let mut request =
-            create_broker_request("ThunderBroker.testGetter", "org.rdk.ripple_plugin.getter");
+        // create the getter Broker request and send to the broker
+        let mut request = create_broker_request(
+            "FireboltModuleName.testGetter",
+            "org.rdk.ripple_plugin.getter",
+        );
         request.rpc.ctx.call_id = 2000;
         request.rpc.params_json = json!([{}]).to_string();
 
         let response = thunder_broker.sender.send(request).await;
         assert!(response.is_ok());
 
-        // wait for 100 milliseconds
-        //tokio::time::sleep(Duration::from_millis(100)).await;
-        let mut request =
-            create_broker_request("ThunderBroker.testSetter", "org.rdk.ripple_plugin.setter");
+        // create the setter Broker request and send to the broker
+        let mut request = create_broker_request(
+            "FireboltModuleName.testSetter",
+            "org.rdk.ripple_plugin.setter",
+        );
         request.rpc.ctx.call_id = 3000;
         request.rpc.params_json = json!([{}]).to_string();
 
