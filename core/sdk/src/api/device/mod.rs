@@ -21,7 +21,6 @@ pub mod device_apps;
 pub mod device_browser;
 pub mod device_events;
 pub mod device_info_request;
-pub mod device_operator;
 pub mod device_peristence;
 pub mod device_request;
 pub mod device_user_grants_data;

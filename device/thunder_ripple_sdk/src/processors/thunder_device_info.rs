@@ -22,7 +22,11 @@ use std::{
 };
 
 use crate::{
-    client::{thunder_client::ThunderClient, thunder_plugin::ThunderPlugin},
+    client::{
+        device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
+        thunder_client::ThunderClient,
+        thunder_plugin::ThunderPlugin,
+    },
     ripple_sdk::{
         api::device::{device_info_request::DeviceCapabilities, device_request::AudioProfile},
         chrono::NaiveDateTime,
@@ -37,7 +41,6 @@ use crate::{
         api::{
             device::{
                 device_info_request::{DeviceInfoRequest, DeviceResponse},
-                device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
                 device_request::{
                     HDCPStatus, HdcpProfile, HdrProfile, NetworkResponse, NetworkState,
                     NetworkType, Resolution,
@@ -1658,7 +1661,6 @@ pub mod tests {
     use ripple_sdk::{
         api::device::{
             device_info_request::{DeviceInfoRequest, DeviceResponse, PlatformBuildInfo},
-            device_operator::DeviceResponseMessage,
             device_request::DeviceRequest,
         },
         extn::{
@@ -1674,7 +1676,10 @@ pub mod tests {
     use serde::{Deserialize, Serialize};
 
     use crate::{
-        client::{thunder_client::ThunderCallMessage, thunder_plugin::ThunderPlugin},
+        client::{
+            device_operator::DeviceResponseMessage, thunder_client::ThunderCallMessage,
+            thunder_plugin::ThunderPlugin,
+        },
         processors::thunder_device_info::ThunderDeviceInfoRequestProcessor,
         tests::mock_thunder_controller::{CustomHandler, MockThunderController, ThunderHandlerFn},
     };
