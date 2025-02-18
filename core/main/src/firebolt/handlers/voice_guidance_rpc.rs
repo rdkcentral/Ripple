@@ -75,34 +75,6 @@ impl AppEventDecorator for VGEnabledEventDecorator {
 
 #[rpc(server)]
 pub trait Voiceguidance {
-    // <pca>
-    // #[method(name = "accessibility.voiceGuidanceSettings", aliases = ["accessibility.voiceGuidance"])]
-    // async fn voice_guidance_settings(&self, ctx: CallContext) -> RpcResult<VoiceGuidanceSettings>;
-    // #[method(name = "accessibility.onVoiceGuidanceSettingsChanged")]
-    // async fn on_voice_guidance_settings_changed(
-    //     &self,
-    //     ctx: CallContext,
-    //     request: ListenRequest,
-    // ) -> RpcResult<ListenerResponse>;
-
-    // #[method(name = "voiceguidance.enabled")]
-    // async fn voice_guidance_settings_enabled_rpc(&self, ctx: CallContext) -> RpcResult<bool>;
-    // #[method(name = "voiceguidance.setEnabled")]
-    // async fn voice_guidance_settings_enabled_set(
-    //     &self,
-    //     ctx: CallContext,
-    //     set_request: SetBoolProperty,
-    // ) -> RpcResult<()>;
-    // #[method(name = "voiceguidance.onEnabledChanged")]
-    // async fn voice_guidance_settings_enabled_changed(
-    //     &self,
-    //     ctx: CallContext,
-    //     request: ListenRequest,
-    // ) -> RpcResult<ListenerResponse>;
-
-    // #[method(name = "voiceguidance.speed")]
-    // async fn voice_guidance_settings_speed_rpc(&self, ctx: CallContext) -> RpcResult<f32>;
-    // </pca>
     #[method(name = "voiceguidance.setSpeed")]
     async fn voice_guidance_settings_speed_set(
         &self,
@@ -143,29 +115,6 @@ pub async fn voice_guidance_settings_enabled(state: &PlatformState) -> RpcResult
     }
 }
 
-// <pca>
-// pub async fn voice_guidance_settings_speed(state: &PlatformState) -> RpcResult<f32> {
-//     let resp = state
-//         .get_client()
-//         .send_extn_request(DeviceInfoRequest::VoiceGuidanceSpeed)
-//         .await;
-//     match resp {
-//         Ok(value) => {
-//             if let Some(ExtnResponse::Float(v)) = value.payload.extract() {
-//                 Ok(v)
-//             } else {
-//                 Err(jsonrpsee::core::Error::Custom(String::from(
-//                     "Voice guidance enabled error response TBD1",
-//                 )))
-//             }
-//         }
-//         Err(_) => Err(jsonrpsee::core::Error::Custom(String::from(
-//             "Voice guidance enabled error response TBD2",
-//         ))),
-//     }
-// }
-// </pca>
-
 pub async fn voice_guidance_settings_enabled_changed(
     platform_state: &PlatformState,
     ctx: &CallContext,
@@ -205,80 +154,6 @@ pub async fn voice_guidance_settings_enabled_changed(
 
 #[async_trait]
 impl VoiceguidanceServer for VoiceguidanceImpl {
-    // <pca>
-    // async fn voice_guidance_settings(&self, _ctx: CallContext) -> RpcResult<VoiceGuidanceSettings> {
-    //     Ok(VoiceGuidanceSettings {
-    //         enabled: voice_guidance_settings_enabled(&self.state).await?,
-    //         speed: voice_guidance_settings_speed(&self.state).await?,
-    //     })
-    // }
-
-    // async fn on_voice_guidance_settings_changed(
-    //     &self,
-    //     ctx: CallContext,
-    //     request: ListenRequest,
-    // ) -> RpcResult<ListenerResponse> {
-    //     if self
-    //         .state
-    //         .get_client()
-    //         .send_extn_request(DeviceEventRequest {
-    //             event: DeviceEvent::VoiceGuidanceEnabledChanged,
-    //             subscribe: true,
-    //             callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id.to_owned()),
-    //         })
-    //         .await
-    //         .is_err()
-    //     {
-    //         error!("on_voice_guidance_settings_changed: Error while registration");
-    //     }
-
-    //     rpc_add_event_listener(&self.state, ctx, request, VOICE_GUIDANCE_SETTINGS_CHANGED).await
-    // }
-
-    // async fn voice_guidance_settings_enabled_rpc(&self, _ctx: CallContext) -> RpcResult<bool> {
-    //     voice_guidance_settings_enabled(&self.state).await
-    // }
-
-    // async fn voice_guidance_settings_enabled_set(
-    //     &self,
-    //     _ctx: CallContext,
-    //     set_request: SetBoolProperty,
-    // ) -> RpcResult<()> {
-    //     let resp = self
-    //         .state
-    //         .get_client()
-    //         .send_extn_request(DeviceInfoRequest::SetVoiceGuidanceEnabled(
-    //             set_request.value,
-    //         ))
-    //         .await;
-    //     if resp.is_ok() {
-    //         Ok(())
-    //     } else {
-    //         Err(jsonrpsee::core::Error::Custom(String::from(
-    //             "Voice guidance enabled error response TBD2",
-    //         )))
-    //     }
-    // }
-
-    // async fn voice_guidance_settings_enabled_changed(
-    //     &self,
-    //     ctx: CallContext,
-    //     request: ListenRequest,
-    // ) -> RpcResult<ListenerResponse> {
-    //     voice_guidance_settings_enabled_changed(
-    //         &self.state,
-    //         &ctx,
-    //         &request,
-    //         Some(Box::new(VGEnabledEventDecorator {})),
-    //     )
-    //     .await
-    // }
-
-    // async fn voice_guidance_settings_speed_rpc(&self, _ctx: CallContext) -> RpcResult<f32> {
-    //     voice_guidance_settings_speed(&self.state).await
-    // }
-    // </pca>
-
     async fn voice_guidance_settings_speed_set(
         &self,
         _ctx: CallContext,
