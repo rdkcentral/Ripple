@@ -75,9 +75,8 @@ impl MockThunderLiteServer {
         self
     }
     pub async fn start(mut self) -> ServerHandle {
-        let port = find_available_port().await.unwrap();
-        let address = format!("127.0.0.1:{}", port).parse().unwrap();
-        let listener = TcpListener::bind(address).await.unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
         let (stop_sender, mut stop_receiver) = mpsc::channel(1);
         self.stop_sender = Some(stop_sender.clone());
 
@@ -90,13 +89,13 @@ impl MockThunderLiteServer {
 
         tokio::spawn(async move {
             println!(
-                "ThunderLite Server : WebSocket Server running on {}",
+                "[ThunderLite Server] WebSocket Server running on {}",
                 address
             );
             loop {
                 tokio::select! {
                     _ = stop_receiver.recv() => {
-                        println!("ThunderLite Server : Stopping WebSocket server...");
+                        println!("[ThunderLite Server] Stopping WebSocket server...");
                         break;
                     }
                     Ok((stream, _)) = listener.accept() => {
@@ -196,18 +195,18 @@ fn create_state_change_event_response(req_json: &JsonRpcApiRequest) -> JsonRpcAp
 async fn handle_connection(stream: TcpStream, canned_responses: ThunderResponseList) {
     match accept_async(stream).await {
         Ok(websocket) => {
-            println!("ThunderLite Server : WebSocket connection established.");
+            println!("[ThunderLite Server] WebSocket connection established.");
             let (ws_sender, mut ws_receiver) = websocket.split();
             let ws_sender = Arc::new(Mutex::new(ws_sender));
 
             while let Some(Ok(message)) = ws_receiver.next().await {
                 if let Message::Text(text) = message {
-                    println!("ThunderLite Server : Received request: {}", text);
+                    println!("[ThunderLite Server] Received request: {}", text);
 
                     let req_json: JsonRpcApiRequest = match serde_json::from_str(&text) {
                         Ok(req) => req,
                         Err(_) => {
-                            println!("ThunderLite Server : Invalid JSON request: {}", text);
+                            println!("[ThunderLite Server] Invalid JSON request: {}", text);
                             continue;
                         }
                     };
@@ -247,7 +246,7 @@ async fn handle_connection(stream: TcpStream, canned_responses: ThunderResponseL
                 }
             }
         }
-        Err(e) => println!("ThunderLite Server : WebSocket handshake failed: {}", e),
+        Err(e) => println!("[ThunderLite Server] WebSocket handshake failed: {}", e),
     }
 }
 
@@ -300,12 +299,6 @@ fn predefined_mock_thunder_responses() -> HashMap<String, JsonRpcResponseWithOpt
     responses
 }
 
-async fn find_available_port() -> Result<u16, std::io::Error> {
-    let listener = TcpListener::bind("127.0.0.1:0").await?;
-    let local_addr = listener.local_addr()?;
-    Ok(local_addr.port())
-}
-
 #[macro_export]
 macro_rules! setup_and_start_mock_thunder_lite_server {
     ($($method:expr, $result:expr, $error:expr, $event:expr),* $(,)?) => {{
@@ -336,15 +329,16 @@ macro_rules! create_and_send_broker_request {
 
 #[macro_export]
 macro_rules! read_broker_responses {
-    ($receiver:expr, $counter:expr, $expected_count:expr) => {
+    ($receiver:expr, $expected_count:expr) => {
+        let mut counter = 0;
         loop {
             let v = tokio::time::timeout(Duration::from_secs(2), $receiver.recv()).await;
             if v.is_err() {
                 break;
             }
-            $counter += 1;
-            println!("Broker Output Response: {:?}", v);
+            counter += 1;
+            println!("[Broker Output] {:?}", v);
         }
-        assert_eq!($counter, $expected_count);
+        assert_eq!(counter, $expected_count);
     };
 }

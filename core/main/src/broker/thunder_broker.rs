@@ -659,16 +659,16 @@ mod tests {
                 url: $server_handle.get_address(),
                 jsonrpc: true,
             };
-            let (reconnect_tx, _rec_tr) = mpsc::channel(2);
+            let (reconnect_tx, _rec_rx) = mpsc::channel(2);
 
             let request = BrokerConnectRequest::new("thunder".to_owned(), endpoint, reconnect_tx);
-            let (tx, tr) = mpsc::channel(10);
+            let (tx, rx) = mpsc::channel(16);
             let callback = BrokerCallback { sender: tx };
             let mut endpoint_state = EndpointBrokerState::default();
             let thunder_broker =
                 ThunderBroker::get_broker(None, request, callback, &mut endpoint_state);
 
-            (thunder_broker, tr)
+            (thunder_broker, rx)
         }};
     }
 
@@ -735,9 +735,10 @@ mod tests {
             ))
         );
 
-        let (thunder_broker, mut tr) = setup_thunder_broker!(server_handle);
+        let (thunder_broker, mut rx) = setup_thunder_broker!(server_handle);
 
         // Create and send the getter Broker request
+        println!("[Tester] Calling FireboltModuleName.testGetter");
         create_and_send_broker_request!(
             thunder_broker,
             "FireboltModuleName.testGetter",
@@ -747,6 +748,7 @@ mod tests {
         );
 
         // Create and send the setter Broker request
+        println!("[Tester] Calling FireboltModuleName.testSetter");
         create_and_send_broker_request!(
             thunder_broker,
             "FireboltModuleName.testSetter",
@@ -756,8 +758,7 @@ mod tests {
         );
 
         // Read the responses and assert that 3 responses are received
-        let mut counter = 0;
-        read_broker_responses!(tr, counter, 3);
+        read_broker_responses!(rx, 3);
     }
 
     #[ignore]
