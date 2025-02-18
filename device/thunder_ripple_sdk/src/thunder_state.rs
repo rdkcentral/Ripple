@@ -152,6 +152,7 @@ impl ThunderState {
                 while let Some(request) = r.recv().await {
                     if let Some(id) = request.sub_id {
 <<<<<<< HEAD
+<<<<<<< HEAD
                         //check the back_off value
                         if state_c.event_processor.get_backoff(&id).is_some() {
                             warn!("back_off is not None. can't process event of ID:{}", id);
@@ -165,16 +166,18 @@ impl ThunderState {
                             );
 =======
                         let value = request.message.clone();
+=======
+>>>>>>> 53e008e8 (chore: cleaned up unnecessary unwrap())
                         if let Some(handler) = state_c.event_processor.get_handler(&id) {
-                            let back_off = state_c.event_processor.get_backoff(&id);
-                            let thunder_backoff = back_off.unwrap();
-                            if thunder_backoff.current_back_off <= 0 {
-                                handler.process(
-                                    state_c.clone(),
-                                    &id,
-                                    value,
-                                    handler.callback_type.clone(),
-                                )
+                            if let Some(back_off) = state_c.event_processor.get_backoff(&id) {
+                                if back_off.current_back_off <= 0 {
+                                    handler.process(
+                                        state_c.clone(),
+                                        &id,
+                                        request.message.clone(),
+                                        handler.callback_type.clone(),
+                                    )
+                                }
                             }
 <<<<<<< HEAD
                             // handler.process(
