@@ -16,13 +16,7 @@
 //
 
 use crate::ripple_sdk::{
-    api::{
-        apps::Dimensions,
-        device::{
-            device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
-            device_window_manager::WindowManagerRequest,
-        },
-    },
+    api::{apps::Dimensions, device::device_window_manager::WindowManagerRequest},
     async_trait::async_trait,
     extn::{
         client::{
@@ -39,7 +33,13 @@ use crate::ripple_sdk::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{client::thunder_plugin::ThunderPlugin, thunder_state::ThunderState};
+use crate::{
+    client::{
+        device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
+        thunder_plugin::ThunderPlugin,
+    },
+    thunder_state::ThunderState,
+};
 
 #[derive(Debug)]
 pub struct ThunderWindowManagerRequestProcessor {

@@ -201,6 +201,7 @@ mod tests {
                 method: "POST".to_string(),
                 cid: Some("test_cid".to_string()),
                 gateway_secure: true,
+                context: Vec::new(),
             },
             message: "test_message".to_string(),
         };
