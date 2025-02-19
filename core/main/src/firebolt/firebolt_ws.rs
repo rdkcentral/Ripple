@@ -15,7 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::net::SocketAddr;
+use std::{
+    net::SocketAddr,
+    sync::{Arc, RwLock},
+};
 
 use super::firebolt_gateway::FireboltGatewayCommand;
 use crate::{
@@ -30,7 +33,9 @@ use futures::StreamExt;
 use jsonrpsee::types::{error::INVALID_REQUEST_CODE, ErrorObject, ErrorResponse, Id};
 use ripple_sdk::{
     api::{
-        gateway::rpc_gateway_api::{ApiMessage, ApiProtocol, ClientContext, RpcRequest},
+        gateway::rpc_gateway_api::{
+            ApiMessage, ApiProtocol, ClientContext, JsonRpcApiResponse, RpcRequest, RPC_V2,
+        },
         observability::log_signal::LogSignal,
     },
     log::{error, info, trace},
@@ -54,6 +59,7 @@ pub struct FireboltWs {}
 pub struct ClientIdentity {
     session_id: String,
     app_id: String,
+    rpc_v2: bool,
 }
 
 struct ConnectionCallbackConfig {
@@ -140,9 +146,18 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
                 }
             }
         };
+
+        // If RPCv2 is set as a query param then Ripple will use logic more complicit with the RPCv2 spec.
+        // Non-complicit behavior is still available for compatibility with older firebolt clients.
+        let rpc_v2 = match get_query(request, "RPCv2", false)? {
+            Some(e) => e == "true",
+            None => false,
+        };
+
         let cid = ClientIdentity {
             session_id: session_id.clone(),
             app_id,
+            rpc_v2,
         };
         oneshot_send_and_log(cfg.next, cid, "ResolveClientIdentity");
         /*
@@ -255,6 +270,12 @@ impl FireboltWs {
             error!("Couldnt pre cache permissions");
         }
 
+        let mut context = vec![];
+        if identity.rpc_v2 {
+            context.push(RPC_V2.to_string());
+        }
+
+        let rpc_context: Arc<RwLock<Vec<String>>> = Arc::new(RwLock::new(context));
         let (mut sender, mut receiver) = ws_stream.split();
         let mut platform_state = state.clone();
         let context_clone = ctx.clone();
@@ -321,6 +342,7 @@ impl FireboltWs {
                     if msg.is_text() && !msg.is_empty() {
                         let req_text = String::from(msg.to_text().unwrap());
                         let req_id = Uuid::new_v4().to_string();
+                        let context = { rpc_context.read().unwrap().clone() };
                         if let Ok(request) = RpcRequest::parse(
                             req_text.clone(),
                             app_id_c.clone(),
@@ -328,9 +350,15 @@ impl FireboltWs {
                             req_id.clone(),
                             Some(connection_id.clone()),
                             gateway_secure,
+                            context,
                         ) {
                             info!("Received Firebolt request {}", request.params_json);
                             let msg = FireboltGatewayCommand::HandleRpc { request };
+                            if let Err(e) = client.clone().send_gateway_command(msg) {
+                                error!("failed to send request {:?}", e);
+                            }
+                        } else if let Some(response) = JsonRpcApiResponse::get_response(&req_text) {
+                            let msg = FireboltGatewayCommand::HandleResponse { response };
                             if let Err(e) = client.clone().send_gateway_command(msg) {
                                 error!("failed to send request {:?}", e);
                             }

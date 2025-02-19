@@ -46,7 +46,7 @@ use ripple_sdk::{
     },
     log::{error, info},
     tokio::{sync::oneshot, time::timeout},
-    utils::rpc_utils::rpc_error_with_code_result,
+    utils::{serde_utils::SerdeClearString, rpc_utils::rpc_error_with_code_result},
 };
 use serde_json::{Map, Value};
 
@@ -201,7 +201,10 @@ impl ProviderRegistrar {
         params: Params<'static>,
         context: Arc<RpcModuleContext>,
     ) -> Result<ListenerResponse, Error> {
-        info!("callback_app_event_listener: method={}", context.method);
+        info!(
+            "callback_app_event_listener: method={} params={:?}",
+            context.method, params
+        );
 
         let mut params_sequence = params.sequence();
 
@@ -301,6 +304,8 @@ impl ProviderRegistrar {
                 }
             };
 
+            let is_app_event = event_data.get("appId").cloned();
+
             let result_value = match event_data {
                 Value::Object(ref event_data_map) => {
                     if let Some(event_schema_map) = context
@@ -342,12 +347,23 @@ impl ProviderRegistrar {
                 _ => event_data.clone(),
             };
 
-            AppEvents::emit(
-                &context.platform_state,
-                &FireboltOpenRpcMethod::name_with_lowercase_module(event),
-                &result_value,
-            )
-            .await;
+            if let Some(app_event) = is_app_event {
+                let app_id = SerdeClearString::as_clear_string(&app_event);
+                AppEvents::emit_to_app(
+                    &context.platform_state,
+                    app_id,
+                    &FireboltOpenRpcMethod::name_with_lowercase_module(event),
+                    &result_value,
+                )
+                .await;
+            } else {
+                AppEvents::emit(
+                    &context.platform_state,
+                    &FireboltOpenRpcMethod::name_with_lowercase_module(event),
+                    &result_value,
+                )
+                .await;
+            }
         } else {
             return Err(Error::Custom(String::from(
                 "Unexpected schema configuration",

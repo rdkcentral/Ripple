@@ -218,7 +218,7 @@ mod tests {
         let log_signal = LogSignal::new("tester".to_string(), "message".to_string(), call_context)
             .with_diagnostic_context(diagnostic_context);
         let json = serde_json::to_string(&log_signal).unwrap();
-        assert_eq!(json, "{\"name\":\"tester\",\"message\":\"message\",\"diagnostic_context\":{\"key\":\"value\"},\"context\":{\"session_id\":\"session_id\",\"request_id\":\"1\",\"app_id\":\"some_app_id\",\"call_id\":1,\"protocol\":\"JsonRpc\",\"method\":\"module.method\",\"cid\":\"cid\",\"gateway_secure\":true}}");
+        assert_eq!(json, "{\"name\":\"tester\",\"message\":\"message\",\"diagnostic_context\":{\"key\":\"value\"},\"context\":{\"session_id\":\"session_id\",\"request_id\":\"1\",\"app_id\":\"some_app_id\",\"call_id\":1,\"protocol\":\"JsonRpc\",\"method\":\"module.method\",\"cid\":\"cid\",\"gateway_secure\":true,\"context\":[]}}");
     }
     #[test]
     fn test_log_signal_text_output() {
@@ -236,7 +236,7 @@ mod tests {
         let log_signal = LogSignal::new("tester".to_string(), "message".to_string(), call_context)
             .with_diagnostic_context_item("key", "value");
         let json = serde_json::to_string(&log_signal).unwrap();
-        assert_eq!(json, "{\"name\":\"tester\",\"message\":\"message\",\"diagnostic_context\":{\"key\":\"value\"},\"context\":{\"session_id\":\"session_id\",\"request_id\":\"1\",\"app_id\":\"some_app_id\",\"call_id\":1,\"protocol\":\"JsonRpc\",\"method\":\"module.method\",\"cid\":\"cid\",\"gateway_secure\":true}}");
+        assert_eq!(json, "{\"name\":\"tester\",\"message\":\"message\",\"diagnostic_context\":{\"key\":\"value\"},\"context\":{\"session_id\":\"session_id\",\"request_id\":\"1\",\"app_id\":\"some_app_id\",\"call_id\":1,\"protocol\":\"JsonRpc\",\"method\":\"module.method\",\"cid\":\"cid\",\"gateway_secure\":true,\"context\":[]}}");
     }
 
     #[test]
@@ -260,6 +260,6 @@ mod tests {
         let call_context = CallContext::mock();
         let log_signal = LogSignal::new("tester".to_string(), "message".to_string(), call_context);
         let json = serde_json::to_string(&log_signal).unwrap();
-        assert_eq!(json, "{\"name\":\"tester\",\"message\":\"message\",\"diagnostic_context\":{},\"context\":{\"session_id\":\"session_id\",\"request_id\":\"1\",\"app_id\":\"some_app_id\",\"call_id\":1,\"protocol\":\"JsonRpc\",\"method\":\"module.method\",\"cid\":\"cid\",\"gateway_secure\":true}}");
+        assert_eq!(json, "{\"name\":\"tester\",\"message\":\"message\",\"diagnostic_context\":{},\"context\":{\"session_id\":\"session_id\",\"request_id\":\"1\",\"app_id\":\"some_app_id\",\"call_id\":1,\"protocol\":\"JsonRpc\",\"method\":\"module.method\",\"cid\":\"cid\",\"gateway_secure\":true,\"context\":[]}}");
     }
 }

@@ -22,7 +22,8 @@
         "localization.onCountryCodeChanged": {
             "alias": "org.rdk.System.onTerritoryChanged",
             "transform": {
-                "event": "if .newTerritory==\"ITA\" then \"IT\" else  \"UK\" end"
+                "event": "if .newTerritory==\"ITA\" then \"IT\" else  \"UK\" end",
+                "rpcv2_event": "{ \"countryCode\": $event }"
             }
         },
         "securestorage.get": {

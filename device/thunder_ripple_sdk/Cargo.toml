@@ -35,18 +35,20 @@ contract_tests = [
     "tree_magic_mini",
     "rstest"
 ]
-local_dev=[]
 
 [dependencies]
-#base64.workspace = true
+tokio-tungstenite = { workspace = true, features = ["native-tls"] }
 base64 = { workspace = true, default-features = false, features=["alloc"] }
 ripple_tdk = { path = "../../core/tdk" }
 ripple_sdk.workspace = true
-
+regex.workspace = true
 jsonrpsee = { workspace = true, features = ["macros", "ws-client"] }
 serde.workspace = true
+serde_json.workspace = true
 url.workspace = true
-regex.workspace = true
+futures-channel.workspace = true
+futures.workspace = true
+
 strum = { version = "0.24", default-features = false }
 strum_macros = "0.24"
 pact_consumer = { version = "1.0.0", optional = true }
@@ -60,8 +62,6 @@ tree_magic_mini = { version = "=3.0.3", optional = true }
 rstest = { version = "0.18.2", optional = true, default-features = false }
 
 [dev-dependencies]
-tokio-tungstenite = { workspace = true, features = ["native-tls"] }
+
 ripple_sdk = { path = "../../core/sdk", features = ["tdk"] }
-regex =  {workspace = true, features = ["std","unicode-perl"], default-features = false}
-
-
+rstest = "0.18.2"
