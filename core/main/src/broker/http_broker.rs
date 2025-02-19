@@ -29,7 +29,7 @@ use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerRequest,
     BrokerSender, EndpointBroker, EndpointBrokerState,
 };
-use crate::state::platform_state::PlatformState;
+use crate::service::extn::ripple_client::RippleClient;
 use tokio_tungstenite::tungstenite::http::uri::InvalidUri;
 
 pub struct HttpBroker {
@@ -115,7 +115,7 @@ async fn body_to_bytes(body: Body) -> Vec<u8> {
 
 impl EndpointBroker for HttpBroker {
     fn get_broker(
-        _ps: Option<PlatformState>,
+        _ripple_client: Option<RippleClient>,
         request: BrokerConnectRequest,
         callback: BrokerCallback,
         _broker_state: &mut EndpointBrokerState,
