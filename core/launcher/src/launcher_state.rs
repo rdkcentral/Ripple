@@ -31,13 +31,13 @@ use crate::manager::{
     view_manager::{ViewRequest, ViewState},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct LauncherBootstrapState {
     pub channels: LauncherChannels,
     pub state: LauncherState,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct LauncherChannels {
     pub view_manager_channel: TransientChannel<ViewRequest>,
 }
