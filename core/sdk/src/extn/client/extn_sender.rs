@@ -494,7 +494,7 @@ pub mod tests {
 
         let result = sender.send_request(
             "some_id".to_string(),
-            DeviceInfoRequest::Make.clone(),
+            DeviceInfoRequest::Model.clone(),
             Some(sender.tx.clone()),
             None,
         );
@@ -509,7 +509,7 @@ pub mod tests {
                 );
 
                 // Generate the ExtnPayload using get_extn_payload
-                let extn_payload = DeviceInfoRequest::Make.get_extn_payload();
+                let extn_payload = DeviceInfoRequest::Model.get_extn_payload();
 
                 // Convert the ExtnPayload to a JSON string
                 let exp_payload_str = serde_json::to_string(&extn_payload).unwrap();
@@ -538,7 +538,7 @@ pub mod tests {
             Some(HashMap::new()),
         );
 
-        let result = sender.send_event(DeviceInfoRequest::Make, Some(sender.tx.clone()));
+        let result = sender.send_event(DeviceInfoRequest::Model, Some(sender.tx.clone()));
 
         assert!(result.is_ok());
         if let Ok(r) = rx.recv().await {
@@ -549,7 +549,7 @@ pub mod tests {
             );
 
             // Generate the ExtnPayload using get_extn_payload
-            let extn_payload = DeviceInfoRequest::Make.get_extn_payload();
+            let extn_payload = DeviceInfoRequest::Model.get_extn_payload();
 
             // Convert the ExtnPayload to a JSON string
             let exp_payload_str = serde_json::to_string(&extn_payload).unwrap();
@@ -576,7 +576,7 @@ pub mod tests {
     ) {
         let (sender, _mock_rx) =
             ExtnSender::mock_with_params(extn_id, permitted, fulfills, Some(HashMap::new()));
-        let actual_response = sender.forward_event(id, DeviceInfoRequest::Make);
+        let actual_response = sender.forward_event(id, DeviceInfoRequest::Model);
         assert_eq!(actual_response, exp_resp);
     }
 
@@ -595,7 +595,7 @@ pub mod tests {
         let msg = CExtnMessage {
             requestor: sender.id.to_string(),
             callback: None,
-            payload: DeviceInfoRequest::Make.get_extn_payload().into(),
+            payload: DeviceInfoRequest::Model.get_extn_payload().into(),
             id: "some_id".to_string(),
             target: RippleContract::DeviceInfo.as_clear_string(),
             target_id: RippleContract::DeviceInfo.as_clear_string(),
@@ -635,7 +635,7 @@ pub mod tests {
                     assert_eq!(r.target, RippleContract::DeviceInfo.as_clear_string());
 
                     // Generate the ExtnPayload using get_extn_payload
-                    let extn_payload = DeviceInfoRequest::Make.get_extn_payload();
+                    let extn_payload = DeviceInfoRequest::Model.get_extn_payload();
 
                     // Convert the ExtnPayload to a JSON string
                     let exp_payload_str = serde_json::to_string(&extn_payload).unwrap();
