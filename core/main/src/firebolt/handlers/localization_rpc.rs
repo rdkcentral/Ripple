@@ -31,10 +31,7 @@ use ripple_sdk::{
             device_peristence::SetStringProperty,
             device_request::TimezoneProperty,
         },
-        firebolt::{
-            fb_general::{ListenRequest, ListenerResponse},
-            fb_localization::SetPreferredAudioLanguage,
-        },
+        firebolt::fb_general::{ListenRequest, ListenerResponse},
         gateway::rpc_gateway_api::CallContext,
         storage_property::{StorageProperty, KEY_POSTAL_CODE},
     },
