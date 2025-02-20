@@ -141,7 +141,7 @@ pub struct FailedAppInstall {
     pub last_good_version: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct AppInstall {
     pub app_id: String,
     pub version: String,
@@ -537,7 +537,7 @@ pub mod tests {
         Async,
     }
 
-    #[derive(Clone, Serialize, Deserialize)]
+    #[derive(Serialize, Deserialize)]
     enum PMControl {
         SetInstalledVersion(String),
     }
