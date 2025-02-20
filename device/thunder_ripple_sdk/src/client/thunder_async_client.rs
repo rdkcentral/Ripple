@@ -20,8 +20,11 @@ use super::{
     thunder_async_client_plugins_status_mgr::{AsyncCallback, AsyncSender, StatusManager},
 };
 use crate::utils::get_next_id;
-use futures::stream::{SplitSink, SplitStream};
-use futures_util::{SinkExt, StreamExt};
+use futures::{
+    stream::{SplitSink, SplitStream},
+    SinkExt, StreamExt,
+};
+//use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::{JsonRpcApiRequest, JsonRpcApiResponse},
     log::{debug, error, info},

@@ -197,13 +197,13 @@ pub enum TokenType {
     Root,
 }
 
-impl ToString for TokenType {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for TokenType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TokenType::Platform => String::from("platform"),
-            TokenType::Device => String::from("device"),
-            TokenType::Distributor => String::from("distributor"),
-            TokenType::Root => String::from("root"),
+            TokenType::Platform => write!(f, "platform"),
+            TokenType::Device => write!(f, "device"),
+            TokenType::Distributor => write!(f, "distributor"),
+            TokenType::Root => write!(f, "root"),
         }
     }
 }
@@ -347,5 +347,97 @@ mod tests {
 
         let contract_type: RippleContract = RippleContract::Session(SessionAdjective::Account);
         test_extn_payload_provider(account_token, contract_type);
+    }
+    #[test]
+    fn test_account_session_token_request_serialization() {
+        let request = AccountSessionTokenRequest {
+            token: String::from("test_token"),
+            expires_in: 3600,
+        };
+
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized: AccountSessionTokenRequest = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(request, deserialized);
+    }
+
+    #[test]
+    fn test_provision_request_serialization() {
+        let request = ProvisionRequest {
+            account_id: String::from("account_id"),
+            device_id: String::from("device_id"),
+            distributor_id: Some(String::from("distributor_id")),
+        };
+
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized: ProvisionRequest = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(request, deserialized);
+    }
+
+    #[test]
+    fn test_account_session_request_serialization() {
+        let request = AccountSessionRequest::SetAccessToken(AccountSessionTokenRequest {
+            token: String::from("test_token"),
+            expires_in: 3600,
+        });
+
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized: AccountSessionRequest = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(request, deserialized);
+    }
+
+    #[test]
+    fn test_account_session_response_serialization() {
+        let response = AccountSessionResponse::AccountSession(AccountSession {
+            id: String::from("id"),
+            token: String::from("token"),
+            account_id: String::from("account_id"),
+            device_id: String::from("device_id"),
+        });
+
+        let serialized = serde_json::to_string(&response).unwrap();
+        let deserialized: AccountSessionResponse = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(response, deserialized);
+    }
+
+    #[test]
+    fn test_token_type_display() {
+        assert_eq!(TokenType::Platform.to_string(), "platform");
+        assert_eq!(TokenType::Device.to_string(), "device");
+        assert_eq!(TokenType::Distributor.to_string(), "distributor");
+        assert_eq!(TokenType::Root.to_string(), "root");
+    }
+
+    #[test]
+    fn test_token_context_serialization() {
+        let context = TokenContext {
+            distributor_id: String::from("distributor_id"),
+            app_id: String::from("app_id"),
+        };
+
+        let serialized = serde_json::to_string(&context).unwrap();
+        let deserialized: TokenContext = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(context, deserialized);
+    }
+
+    #[test]
+    fn test_session_token_request_serialization() {
+        let request = SessionTokenRequest {
+            token_type: TokenType::Device,
+            options: vec![String::from("option1"), String::from("option2")],
+            context: Some(TokenContext {
+                distributor_id: String::from("distributor_id"),
+                app_id: String::from("app_id"),
+            }),
+        };
+
+        let serialized = serde_json::to_string(&request).unwrap();
+        let deserialized: SessionTokenRequest = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(request, deserialized);
     }
 }

@@ -37,10 +37,10 @@ pub enum SettingKey {
     LegacyMiniGuide,
 }
 
-impl ToString for SettingKey {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for SettingKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = serde_json::to_string(self).unwrap();
-        s[1..s.len() - 1].into()
+        write!(f, "{}", &s[1..s.len() - 1])
     }
 }
 

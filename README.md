@@ -76,6 +76,19 @@ Only follow the below steps, if all the above instructions to run the app locall
 4. Upon clicking on the main method in the file. There would be an option to `Run` or `Debug`. Select Debug.
 5. VSCode will pause at the breakpoint and allows access for Debug Playback and ability to inspect the values.
 
+
+## Unit test coverage/gating
+Unit test coverage (determined by `cargo-llvm-cov`) is run for every push to the head repo. It is reccomended that coverage is run before every push to the head.
+To get current unit test coverate on a local branch:
+`./coverage.sh`
+
+
+## Clippy (linting)
+`clippy` (the opinionated de-facto rust linter) is used as a linter in CI. It is reccomended that clippy is run before every push to the head repo.
+To run clippy:
+`./run-clippy.sh`
+
+
 ### Using Clippy in VSCode
 
 By default the VSCode rust-analyzer extension runs cargo check on the Rust files that you have open once they have been saved. This is good, but it can be improved by adjusting the command to use `clippy` instead. This gives you the benefit of seeing both `cargo check` and `cargo clippy` results and code hints in the code editor window directly.

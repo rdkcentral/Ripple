@@ -230,4 +230,36 @@ mod tests {
         let text = format!("{}", log_signal);
         assert_eq!(text, "message=message, diagnostic_context=key:value , call_context=session_id=session_id, request_id=1, app_id=some_app_id, call_id=1, protocol=JsonRpc, method=module.method, cid=cid");
     }
+    #[test]
+    fn test_log_signal_with_diagnostic_context_item() {
+        let call_context = CallContext::mock();
+        let log_signal = LogSignal::new("tester".to_string(), "message".to_string(), call_context)
+            .with_diagnostic_context_item("key", "value");
+        let json = serde_json::to_string(&log_signal).unwrap();
+        assert_eq!(json, "{\"name\":\"tester\",\"message\":\"message\",\"diagnostic_context\":{\"key\":\"value\"},\"context\":{\"session_id\":\"session_id\",\"request_id\":\"1\",\"app_id\":\"some_app_id\",\"call_id\":1,\"protocol\":\"JsonRpc\",\"method\":\"module.method\",\"cid\":\"cid\",\"gateway_secure\":true,\"context\":[]}}");
+    }
+
+    #[test]
+    fn test_log_signal_emit_debug() {
+        let call_context = CallContext::mock();
+        let log_signal = LogSignal::new("tester".to_string(), "message".to_string(), call_context);
+        log_signal.emit_debug();
+        // Check the debug log output manually or with a logging framework that supports testing
+    }
+
+    #[test]
+    fn test_log_signal_emit_error() {
+        let call_context = CallContext::mock();
+        let log_signal = LogSignal::new("tester".to_string(), "message".to_string(), call_context);
+        log_signal.emit_error();
+        // Check the error log output manually or with a logging framework that supports testing
+    }
+
+    #[test]
+    fn test_log_signal_with_empty_diagnostic_context() {
+        let call_context = CallContext::mock();
+        let log_signal = LogSignal::new("tester".to_string(), "message".to_string(), call_context);
+        let json = serde_json::to_string(&log_signal).unwrap();
+        assert_eq!(json, "{\"name\":\"tester\",\"message\":\"message\",\"diagnostic_context\":{},\"context\":{\"session_id\":\"session_id\",\"request_id\":\"1\",\"app_id\":\"some_app_id\",\"call_id\":1,\"protocol\":\"JsonRpc\",\"method\":\"module.method\",\"cid\":\"cid\",\"gateway_secure\":true,\"context\":[]}}");
+    }
 }
