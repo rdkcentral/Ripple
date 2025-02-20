@@ -46,7 +46,7 @@ use ripple_sdk::{
     },
     log::{error, info},
     tokio::{sync::oneshot, time::timeout},
-    utils::{serde_utils::SerdeClearString, rpc_utils::rpc_error_with_code_result},
+    utils::{rpc_utils::rpc_error_with_code_result, serde_utils::SerdeClearString},
 };
 use serde_json::{Map, Value};
 

@@ -20,7 +20,13 @@ use std::{
 };
 
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::JsonRpcApiResponse, chrono::{DateTime, Duration, Utc}, framework::RippleResponse, log::{error, info, warn}, serde_json, tokio::sync::mpsc::Sender, utils::error::RippleError
+    api::gateway::rpc_gateway_api::JsonRpcApiResponse,
+    chrono::{DateTime, Duration, Utc},
+    framework::RippleResponse,
+    log::{error, info, warn},
+    serde_json,
+    tokio::sync::mpsc::Sender,
+    utils::error::RippleError,
 };
 
 use super::thunder_async_client::{ThunderAsyncRequest, ThunderAsyncResponse};
