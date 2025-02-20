@@ -126,21 +126,6 @@ pub trait Localization {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
-
-    #[method(name = "localization.preferredAudioLanguages")]
-    async fn preferred_audio_languages(&self, _ctx: CallContext) -> RpcResult<Vec<String>>;
-    #[method(name = "localization.setPreferredAudioLanguages")]
-    async fn preferred_audio_languages_set(
-        &self,
-        ctx: CallContext,
-        set_request: SetPreferredAudioLanguage,
-    ) -> RpcResult<()>;
-    #[method(name = "localization.onPreferredAudioLanguagesChanged")]
-    async fn on_preferred_audio_languages(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
 }
 
 #[derive(Debug)]
@@ -437,43 +422,6 @@ impl LocalizationServer for LocalizationImpl {
         }
 
         rpc_add_event_listener(&self.platform_state, ctx, request, TIME_ZONE_CHANGED).await
-    }
-
-    async fn preferred_audio_languages(&self, _ctx: CallContext) -> RpcResult<Vec<String>> {
-        Ok(StorageManager::get_vec_string(
-            &self.platform_state,
-            StorageProperty::PreferredAudioLanguages,
-        )
-        .await
-        .unwrap_or(Vec::new()))
-    }
-
-    async fn preferred_audio_languages_set(
-        &self,
-        _ctx: CallContext,
-        set_request: SetPreferredAudioLanguage,
-    ) -> RpcResult<()> {
-        StorageManager::set_vec_string(
-            &self.platform_state,
-            StorageProperty::PreferredAudioLanguages,
-            set_request.get_string(),
-            None,
-        )
-        .await
-    }
-
-    async fn on_preferred_audio_languages(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
-            ctx,
-            request,
-            "LocalizationPreferredAudioLanguagesChanged",
-            "Localization.onPreferredAudioLanguagesChanged",
-        )
-        .await
     }
 }
 
