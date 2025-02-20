@@ -49,6 +49,8 @@ url = { version = "=2.5.0", default-features = false}
 urlencoding = { version = "2.1.0", default-features = false}
 uuid = { version = "1.1.2", default-features = false }
 ripple_sdk = { path = "./core/sdk" }
+#temporary pin due to transitive dependencies causing issues
+native-tls = {version= "=0.2.11"}
 
 [profile.release]
 strip=true
