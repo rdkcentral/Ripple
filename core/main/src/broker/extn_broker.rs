@@ -18,7 +18,7 @@ use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerRequest, BrokerSender,
     EndpointBroker, EndpointBrokerState,
 };
-use crate::state::platform_state::PlatformState;
+use crate::service::extn::ripple_client::RippleClient;
 use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiError;
 use ripple_sdk::extn::extn_client_message::ExtnResponse;
 use ripple_sdk::extn::extn_id::ExtnProviderRequest;
@@ -38,7 +38,7 @@ pub struct ExtnBroker {
 
 impl ExtnBroker {
     pub fn start(
-        ps: Option<PlatformState>,
+        ripple_client: Option<RippleClient>,
         callback: BrokerCallback,
         _endpoint_broker: EndpointBrokerState,
     ) -> BrokerSender {
@@ -69,10 +69,12 @@ impl ExtnBroker {
                     id: id.clone(),
                 };
 
-                let client = if let Some(platform_state) = &ps {
-                    platform_state.get_client()
-                } else {
-                    return;
+                let client = match ripple_client.clone() {
+                    Some(client) => client,
+                    None => {
+                        error!("Failed to get ripple client");
+                        continue;
+                    }
                 };
 
                 match client.send_extn_request(request.clone()).await {
@@ -141,13 +143,13 @@ impl ExtnBroker {
 
 impl EndpointBroker for ExtnBroker {
     fn get_broker(
-        ps: Option<PlatformState>,
+        ripple_client: Option<RippleClient>,
         _request: BrokerConnectRequest,
         callback: BrokerCallback,
         broker_state: &mut EndpointBrokerState,
     ) -> Self {
         Self {
-            sender: Self::start(ps, callback, broker_state.clone()),
+            sender: Self::start(ripple_client, callback, broker_state.clone()),
         }
     }
 

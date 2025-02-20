@@ -22,11 +22,36 @@ use crate::extn::extn_client_message::{
 };
 use crate::extn::extn_id::ExtnId;
 use crate::framework::ripple_contract::RippleContract;
+use crate::utils::error::RippleError;
 use async_channel::unbounded;
 use chrono::Utc;
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
+// use tokio::sync::Mutex;
+
+// lazy_static! {
+//     pub static ref MOCK_RESPONSE: Mutex<Result<ExtnResponse, RippleError>> =
+//         Mutex::new(Ok(ExtnResponse::None(())));
+// }
+
+pub type MockResponseStore = Arc<RwLock<HashMap<String, Result<ExtnResponse, RippleError>>>>;
+
+lazy_static! {
+    pub static ref MOCK_RESPONSES: MockResponseStore = Arc::new(RwLock::new(HashMap::new()));
+}
+
+pub fn set_mock_response(id: String, response: Result<ExtnResponse, RippleError>) {
+    let mut mock_responses = MOCK_RESPONSES.write().unwrap();
+    mock_responses.insert(id, response);
+}
+
+pub fn get_mock_response(id: &str) -> Option<Result<ExtnResponse, RippleError>> {
+    let mock_responses = MOCK_RESPONSES.read().unwrap();
+    mock_responses.get(id).cloned()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MockEvent {

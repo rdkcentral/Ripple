@@ -15,17 +15,16 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-    time::Duration,
-};
-
 use async_channel::{bounded, Receiver as CReceiver, Sender as CSender};
 use chrono::Utc;
 use log::warn;
 #[cfg(not(test))]
 use log::{debug, error, info, trace};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+    time::Duration,
+};
 
 #[cfg(test)]
 use {println as info, println as trace, println as debug, println as error};
@@ -60,6 +59,9 @@ use super::{
     extn_processor::{ExtnEventProcessor, ExtnRequestProcessor},
     extn_sender::ExtnSender,
 };
+
+#[cfg(test)]
+use crate::utils::mock_utils::get_mock_response;
 
 /// Defines the SDK Client implementation of the Inter Extension communication.
 /// # Overview
@@ -734,11 +736,16 @@ impl ExtnClient {
     ///
     /// # Returns
     /// A `Result` containing the extracted payload of type `T` if successful, or a [RippleError] if an error occurs.
+    #[cfg(not(test))]
     pub async fn request_with_timeout<T: ExtnPayloadProvider>(
         &mut self,
         payload: impl ExtnPayloadProvider,
         timeout_in_msecs: u64,
     ) -> Result<T, RippleError> {
+        println!(
+            "**** cfg is not test: request_with_timeout: payload: {:?}",
+            payload
+        );
         let resp = tokio::time::timeout(
             Duration::from_millis(timeout_in_msecs),
             self.request(payload),
@@ -757,6 +764,41 @@ impl ExtnClient {
         }
     }
 
+    #[cfg(test)]
+    pub async fn request_with_timeout<T: ExtnPayloadProvider + serde::de::DeserializeOwned>(
+        &mut self,
+        payload: impl ExtnPayloadProvider,
+        _timeout_in_msecs: u64,
+    ) -> Result<T, RippleError> {
+        println!("**** test: request_with_timeout: payload: {:?}", payload);
+
+        // Get the mock response
+        if let Some(response) = get_mock_response("request_with_timeout") {
+            println!("**** request_with_timeout: mock response: {:?}", response);
+
+            // Deserialize the mock response into type T
+            match response {
+                Ok(extn_response) => {
+                    match serde_json::from_value::<T>(serde_json::to_value(extn_response).unwrap())
+                    {
+                        Ok(deserialized) => Ok(deserialized),
+                        Err(e) => {
+                            println!("**** Failed to deserialize mock response: {:?}", e);
+                            Err(RippleError::ParseError)
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("**** Failed to get mock response: {:?}", e);
+                    Err(e)
+                }
+            }
+        } else {
+            println!("**** No mock response found for request_with_timeout");
+            Err(RippleError::TimeoutError)
+        }
+    }
+
     /// Request method which accepts an implementation of [ExtnPayloadProvider] and uses the capability provided by the trait to send the request.
     /// This method can be called synchronously with a timeout.
     ///
@@ -766,6 +808,7 @@ impl ExtnClient {
     ///
     /// # Returns
     /// A `Result` containing the extracted payload of type `T` if successful, or a [RippleError] if an error occurs.
+    #[cfg(not(test))]
     pub async fn request_with_timeout_main<T: ExtnPayloadProvider>(
         &mut self,
         payload: impl ExtnPayloadProvider,
@@ -786,6 +829,52 @@ impl ExtnClient {
             }
             Ok(Err(e)) => Err(e),
             Err(_) => Err(RippleError::TimeoutError),
+        }
+    }
+
+    #[cfg(test)]
+    pub async fn request_with_timeout_main<T: ExtnPayloadProvider + serde::de::DeserializeOwned>(
+        &mut self,
+        payload: impl ExtnPayloadProvider,
+        _timeout_in_msecs: u64,
+    ) -> Result<T, RippleError> {
+        println!(
+            "**** test: request_with_timeout_main: payload: {:?}",
+            payload
+        );
+
+        // Get the mock response
+        if let Some(response) = get_mock_response("request_with_timeout_main") {
+            println!(
+                "**** request_with_timeout_main: mock response: {:?}",
+                response
+            );
+
+            // Deserialize the mock response into type T
+            match response {
+                Ok(extn_response) => {
+                    match serde_json::from_value::<T>(serde_json::to_value(extn_response).unwrap())
+                    {
+                        Ok(deserialized) => Ok(deserialized),
+                        Err(e) => {
+                            println!("**** request_with_timeout_main: Failed to deserialize mock response: {:?}", e);
+                            Err(RippleError::ParseError)
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!(
+                        "**** request_with_timeout_main: Failed to get mock response: {:?}",
+                        e
+                    );
+                    Err(e)
+                }
+            }
+        } else {
+            println!(
+                "**** request_with_timeout_main: No mock response found for request_with_timeout"
+            );
+            Err(RippleError::TimeoutError)
         }
     }
 
@@ -960,7 +1049,7 @@ pub mod tests {
                 device_request::{AccountToken, DeviceRequest},
             },
             gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
-            session::SessionAdjective,
+            session::{AccountSessionRequest, SessionAdjective},
         },
         extn::{
             client::{
@@ -975,7 +1064,7 @@ pub mod tests {
         },
         utils::{
             logger::init_logger,
-            mock_utils::{get_mock_extn_client, MockEvent, MockRequest},
+            mock_utils::{get_mock_extn_client, set_mock_response, MockEvent, MockRequest},
         },
     };
     use async_channel::unbounded;
@@ -1032,6 +1121,34 @@ pub mod tests {
             );
             ExtnClient::new(rx, mock_sender)
         }
+    }
+
+    #[tokio::test]
+    async fn test_request_with_timeout() {
+        let mut client = ExtnClient::mock();
+        set_mock_response(
+            "request_with_timeout".to_string(),
+            Ok(ExtnResponse::String("success".to_string())),
+        );
+        let result: Result<ExtnResponse, RippleError> = client
+            .request_with_timeout(AccountSessionRequest::Get, 5000)
+            .await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), ExtnResponse::String("success".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_request_with_timeout_main() {
+        let mut client = ExtnClient::mock();
+        set_mock_response(
+            "request_with_timeout_main".to_string(),
+            Ok(ExtnResponse::String("success".to_string())),
+        );
+        let result: Result<ExtnResponse, RippleError> = client
+            .request_with_timeout_main(AccountSessionRequest::Get, 5000)
+            .await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), ExtnResponse::String("success".to_string()));
     }
 
     #[test]
