@@ -155,7 +155,6 @@ impl FireboltGateway {
         }
     }
 
-<<<<<<< HEAD
     fn handle_broker_callback(
         platform_state: PlatformState,
         rpc_request: RpcRequest,
@@ -214,13 +213,13 @@ impl FireboltGateway {
         });
 
         requestor_callback_tx
-=======
+    }
+
     pub fn handle_response(&self, response: JsonRpcApiResponse) {
         self.state
             .platform_state
             .endpoint_state
             .handle_broker_response(response);
->>>>>>> main
     }
 
     pub async fn handle(&self, request: RpcRequest, mut extn_msg: Option<ExtnMessage>) {
