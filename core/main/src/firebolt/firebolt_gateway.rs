@@ -175,11 +175,16 @@ impl FireboltGateway {
                     if let Some(broker_output) = has_broker_output {
                         let now = Utc::now().timestamp_millis();
 
-                        let mut api_message = ApiMessage::new(
-                            protocol,
-                            serde_json::to_string(&broker_output.data).unwrap_or_default(),
-                            rpc_request.ctx.request_id.clone(),
-                        );
+                        let data = match serde_json::to_string(&broker_output.data) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                error!("handle_broker_callback: Could not serialize broker output: e={:?}", e);
+                                String::default()
+                            }
+                        };
+
+                        let mut api_message =
+                            ApiMessage::new(protocol, data, rpc_request.ctx.request_id.clone());
 
                         if let Some(api_stats) = platform_state
                             .metrics
