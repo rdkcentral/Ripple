@@ -2152,7 +2152,7 @@ pub mod tests {
             target: RippleContract::Internal,
             target_id: None,
             payload: ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-                DeviceInfoRequest::Make,
+                DeviceInfoRequest::Model,
             ))),
             callback: None,
             ts: Some(Utc::now().timestamp_millis()),
