@@ -44,7 +44,6 @@ regex = { version = "1.10.4", features = ["std"], default-features = false }
 serde_json = { version = "1.0", default-features = false}
 serde = { version = "1.0", features = ["derive"], default-features =  false  }
 tokio = { version = "1.37.0", default-features = false }
-native-tls = {version= "=0.2.11"}
 tokio-tungstenite = { version = "0.20.1", default-features = false }
 url = { version = "=2.5.0", default-features = false}
 urlencoding = { version = "2.1.0", default-features = false}
