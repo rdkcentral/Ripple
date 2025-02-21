@@ -22,7 +22,11 @@ use std::{
 };
 
 use crate::{
-    client::{thunder_client::ThunderClient, thunder_plugin::ThunderPlugin},
+    client::{
+        device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
+        thunder_client::ThunderClient,
+        thunder_plugin::ThunderPlugin,
+    },
     ripple_sdk::{
         api::device::{device_info_request::DeviceCapabilities, device_request::AudioProfile},
         chrono::NaiveDateTime,
@@ -37,11 +41,7 @@ use crate::{
         api::{
             device::{
                 device_info_request::{DeviceInfoRequest, DeviceResponse},
-                device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
-                device_request::{
-                    HDCPStatus, HdcpProfile, HdrProfile, NetworkResponse, NetworkState,
-                    NetworkType, Resolution,
-                },
+                device_request::{HDCPStatus, HdcpProfile, HdrProfile, Resolution},
             },
             firebolt::fb_openrpc::FireboltSemanticVersion,
         },
@@ -105,16 +105,6 @@ enum ThunderInterfaceType {
     Wifi,
     Ethernet,
     None,
-}
-
-impl ThunderInterfaceType {
-    fn to_network_type(&self) -> NetworkType {
-        match self {
-            Self::Wifi => NetworkType::Wifi,
-            Self::Ethernet => NetworkType::Ethernet,
-            Self::None => NetworkType::Hybrid,
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -241,31 +231,6 @@ impl CachedState {
 pub struct ThunderNetworkService;
 
 impl ThunderNetworkService {
-    async fn get_interfaces(state: CachedState) -> ThunderGetInterfacesResponse {
-        let response = state
-            .get_thunder_client()
-            .call(DeviceCallRequest {
-                method: ThunderPlugin::Network.method("getInterfaces"),
-                params: None,
-            })
-            .await;
-        info!("{}", response.message);
-        serde_json::from_str(&response.message.to_string())
-            .unwrap_or(ThunderGetInterfacesResponse::default())
-    }
-
-    async fn get_connected_interface(state: CachedState) -> ThunderInterfaceType {
-        let get_internet_response = Self::get_interfaces(state).await;
-        let mut thunder_interface_type = ThunderInterfaceType::None;
-        for i in get_internet_response.interfaces {
-            if i.connected {
-                thunder_interface_type = i.interface;
-                break;
-            }
-        }
-        thunder_interface_type
-    }
-
     async fn has_internet(state: &CachedState) -> bool {
         let response = state
             .get_thunder_client()
@@ -599,17 +564,6 @@ impl ThunderDeviceInfoRequestProcessor {
             Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
         }
     }
-    async fn make(state: CachedState, req: ExtnMessage) -> bool {
-        let response: String = Self::get_make(&state).await;
-
-        Self::respond(
-            state.get_client(),
-            req,
-            ExtnResponse::String(response.to_string()),
-        )
-        .await
-        .is_ok()
-    }
 
     async fn get_audio(state: &CachedState) -> HashMap<AudioProfile, bool> {
         let response = state
@@ -791,23 +745,6 @@ impl ThunderDeviceInfoRequestProcessor {
         hm
     }
 
-    async fn hdr(state: CachedState, req: ExtnMessage) -> bool {
-        let hm = Self::get_cached_hdr(&state).await;
-        Self::respond(
-            state.get_client(),
-            req,
-            if let ExtnPayload::Response(r) =
-                DeviceResponse::HdrResponse(hm.clone()).get_extn_payload()
-            {
-                r
-            } else {
-                ExtnResponse::Error(RippleError::ProcessorError)
-            },
-        )
-        .await
-        .is_ok()
-    }
-
     async fn get_screen_resolution(state: &CachedState) -> Vec<i32> {
         let response = state
             .get_thunder_client()
@@ -825,24 +762,6 @@ impl ThunderDeviceInfoRequestProcessor {
         info!("{}", response.message);
         let resol = response.message["resolution"].as_str().unwrap_or_default();
         get_dimension_from_resolution(resol)
-    }
-
-    async fn screen_resolution(state: CachedState, req: ExtnMessage) -> bool {
-        let ans = Self::get_screen_resolution(&state).await;
-
-        Self::respond(
-            state.get_client(),
-            req,
-            if let ExtnPayload::Response(r) =
-                DeviceResponse::ScreenResolutionResponse(ans).get_extn_payload()
-            {
-                r
-            } else {
-                ExtnResponse::Error(RippleError::ProcessorError)
-            },
-        )
-        .await
-        .is_ok()
     }
 
     async fn get_current_resolution(state: &CachedState) -> Result<Vec<i32>, ()> {
@@ -898,49 +817,6 @@ impl ThunderDeviceInfoRequestProcessor {
             }
         }
         vec![]
-    }
-
-    async fn video_resolution(state: CachedState, req: ExtnMessage) -> bool {
-        let ans = Self::get_video_resolution(&state).await;
-
-        Self::respond(
-            state.get_client(),
-            req,
-            if let ExtnPayload::Response(r) =
-                DeviceResponse::VideoResolutionResponse(ans).get_extn_payload()
-            {
-                r
-            } else {
-                ExtnResponse::Error(RippleError::ProcessorError)
-            },
-        )
-        .await
-        .is_ok()
-    }
-
-    async fn get_network(state: &CachedState) -> NetworkResponse {
-        let interface_response =
-            ThunderNetworkService::get_connected_interface(state.clone()).await;
-        NetworkResponse {
-            _type: interface_response.to_network_type(),
-            state: match interface_response {
-                ThunderInterfaceType::Ethernet | ThunderInterfaceType::Wifi => {
-                    NetworkState::Connected
-                }
-                ThunderInterfaceType::None => NetworkState::Disconnected,
-            },
-        }
-    }
-
-    async fn network(state: CachedState, req: ExtnMessage) -> bool {
-        let network_status = Self::get_network(&state).await;
-        Self::respond(
-            state.get_client(),
-            req,
-            ExtnResponse::NetworkResponse(network_status.clone()),
-        )
-        .await
-        .is_ok()
     }
 
     async fn on_internet_connected(state: CachedState, req: ExtnMessage, timeout: u64) -> bool {
@@ -1057,21 +933,6 @@ impl ThunderDeviceInfoRequestProcessor {
         }
         error!("{}", response.message);
         Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
-    }
-
-    async fn _on_active_input_changed(_state: CachedState, _req: ExtnMessage) -> bool {
-        //TODO: thunder event handler
-        todo!();
-    }
-
-    async fn _on_resolution_changed(_state: CachedState, _req: ExtnMessage) -> bool {
-        //TODO: thunder event handler
-        todo!();
-    }
-
-    async fn _on_network_changed(_state: CachedState, _req: ExtnMessage) -> bool {
-        //TODO: thunder event handler
-        todo!();
     }
 
     async fn get_timezone_value(state: &CachedState) -> Result<String, RippleError> {
@@ -1586,19 +1447,11 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             DeviceInfoRequest::Audio => Self::audio(state.clone(), msg).await,
             DeviceInfoRequest::HdcpSupport => Self::hdcp_support(state.clone(), msg).await,
             DeviceInfoRequest::HdcpStatus => Self::hdcp_status(state.clone(), msg).await,
-            DeviceInfoRequest::Hdr => Self::hdr(state.clone(), msg).await,
-            DeviceInfoRequest::ScreenResolution => {
-                Self::screen_resolution(state.clone(), msg).await
-            }
-            DeviceInfoRequest::VideoResolution => Self::video_resolution(state.clone(), msg).await,
-            DeviceInfoRequest::Network => Self::network(state.clone(), msg).await,
-            DeviceInfoRequest::Make => Self::make(state.clone(), msg).await,
             DeviceInfoRequest::FirmwareInfo => Self::os_info(state.clone(), msg).await,
             DeviceInfoRequest::AvailableMemory => Self::available_memory(state.clone(), msg).await,
             DeviceInfoRequest::OnInternetConnected(time_out) => {
                 Self::on_internet_connected(state.clone(), msg, time_out.timeout).await
             }
-            DeviceInfoRequest::Sku => todo!(),
             DeviceInfoRequest::GetTimezone => Self::get_timezone(state.clone(), msg).await,
             DeviceInfoRequest::GetTimezoneWithOffset => {
                 Self::get_timezone_with_offset(state.clone(), msg).await
@@ -1658,7 +1511,6 @@ pub mod tests {
     use ripple_sdk::{
         api::device::{
             device_info_request::{DeviceInfoRequest, DeviceResponse, PlatformBuildInfo},
-            device_operator::DeviceResponseMessage,
             device_request::DeviceRequest,
         },
         extn::{
@@ -1674,7 +1526,10 @@ pub mod tests {
     use serde::{Deserialize, Serialize};
 
     use crate::{
-        client::{thunder_client::ThunderCallMessage, thunder_plugin::ThunderPlugin},
+        client::{
+            device_operator::DeviceResponseMessage, thunder_client::ThunderCallMessage,
+            thunder_plugin::ThunderPlugin,
+        },
         processors::thunder_device_info::ThunderDeviceInfoRequestProcessor,
         tests::mock_thunder_controller::{CustomHandler, MockThunderController, ThunderHandlerFn},
     };
