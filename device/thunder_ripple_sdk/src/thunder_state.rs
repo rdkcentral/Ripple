@@ -150,14 +150,17 @@ impl ThunderState {
             tokio::spawn(async move {
                 while let Some(request) = r.recv().await {
                     if let Some(id) = request.sub_id {
-                        let value = request.message.clone();
                         if let Some(handler) = state_c.event_processor.get_handler(&id) {
-                            handler.process(
-                                state_c.clone(),
-                                &id,
-                                value,
-                                handler.callback_type.clone(),
-                            )
+                            if let Some(back_off) = state_c.event_processor.get_backoff(&id) {
+                                if back_off.current_back_off <= 0 {
+                                    handler.process(
+                                        state_c.clone(),
+                                        &id,
+                                        request.message.clone(),
+                                        handler.callback_type.clone(),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
