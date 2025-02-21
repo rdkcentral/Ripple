@@ -5,7 +5,7 @@ use super::endpoint_broker::{
 use super::rules_engine::JsonDataSource;
 use crate::broker::endpoint_broker::{BrokerOutput, EndpointBrokerState};
 use crate::broker::rules_engine::{compose_json_values, make_name_json_safe};
-use crate::service::extn::ripple_client::RippleClient;
+use crate::state::platform_state::PlatformState;
 use futures::future::{join_all, BoxFuture};
 use futures::FutureExt;
 use serde_json::json;
@@ -208,7 +208,7 @@ impl WorkflowBroker {
 
 impl EndpointBroker for WorkflowBroker {
     fn get_broker(
-        _ripple_client: Option<RippleClient>,
+        _ps: Option<PlatformState>,
         _request: BrokerConnectRequest,
         callback: BrokerCallback,
         broker_state: &mut EndpointBrokerState,

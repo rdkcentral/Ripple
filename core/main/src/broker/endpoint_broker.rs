@@ -521,11 +521,7 @@ impl EndpointBrokerState {
         }
     }
 
-    pub fn build_other_endpoints(
-        &mut self,
-        ripple_client: RippleClient,
-        session: Option<AccountSession>,
-    ) {
+    pub fn build_other_endpoints(&mut self, ps: PlatformState, session: Option<AccountSession>) {
         for (key, endpoint) in self.rule_engine.rules.endpoints.clone() {
             // skip thunder endpoint as it is already built using build_thunder_endpoint
             if let RuleEndpointProtocol::Thunder = endpoint.protocol {
@@ -537,7 +533,7 @@ impl EndpointBrokerState {
                 self.reconnect_tx.clone(),
                 session.clone(),
             );
-            self.build_endpoint(Some(ripple_client.clone()), request);
+            self.build_endpoint(Some(ps.clone()), request);
         }
     }
 
@@ -559,11 +555,7 @@ impl EndpointBrokerState {
         result
     }
 
-    fn build_endpoint(
-        &mut self,
-        ripple_client: Option<RippleClient>,
-        request: BrokerConnectRequest,
-    ) {
+    fn build_endpoint(&mut self, ps: Option<PlatformState>, request: BrokerConnectRequest) {
         let endpoint = request.endpoint.clone();
         let key = request.key.clone();
         let (broker, cleaner) = match endpoint.protocol {
@@ -589,8 +581,7 @@ impl EndpointBrokerState {
                 None,
             ),
             RuleEndpointProtocol::Extn => (
-                ExtnBroker::get_broker(ripple_client, request, self.callback.clone(), self)
-                    .get_sender(),
+                ExtnBroker::get_broker(ps, request, self.callback.clone(), self).get_sender(),
                 None,
             ),
         };
@@ -853,7 +844,7 @@ impl EndpointBrokerState {
 /// There could be Websocket or HTTP protocol implementations of the given trait
 pub trait EndpointBroker {
     fn get_broker(
-        ripple_client: Option<RippleClient>,
+        ps: Option<PlatformState>,
         request: BrokerConnectRequest,
         callback: BrokerCallback,
         endpoint_broker: &mut EndpointBrokerState,
