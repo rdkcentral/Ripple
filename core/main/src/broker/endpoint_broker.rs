@@ -1414,7 +1414,7 @@ pub fn apply_response(
     }
 }
 
-fn apply_rule_for_event(
+pub fn apply_rule_for_event(
     broker_request: &BrokerRequest,
     result: &Value,
     rpc_request: &RpcRequest,

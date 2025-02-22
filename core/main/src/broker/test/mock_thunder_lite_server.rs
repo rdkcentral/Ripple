@@ -319,12 +319,30 @@ macro_rules! setup_and_start_mock_thunder_lite_server {
 #[macro_export]
 macro_rules! create_and_send_broker_request {
     ($broker:expr, $method:expr, $alias:expr, $call_id:expr, $params:expr) => {
-        let mut request = create_broker_request($method, $alias);
+        let mut request = create_mock_broker_request($method, $alias, $params, None, None, None);
         request.rpc.ctx.call_id = $call_id;
-        request.rpc.params_json = $params.to_string();
         let response = $broker.sender.send(request).await;
         assert!(response.is_ok());
     };
+}
+
+#[macro_export]
+macro_rules! create_and_send_broker_request_with_jq_transform {
+    ($thunder_broker:expr, $method:expr, $alias:expr, $call_id:expr, $params:expr, $transform:expr, $event_filter:expr, $event_handler_fn:expr) => {{
+        let mut request = create_mock_broker_request(
+            $method,
+            $alias,
+            $params,
+            $transform,
+            $event_filter,
+            $event_handler_fn,
+        );
+
+        request.rpc.ctx.call_id = $call_id;
+
+        let response = $thunder_broker.sender.send(request).await;
+        assert!(response.is_ok());
+    }};
 }
 
 #[macro_export]
@@ -341,4 +359,59 @@ macro_rules! read_broker_responses {
         }
         assert_eq!(counter, $expected_count);
     };
+}
+#[macro_export]
+macro_rules! process_broker_output {
+    ($broker_request:expr, $broker_output:expr) => {{
+        let output = $broker_output.unwrap();
+        let mut response = output.data.clone();
+
+        // Apply the jq transform to the response
+        let rule_context_name = $broker_request.clone().rpc.method.clone();
+
+        if let Some(filter) = $broker_request
+            .clone()
+            .rule
+            .transform
+            .get_transform_data(rules_engine::RuleTransformType::Response)
+        {
+            apply_response(filter, &rule_context_name, &mut response);
+        } else if response.result.is_none() && response.error.is_none() {
+            response.result = Some(Value::Null);
+        }
+
+        println!(
+            "[Broker Output] Final output After applying Rule {:?}",
+            response
+        );
+    }};
+}
+
+#[macro_export]
+macro_rules! process_broker_output_event_resposne {
+    ($broker_request:expr, $broker_output:expr, $value:expr) => {{
+        let output = $broker_output.unwrap();
+        let mut response = output.data.clone();
+
+        // Apply the jq transform to the response
+
+        if let Some(filter) = $broker_request
+            .clone()
+            .rule
+            .transform
+            .get_transform_data(rules_engine::RuleTransformType::Event(false))
+        {
+            let broker_request_clone = $broker_request.clone();
+            let result = response.clone().result.unwrap();
+            let rpc = $broker_request.rpc.clone();
+            apply_rule_for_event(&broker_request_clone, &result, &rpc, &filter, &mut response);
+        } else if response.result.is_none() && response.error.is_none() {
+            response.result = Some(Value::Null);
+        }
+        println!(
+            "[Broker Output] Final Event Resposne After applying Rule {:?}",
+            response.result
+        );
+        assert_eq!(response.result, $value);
+    }};
 }
