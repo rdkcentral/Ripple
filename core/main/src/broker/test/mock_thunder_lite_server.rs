@@ -319,12 +319,36 @@ macro_rules! setup_and_start_mock_thunder_lite_server {
 #[macro_export]
 macro_rules! create_and_send_broker_request {
     ($broker:expr, $method:expr, $alias:expr, $call_id:expr, $params:expr) => {
-        let mut request = create_broker_request($method, $alias);
+        let mut request = create_broker_request($method, $alias, $params, None, None, None);
         request.rpc.ctx.call_id = $call_id;
-        request.rpc.params_json = $params.to_string();
         let response = $broker.sender.send(request).await;
         assert!(response.is_ok());
     };
+}
+
+#[macro_export]
+macro_rules! create_and_send_broker_request_with_jq_transform {
+    ($broker:expr, $method:expr, $alias:expr, $call_id:expr, $params:expr, $jq:expr) => {
+        let mut request = create_broker_request($method, $alias, $params, Some($jq), None, None);
+        request.rpc.ctx.call_id = $call_id;
+        let response = $broker.sender.send(request).await;
+        assert!(response.is_ok());
+    };
+    ($thunder_broker:expr, $method:expr, $alias:expr, $call_id:expr, $params:expr, $transform:expr, $event_filter:expr, $event_handler_fn:expr) => {{
+        let mut request = create_broker_request(
+            $method,
+            $alias,
+            $params,
+            $transform,
+            $event_filter,
+            $event_handler_fn,
+        );
+
+        request.rpc.ctx.call_id = $call_id;
+
+        let response = $thunder_broker.sender.send(request).await;
+        assert!(response.is_ok());
+    }};
 }
 
 #[macro_export]

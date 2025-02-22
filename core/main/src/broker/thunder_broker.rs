@@ -642,8 +642,8 @@ mod tests {
             rules_engine::{Rule, RuleEndpoint, RuleEndpointProtocol, RuleTransform},
             test::mock_thunder_lite_server::MockThunderLiteServer,
         },
-        create_and_send_broker_request, read_broker_responses,
-        setup_and_start_mock_thunder_lite_server,
+        create_and_send_broker_request, create_and_send_broker_request_with_jq_transform,
+        read_broker_responses, setup_and_start_mock_thunder_lite_server,
         utils::test_utils::{MockWebsocket, WSMockData},
     };
     use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
@@ -693,15 +693,23 @@ mod tests {
     }
 
     //function to create a BrokerRequest
-    fn create_broker_request(method: &str, alias: &str) -> BrokerRequest {
+    fn create_broker_request(
+        method: &str,
+        alias: &str,
+        params: Option<Value>,
+        transform: Option<RuleTransform>,
+        event_filter: Option<String>,
+        event_handler_fn: Option<String>,
+    ) -> BrokerRequest {
         BrokerRequest {
-            rpc: RpcRequest::get_new_internal(method.to_owned(), None),
+            rpc: RpcRequest::get_new_internal(method.to_owned(), params),
             rule: Rule {
                 alias: alias.to_owned(),
-                transform: RuleTransform::default(),
+                // if transform is not provided, use default
+                transform: transform.unwrap_or_default(),
                 endpoint: None,
-                filter: None,
-                event_handler: None,
+                filter: event_filter,
+                event_handler: event_handler_fn,
                 sources: None,
             },
             subscription_processed: None,
@@ -744,7 +752,7 @@ mod tests {
             "FireboltModuleName.testGetter",
             "org.rdk.mock_plugin.getter",
             2000,
-            json!([{}])
+            None
         );
 
         // Create and send the setter Broker request
@@ -754,10 +762,82 @@ mod tests {
             "FireboltModuleName.testSetter",
             "org.rdk.mock_plugin.setter",
             3000,
-            json!([{}])
+            None
         );
 
         // Read the responses and assert that 3 responses are received
+        read_broker_responses!(rx, 3);
+    }
+
+    #[tokio::test]
+    async fn test_end_to_end_skip_restriction() {
+        let server_handle = setup_and_start_mock_thunder_lite_server!(
+            // entry for getter
+            "org.rdk.PersistentStore.getValue",
+            Some(
+                serde_json::json!({"value":"{\"update_time\":\"2024-09-05T01:10:31.068338209+00:00\",\"value\":\"none\"}", "success": true})
+            ),
+            None,
+            None,
+            // entry for setter with event response
+            "org.rdk.PersistentStore.setValue",
+            Some(serde_json::json!({"success":true})),
+            None,
+            Some((
+                JsonRpcApiResponse {
+                    jsonrpc: "2.0".to_string(),
+                    result: Some(serde_json::Value::Null),
+                    error: None,
+                    id: Some(1000),
+                    method: Some("org.rdk.mock_plugin.onValueChanged".to_string()),
+                    params: Some(
+                        json!({"namespace":"Advertising","key":"skipRestriction","value":"{\"update_time\": \"2025-02-20T22:37:52.452943Z\",\"value\": \"all\"}"})
+                    ),
+                },
+                500 // event response generated after 500 milliseconds of setter response
+            ))
+        );
+
+        let (thunder_broker, mut rx) = setup_thunder_broker!(server_handle);
+
+        // Create and send "advertising.skipRestriction"
+        let transform = RuleTransform{
+            request:Some(json!({"namespace":"Advertising","key":"skipRestriction"}).to_string()),
+            response:Some(json!("if .result and .result.success then (.result.value | fromjson | .value) else \"none\" end").to_string()), 
+            event: None,
+            rpcv2_event: None,
+            event_decorator_method: None
+        };
+
+        create_and_send_broker_request_with_jq_transform!(
+            thunder_broker,
+            "advertising.skipRestriction",
+            "org.rdk.PersistentStore.getValue",
+            4000,
+            None,
+            Some(transform.clone()),
+            None,
+            None
+        );
+        // Create and send "advertising.setSkipRestriction with event generation option"
+        let transform = RuleTransform{
+            request:Some("{ value: {update_time: now | todateiso8601, value: .value}, namespace: \"Advertising\", key: \"skipRestriction\"}".to_string()),
+            response:Some(json!("if .result and .result.success then null else { error: { code: -32100, message: \"couldn't set skip restriction\" }} end").to_string()), 
+            event: None,
+            rpcv2_event: None,
+            event_decorator_method: None
+        };
+
+        create_and_send_broker_request_with_jq_transform!(
+            thunder_broker,
+           "advertising.setSkipRestriction",
+            "org.rdk.PersistentStore.setValue",
+            5000,
+            Some(json!({"key":"skipRestriction","namespace":"Advertising", "value": "adsUnwatched"})),
+            Some(transform.clone()),
+            Some(json!("if .namespace == \"Advertising\" and .key == \"skipRestriction\" then true else false end").to_string()),
+            None
+        );
         read_broker_responses!(rx, 3);
     }
 
@@ -771,7 +851,7 @@ mod tests {
         let thndr_broker = get_thunderbroker(tx, send_data, sender, false).await;
 
         // Use Broker to connect to it
-        let request = create_broker_request("some_method", "");
+        let request = create_broker_request("some_method", "", None, None, None, None);
 
         thndr_broker.sender.send(request).await.unwrap();
 
@@ -781,7 +861,7 @@ mod tests {
 
         assert!(_rx.recv().await.unwrap());
 
-        let rpc_request = create_broker_request("some_method", "");
+        let rpc_request = create_broker_request("some_method", "", None, None, None, None);
 
         let prepared_requests = thndr_broker.prepare_request(&rpc_request);
         assert!(
