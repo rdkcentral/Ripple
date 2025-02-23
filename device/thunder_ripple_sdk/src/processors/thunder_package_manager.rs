@@ -83,7 +83,7 @@ pub struct ThunderPackageManagerRequestProcessor {
     streamer: DefaultExtnStreamer,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct GetListRequest {
     pub id: String,
 }
@@ -94,7 +94,7 @@ impl GetListRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct UninstallAppRequest {
     pub id: String,
     pub version: String,
@@ -114,7 +114,7 @@ impl UninstallAppRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct InstallAppRequest {
     pub id: String,
     pub version: String,
@@ -152,7 +152,7 @@ impl InstallAppRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct CancelRequest {
     pub handle: String,
 }
@@ -163,7 +163,7 @@ impl CancelRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct GetMetadataRequest {
     pub id: String,
     pub version: String,
@@ -175,7 +175,7 @@ impl GetMetadataRequest {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[derive(Debug, Clone, Serialize, Default, PartialEq)]
 pub struct AppData {
     pub version: String,
 }
@@ -273,7 +273,7 @@ impl OperationStatus {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum AppsOperationType {
     Install,
@@ -300,7 +300,7 @@ impl ToString for AppsOperationType {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct AppsOperationStatus {
     pub handle: String,
     pub operation: AppsOperationType,
@@ -334,7 +334,7 @@ impl AppsOperationStatus {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct Metadata {
     pub appname: String,
     #[serde(rename = "type")]
@@ -342,13 +342,13 @@ pub struct Metadata {
     pub url: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct KeyValuePair {
     pub key: String,
     pub value: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct ThunderAppMetadata {
     pub metadata: Metadata,
     pub resources: Vec<KeyValuePair>,

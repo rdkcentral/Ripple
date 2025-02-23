@@ -83,7 +83,7 @@ use ripple_sdk::{
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ThunderHDCPStatus {
     #[serde(rename = "HDCPStatus")]
     pub hdcp_status: HDCPStatus,
@@ -99,7 +99,7 @@ pub mod hdr_flags {
     pub const HDRSTANDARD_HDR10PLUS: u32 = 0x10;
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "UPPERCASE")]
 enum ThunderInterfaceType {
     Wifi,
@@ -107,7 +107,7 @@ enum ThunderInterfaceType {
     None,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ThunderInterfaceStatus {
     interface: ThunderInterfaceType,
@@ -116,13 +116,13 @@ struct ThunderInterfaceStatus {
     connected: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 struct ThunderGetInterfacesResponse {
     interfaces: Vec<ThunderInterfaceStatus>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemVersion {
     pub stb_version: String,
@@ -247,7 +247,7 @@ impl ThunderNetworkService {
         response.unwrap().as_bool().unwrap_or(false)
     }
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ThunderTimezoneResponse {
     #[serde(rename = "timeZone")]
     pub time_zone: String,
@@ -259,7 +259,7 @@ pub struct ThunderDeviceInfoRequestProcessor {
     streamer: DefaultExtnStreamer,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ThunderAvailableTimezonesResponse {
     pub zoneinfo: HashMap<String, HashMap<String, String>>,
 }
@@ -1546,7 +1546,7 @@ pub mod tests {
         };
     }
 
-    #[derive(Debug, Serialize, Deserialize, Clone)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct BuildInfoTest {
         build_name: String,
         info: PlatformBuildInfo,
