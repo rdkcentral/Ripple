@@ -74,7 +74,8 @@ const DEFAULT_PLUGIN_ACTIVATION_TIMEOUT: i64 = 8;
 
 const STATE_CHANGE_EVENT_METHOD: &str = "thunder.Broker.Controller.events.statechange";
 
-#[derive(Debug, Deserialize, PartialEq, Serialize, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[cfg_attr(test, derive(Serialize))]
 pub struct Status {
     pub callsign: String,
     pub state: String,
@@ -108,13 +109,15 @@ impl Status {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(Serialize))]
 pub struct StateChangeEvent {
     pub callsign: String,
     pub state: State,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Serialize, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[cfg_attr(test, derive(Serialize))]
 pub enum State {
     Activated,
     Activation,
