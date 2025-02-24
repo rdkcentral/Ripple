@@ -22,7 +22,11 @@ use ripple_sdk::{
         client::extn_client::ExtnClient,
         extn_client_message::{ExtnMessage, ExtnPayloadProvider},
     },
+<<<<<<< HEAD
     log::warn,
+=======
+    log::info,
+>>>>>>> 8af46c34 (fix: modified the back_off value check before process the event response)
     tokio,
     tokio::sync::mpsc,
     tokio::sync::{Mutex, Notify},
@@ -153,6 +157,7 @@ impl ThunderState {
                     if let Some(id) = request.sub_id {
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
                         //check the back_off value
                         if state_c.event_processor.get_backoff(&id).is_some() {
                             warn!("back_off is not None. can't process event of ID:{}", id);
@@ -178,6 +183,20 @@ impl ThunderState {
                                         handler.callback_type.clone(),
                                     )
                                 }
+=======
+                        //check the back_off value
+                        if let Some(_back_off) = state_c.event_processor.get_backoff(&id) {
+                            info!("back_off is not None. can't process event of ID:{}", id);
+                        } else {
+                            if let Some(handler) = state_c.event_processor.get_handler(&id) {
+                                //back_off is None, process the event
+                                handler.process(
+                                    state_c.clone(),
+                                    &id,
+                                    request.message.clone(),
+                                    handler.callback_type.clone(),
+                                );
+>>>>>>> 8af46c34 (fix: modified the back_off value check before process the event response)
                             }
 <<<<<<< HEAD
                             // handler.process(
