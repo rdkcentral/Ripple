@@ -187,6 +187,7 @@ impl ThunderState {
                         //check the back_off value
                         if let Some(_back_off) = state_c.event_processor.get_backoff(&id) {
                             info!("back_off is not None. can't process event of ID:{}", id);
+<<<<<<< HEAD
                         } else {
                             if let Some(handler) = state_c.event_processor.get_handler(&id) {
                                 //back_off is None, process the event
@@ -208,6 +209,16 @@ impl ThunderState {
 >>>>>>> 06502715 (feat: Ripple Session Token Change Throttling ability added)
 =======
 >>>>>>> 18000c48 (chore: rename done for thunder_backoff struct fields for readability)
+=======
+                        } else if let Some(handler) = state_c.event_processor.get_handler(&id) {
+                            //back_off is None, process the event
+                            handler.process(
+                                state_c.clone(),
+                                &id,
+                                request.message.clone(),
+                                handler.callback_type.clone(),
+                            );
+>>>>>>> 9e1be04b (fix: clippy fix)
                         }
                     }
                 }
