@@ -154,16 +154,14 @@ impl ThunderState {
                         //check the back_off value
                         if let Some(_back_off) = state_c.event_processor.get_backoff(&id) {
                             info!("back_off is not None. can't process event of ID:{}", id);
-                        } else {
-                            if let Some(handler) = state_c.event_processor.get_handler(&id) {
-                                //back_off is None, process the event
-                                handler.process(
-                                    state_c.clone(),
-                                    &id,
-                                    request.message.clone(),
-                                    handler.callback_type.clone(),
-                                );
-                            }
+                        } else if let Some(handler) = state_c.event_processor.get_handler(&id) {
+                            //back_off is None, process the event
+                            handler.process(
+                                state_c.clone(),
+                                &id,
+                                request.message.clone(),
+                                handler.callback_type.clone(),
+                            );
                         }
                     }
                 }
