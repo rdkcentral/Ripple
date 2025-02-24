@@ -30,7 +30,7 @@ use ripple_sdk::{
 
 use super::thunder_async_client::{ThunderAsyncRequest, ThunderAsyncResponse};
 use crate::utils::get_next_id;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 #[derive(Clone, Debug)]
@@ -74,8 +74,7 @@ const DEFAULT_PLUGIN_ACTIVATION_TIMEOUT: i64 = 8;
 
 const STATE_CHANGE_EVENT_METHOD: &str = "thunder.Broker.Controller.events.statechange";
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-#[cfg_attr(test, derive(Serialize))]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct Status {
     pub callsign: String,
     pub state: String,
@@ -109,15 +108,13 @@ impl Status {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
-#[cfg_attr(test, derive(Serialize))]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StateChangeEvent {
     pub callsign: String,
     pub state: State,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-#[cfg_attr(test, derive(Serialize))]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum State {
     Activated,
     Activation,
