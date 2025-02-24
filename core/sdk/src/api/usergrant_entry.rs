@@ -99,7 +99,6 @@ mod tests {
     use super::*;
     use crate::api::firebolt::fb_capabilities::{CapabilityRole, FireboltCap};
     use crate::utils::test_utils::test_extn_payload_provider;
-    use serde::Serialize;
 
     #[test]
     fn test_extn_request_user_grants_store() {
