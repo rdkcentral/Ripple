@@ -50,6 +50,7 @@ pub struct ThunderGetValueResponse {
 #[derive(Debug)]
 #[allow(non_camel_case_types, non_snake_case)]
 struct WifiConnectError {
+    #[allow(dead_code)]
     code: u32,
 }
 

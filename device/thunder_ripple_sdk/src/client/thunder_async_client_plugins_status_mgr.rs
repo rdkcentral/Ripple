@@ -30,7 +30,7 @@ use ripple_sdk::{
 
 use super::thunder_async_client::{ThunderAsyncRequest, ThunderAsyncResponse};
 use crate::utils::get_next_id;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
 
 #[derive(Clone, Debug)]

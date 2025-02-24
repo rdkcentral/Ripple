@@ -101,6 +101,7 @@ pub mod hdr_flags {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "UPPERCASE")]
+#[allow(dead_code)]
 enum ThunderInterfaceType {
     Wifi,
     Ethernet,
