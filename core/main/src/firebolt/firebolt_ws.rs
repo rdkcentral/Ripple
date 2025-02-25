@@ -297,6 +297,7 @@ impl FireboltWs {
                             context_clone.clone(),
                         )
                         .with_diagnostic_context_item("cid", &connection_id_c.clone())
+                        .with_diagnostic_context_item("result", &api_message.jsonrpc_msg.clone())
                         .emit_debug();
                         if let Some(stats) = platform_state
                             .metrics
