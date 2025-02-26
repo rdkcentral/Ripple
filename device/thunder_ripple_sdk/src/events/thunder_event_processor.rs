@@ -327,9 +327,13 @@ impl ThunderEventProcessor {
         false
     }
 
-    pub fn add_backoff(&self, event_name: &str, previous_back_off: i32, back_off_value: i32) {
-        let mut back_off = self.back_off.write().unwrap();
-        back_off.insert(
+    pub fn set_backoff(&self, event_name: &str, back_off_value: i32) {
+        let mut back_off_map = self.back_off.write().unwrap();
+        //update the prev_back_off value from back_off_map
+        let previous_back_off = back_off_map
+            .get(event_name)
+            .map_or(0, |b| b.current_back_off);
+        back_off_map.insert(
             event_name.to_string(),
             ThunderBackOff {
                 previous_back_off,
