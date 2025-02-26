@@ -106,7 +106,7 @@ pub struct LifecycleConfiguration {
     #[serde(default)]
     pub emit_app_init_events_enabled: bool,
     #[serde(default)]
-    pub emit_navigate_on_resume: bool,
+    pub emit_navigate_on_activate: bool,
 }
 
 pub fn lc_config_app_ready_timeout_ms_default() -> u64 {
@@ -130,8 +130,8 @@ impl LifecycleConfiguration {
         self.emit_app_init_events_enabled
     }
 
-    pub fn is_emit_navigate_on_resume(&self) -> bool {
-        self.emit_navigate_on_resume
+    pub fn is_emit_navigate_on_activate(&self) -> bool {
+        self.emit_navigate_on_activate
     }
 }
 /// Device manifest contains all the specifications required for coniguration of a Ripple application.
@@ -917,7 +917,7 @@ pub(crate) mod tests {
                     min_available_memory_kb: 1024,
                     prioritized: Vec::new(),
                     emit_app_init_events_enabled: false,
-                    emit_navigate_on_resume: false,
+                    emit_navigate_on_activate: false,
                 },
                 applications: ApplicationsConfiguration {
                     distribution: DistributionConfiguration {
@@ -1080,7 +1080,7 @@ pub(crate) mod tests {
                 min_available_memory_kb: 1024,
                 prioritized: Vec::new(),
                 emit_app_init_events_enabled: false,
-                emit_navigate_on_resume: false
+                emit_navigate_on_activate: false
             }
         );
     }

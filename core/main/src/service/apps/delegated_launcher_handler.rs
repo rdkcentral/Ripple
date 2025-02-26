@@ -1166,7 +1166,7 @@ impl DelegatedLauncherHandler {
             .platform_state
             .get_device_manifest()
             .lifecycle
-            .is_emit_navigate_on_resume()
+            .is_emit_navigate_on_activate()
             && previous_state == LifecycleState::Inactive
             && matches!(
                 state,
