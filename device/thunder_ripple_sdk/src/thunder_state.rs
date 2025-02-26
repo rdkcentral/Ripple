@@ -23,10 +23,14 @@ use ripple_sdk::{
         extn_client_message::{ExtnMessage, ExtnPayloadProvider},
     },
 <<<<<<< HEAD
+<<<<<<< HEAD
     log::warn,
 =======
     log::info,
 >>>>>>> 8af46c34 (fix: modified the back_off value check before process the event response)
+=======
+    log::warn,
+>>>>>>> 8f65f668 (fix: review comments fixed)
     tokio,
     tokio::sync::mpsc,
     tokio::sync::{Mutex, Notify},

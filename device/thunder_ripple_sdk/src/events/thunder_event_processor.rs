@@ -339,6 +339,9 @@ impl ThunderEventProcessor {
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 8f65f668 (fix: review comments fixed)
     pub fn set_backoff(&self, event_name: &str, back_off_value: i32) {
         let mut back_off_map = self.back_off.write().unwrap();
         //update the prev_back_off value from back_off_map
