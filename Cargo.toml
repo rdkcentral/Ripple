@@ -22,6 +22,7 @@ members = [
     "core/tdk",
     "core/main",
     "core/launcher",
+    "device/mock_device",
     "distributor/general",
     "examples/rpc_extn",
     "examples/tm_extn",
