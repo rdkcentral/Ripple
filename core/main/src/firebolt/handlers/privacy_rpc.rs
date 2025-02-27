@@ -24,9 +24,9 @@ use crate::{
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
-    types::error::CallError,
     RpcModule,
 };
+use ripple_sdk::utils::rpc_utils::rpc_error_with_code_result;
 use ripple_sdk::{
     api::{
         device::device_peristence::SetBoolProperty,
@@ -509,11 +509,10 @@ impl PrivacyImpl {
         if let Some(prop) = property_opt {
             Self::get_bool(platform_state, prop).await
         } else {
-            Err(jsonrpsee::core::Error::Call(CallError::Custom {
-                code: CAPABILITY_NOT_AVAILABLE,
-                message: format!("{} is not available", method),
-                data: None,
-            }))
+            rpc_error_with_code_result::<bool>(
+                format!("{} is not available", method),
+                CAPABILITY_NOT_AVAILABLE,
+            )
         }
     }
 
@@ -527,11 +526,10 @@ impl PrivacyImpl {
             debug!("Resolved property: {:?}", prop);
             Self::set_bool(platform_state, prop, set_request.value).await
         } else {
-            Err(jsonrpsee::core::Error::Call(CallError::Custom {
-                code: CAPABILITY_NOT_AVAILABLE,
-                message: format!("{} is not available", method),
-                data: None,
-            }))
+            rpc_error_with_code_result::<()>(
+                format!("{} is not available", method),
+                CAPABILITY_NOT_AVAILABLE,
+            )
         }
     }
 

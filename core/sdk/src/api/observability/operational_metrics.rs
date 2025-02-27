@@ -55,4 +55,25 @@ mod tests {
         let contract_type: RippleContract = RippleContract::TelemetryEventsListener;
         test_extn_payload_provider(telemetry_payload, contract_type);
     }
+    #[test]
+    fn test_extn_payload_provider_for_operational_metric_request() {
+        let operational_metric_request = OperationalMetricRequest::UnSubscribe;
+        let contract_type: RippleContract = RippleContract::Observability;
+        test_extn_payload_provider(operational_metric_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_payload_provider_for_telemetry_payload_with_missing_fields() {
+        let app_load_start_payload = AppLoadStart {
+            app_id: "example_app".to_string(),
+            app_version: None,
+            start_time: 1634816400,
+            ripple_session_id: "session_id".to_string(),
+            ripple_version: "1.2.3".to_string(),
+            ripple_context: None,
+        };
+        let telemetry_payload = TelemetryPayload::AppLoadStart(app_load_start_payload);
+        let contract_type: RippleContract = RippleContract::TelemetryEventsListener;
+        test_extn_payload_provider(telemetry_payload, contract_type);
+    }
 }
