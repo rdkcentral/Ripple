@@ -107,11 +107,7 @@ impl PermittedState {
         for role_info in request {
             map.insert(
                 role_info.capability.as_str(),
-                if let Ok(v) = self.check_cap_role(app_id, &role_info) {
-                    v
-                } else {
-                    false
-                },
+                self.check_cap_role(app_id, &role_info).unwrap_or(false),
             );
         }
         map
@@ -138,7 +134,7 @@ impl PermissionHandler {
             .get_device_manifest()
             .applications
             .distributor_app_aliases;
-        if let Some(app_id_alias) = dist_app_aliases.get(&app_id.to_string()) {
+        if let Some(app_id_alias) = dist_app_aliases.get(app_id) {
             app_id_alias.to_string()
         } else {
             app_id.to_string()

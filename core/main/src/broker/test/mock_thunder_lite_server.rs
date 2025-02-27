@@ -1,4 +1,3 @@
-#![cfg(test)]
 use futures_util::{SinkExt, StreamExt};
 use ripple_sdk::log::error;
 use ripple_sdk::tokio::{

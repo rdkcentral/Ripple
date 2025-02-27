@@ -102,13 +102,11 @@ pub struct ThunderErrorResponse {
     pub error: Value,
 }
 
-pub fn get_error_value(error: &Error) -> Value {
-    if let jsonrpsee::core::Error::Request(s) = error {
-        if let Ok(v) = ripple_sdk::serde_json::from_str::<ThunderErrorResponse>(s) {
-            return v.error;
-        }
+pub fn get_error_value(jsonrpsee_error: &Error) -> Value {
+    match ripple_sdk::serde_json::to_value(jsonrpsee_error.to_string()) {
+        Ok(value) => value,
+        Err(_) => Value::String("Unknown error".to_string()),
     }
-    Value::Null
 }
 
 static ATOMIC_ID: AtomicU64 = AtomicU64::new(0);
