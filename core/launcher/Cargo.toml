@@ -32,3 +32,7 @@ serde_json.workspace = true
 serde.workspace = true
 url.workspace = true
 urlencoding.workspace = true
+[dev-dependencies]
+serde = {workspace = true, features=["std"]}
+serde_json = {workspace =true, features=["std"]}
+jsonrpsee.workspace =true

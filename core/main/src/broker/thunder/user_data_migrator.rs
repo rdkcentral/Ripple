@@ -29,10 +29,7 @@ use ripple_sdk::{
     tokio::{
         self,
         net::TcpStream,
-        sync::{
-            mpsc::{self, Receiver, Sender},
-            Mutex,
-        },
+        sync::{mpsc, Mutex},
         time::{timeout, Duration},
     },
     utils::error::RippleError,
@@ -64,6 +61,7 @@ enum UserDataMigratorError {
     SetterRuleNotAvailable,
     RequestTransformError(String),
     TimeoutError,
+    UnknownKeyError,
 }
 
 impl fmt::Display for UserDataMigratorError {
@@ -82,6 +80,7 @@ impl fmt::Display for UserDataMigratorError {
             UserDataMigratorError::RequestTransformError(msg) => {
                 write!(f, "Request transform error: {}", msg)
             }
+            UserDataMigratorError::UnknownKeyError => write!(f, "Unknown key error"),
         }
     }
 }
@@ -110,9 +109,7 @@ type MigrationStatusMap = HashMap<String, bool>;
 pub struct UserDataMigrator {
     migration_config: Arc<Mutex<MigrationConfigMap>>, // persistent migration configuration map
     migration_status: Arc<Mutex<MigrationStatusMap>>, // persistent migration status map
-    status_file_path: String,                         // path to the migration status file
-    response_tx: Sender<BrokerOutput>,
-    response_rx: Arc<Mutex<Receiver<BrokerOutput>>>,
+    status_file_path: String,
 }
 
 impl UserDataMigrator {
@@ -133,7 +130,6 @@ impl UserDataMigrator {
             if Path::new(&path).exists() {
                 debug!("Found migration map file: {}", path);
                 if let Some(migration_map) = Self::load_migration_config(&path) {
-                    let (response_tx, response_rx) = mpsc::channel(16);
                     let status_file_path = format!(
                         "{}/{}",
                         RIPPLE_STORAGE_DIR, USER_DATA_MIGRATION_STATUS_FILE_NAME
@@ -146,8 +142,6 @@ impl UserDataMigrator {
                             migration_config: Arc::new(Mutex::new(migration_map)),
                             migration_status: Arc::new(Mutex::new(migration_status_map)),
                             status_file_path,
-                            response_tx,
-                            response_rx: Arc::new(Mutex::new(response_rx)),
                         });
                     }
                 }
@@ -284,15 +278,7 @@ impl UserDataMigrator {
         let request_id = EndpointBrokerState::get_next_id();
         let call_sign = "org.rdk.PersistentStore.1.".to_owned();
 
-        // Register custom callback to handle the response
-        broker
-            .register_custom_callback(
-                request_id,
-                BrokerCallback {
-                    sender: self.response_tx.clone(),
-                },
-            )
-            .await;
+        let response_rx = Self::register_custom_callback(broker, request_id).await;
 
         // create the request to the legacy storage
         let thunder_request = json!({
@@ -319,8 +305,9 @@ impl UserDataMigrator {
             return Err(e);
         }
 
+        let response_rx_c = Arc::new(Mutex::new(response_rx));
         let response =
-            Self::wait_for_response(self.response_rx.clone(), broker.clone(), request_id).await;
+            Self::wait_for_response(response_rx_c.clone(), broker.clone(), request_id).await;
         self.process_response_from_legacy_storage(response)
     }
 
@@ -333,6 +320,14 @@ impl UserDataMigrator {
             error!("Failed to get response: {}", e);
             UserDataMigratorError::ThunderResponseError(e.to_string())
         })?;
+
+        if let Some(error) = response.data.error {
+            for (k, v) in error.as_object().unwrap() {
+                if k == "message" && v == "ERROR_UNKNOWN_KEY" {
+                    return Err(UserDataMigratorError::UnknownKeyError);
+                }
+            }
+        }
 
         let result = response.data.result.ok_or_else(|| {
             UserDataMigratorError::ThunderResponseError("No result field in response".to_string())
@@ -371,15 +366,7 @@ impl UserDataMigrator {
         let request_id = EndpointBrokerState::get_next_id();
         let call_sign = "org.rdk.PersistentStore.1.".to_owned();
 
-        // Register custom callback to handle the response
-        broker
-            .register_custom_callback(
-                request_id,
-                BrokerCallback {
-                    sender: self.response_tx.clone(),
-                },
-            )
-            .await;
+        let response_rx = Self::register_custom_callback(broker, request_id).await;
 
         // set storage data in the format required by the legacy storage
         let data = StorageData::new(params_json.clone());
@@ -410,10 +397,11 @@ impl UserDataMigrator {
         }
 
         // Spawn a task to wait for the response as we don't want to block the main thread
-        let response_rx = self.response_rx.clone();
         let broker_clone = broker.clone();
+        let response_rx_c = Arc::new(Mutex::new(response_rx));
         tokio::spawn(async move {
-            match UserDataMigrator::wait_for_response(response_rx, broker_clone, request_id).await {
+            match UserDataMigrator::wait_for_response(response_rx_c, broker_clone, request_id).await
+            {
                 Ok(response) => {
                     // Handle the successful response here
                     info!(
@@ -437,15 +425,7 @@ impl UserDataMigrator {
     ) -> Result<BrokerOutput, UserDataMigratorError> {
         let request_id = EndpointBrokerState::get_next_id();
 
-        // Register custom callback to handle the response
-        broker
-            .register_custom_callback(
-                request_id,
-                BrokerCallback {
-                    sender: self.response_tx.clone(),
-                },
-            )
-            .await;
+        let response_rx = Self::register_custom_callback(broker, request_id).await;
 
         // Create the request to the new plugin
         // The current implementation assumes no params for the getter function
@@ -474,9 +454,9 @@ impl UserDataMigrator {
             broker.unregister_custom_callback(request_id).await;
             return Err(e);
         }
-
+        let response_rx_c = Arc::new(Mutex::new(response_rx));
         // get the response from the custom callback
-        Self::wait_for_response(self.response_rx.clone(), broker.clone(), request_id).await
+        Self::wait_for_response(response_rx_c, broker.clone(), request_id).await
     }
 
     fn transform_request_params(
@@ -528,16 +508,7 @@ impl UserDataMigrator {
         };
 
         let request_id = EndpointBrokerState::get_next_id();
-
-        // Register custom callback to handle the response
-        broker
-            .register_custom_callback(
-                request_id,
-                BrokerCallback {
-                    sender: self.response_tx.clone(),
-                },
-            )
-            .await;
+        let response_rx = Self::register_custom_callback(broker, request_id).await;
 
         // create the request to the new plugin
         let thunder_plugin_request = json!({
@@ -566,8 +537,26 @@ impl UserDataMigrator {
             return Err(e);
         }
 
+        let response_rx_c = Arc::new(Mutex::new(response_rx));
         // get the response from the custom callback, unregister the callback and return the response
-        Self::wait_for_response(self.response_rx.clone(), broker.clone(), request_id).await
+        Self::wait_for_response(response_rx_c, broker.clone(), request_id).await
+    }
+
+    async fn register_custom_callback(
+        broker: &ThunderBroker,
+        request_id: u64,
+    ) -> tokio::sync::mpsc::Receiver<BrokerOutput> {
+        let (response_tx, response_rx) = mpsc::channel(1);
+        // Register custom callback to handle the response
+        broker
+            .register_custom_callback(
+                request_id,
+                BrokerCallback {
+                    sender: response_tx,
+                },
+            )
+            .await;
+        response_rx
     }
 
     async fn send_thunder_request(
@@ -595,7 +584,10 @@ impl UserDataMigrator {
         let mut response_rx = response_rx.lock().await;
         let response = match timeout(Duration::from_secs(30), response_rx.recv()).await {
             Ok(Some(response)) => {
-                info!("wait_for_response : Received response : {:?}", response);
+                info!(
+                    "wait_for_response : request id : {:?} Received response : {:?}",
+                    request_id, response
+                );
                 response
             }
             Ok(None) => {
@@ -663,39 +655,69 @@ impl UserDataMigrator {
                         error!("Failed to send response: {:?}", e);
                     }
                 }
-                Ok((_, None)) | Err(_) => {
-                    // Handle the case where no output is returned. Read the value from the plugin and send the response
-                    // The response will be sent to the default callback of the broker.
-                    // The response structure will be upated with the originial request id for the callback handler to match the response.
-                    let value_from_thunder_plugin = self_clone
-                        .read_from_thunder_plugin(
-                            &broker_clone,
-                            ws_tx_clone.clone(),
-                            &request_clone,
+                Ok((_, None)) => {
+                    self.handle_no_legacy_response_getter_migration(
+                        &broker_clone,
+                        ws_tx_clone.clone(),
+                        request_clone,
+                    )
+                    .await
+                }
+                Err(e) => {
+                    // Handle UnknownKeyError migration error, this is identified when legacy storage has not been used previously hence migration is not required.
+                    // In this case, migration status is set to true so that migration interception is not perform for subsequent requests.
+                    if UserDataMigratorError::UnknownKeyError.to_string() == e.to_string() {
+                        self.set_migration_status(
+                            &config_entry_clone.namespace,
+                            &config_entry_clone.key,
                         )
                         .await;
-                    match value_from_thunder_plugin {
-                        Ok(mut value_from_thunder_plugin) => {
-                            value_from_thunder_plugin.data.id = Some(request_clone.rpc.ctx.call_id);
-                            if let Err(e) = broker_clone
-                                .get_default_callback()
-                                .sender
-                                .send(value_from_thunder_plugin)
-                                .await
-                            {
-                                error!("Failed to send response: {:?}", e);
-                            }
-                        }
-                        Err(_e) => {
-                            broker_clone
-                                .get_default_callback()
-                                .send_error(request_clone, RippleError::ProcessorError)
-                                .await
-                        }
+                    } else {
+                        error!("Failed to perform migration: {:?}", e);
                     }
+
+                    self.handle_no_legacy_response_getter_migration(
+                        &broker_clone,
+                        ws_tx_clone,
+                        request_clone,
+                    )
+                    .await
                 }
             }
         });
+    }
+
+    async fn handle_no_legacy_response_getter_migration(
+        self: Arc<Self>,
+        broker_clone: &ThunderBroker,
+        ws_tx_clone: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
+        request_clone: BrokerRequest,
+    ) {
+        // Handle the case where no output is returned. Read the value from the plugin and send the response
+        // The response will be sent to the default callback of the broker.
+        // The response structure will be upated with the originial request id for the callback handler to match the response.
+        let value_from_thunder_plugin = self
+            .read_from_thunder_plugin(broker_clone, ws_tx_clone.clone(), &request_clone)
+            .await;
+        match value_from_thunder_plugin {
+            Ok(mut value_from_thunder_plugin) => {
+                value_from_thunder_plugin.data.id = Some(request_clone.rpc.ctx.call_id);
+                if let Err(e) = broker_clone
+                    .get_default_callback()
+                    .sender
+                    .send(value_from_thunder_plugin)
+                    .await
+                {
+                    error!("Failed to send response: {:?}", e);
+                }
+            }
+            Err(_e) => {
+                broker_clone
+                    .get_default_callback()
+                    .send_error(request_clone, RippleError::ProcessorError)
+                    .await
+            }
+        }
     }
 
     async fn perform_getter_migration(
@@ -721,7 +743,6 @@ impl UserDataMigrator {
         let output_from_thunder_plugin = self
             .read_from_thunder_plugin(broker, ws_tx.clone(), request)
             .await?;
-
         let mut response = output_from_thunder_plugin.clone().data;
         let data_for_callback = response.clone();
 
@@ -902,6 +923,7 @@ impl UserDataMigrator {
         // open the status file if exists, else create a new file
         let file = OpenOptions::new()
             .create(true)
+            .truncate(false)
             .write(true)
             .read(true)
             .open(status_file_path)
@@ -916,7 +938,7 @@ impl UserDataMigrator {
 
         let file = OpenOptions::new()
             .write(true)
-            .truncate(true)
+            .truncate(false)
             .create(true)
             .open(&self.status_file_path)
             .unwrap();
@@ -979,8 +1001,6 @@ mod tests {
             migration_config: Arc::new(Mutex::new(migration_map)),
             migration_status: Arc::new(Mutex::new(migration_status_map)),
             status_file_path: "status_file_path".to_string(),
-            response_tx: mpsc::channel(16).0,
-            response_rx: Arc::new(Mutex::new(mpsc::channel(16).1)),
         };
 
         let status = migrator.get_migration_status("namespace", "key").await;
@@ -1008,8 +1028,6 @@ mod tests {
             migration_config: Arc::new(Mutex::new(migration_map)),
             migration_status: Arc::new(Mutex::new(HashMap::new())),
             status_file_path: "status_file_path".to_string(),
-            response_tx: mpsc::channel(16).0,
-            response_rx: Arc::new(Mutex::new(mpsc::channel(16).1)),
         };
 
         let key = migrator
@@ -1037,8 +1055,6 @@ mod tests {
             migration_config: Arc::new(Mutex::new(migration_map)),
             migration_status: Arc::new(Mutex::new(HashMap::new())),
             status_file_path: "status_file_path".to_string(),
-            response_tx: mpsc::channel(16).0,
-            response_rx: Arc::new(Mutex::new(mpsc::channel(16).1)),
         };
 
         let key = migrator

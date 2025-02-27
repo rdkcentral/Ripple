@@ -20,7 +20,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use jsonrpsee::{tracing::debug, types::error::CallError};
+use jsonrpsee::tracing::debug;
 use ripple_sdk::{
     api::{
         context::RippleContextUpdateRequest,
@@ -35,7 +35,7 @@ use ripple_sdk::{
     chrono::{DateTime, Utc},
     extn::extn_client_message::ExtnResponse,
     log::{error, warn},
-    utils::error::RippleError,
+    utils::{error::RippleError, rpc_utils::rpc_error_with_code},
 };
 
 use rand::Rng;
@@ -265,11 +265,10 @@ impl MetricsState {
                 .await
                 .and_then(|val| {
                     from_value::<String>(val).map_err(|_| {
-                        jsonrpsee::core::Error::Call(CallError::Custom {
-                            code: -32100,
-                            message: "Failed to parse language".into(),
-                            data: None,
-                        })
+                        rpc_error_with_code::<String>(
+                            "Failed to parse language".to_string(),
+                            -32100,
+                        )
                     })
                 })
                 .unwrap_or_else(|_| Self::unset("language"));
@@ -289,11 +288,10 @@ impl MetricsState {
                 .await
                 .and_then(|val| {
                     from_value::<String>(val).map_err(|_| {
-                        jsonrpsee::core::Error::Call(CallError::Custom {
-                            code: -32100,
-                            message: "Failed to parse ripple.device_os_version".into(),
-                            data: None,
-                        })
+                        rpc_error_with_code::<String>(
+                            "Failed to parse ripple.device_os_version".to_string(),
+                            -32100,
+                        )
                     })
                 })
                 .unwrap_or("not.set".into());
@@ -379,21 +377,11 @@ impl MetricsState {
         .await
         {
             Some(s) => s,
-            None => {
-                if let Ok(response) = state
-                    .get_client()
-                    .send_extn_request(DeviceInfoRequest::Make)
-                    .await
-                {
-                    if let Some(ExtnResponse::String(v)) = response.payload.extract() {
-                        v
-                    } else {
-                        "Device.Manufacturer.missing.from.persistent.store".to_string()
-                    }
-                } else {
-                    "Device.Manufacturer.missing.from.persistent.store".to_string()
-                }
-            }
+            None => rpc_value_result_to_string_result(
+                BrokerUtils::process_internal_main_request(state, "device.make", None).await,
+                Some(Self::unset("device.make")),
+            )
+            .unwrap_or(Self::unset("device.make")),
         };
         let authenticated = Some(true);
 
