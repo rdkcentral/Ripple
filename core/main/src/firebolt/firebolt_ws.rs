@@ -30,7 +30,7 @@ use crate::{
 };
 use futures::SinkExt;
 use futures::StreamExt;
-use jsonrpsee::types::{error::ErrorCode, ErrorResponse, Id};
+use jsonrpsee::types::{error::INVALID_REQUEST_CODE, ErrorObject, ErrorResponse, Id};
 use ripple_sdk::{
     api::{
         gateway::rpc_gateway_api::{
@@ -73,7 +73,13 @@ pub struct ConnectionCallback(ConnectionCallbackConfig);
 /**
  * Gets a query parameter from the request at the given key.
  * If required=true, then return an error if the param is missing
+ *
+ *
+ * clippy: the `Err`-variant is at least 136 bytes
+ * It is not possible to reduce the size of the error message without boxing, and upsetting
+ * consumers
  */
+#[allow(clippy::result_large_err)]
 fn get_query(
     req: &tungstenite::handshake::server::Request,
     key: &'static str,
@@ -362,8 +368,15 @@ impl FireboltWs {
                                 .session_state
                                 .get_session_for_connection_id(&connection_id)
                             {
-                                let err =
-                                    ErrorResponse::new(ErrorCode::InvalidRequest.into(), Id::Null);
+                                let err = ErrorResponse::owned(
+                                    ErrorObject::owned::<()>(
+                                        INVALID_REQUEST_CODE,
+                                        "invalid request".to_owned(),
+                                        None,
+                                    ),
+                                    Id::Null,
+                                );
+
                                 let msg = serde_json::to_string(&err).unwrap();
                                 let api_msg =
                                     ApiMessage::new(ApiProtocol::JsonRpc, msg, req_id.clone());
