@@ -17,7 +17,7 @@
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
-    service::apps::app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
+    service::apps::app_events::{AppEventDecorator, AppEvents},
     state::platform_state::PlatformState,
     utils::rpc_utils::rpc_add_event_listener,
 };
@@ -50,28 +50,7 @@ use ripple_sdk::{
     log::error,
     utils::rpc_utils::rpc_error_with_code_result,
 };
-use serde_json::{json, Value};
-
-#[derive(Clone)]
-struct VGEnabledEventDecorator {}
-
-#[async_trait]
-impl AppEventDecorator for VGEnabledEventDecorator {
-    async fn decorate(
-        &self,
-        ps: &PlatformState,
-        _ctx: &CallContext,
-        _event_name: &str,
-        _val_in: &Value,
-    ) -> Result<Value, AppEventDecorationError> {
-        let enabled = voice_guidance_settings_enabled(ps).await?;
-        Ok(json!(enabled))
-    }
-
-    fn dec_clone(&self) -> Box<dyn AppEventDecorator + Send + Sync> {
-        Box::new(self.clone())
-    }
-}
+use serde_json::json;
 
 #[rpc(server)]
 pub trait Voiceguidance {
