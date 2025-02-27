@@ -182,4 +182,58 @@ mod tests {
             "Timer tags do not match expected tags"
         );
     }
+    #[rstest]
+    fn test_update_stage() {
+        let mut rpc_stats = RpcStats::default();
+        let duration = rpc_stats.update_stage("stage1");
+        assert!(duration >= 0, "Duration should be non-negative");
+        assert_eq!(
+            rpc_stats.last_stage,
+            Utc::now().timestamp_millis(),
+            "Last stage time mismatch"
+        );
+        assert_eq!(
+            rpc_stats.stage_durations,
+            "stage1=".to_string() + &duration.to_string(),
+            "Stage durations mismatch"
+        );
+
+        let duration2 = rpc_stats.update_stage("stage2");
+        assert!(duration2 >= 0, "Duration should be non-negative");
+        assert_eq!(
+            rpc_stats.stage_durations,
+            format!("stage1={},stage2={}", duration, duration2),
+            "Stage durations mismatch"
+        );
+    }
+
+    #[rstest]
+    fn test_get_total_time() {
+        let rpc_stats = RpcStats::default();
+        let total_time = rpc_stats.get_total_time();
+        assert!(total_time >= 0, "Total time should be non-negative");
+    }
+
+    #[rstest]
+    fn test_get_stage_durations() {
+        let mut rpc_stats = RpcStats::default();
+        rpc_stats.update_stage("stage1");
+        let stage_durations = rpc_stats.get_stage_durations();
+        assert!(
+            !stage_durations.is_empty(),
+            "Stage durations should not be empty"
+        );
+    }
+
+    #[rstest]
+    fn test_api_stats_new() {
+        let api_stats = ApiStats::new("test_api".to_string());
+        assert_eq!(api_stats.api, "test_api".to_string(), "API name mismatch");
+        assert!(api_stats.stats_ref.is_none(), "Stats ref should be None");
+        assert_eq!(
+            api_stats.stats.start_time,
+            Utc::now().timestamp_millis(),
+            "Start time mismatch"
+        );
+    }
 }

@@ -708,12 +708,12 @@ impl Default for MetricsEnvironment {
     }
 }
 
-impl ToString for MetricsEnvironment {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for MetricsEnvironment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            MetricsEnvironment::Prod => "prod".into(),
-            MetricsEnvironment::Dev => "dev".into(),
-            MetricsEnvironment::Test => "test".into(),
+            MetricsEnvironment::Prod => write!(f, "prod"),
+            MetricsEnvironment::Dev => write!(f, "dev"),
+            MetricsEnvironment::Test => write!(f, "test"),
         }
     }
 }
@@ -956,11 +956,11 @@ pub enum InteractionType {
     Service,
 }
 
-impl ToString for InteractionType {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for InteractionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            InteractionType::Firebolt => "fi".into(),
-            InteractionType::Service => "si".into(),
+            InteractionType::Firebolt => write!(f, "fi"),
+            InteractionType::Service => write!(f, "si"),
         }
     }
 }

@@ -43,7 +43,7 @@ use crate::{
     },
     thunder_state::ThunderState,
 };
-use base64::{engine::general_purpose::STANDARD as base64, Engine};
+use base64::{engine::general_purpose, Engine as _};
 use ripple_sdk::api::app_catalog::{AppCatalogRequest, AppOperationComplete, AppsUpdate};
 use ripple_sdk::api::device::device_apps::DeviceAppMetadata;
 use ripple_sdk::api::firebolt::fb_capabilities::FireboltPermissions;
@@ -291,11 +291,11 @@ impl FromStr for AppsOperationType {
         }
     }
 }
-impl ToString for AppsOperationType {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for AppsOperationType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AppsOperationType::Install => "install".to_string(),
-            AppsOperationType::Uninstall => "uninstall".to_string(),
+            AppsOperationType::Install => write!(f, "install"),
+            AppsOperationType::Uninstall => write!(f, "uninstall"),
         }
     }
 }
@@ -792,7 +792,7 @@ impl ThunderPackageManagerRequestProcessor {
     }
 
     fn decode_permissions(perms_encoded: String) -> Result<FireboltPermissions, ()> {
-        let perms = base64.decode(perms_encoded);
+        let perms = general_purpose::STANDARD.decode(perms_encoded);
         if let Err(e) = perms {
             error!(
                 "decode_permissions: Could not decode permissions: e={:?}",

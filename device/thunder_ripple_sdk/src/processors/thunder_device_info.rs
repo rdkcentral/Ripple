@@ -620,11 +620,7 @@ impl ThunderDeviceInfoRequestProcessor {
         let hdcp_version = v.to_string();
 
         let is_hdcp_supported: bool = if let Some(h) = response.message.get("isHDCPSupported") {
-            if let Ok(v) = h.to_string().parse::<bool>() {
-                v
-            } else {
-                false
-            }
+            h.to_string().parse::<bool>().unwrap_or(false)
         } else {
             false
         };

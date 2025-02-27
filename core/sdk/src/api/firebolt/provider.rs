@@ -51,18 +51,18 @@ pub enum ProviderResponsePayloadType {
     GenericError,
 }
 
-impl ToString for ProviderResponsePayloadType {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for ProviderResponsePayloadType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ProviderResponsePayloadType::ChallengeResponse => "ChallengeResponse".into(),
-            ProviderResponsePayloadType::PinChallengeResponse => "PinChallengeResponse".into(),
-            ProviderResponsePayloadType::KeyboardResult => "KeyboardResult".into(),
-            ProviderResponsePayloadType::EntityInfoResponse => "EntityInfoResponse".into(),
+            ProviderResponsePayloadType::ChallengeResponse => write!(f, "ChallengeResponse"),
+            ProviderResponsePayloadType::PinChallengeResponse => write!(f, "PinChallengeResponse"),
+            ProviderResponsePayloadType::KeyboardResult => write!(f, "KeyboardResult"),
+            ProviderResponsePayloadType::EntityInfoResponse => write!(f, "EntityInfoResponse"),
             ProviderResponsePayloadType::PurchasedContentResponse => {
-                "PurchasedContentResponse".into()
+                write!(f, "PurchasedContentResponse")
             }
-            ProviderResponsePayloadType::GenericResponse => "GenericResponse".into(),
-            ProviderResponsePayloadType::GenericError => "GenericError".into(),
+            ProviderResponsePayloadType::GenericResponse => write!(f, "GenericResponse"),
+            ProviderResponsePayloadType::GenericError => write!(f, "GenericError"),
         }
     }
 }
