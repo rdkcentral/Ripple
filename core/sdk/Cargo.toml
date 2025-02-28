@@ -45,7 +45,8 @@ tokio = { workspace = true, features = [
     "time",
 ] }
 futures.workspace = true
-jsonrpsee = { workspace = true, features = ["ws-server"], optional = true }
+jsonrpsee = { workspace = true, features=["server"], optional = true }
+
 regex.workspace = true
 uuid = { workspace = true, features = ["serde", "v5", "v4"] }
 
