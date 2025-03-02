@@ -18,33 +18,21 @@
 use serde_json::json;
 use std::collections::HashMap;
 
-use crate::{
-    client::thunder_client_pool::ThunderClientPool,
-    get_pact_with_params,
-    ripple_sdk::{
-        async_channel::unbounded,
-        extn::extn_client_message::{ExtnPayload, ExtnRequest},
-    },
-    thunder_state::ThunderState,
-};
+use crate::get_pact_with_params;
 
 use crate::ripple_sdk::{
-    api::device::{
-        device_info_request::DeviceInfoRequest,
-        device_request::{DeviceRequest, OnInternetConnectedRequest},
-    },
-    extn::client::extn_processor::ExtnRequestProcessor,
     serde_json::{self},
     tokio,
 };
 
-use crate::processors::thunder_device_info::{CachedState, ThunderDeviceInfoRequestProcessor};
-
-use crate::get_pact;
 use crate::tests::contracts::contract_utils::*;
-use crate::thunder_state::ThunderConnectionState;
+use crate::{get_pact, send_thunder_call_message};
 use pact_consumer::mock_server::StartMockServerAsync;
-use std::sync::Arc;
+
+use futures_util::{SinkExt, StreamExt};
+use tokio::time::{timeout, Duration};
+use tokio_tungstenite::connect_async;
+use tokio_tungstenite::tungstenite::protocol::Message;
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
@@ -80,33 +68,16 @@ async fn test_device_get_info_mac_address() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    // Creating a mock extn message needed for calling method
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-        DeviceInfoRequest::MacAddress,
-    )));
-    let msg = get_extn_msg(payload);
-
-    // Creating thunder client with mock server url
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    // Creating extn client which will send back the data to the receiver(instead of callback)
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
-
-    // Create  Thunderstate which contains the extn_client for callback and thunder client for making thunder requests
-    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
-
-    // Make call to method
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(
-        state,
-        msg,
-        DeviceInfoRequest::MacAddress,
-    )
-    .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.System.1.getDeviceInfo",
+        "params": json!({
+            "params": ["estb_mac"]
+        })
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -151,32 +122,15 @@ async fn test_device_get_model() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-        DeviceInfoRequest::Model,
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s.clone(), r.clone());
-
-    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
-
-    let _ =
-        ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::Model)
-            .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.System.1.getSystemVersions"
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
-/*
-//
-//Cannot use DeviceInfoRequest for the following test cases as it is removed as part of handler code cleanup.
-//Use ThunderBroker to communicate with the mock device instead of using ThunderClientPool directly.
-//RPPL-2383 is required for fixing this test case.
-//
+
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_device_get_interfaces_wifi() {
@@ -221,25 +175,13 @@ async fn test_device_get_interfaces_wifi() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-        DeviceInfoRequest::Network,
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s.clone(), r.clone());
-
-    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
-
-    let _ =
-        ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::Network)
-            .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.Network.1.getInterfaces"
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -286,27 +228,15 @@ async fn test_device_get_interfaces_ethernet() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-        DeviceInfoRequest::Network,
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
-
-    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
-
-    let _ =
-        ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::Network)
-            .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.Network.1.getInterfaces"
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
-*/
+
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_device_get_audio() {
@@ -340,25 +270,13 @@ async fn test_device_get_audio() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-        DeviceInfoRequest::Audio,
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
-
-    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
-
-    let _ =
-        ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::Audio)
-            .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.DisplaySettings.1.getAudioFormat"
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -393,28 +311,13 @@ async fn test_device_get_hdcp_supported() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-        DeviceInfoRequest::HdcpSupport,
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
-
-    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
-
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(
-        state,
-        msg,
-        DeviceInfoRequest::HdcpSupport,
-    )
-    .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.HdcpProfile.1.getSettopHDCPSupport"
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -455,35 +358,15 @@ async fn test_device_get_hdcp_status() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-        DeviceInfoRequest::HdcpStatus,
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
-
-    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
-
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(
-        state,
-        msg,
-        DeviceInfoRequest::HdcpStatus,
-    )
-    .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.HdcpProfile.1.getHDCPStatus"
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
-/*
-//
-//Cannot use DeviceInfoRequest for the following test cases as it is removed as part of handler code cleanup.
-//Use ThunderBroker to communicate with the mock device instead of using ThunderClientPool directly.
-//RPPL-2383 is required for fixing this test case.
-//
+
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_device_get_hdr() {
@@ -512,24 +395,13 @@ async fn test_device_get_hdr() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-        DeviceInfoRequest::Hdr,
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
-
-    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
-
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::Hdr)
-        .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.DisplaySettings.1.getTVHDRCapabilities"
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -562,28 +434,13 @@ async fn test_device_get_screen_resolution_without_port() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-        DeviceInfoRequest::ScreenResolution,
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
-
-    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
-
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(
-        state,
-        msg,
-        DeviceInfoRequest::ScreenResolution,
-    )
-    .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.DisplaySettings.1.getCurrentResolution"
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -610,24 +467,13 @@ async fn test_device_get_make() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-        DeviceInfoRequest::Make,
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
-
-    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
-
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(state, msg, DeviceInfoRequest::Make)
-        .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.System.1.getDeviceInfo"
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -671,30 +517,14 @@ async fn test_device_get_video_resolution() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-        DeviceInfoRequest::VideoResolution,
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
-
-    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
-
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(
-        state,
-        msg,
-        DeviceInfoRequest::VideoResolution,
-    )
-    .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.DisplaySettings.1.getCurrentResolution"
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
-*/
 
 // #[tokio::test(flavor = "multi_thread")]
 // #[cfg_attr(not(feature = "contract_tests"), ignore)]
@@ -782,28 +612,13 @@ async fn test_device_get_timezone() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-        DeviceInfoRequest::GetTimezone,
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
-
-    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
-
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(
-        state,
-        msg,
-        DeviceInfoRequest::GetTimezone,
-    )
-    .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.System.1.getTimeZoneDST"
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -854,28 +669,13 @@ async fn test_device_get_available_timezone() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-        DeviceInfoRequest::GetAvailableTimezones,
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
-
-    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
-
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(
-        state,
-        msg,
-        DeviceInfoRequest::GetAvailableTimezones,
-    )
-    .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.System.1.getTimeZones"
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -910,27 +710,13 @@ async fn test_device_get_voice_guidance_enabled() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-        DeviceInfoRequest::VoiceGuidanceEnabled,
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
-
-    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(
-        state,
-        msg,
-        DeviceInfoRequest::VoiceGuidanceEnabled,
-    )
-    .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.TextToSpeech.1.isttsenabled"
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -988,28 +774,13 @@ async fn test_device_get_voice_guidance_speed() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-        DeviceInfoRequest::VoiceGuidanceSpeed,
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
-
-    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
-
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(
-        state,
-        msg,
-        DeviceInfoRequest::VoiceGuidanceSpeed,
-    )
-    .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.TextToSpeech.1.getttsconfiguration"
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1046,28 +817,16 @@ async fn test_device_set_timezone() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-        DeviceInfoRequest::SetTimezone("".to_string()),
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
-
-    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
-
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(
-        state,
-        msg,
-        DeviceInfoRequest::SetTimezone("America/New_York".to_string()),
-    )
-    .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.System.1.setTimeZoneDST",
+        "params": json!({
+            "timeZone": "America/New_York"
+        })
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1102,28 +861,16 @@ async fn test_device_set_voice_guidance() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-        DeviceInfoRequest::SetVoiceGuidanceEnabled(false),
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
-
-    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
-
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(
-        state,
-        msg,
-        DeviceInfoRequest::SetVoiceGuidanceEnabled(false),
-    )
-    .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.TextToSpeech.1.enabletts",
+        "params": json!({
+            "enabletts": false
+        })
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1158,28 +905,16 @@ async fn test_device_set_voice_guidance_speed() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-        DeviceInfoRequest::SetVoiceGuidanceSpeed(50.0),
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
-
-    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
-
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(
-        state,
-        msg,
-        DeviceInfoRequest::SetVoiceGuidanceSpeed(50.0),
-    )
-    .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.TextToSpeech.1.setttsconfiguration",
+        "params": json!({
+            "rate": 50
+        })
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1213,28 +948,11 @@ async fn test_device_get_internet() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let timeout = 50;
-    let time_out = OnInternetConnectedRequest { timeout };
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::DeviceInfo(
-        DeviceInfoRequest::OnInternetConnected(time_out.clone()),
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
-
-    let state: CachedState = CachedState::new(ThunderState::new(extn_client, thunder_client));
-
-    let _ = ThunderDeviceInfoRequestProcessor::process_request(
-        state,
-        msg,
-        DeviceInfoRequest::OnInternetConnected(time_out.clone()),
-    )
-    .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.Network.1.isConnectedToInternet"
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }

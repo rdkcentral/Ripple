@@ -15,37 +15,20 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::get_pact_with_params;
-use crate::processors::thunder_persistent_store::ThunderStorageRequestProcessor;
+use crate::ripple_sdk::{serde_json::json, tokio};
 use crate::tests::contracts::contract_utils::*;
 use crate::tests::contracts::thunder_persistent_store_pacts::chrono::Utc;
-use crate::thunder_state::ThunderConnectionState;
-use crate::{
-    client::thunder_client_pool::ThunderClientPool,
-    ripple_sdk::{
-        api::device::{
-            device_peristence::{
-                DeleteStorageProperty, DevicePersistenceRequest, GetStorageProperty,
-                SetStorageProperty, StorageData,
-            },
-            device_request::DeviceRequest,
-        },
-        async_channel::unbounded,
-        extn::{
-            client::extn_processor::ExtnRequestProcessor,
-            extn_client_message::{ExtnPayload, ExtnRequest},
-        },
-        serde_json::json,
-        tokio,
-    },
-    thunder_state::ThunderState,
-};
+use crate::{get_pact_with_params, send_thunder_call_message};
 use pact_consumer::mock_server::StartMockServerAsync;
 use pact_consumer::prelude::*;
 use ripple_sdk::chrono;
 use rstest::rstest;
 use std::collections::HashMap;
-use std::sync::Arc;
+
+use futures_util::{SinkExt, StreamExt};
+use tokio::time::{timeout, Duration};
+use tokio_tungstenite::connect_async;
+use tokio_tungstenite::tungstenite::protocol::Message;
 
 #[rstest(with_scope, case(true), case(false))]
 #[tokio::test(flavor = "multi_thread")]
@@ -108,44 +91,22 @@ async fn test_device_set_persistent_value(with_scope: bool) {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let namespace = "testNameSpace";
-    let key = "testKey";
-    let data = StorageData {
-        value: "testValue1".into(),
-        update_time: Utc::now().to_rfc3339(),
-    };
-    let mut scope = None;
-    if with_scope {
-        scope = Some("device".to_string());
-    }
-    let set_params = SetStorageProperty {
-        namespace: namespace.to_string(),
-        key: key.to_string(),
-        data,
-        scope,
-    };
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Storage(
-        DevicePersistenceRequest::Set(set_params.clone()),
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
-
-    let state: ThunderState = ThunderState::new(extn_client, thunder_client);
-
-    let _ = ThunderStorageRequestProcessor::process_request(
-        state,
-        msg,
-        DevicePersistenceRequest::Set(set_params.clone()),
-    )
-    .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.PersistentStore.1.setValue",
+        "params": json!({
+            "namespace": "testNameSpace",
+            "key": "testKey",
+            "value": {
+                "update_time": Utc::now().to_rfc3339(),
+                "value": "testValue1"
+            },
+            "scope": "device"
+        })
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
 
 #[rstest(with_scope, case(true), case(false))]
@@ -200,39 +161,18 @@ async fn test_device_get_persistent_value(with_scope: bool) {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let namespace = "testNamespace";
-    let key = "testKey";
-    let mut scope = None;
-    if with_scope {
-        scope = Some("device".to_string());
-    }
-    let get_params = GetStorageProperty {
-        namespace: namespace.to_string(),
-        key: key.to_string(),
-        scope,
-    };
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Storage(
-        DevicePersistenceRequest::Get(get_params.clone()),
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
-
-    let state: ThunderState = ThunderState::new(extn_client, thunder_client);
-
-    let _ = ThunderStorageRequestProcessor::process_request(
-        state,
-        msg,
-        DevicePersistenceRequest::Get(get_params.clone()),
-    )
-    .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.PersistentStore.1.getValue",
+        "params": json!({
+            "namespace": "testNamespace",
+            "key": "testKey",
+            "scope": "device"
+        })
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
 
 #[rstest(with_scope, case(true), case(false))]
@@ -285,37 +225,16 @@ async fn test_device_delete_persistent_value_by_key(with_scope: bool) {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let namespace = "testNamespace";
-    let key = "testKey";
-    let mut scope = None;
-    if with_scope {
-        scope = Some("device".to_string());
-    }
-    let delete_params = DeleteStorageProperty {
-        namespace: namespace.to_string(),
-        key: key.to_string(),
-        scope,
-    };
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Storage(
-        DevicePersistenceRequest::Delete(delete_params.clone()),
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s, r);
-
-    let state: ThunderState = ThunderState::new(extn_client, thunder_client);
-
-    let _ = ThunderStorageRequestProcessor::process_request(
-        state,
-        msg,
-        DevicePersistenceRequest::Delete(delete_params.clone()),
-    )
-    .await;
+    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "org.rdk.PersistentStore.1.deleteKey",
+        "params": json!({
+            "namespace": "testNamespace",
+            "key": "testKey",
+            "scope": "device"
+        })
+    });
+    send_thunder_call_message!(server_url.to_string(), request).await;
 }
