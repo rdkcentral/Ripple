@@ -363,18 +363,28 @@ impl FireboltGateway {
                         None
                     };
 
-                    let requestor_callback_tx =
-                        Self::handle_broker_callback(platform_state.clone(), request_c.clone());
+                    // <pca> debug
+                    // let requestor_callback_tx =
+                    //     Self::handle_broker_callback(platform_state.clone(), request_c.clone());
+
+                    // let handled = platform_state.endpoint_state.handle_brokerage(
+                    //     request_c.clone(),
+                    //     extn_msg.clone(),
+                    //     Some(BrokerCallback {
+                    //         sender: requestor_callback_tx,
+                    //     }),
+                    //     p,
+                    //     session.clone(),
+                    // );
 
                     let handled = platform_state.endpoint_state.handle_brokerage(
                         request_c.clone(),
                         extn_msg.clone(),
-                        Some(BrokerCallback {
-                            sender: requestor_callback_tx,
-                        }),
+                        None,
                         p,
                         session.clone(),
                     );
+                    // </pca>
 
                     if !handled {
                         // Route
