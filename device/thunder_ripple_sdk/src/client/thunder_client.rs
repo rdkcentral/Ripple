@@ -46,7 +46,7 @@ use ripple_sdk::{
     utils::error::RippleError,
     uuid::Uuid,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -218,7 +218,7 @@ pub struct ThunderClient {
     pub use_thunder_async: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
 pub struct DefaultThunderResult {
     pub success: bool,
 }
