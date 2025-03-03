@@ -14,7 +14,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 #
-
 [workspace]
 resolver = "2"
 members = [
@@ -34,22 +33,22 @@ members = [
 version = "1.1.0"
 
 [workspace.dependencies]
-base64 = { version = "0.21.5", default-features = false }
+base64 = { version = "0.22.1", default-features = false, features=["alloc"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 futures = { version = "0.3.21", default-features = false }
 futures-channel = { version = "0.3.21", default-features = false }
-jsonrpsee = { version = "0.9.0", default-features = false }
+jsonrpsee = { version = "=0.16.3", default-features = false }
 querystring = { version = "1.1.0", default-features = false }
 regex = { version = "1.10.4", features = ["std"], default-features = false }
 serde_json = { version = "1.0", default-features = false}
 serde = { version = "1.0", features = ["derive"], default-features =  false  }
-tokio = { version = "1.37.0", default-features = false }
-native-tls = {version= "=0.2.11"}
+tokio = { version = "1.43.0", default-features = false }
 tokio-tungstenite = { version = "0.20.1", default-features = false }
 url = { version = "=2.5.0", default-features = false}
 urlencoding = { version = "2.1.0", default-features = false}
-uuid = { version = "1.1.2", default-features = false }
+uuid = { version = "1.13.1", default-features = false }
 ripple_sdk = { path = "./core/sdk" }
+proc-macro2 = { version = "1.0.86"}
 
 [profile.release]
 strip=true
