@@ -22,15 +22,7 @@ use ripple_sdk::{
         client::extn_client::ExtnClient,
         extn_client_message::{ExtnMessage, ExtnPayloadProvider},
     },
-<<<<<<< HEAD
-<<<<<<< HEAD
     log::warn,
-=======
-    log::info,
->>>>>>> 8af46c34 (fix: modified the back_off value check before process the event response)
-=======
-    log::warn,
->>>>>>> 8f65f668 (fix: review comments fixed)
     tokio,
     tokio::sync::mpsc,
     tokio::sync::{Mutex, Notify},
@@ -159,9 +151,6 @@ impl ThunderState {
             tokio::spawn(async move {
                 while let Some(request) = r.recv().await {
                     if let Some(id) = request.sub_id {
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
                         //check the back_off value
                         if state_c.event_processor.get_backoff(&id).is_some() {
                             warn!("back_off is not None. can't process event of ID:{}", id);
@@ -173,56 +162,6 @@ impl ThunderState {
                                 request.message.clone(),
                                 handler.callback_type.clone(),
                             );
-=======
-                        let value = request.message.clone();
-=======
->>>>>>> 53e008e8 (chore: cleaned up unnecessary unwrap())
-                        if let Some(handler) = state_c.event_processor.get_handler(&id) {
-                            if let Some(back_off) = state_c.event_processor.get_backoff(&id) {
-                                if back_off.current_back_off <= 0 {
-                                    handler.process(
-                                        state_c.clone(),
-                                        &id,
-                                        request.message.clone(),
-                                        handler.callback_type.clone(),
-                                    )
-                                }
-=======
-                        //check the back_off value
-                        if let Some(_back_off) = state_c.event_processor.get_backoff(&id) {
-                            info!("back_off is not None. can't process event of ID:{}", id);
-<<<<<<< HEAD
-                        } else {
-                            if let Some(handler) = state_c.event_processor.get_handler(&id) {
-                                //back_off is None, process the event
-                                handler.process(
-                                    state_c.clone(),
-                                    &id,
-                                    request.message.clone(),
-                                    handler.callback_type.clone(),
-                                );
->>>>>>> 8af46c34 (fix: modified the back_off value check before process the event response)
-                            }
-<<<<<<< HEAD
-                            // handler.process(
-                            //     state_c.clone(),
-                            //     &id,
-                            //     value,
-                            //     handler.callback_type.clone(),
-                            // )
->>>>>>> 06502715 (feat: Ripple Session Token Change Throttling ability added)
-=======
->>>>>>> 18000c48 (chore: rename done for thunder_backoff struct fields for readability)
-=======
-                        } else if let Some(handler) = state_c.event_processor.get_handler(&id) {
-                            //back_off is None, process the event
-                            handler.process(
-                                state_c.clone(),
-                                &id,
-                                request.message.clone(),
-                                handler.callback_type.clone(),
-                            );
->>>>>>> 9e1be04b (fix: clippy fix)
                         }
                     }
                 }
