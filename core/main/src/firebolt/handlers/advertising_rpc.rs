@@ -149,17 +149,6 @@ pub struct AdvertisingImpl {
     pub state: PlatformState,
 }
 
-fn get_scope_option_map(options: &Option<ScopeOption>) -> HashMap<String, String> {
-    let mut scope_option_map = HashMap::new();
-    if let Some(scope_opt) = options {
-        if let Some(scope) = &scope_opt.scope {
-            scope_option_map.insert("type".to_string(), scope._type.as_string().to_string());
-            scope_option_map.insert("id".to_string(), scope.id.to_string());
-        }
-    }
-    scope_option_map
-}
-
 #[async_trait]
 impl AdvertisingServer for AdvertisingImpl {
     fn app_bundle_id(&self, ctx: CallContext) -> RpcResult<String> {
