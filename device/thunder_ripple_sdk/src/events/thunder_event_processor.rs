@@ -248,9 +248,16 @@ pub trait DeviceSubscribeRequestProvider {
 }
 
 #[derive(Debug, Clone)]
+pub struct ThunderBackOff {
+    pub previous_back_off: i32,
+    pub current_back_off: i32,
+}
+
+#[derive(Debug, Clone)]
 pub struct ThunderEventProcessor {
     event_map: Arc<RwLock<HashMap<String, ThunderEventHandler>>>,
     last_event: Arc<RwLock<HashMap<String, Value>>>,
+    back_off: Arc<RwLock<HashMap<String, ThunderBackOff>>>,
 }
 
 impl ThunderEventProcessor {
@@ -258,6 +265,7 @@ impl ThunderEventProcessor {
         ThunderEventProcessor {
             event_map: Arc::new(RwLock::new(HashMap::new())),
             last_event: Arc::new(RwLock::new(HashMap::new())),
+            back_off: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -317,6 +325,31 @@ impl ThunderEventProcessor {
             return last_event.eq(&ref_value);
         }
         false
+    }
+
+    pub fn set_backoff(&self, event_name: &str, back_off_value: i32) {
+        let mut back_off_map = self.back_off.write().unwrap();
+        //update the prev_back_off value from back_off_map
+        let previous_back_off = back_off_map
+            .get(event_name)
+            .map_or(0, |b| b.current_back_off);
+        back_off_map.insert(
+            event_name.to_string(),
+            ThunderBackOff {
+                previous_back_off,
+                current_back_off: back_off_value,
+            },
+        );
+    }
+
+    pub fn get_backoff(&self, event_name: &str) -> Option<ThunderBackOff> {
+        let back_off_map = self.back_off.read().unwrap();
+        back_off_map.get(event_name).cloned()
+    }
+
+    pub fn clear_backoff(&self, event_name: &str) -> Option<ThunderBackOff> {
+        let mut back_off_map = self.back_off.write().unwrap();
+        back_off_map.remove(event_name)
     }
 }
 
