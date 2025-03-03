@@ -249,18 +249,8 @@ pub trait DeviceSubscribeRequestProvider {
 
 #[derive(Debug, Clone)]
 pub struct ThunderBackOff {
-<<<<<<< HEAD
-<<<<<<< HEAD
     pub previous_back_off: i32,
     pub current_back_off: i32,
-=======
-    pub jitter: i32,
-    pub back_off: i32,
->>>>>>> 06502715 (feat: Ripple Session Token Change Throttling ability added)
-=======
-    pub previous_back_off: i32,
-    pub current_back_off: i32,
->>>>>>> 18000c48 (chore: rename done for thunder_backoff struct fields for readability)
 }
 
 #[derive(Debug, Clone)]
@@ -337,11 +327,6 @@ impl ThunderEventProcessor {
         false
     }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 8f65f668 (fix: review comments fixed)
     pub fn set_backoff(&self, event_name: &str, back_off_value: i32) {
         let mut back_off_map = self.back_off.write().unwrap();
         //update the prev_back_off value from back_off_map
@@ -353,23 +338,6 @@ impl ThunderEventProcessor {
             ThunderBackOff {
                 previous_back_off,
                 current_back_off: back_off_value,
-=======
-    pub fn add_backoff(&self, event_name: &str, jitter: i32, back_off_value: i32) {
-=======
-    pub fn add_backoff(&self, event_name: &str, previous_back_off: i32, back_off_value: i32) {
->>>>>>> 18000c48 (chore: rename done for thunder_backoff struct fields for readability)
-        let mut back_off = self.back_off.write().unwrap();
-        back_off.insert(
-            event_name.to_string(),
-            ThunderBackOff {
-<<<<<<< HEAD
-                jitter,
-                back_off: back_off_value,
->>>>>>> 06502715 (feat: Ripple Session Token Change Throttling ability added)
-=======
-                previous_back_off,
-                current_back_off: back_off_value,
->>>>>>> 18000c48 (chore: rename done for thunder_backoff struct fields for readability)
             },
         );
     }
