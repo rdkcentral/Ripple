@@ -546,9 +546,6 @@ impl AppLauncher {
         callsign: String,
         intent: NavigationIntent,
     ) -> Result<String, AppError> {
-        let bool_contract = state
-            .extn_client
-            .check_contract_permitted(RippleContract::BridgeProtocol);
         let session = AppSession {
             app: AppBasicInfo {
                 id: manifest.name.clone(),
@@ -588,7 +585,7 @@ impl AppLauncher {
             }
         }
 
-        if !bool_contract && !sessionid.is_empty() {
+        if !sessionid.is_empty() {
             let modified_url = Self::get_modified_url(&manifest, &sessionid);
             debug!("modified url with sessionid : {:?}", modified_url);
             Ok(modified_url)
