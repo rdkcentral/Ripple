@@ -33,7 +33,7 @@ use ripple_sdk::{
     chrono::{DateTime, Utc},
     extn::client::extn_client::ExtnClient,
     framework::RippleResponse,
-    log::{debug, error, trace},
+    log::{error, trace},
 };
 use serde_json::Value;
 

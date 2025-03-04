@@ -292,6 +292,9 @@ pub mod tests {
             rule,
             subscription_processed: None,
             workflow_callback: Some(callback),
+            // <pca>
+            telemetry_response_listeners: vec![],
+            // </pca>
         }
     }
     pub fn rule_engine() -> RuleEngine {
