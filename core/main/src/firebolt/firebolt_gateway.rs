@@ -39,7 +39,7 @@ use ripple_sdk::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    broker::endpoint_broker::{BrokerCallback, BrokerOutput},
+    broker::endpoint_broker::BrokerOutput,
     firebolt::firebolt_gatekeeper::FireboltGatekeeper,
     service::{
         apps::{app_events::AppEvents, provider_broker::ProviderBroker},
@@ -363,19 +363,8 @@ impl FireboltGateway {
                         None
                     };
 
-                    // <pca> debug
-                    // let requestor_callback_tx =
-                    //     Self::handle_broker_callback(platform_state.clone(), request_c.clone());
-
-                    // let handled = platform_state.endpoint_state.handle_brokerage(
-                    //     request_c.clone(),
-                    //     extn_msg.clone(),
-                    //     Some(BrokerCallback {
-                    //         sender: requestor_callback_tx,
-                    //     }),
-                    //     p,
-                    //     session.clone(),
-                    // );
+                    let requestor_callback_tx =
+                        Self::handle_broker_callback(platform_state.clone(), request_c.clone());
 
                     let handled = platform_state.endpoint_state.handle_brokerage(
                         request_c.clone(),
@@ -383,8 +372,8 @@ impl FireboltGateway {
                         None,
                         p,
                         session.clone(),
+                        vec![requestor_callback_tx],
                     );
-                    // </pca>
 
                     if !handled {
                         // Route

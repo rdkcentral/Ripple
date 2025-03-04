@@ -33,7 +33,7 @@ use ripple_sdk::{
     chrono::{DateTime, Utc},
     extn::client::extn_client::ExtnClient,
     framework::RippleResponse,
-    log::{error, trace},
+    log::{debug, error, trace},
 };
 use serde_json::Value;
 
@@ -92,6 +92,8 @@ impl TelemetryBuilder {
     }
 
     fn send_telemetry(ps: &PlatformState, t: TelemetryPayload) -> RippleResponse {
+        trace!("send_telemetry: t={:?}", t);
+
         let listeners = ps.metrics.get_listeners();
         let client = ps.get_client().get_extn_client();
         let mut result = Ok(());
