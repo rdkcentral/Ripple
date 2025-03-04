@@ -776,9 +776,7 @@ mod tests {
             },
             subscription_processed: None,
             workflow_callback: None,
-            // <pca>
             telemetry_response_listeners: vec![],
-            // </pca>
         }
     }
 
