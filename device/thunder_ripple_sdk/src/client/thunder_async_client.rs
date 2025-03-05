@@ -364,12 +364,12 @@ impl ThunderAsyncClient {
                                 }
                             }
                             Err(e) => {
-                                let response = ThunderAsyncResponse::new_error(request.id,e.clone());
                                 match e {
                                     RippleError::ServiceNotReady => {
                                         info!("Thunder Service not ready, request added to pending list{:?}", request);
                                     },
                                     _ => {
+                                        let response = ThunderAsyncResponse::new_error(request.id,e.clone());
                                         self.callback.send(response).await
                                     }
                                 }
