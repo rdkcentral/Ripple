@@ -383,12 +383,6 @@ const PROPERTY_AUDIO_DESCRIPTION_ENABLED: PropertyData = PropertyData {
     event_names: Some(&[EVENT_AUDIO_DESCRIPTION_SETTINGS_CHANGED]),
 };
 
-const PROPERTY_PREFERRED_AUDIO_LANGUAGES: PropertyData = PropertyData {
-    key: KEY_PREFERRED_AUDIO_LANGUAGES,
-    namespace: NAMESPACE_LOCALIZATION,
-    event_names: Some(&[EVENT_PREFERRED_AUDIO_LANGUAGES]),
-};
-
 const PROPERTY_CC_PREFERRED_LANGUAGES: PropertyData = PropertyData {
     key: KEY_PREFERRED_AUDIO_LANGUAGES,
     namespace: NAMESPACE_CLOSED_CAPTIONS,
@@ -449,7 +443,6 @@ pub enum StorageProperty {
     PartnerExclusions,
     SkipRestriction,
     AudioDescriptionEnabled,
-    PreferredAudioLanguages,
     CCPreferredLanguages,
 }
 
@@ -514,7 +507,6 @@ impl StorageProperty {
             StorageProperty::PartnerExclusions => PROPERTY_DATA_PARTNER_EXCLUSIONS,
             StorageProperty::SkipRestriction => PROPERTY_DATA_SKIP_RESTRICTION,
             StorageProperty::AudioDescriptionEnabled => PROPERTY_AUDIO_DESCRIPTION_ENABLED,
-            StorageProperty::PreferredAudioLanguages => PROPERTY_PREFERRED_AUDIO_LANGUAGES,
             StorageProperty::CCPreferredLanguages => PROPERTY_CC_PREFERRED_LANGUAGES,
         }
     }
