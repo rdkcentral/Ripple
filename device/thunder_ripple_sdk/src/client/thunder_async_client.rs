@@ -370,7 +370,7 @@ impl ThunderAsyncClient {
                                         info!("Thunder Service not ready, request added to pending list{:?}", request);
                                     },
                                     _ => {
-                                        self.callback.send(response).await  
+                                        self.callback.send(response).await
                                     }
                                 }
                             }
