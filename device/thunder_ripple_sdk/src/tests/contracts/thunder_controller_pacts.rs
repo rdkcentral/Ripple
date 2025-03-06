@@ -1,49 +1,16 @@
-use crate::{
-    client::{
-        device_operator::{
-            DeviceCallRequest, DeviceChannelParams, DeviceOperator, DeviceResponseMessage,
-        },
-        plugin_manager::ThunderActivatePluginParams,
-        thunder_client::ThunderClient,
-        thunder_client_pool::ThunderClientPool,
-    },
-    ripple_sdk::{
-        serde_json::{self, json},
-        tokio,
-    },
-    thunder_state::ThunderConnectionState,
+use crate::ripple_sdk::{
+    serde_json::{self, json},
+    tokio,
 };
 
-use crate::mock_websocket_server;
+use crate::{mock_websocket_server, send_thunder_call_message};
 use pact_consumer::mock_server::StartMockServerAsync;
 use pact_consumer::prelude::*;
-use std::sync::Arc;
-use url::Url;
 
-async fn initialize_thunder_client(server_url: Url) -> ThunderClient {
-    ThunderClientPool::start(
-        server_url,
-        None,
-        Some(Arc::new(ThunderConnectionState::new())),
-        1,
-    )
-    .await
-    .unwrap()
-}
-
-async fn perform_device_call_request(
-    thunder_client: ThunderClient,
-    method: &str,
-    params: Option<DeviceChannelParams>,
-) -> DeviceResponseMessage {
-    thunder_client
-        .clone()
-        .call(DeviceCallRequest {
-            method: method.to_string(),
-            params,
-        })
-        .await
-}
+use futures_util::{SinkExt, StreamExt};
+use tokio::time::{timeout, Duration};
+use tokio_tungstenite::connect_async;
+use tokio_tungstenite::tungstenite::protocol::Message;
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
@@ -67,15 +34,17 @@ async fn test_register_state_change_event() {
         })
     );
 
-    let thunder_client = initialize_thunder_client(server_url.clone()).await;
-
-    let request_payload = json!({"event": "statechange", "id": "client.Controller.1.events"});
-    let _resp = perform_device_call_request(
-        thunder_client,
-        "Controller.1.register",
-        Some(DeviceChannelParams::Json(
-            serde_json::to_string(&request_payload).unwrap(),
-        )),
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "Controller.1.register",
+            "params": {
+                "event": "statechange",
+                "id": "client.Controller.1.events"
+            }
+        })
     )
     .await;
 }
@@ -115,10 +84,16 @@ async fn test_device_info_plugin_status() {
         })
     );
 
-    let thunder_client = initialize_thunder_client(server_url.clone()).await;
-
-    let _resp: DeviceResponseMessage =
-        perform_device_call_request(thunder_client, "Controller.1.status@DeviceInfo", None).await;
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "Controller.1.status@DeviceInfo",
+            "params": json!({})
+        })
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -143,17 +118,16 @@ async fn test_device_info_plugin_state() {
         })
     );
 
-    let thunder_client = initialize_thunder_client(server_url.clone()).await;
-
-    let request_payload = ThunderActivatePluginParams {
-        callsign: "DeviceInfo".to_string(),
-    };
-    let _resp = perform_device_call_request(
-        thunder_client,
-        "Controller.1.activate",
-        Some(DeviceChannelParams::Json(
-            serde_json::to_string(&request_payload).unwrap(),
-        )),
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "Controller.1.activate",
+            "params": json!({
+                "callsign": "DeviceInfo",
+            })
+        })
     )
     .await;
 }
@@ -193,11 +167,13 @@ async fn test_display_settings_plugin_status() {
         })
     );
 
-    let thunder_client = initialize_thunder_client(server_url.clone()).await;
-    let _resp: DeviceResponseMessage = perform_device_call_request(
-        thunder_client,
-        "Controller.1.status@org.rdk.DisplaySettings",
-        None,
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "Controller.1.status@org.rdk.DisplaySettings",
+        })
     )
     .await;
 }
@@ -224,17 +200,16 @@ async fn test_activate_display_settings_plugin() {
         })
     );
 
-    let thunder_client = initialize_thunder_client(server_url.clone()).await;
-
-    let request_payload = ThunderActivatePluginParams {
-        callsign: "org.rdk.DisplaySettings".to_string(),
-    };
-    let _resp = perform_device_call_request(
-        thunder_client,
-        "Controller.1.activate",
-        Some(DeviceChannelParams::Json(
-            serde_json::to_string(&request_payload).unwrap(),
-        )),
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "Controller.1.activate",
+            "params": json!({
+                "callsign": "org.rdk.DisplaySettings",
+            })
+        })
     )
     .await;
 }
@@ -274,11 +249,15 @@ async fn test_status_org_rdk_system() {
         })
     );
 
-    let thunder_client = initialize_thunder_client(server_url.clone()).await;
-
-    let _resp: DeviceResponseMessage =
-        perform_device_call_request(thunder_client, "Controller.1.status@org.rdk.System", None)
-            .await;
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "Controller.1.status@org.rdk.System",
+        })
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -303,17 +282,16 @@ async fn test_activate_org_rdk_system() {
         })
     );
 
-    let thunder_client = initialize_thunder_client(server_url.clone()).await;
-
-    let request_payload = ThunderActivatePluginParams {
-        callsign: "org.rdk.System".to_string(),
-    };
-    let _resp = perform_device_call_request(
-        thunder_client,
-        "Controller.1.activate",
-        Some(DeviceChannelParams::Json(
-            serde_json::to_string(&request_payload).unwrap(),
-        )),
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "Controller.1.activate",
+            "params": json!({
+                "callsign": "org.rdk.System",
+            })
+        })
     )
     .await;
 }
@@ -353,12 +331,13 @@ async fn test_status_org_rdk_hdcp_profile() {
         })
     );
 
-    let thunder_client = initialize_thunder_client(server_url.clone()).await;
-
-    let _resp: DeviceResponseMessage = perform_device_call_request(
-        thunder_client,
-        "Controller.1.status@org.rdk.HdcpProfile",
-        None,
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 7,
+            "method": "Controller.1.status@org.rdk.HdcpProfile",
+        })
     )
     .await;
 }
@@ -385,17 +364,16 @@ async fn test_activate_org_rdk_hdcp_profile() {
         })
     );
 
-    let thunder_client = initialize_thunder_client(server_url.clone()).await;
-
-    let request_payload = ThunderActivatePluginParams {
-        callsign: "org.rdk.HdcpProfile".to_string(),
-    };
-    let _resp = perform_device_call_request(
-        thunder_client,
-        "Controller.1.activate",
-        Some(DeviceChannelParams::Json(
-            serde_json::to_string(&request_payload).unwrap(),
-        )),
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 8,
+            "method": "Controller.1.activate",
+            "params": json!({
+                "callsign": "org.rdk.HdcpProfile",
+            })
+        })
     )
     .await;
 }
@@ -436,12 +414,13 @@ async fn test_status_org_rdk_telemetry() {
         })
     );
 
-    let thunder_client = initialize_thunder_client(server_url.clone()).await;
-
-    let _resp: DeviceResponseMessage = perform_device_call_request(
-        thunder_client,
-        "Controller.1.status@org.rdk.Telemetry",
-        None,
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 9,
+            "method": "Controller.1.status@org.rdk.Telemetry",
+        })
     )
     .await;
 }
@@ -467,16 +446,17 @@ async fn test_activate_org_rdk_telemetry() {
             }]
         })
     );
-    let thunder_client = initialize_thunder_client(server_url.clone()).await;
-    let request_payload = ThunderActivatePluginParams {
-        callsign: "org.rdk.Telemetry".to_string(),
-    };
-    let _resp = perform_device_call_request(
-        thunder_client,
-        "Controller.1.activate",
-        Some(DeviceChannelParams::Json(
-            serde_json::to_string(&request_payload).unwrap(),
-        )),
+
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "Controller.1.activate",
+            "params": json!({
+                "callsign": "org.rdk.Telemetry",
+            })
+        })
     )
     .await;
 }
