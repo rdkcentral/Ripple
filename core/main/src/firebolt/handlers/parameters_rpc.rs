@@ -29,7 +29,7 @@ use ripple_sdk::{
     log::error,
     tokio::sync::oneshot,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::{
     firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState,
@@ -38,7 +38,7 @@ use crate::{
 
 use super::privacy_rpc;
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Debug, Serialize)]
 pub struct AppInitParameters {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub us_privacy: Option<String>,
@@ -48,7 +48,7 @@ pub struct AppInitParameters {
     pub second_screen: Option<SecondScreenEvent>,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Debug, Serialize)]
 pub struct SecondScreenEvent {
     #[serde(rename = "type")]
     pub _type: String,
@@ -58,7 +58,7 @@ pub struct SecondScreenEvent {
     pub data: Option<String>,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug)]
 pub struct DiscoveryEvent {
     #[serde(rename = "navigateTo")]
     pub navigate_to: NavigationIntent,

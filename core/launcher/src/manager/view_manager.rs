@@ -34,7 +34,7 @@ use ripple_sdk::{
     utils::{channel_utils::oneshot_send_and_log, error::RippleError},
     uuid::Uuid,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::launcher_state::LauncherState;
 
@@ -54,7 +54,7 @@ pub enum Position {
     Back,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Clone)]
 pub struct LaunchParams {
     // TODO: LaunchParams is a temporary struct until app manifest support is added. For now this simply
     // reflects the JSON contents of a file in order to demonstrate app launches.
@@ -112,7 +112,7 @@ pub enum ViewError {
     IoError,
 }
 
-#[derive(Debug, Serialize, Deserialize, Copy, Clone)]
+#[derive(Debug, Serialize, Copy, Clone)]
 pub enum Fnci {
     Web,
     Lightning,
