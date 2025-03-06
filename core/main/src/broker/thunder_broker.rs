@@ -412,6 +412,12 @@ impl ThunderBroker {
     fn get_callsign_and_method_from_alias(alias: &str) -> (String, Option<&str>) {
         let mut collection: Vec<&str> = alias.split('.').collect();
         let method = collection.pop();
+        // Check if the second-to-last element is a digit (version number)
+        if let Some(&version) = collection.last() {
+            if version.chars().all(char::is_numeric) {
+                collection.pop(); // Remove the version number
+            }
+        }
         let callsign = collection.join(".");
         (callsign, method)
     }

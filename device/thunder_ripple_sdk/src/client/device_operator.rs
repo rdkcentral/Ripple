@@ -59,6 +59,12 @@ impl DeviceChannelRequest {
             DeviceChannelRequest::Call(c) => {
                 let mut collection: Vec<&str> = c.method.split('.').collect();
                 let method = collection.pop().unwrap_or_default();
+                // Check if the second-to-last element is a digit (version number)
+                if let Some(&version) = collection.last() {
+                    if version.chars().all(char::is_numeric) {
+                        collection.pop(); // Remove the version number
+                    }
+                }
                 let callsign = collection.join(".");
                 (callsign, method.into())
             }
