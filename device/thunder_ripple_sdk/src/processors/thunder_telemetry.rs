@@ -29,7 +29,7 @@ use ripple_sdk::{
     tokio::sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
     utils::error::RippleError,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::{
     client::{
@@ -39,7 +39,7 @@ use crate::{
     thunder_state::ThunderState,
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ThunderTelemetryEvent {
     event_name: String,

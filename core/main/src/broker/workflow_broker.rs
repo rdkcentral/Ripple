@@ -43,6 +43,7 @@ async fn subbroker_call(
         }),
         Vec::new(),
         None,
+        vec![],
     );
 
     match brokered_rx.recv().await {
@@ -291,6 +292,7 @@ pub mod tests {
             rule,
             subscription_processed: None,
             workflow_callback: Some(callback),
+            telemetry_response_listeners: vec![],
         }
     }
     pub fn rule_engine() -> RuleEngine {

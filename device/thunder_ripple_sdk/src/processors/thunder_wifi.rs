@@ -95,7 +95,7 @@ pub fn wifi_security_mode_from_u32(v: u32) -> WifiSecurityMode {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ConnectedSSIDResult {
     ssid: String,
@@ -117,7 +117,7 @@ impl ConnectedSSIDResult {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ThunderSSID {
     ssid: String,
@@ -126,7 +126,7 @@ struct ThunderSSID {
     frequency: f32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SSIDEventResponse {
     #[serde(default)]
@@ -145,7 +145,7 @@ impl ThunderSSID {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ThunderWifiConnectRequest {
     pub ssid: String,
@@ -163,14 +163,14 @@ impl ThunderWifiConnectRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[allow(non_camel_case_types, non_snake_case)]
 struct WifiStateChanged {
     state: u32,
     isLNF: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[allow(non_camel_case_types, non_snake_case)]
 struct WifiConnectError {
     code: u32,
@@ -182,13 +182,13 @@ pub struct ThunderWifiRequestProcessor {
     streamer: DefaultExtnStreamer,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 struct WifiRequestHeader {
     callsign: String,
     client: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ThunderWifiScanRequest {
     pub incremental: bool,
