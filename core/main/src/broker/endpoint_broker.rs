@@ -36,7 +36,6 @@ use ripple_sdk::{
     },
     utils::error::RippleError,
 };
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -288,7 +287,7 @@ impl BrokerCallback {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct BrokerContext {
     pub app_id: String,
 }

@@ -656,7 +656,7 @@ impl RpcRequest {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub enum RpcGatewayCommand {
     Handle {
         req: String,

@@ -35,7 +35,6 @@ use ripple_sdk::{
     tokio::sync::mpsc,
     utils::error::RippleError,
 };
-use serde::{Deserialize, Serialize};
 
 use crate::{
     client::{
@@ -51,7 +50,7 @@ pub struct ThunderBrowserRequestProcessor {
     streamer: DefaultExtnStreamer,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 struct RDKShellLaunchRequest {
     callsign: String,
     #[serde(rename = "type")]
@@ -66,7 +65,7 @@ struct RDKShellLaunchRequest {
     h: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 struct RDKShellDestroyRequest {
     callsign: String,
 }

@@ -34,7 +34,7 @@ use ripple_sdk::{
     tokio::sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
     utils::error::RippleError,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::{
     client::{
@@ -44,7 +44,7 @@ use crate::{
     thunder_state::ThunderState,
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct ThunderRFCResponse {
     #[serde(rename = "RFCConfig")]
     pub config: HashMap<String, String>,

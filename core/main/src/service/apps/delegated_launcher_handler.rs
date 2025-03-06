@@ -1140,6 +1140,7 @@ impl DelegatedLauncherHandler {
         if (previous_state != LifecycleState::Initializing) && (state == LifecycleState::Inactive) {
             am_state.update_active_session(app_id, None);
         }
+
         let state_change = StateChange {
             state,
             previous: previous_state,
@@ -1155,6 +1156,33 @@ impl DelegatedLauncherHandler {
 
         if LifecycleState::Unloading == state {
             self.on_unloading(app_id).await.ok();
+        }
+
+        // Check if the device manifest is enabled with events to emit discovery.navigateTo
+        // if an app is coming back to active from Inactive.
+        // This is necessary as some apps do not run processes to update the navigation
+        // intent to conserve memory footprint
+        if self
+            .platform_state
+            .get_device_manifest()
+            .lifecycle
+            .is_emit_navigate_on_activate()
+            && previous_state == LifecycleState::Inactive
+            && matches!(
+                state,
+                LifecycleState::Background | LifecycleState::Foreground
+            )
+        {
+            let session = app.current_session.clone();
+            if let Some(intent) = session.launch.intent {
+                AppEvents::emit_to_app(
+                    &self.platform_state,
+                    app_id.to_owned(),
+                    DISCOVERY_EVENT_ON_NAVIGATE_TO,
+                    &serde_json::to_value(intent).unwrap_or_default(),
+                )
+                .await;
+            }
         }
         Ok(AppManagerResponse::None)
     }

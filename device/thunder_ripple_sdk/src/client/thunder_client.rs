@@ -135,7 +135,7 @@ impl ThunderCallMessage {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct ThunderRegisterParams {
     pub event: String,
     pub id: String,
@@ -218,7 +218,7 @@ pub struct ThunderClient {
     pub use_thunder_async: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct DefaultThunderResult {
     pub success: bool,
 }

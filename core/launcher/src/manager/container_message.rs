@@ -21,7 +21,7 @@ use ripple_sdk::{
     tokio::sync::{mpsc, oneshot},
     uuid::Uuid,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use super::container_manager::ContainerProperties;
 
@@ -31,13 +31,13 @@ pub struct ContainerRequest {
     pub resp_tx: Arc<RwLock<Option<oneshot::Sender<ContainerResponse>>>>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub enum ResultType {
     None,
     Uuid(Uuid),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub enum ContainerError {
     General,
     NotFound,
@@ -45,7 +45,7 @@ pub enum ContainerError {
     IoError,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct ContainerResponse {
     pub status: Result<ResultType, ContainerError>,
 }
