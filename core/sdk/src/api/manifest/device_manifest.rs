@@ -556,7 +556,7 @@ fn default_saved_dir() -> String {
     String::from("/opt/persistent/ripple")
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct DataGovernanceConfig {
     policies: Vec<DataGovernancePolicy>,
 }
@@ -601,7 +601,7 @@ pub fn default_drop_on_all_tags() -> bool {
     true
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct DataGovernancePolicy {
     pub data_type: DataEventType,
     pub setting_tags: Vec<DataGovernanceSettingTag>,
@@ -623,7 +623,7 @@ impl DataGovernancePolicy {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct DataGovernanceSettingTag {
     pub setting: StorageProperty,
     #[serde(default = "default_enforcement_value")]

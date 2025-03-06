@@ -83,7 +83,7 @@ use ripple_sdk::{
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ThunderHDCPStatus {
     #[serde(rename = "HDCPStatus")]
     pub hdcp_status: HDCPStatus,
@@ -99,16 +99,18 @@ pub mod hdr_flags {
     pub const HDRSTANDARD_HDR10PLUS: u32 = 0x10;
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "UPPERCASE")]
+#[allow(dead_code)]
 enum ThunderInterfaceType {
     Wifi,
     Ethernet,
     None,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 struct ThunderInterfaceStatus {
     interface: ThunderInterfaceType,
     mac_address: String,
@@ -116,13 +118,14 @@ struct ThunderInterfaceStatus {
     connected: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 struct ThunderGetInterfacesResponse {
     interfaces: Vec<ThunderInterfaceStatus>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemVersion {
     pub stb_version: String,
@@ -247,7 +250,7 @@ impl ThunderNetworkService {
         response.unwrap().as_bool().unwrap_or(false)
     }
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ThunderTimezoneResponse {
     #[serde(rename = "timeZone")]
     pub time_zone: String,
@@ -259,7 +262,7 @@ pub struct ThunderDeviceInfoRequestProcessor {
     streamer: DefaultExtnStreamer,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ThunderAvailableTimezonesResponse {
     pub zoneinfo: HashMap<String, HashMap<String, String>>,
 }
@@ -619,11 +622,7 @@ impl ThunderDeviceInfoRequestProcessor {
         let hdcp_version = v.to_string();
 
         let is_hdcp_supported: bool = if let Some(h) = response.message.get("isHDCPSupported") {
-            if let Ok(v) = h.to_string().parse::<bool>() {
-                v
-            } else {
-                false
-            }
+            h.to_string().parse::<bool>().unwrap_or(false)
         } else {
             false
         };
@@ -1546,7 +1545,7 @@ pub mod tests {
         };
     }
 
-    #[derive(Debug, Serialize, Deserialize, Clone)]
+    #[derive(Debug, Serialize, Deserialize)]
     struct BuildInfoTest {
         build_name: String,
         info: PlatformBuildInfo,

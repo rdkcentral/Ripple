@@ -16,11 +16,11 @@
 //
 
 use crate::{
-    api::gateway::rpc_gateway_api::RpcRequest,
+    api::{gateway::rpc_gateway_api::RpcRequest, observability::log_signal::LogSignal},
     log::{error, trace},
     utils::error::RippleError,
 };
-use futures::{future::join_all, StreamExt};
+use futures::StreamExt;
 use jsonrpsee::{
     core::{
         server::{
@@ -79,41 +79,81 @@ impl RpcRouter {
         let methods = router_state.get_methods();
         let resources = router_state.resources.clone();
         let (sink_tx, mut sink_rx) = futures_channel::mpsc::unbounded::<String>();
-        let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES);
-        let mut method_executors = Vec::new();
-        let params = Params::new(Some(req.params_json.as_str()));
+        let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES, 512 * 1024);
+        let request_c = req.clone();
+        let method = request_c.method.clone();
+        let sink_size = 1024 * 1024;
+        tokio::spawn(async move {
+            let params_json = request_c.params_json.as_ref();
+            let params = Params::new(Some(params_json));
 
-        if let Some((name, method)) = methods.method_with_name(&req.method) {
-            match &method.inner() {
-                MethodKind::Sync(callback) => {
-                    if let Ok(_guard) = method.claim(name, &resources) {
-                        callback(id, params, &sink);
-                    } else {
-                        sink.send_error(id, ErrorCode::MethodNotFound.into());
+            match methods.method_with_name(&method) {
+                None => {
+                    LogSignal::new(
+                        "rpc_router".to_string(),
+                        "resolve_route".into(),
+                        request_c.clone(),
+                    )
+                    .with_diagnostic_context_item("error", &format!("Method not found: {}", method))
+                    .emit_error();
+                    sink.send_error(id, ErrorCode::MethodNotFound.into());
+                }
+                Some((name, method)) => match &method.inner() {
+                    MethodKind::Sync(callback) => match method.claim(name, &resources) {
+                        Ok(_guard) => {
+                            if let Err(e) =
+                                sink.send_raw((callback)(id.clone(), params, 512 * 1024).result)
+                            {
+                                LogSignal::new(
+                                    "rpc_router".to_string(),
+                                    "resolve_route".into(),
+                                    request_c.clone(),
+                                )
+                                .with_diagnostic_context_item(
+                                    "error",
+                                    &format!("Sync method error: {}", e),
+                                )
+                                .emit_error();
+                                sink.send_error(id, ErrorCode::InvalidRequest.into());
+                            }
+                        }
+                        Err(_) => {
+                            sink.send_error(id, ErrorCode::MethodNotFound.into());
+                        }
+                    },
+                    MethodKind::Async(callback) => match method.claim(name, &resources) {
+                        Ok(guard) => {
+                            let id = id.into_owned();
+                            let params = params.into_owned();
+                            if let Err(e) = sink.send_raw(
+                                (callback)(id.clone(), params, sink_size, 1024 * 1024, Some(guard))
+                                    .await
+                                    .result,
+                            ) {
+                                LogSignal::new(
+                                    "rpc_router".to_string(),
+                                    "resolve_route".into(),
+                                    request_c.clone(),
+                                )
+                                .with_diagnostic_context_item(
+                                    "error",
+                                    &format!("Async method error: {}", e),
+                                )
+                                .emit_error();
+                                sink.send_error(id, ErrorCode::InvalidRequest.into());
+                            }
+                        }
+                        Err(e) => {
+                            error!("{:?}", e);
+                            sink.send_error(id, ErrorCode::MethodNotFound.into());
+                        }
+                    },
+                    _ => {
+                        error!("Unsupported method call");
                     }
-                }
-                MethodKind::Async(callback) => {
-                    if let Ok(guard) = method.claim(name, &resources) {
-                        let sink = sink.clone();
-                        let id = id.into_owned();
-                        let params = params.into_owned();
-                        let fut = async move {
-                            callback(id, params, sink, 1, Some(guard)).await;
-                        };
-                        method_executors.push(fut);
-                    } else {
-                        sink.send_error(id, ErrorCode::MethodNotFound.into());
-                    }
-                }
-                _ => {
-                    error!("SDK: Unsupported method call");
-                }
+                },
             }
-        } else {
-            sink.send_error(id, ErrorCode::MethodNotFound.into());
-        }
-
-        join_all(method_executors).await;
+        });
 
         if let Some(r) = sink_rx.next().await {
             return Ok(r);

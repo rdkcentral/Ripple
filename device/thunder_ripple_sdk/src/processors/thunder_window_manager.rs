@@ -31,7 +31,6 @@ use crate::ripple_sdk::{
     tokio::sync::mpsc,
     utils::error::RippleError,
 };
-use serde::{Deserialize, Serialize};
 
 use crate::{
     client::{
@@ -47,13 +46,11 @@ pub struct ThunderWindowManagerRequestProcessor {
     streamer: DefaultExtnStreamer,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
 struct WindowManagerRequestHeader {
     callsign: String,
     client: String,
 }
 
-#[derive(Serialize, Deserialize)]
 struct ThunderVisibilityRequestParams {
     pub callsign: String,
     pub client: String,
@@ -76,7 +73,6 @@ impl From<ThunderVisibilityRequestParams> for DeviceChannelParams {
     }
 }
 
-#[derive(Serialize, Deserialize)]
 struct ThunderDimensionsRequestParams {
     pub callsign: String,
     pub client: String,

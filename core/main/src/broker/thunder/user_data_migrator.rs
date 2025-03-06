@@ -90,7 +90,7 @@ impl std::error::Error for UserDataMigratorError {}
 pub struct CoversionRule {
     conversion_rule: String,
 }
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MigrationConfigEntry {
     namespace: String,
     key: String,
@@ -923,6 +923,7 @@ impl UserDataMigrator {
         // open the status file if exists, else create a new file
         let file = OpenOptions::new()
             .create(true)
+            .truncate(false)
             .write(true)
             .read(true)
             .open(status_file_path)
@@ -937,7 +938,7 @@ impl UserDataMigrator {
 
         let file = OpenOptions::new()
             .write(true)
-            .truncate(true)
+            .truncate(false)
             .create(true)
             .open(&self.status_file_path)
             .unwrap();

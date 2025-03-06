@@ -281,6 +281,7 @@ mod tests {
             },
             workflow_callback: None,
             subscription_processed: None,
+            telemetry_response_listeners: vec![],
         };
 
         broker.sender.send(request).await.unwrap();
@@ -323,6 +324,7 @@ mod tests {
             },
             workflow_callback: None,
             subscription_processed: None,
+            telemetry_response_listeners: vec![],
         };
         let id = request.get_id();
 

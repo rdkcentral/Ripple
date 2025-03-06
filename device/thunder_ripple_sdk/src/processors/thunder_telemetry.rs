@@ -29,7 +29,7 @@ use ripple_sdk::{
     tokio::sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
     utils::error::RippleError,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::{
     client::{
@@ -39,7 +39,7 @@ use crate::{
     thunder_state::ThunderState,
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ThunderTelemetryEvent {
     event_name: String,
@@ -106,14 +106,16 @@ pub enum ThunderMetricsTimerName {
     PackageManagerGetMetadata,
 }
 
-impl ToString for ThunderMetricsTimerName {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for ThunderMetricsTimerName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ThunderMetricsTimerName::PackageManagerGetList => "package_manager_get_list".into(),
-            ThunderMetricsTimerName::PackageManagerInstall => "package_manager_install".into(),
-            ThunderMetricsTimerName::PackageManagerUninstall => "package_manager_uninstall".into(),
+            ThunderMetricsTimerName::PackageManagerGetList => write!(f, "package_manager_get_list"),
+            ThunderMetricsTimerName::PackageManagerInstall => write!(f, "package_manager_install"),
+            ThunderMetricsTimerName::PackageManagerUninstall => {
+                write!(f, "package_manager_uninstall")
+            }
             ThunderMetricsTimerName::PackageManagerGetMetadata => {
-                "package_manager_get_metadata".into()
+                write!(f, "package_manager_get_metadata")
             }
         }
     }
@@ -124,11 +126,11 @@ pub enum ThunderResponseStatus {
     Failure,
 }
 
-impl ToString for ThunderResponseStatus {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for ThunderResponseStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ThunderResponseStatus::Success => "success".into(),
-            ThunderResponseStatus::Failure => "failure".into(),
+            ThunderResponseStatus::Success => write!(f, "success"),
+            ThunderResponseStatus::Failure => write!(f, "failure"),
         }
     }
 }

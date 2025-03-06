@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use jsonrpsee::types::ErrorObject;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::sync::{mpsc, oneshot};
@@ -305,13 +306,17 @@ impl JsonRpcApiError {
         JsonRpcApiResponse::error(self)
     }
 }
-impl From<JsonRpcApiError> for jsonrpsee::core::Error {
+impl<'a> From<JsonRpcApiError> for ErrorObject<'a> {
     fn from(error: JsonRpcApiError) -> Self {
-        jsonrpsee::core::Error::Call(jsonrpsee::types::error::CallError::Custom {
-            code: error.code,
-            message: error.message,
-            data: None,
-        })
+        ErrorObject::owned(error.code, error.message, error.params)
+    }
+}
+use jsonrpsee::core::Error as JsonRpSeeError;
+//use jsonrpsee_core::Error as JsonRpseeError;
+impl From<JsonRpcApiError> for JsonRpSeeError {
+    fn from(error: JsonRpcApiError) -> Self {
+        JsonRpSeeError::Custom(error.message.clone())
+        //ErrorObject::owned(error.code, error.message.clone(), error.params.clone())
     }
 }
 impl From<JsonRpcApiError> for JsonRpcApiResponse {
@@ -651,7 +656,7 @@ impl RpcRequest {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub enum RpcGatewayCommand {
     Handle {
         req: String,

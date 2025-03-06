@@ -36,7 +36,6 @@ use ripple_sdk::{
     },
     utils::error::RippleError,
 };
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -93,6 +92,7 @@ pub struct BrokerRequest {
     pub rule: Rule,
     pub subscription_processed: Option<bool>,
     pub workflow_callback: Option<BrokerCallback>,
+    pub telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
 }
 impl ripple_sdk::api::observability::log_signal::ContextAsJson for BrokerRequest {
     fn as_json(&self) -> serde_json::Value {
@@ -228,12 +228,14 @@ impl BrokerRequest {
         rpc_request: &RpcRequest,
         rule: Rule,
         workflow_callback: Option<BrokerCallback>,
+        telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
     ) -> BrokerRequest {
         BrokerRequest {
             rpc: rpc_request.clone(),
             rule,
             subscription_processed: None,
             workflow_callback,
+            telemetry_response_listeners,
         }
     }
 
@@ -285,7 +287,7 @@ impl BrokerCallback {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct BrokerContext {
     pub app_id: String,
 }
@@ -483,6 +485,7 @@ impl EndpointBrokerState {
         rule: Rule,
         extn_message: Option<ExtnMessage>,
         workflow_callback: Option<BrokerCallback>,
+        telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
     ) -> (u64, BrokerRequest) {
         let id = Self::get_next_id();
         let mut rpc_request_c = rpc_request.clone();
@@ -495,6 +498,7 @@ impl EndpointBrokerState {
                     rule: rule.clone(),
                     subscription_processed: None,
                     workflow_callback: workflow_callback.clone(),
+                    telemetry_response_listeners: telemetry_response_listeners.clone(),
                 },
             );
         }
@@ -507,7 +511,12 @@ impl EndpointBrokerState {
         rpc_request_c.ctx.call_id = id;
         (
             id,
-            BrokerRequest::new(&rpc_request_c, rule, workflow_callback),
+            BrokerRequest::new(
+                &rpc_request_c,
+                rule,
+                workflow_callback,
+                telemetry_response_listeners,
+            ),
         )
     }
     pub fn build_thunder_endpoint(&mut self) {
@@ -600,9 +609,15 @@ impl EndpointBrokerState {
         rule: Rule,
         callback: BrokerCallback,
         workflow_callback: Option<BrokerCallback>,
+        telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
     ) {
-        let (id, _updated_request) =
-            self.update_request(&rpc_request, rule.clone(), extn_message, workflow_callback);
+        let (id, _updated_request) = self.update_request(
+            &rpc_request,
+            rule.clone(),
+            extn_message,
+            workflow_callback,
+            telemetry_response_listeners,
+        );
         let mut data = JsonRpcApiResponse::default();
         // return empty result and handle the rest with jq rule
         let jv: Value = "".into();
@@ -621,8 +636,10 @@ impl EndpointBrokerState {
         callback: BrokerCallback,
         permission: Vec<FireboltPermission>,
         session: Option<Session>,
+        telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
     ) {
-        let (id, request) = self.update_request(rpc_request, rule, None, None);
+        let (id, request) =
+            self.update_request(rpc_request, rule, None, None, telemetry_response_listeners);
         match self.provider_broker_state.check_provider_request(
             rpc_request,
             &permission,
@@ -687,6 +704,7 @@ impl EndpointBrokerState {
         requestor_callback: Option<BrokerCallback>,
         permissions: Vec<FireboltPermission>,
         session: Option<Session>,
+        telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
     ) -> bool {
         let mut handled: bool = true;
         let callback = self.callback.clone();
@@ -746,14 +764,27 @@ impl EndpointBrokerState {
                     rule,
                     callback,
                     requestor_callback,
+                    telemetry_response_listeners,
                 );
             } else if rule.alias.eq_ignore_ascii_case("provided") {
-                self.handle_provided_request(&rpc_request, rule, callback, permissions, session);
+                self.handle_provided_request(
+                    &rpc_request,
+                    rule,
+                    callback,
+                    permissions,
+                    session,
+                    telemetry_response_listeners,
+                );
             } else if broker_sender.is_some() {
                 trace!("handling not static request for {:?}", rpc_request);
                 let broker_sender = broker_sender.unwrap();
-                let (_, updated_request) =
-                    self.update_request(&rpc_request, rule, extn_message, requestor_callback);
+                let (_, updated_request) = self.update_request(
+                    &rpc_request,
+                    rule,
+                    extn_message,
+                    requestor_callback,
+                    telemetry_response_listeners,
+                );
                 capture_stage(&self.metrics_state, &rpc_request, "broker_request");
                 let thunder = self.get_sender("thunder");
                 let request_context = updated_request.rpc.ctx.clone();
@@ -821,21 +852,6 @@ impl EndpointBrokerState {
         let cleaners = { self.cleaner_list.read().unwrap().clone() };
         for cleaner in cleaners {
             cleaner.cleanup_session(app_id).await
-        }
-    }
-
-    // Get Broker Request from rpc_request
-    pub fn get_broker_request(
-        &self,
-        rpc_request: &RpcRequest,
-        rule: Rule,
-        workflow_callback: Option<BrokerCallback>,
-    ) -> BrokerRequest {
-        BrokerRequest {
-            rpc: rpc_request.clone(),
-            rule,
-            subscription_processed: None,
-            workflow_callback,
         }
     }
 }
@@ -1011,6 +1027,8 @@ impl BrokerOutputForwarder {
                         let rule_context_name = broker_request.rpc.method.clone();
 
                         let workflow_callback = broker_request.clone().workflow_callback;
+                        let telemetry_response_listeners =
+                            broker_request.clone().telemetry_response_listeners;
                         let sub_processed = broker_request.is_subscription_processed();
                         let rpc_request = broker_request.rpc.clone();
                         let session_id = rpc_request.ctx.get_id();
@@ -1244,7 +1262,7 @@ impl BrokerOutputForwarder {
                                     if is_event {
                                         forward_extn_event(
                                             &extn_message,
-                                            response,
+                                            response.clone(),
                                             &platform_state,
                                         )
                                         .await;
@@ -1258,6 +1276,10 @@ impl BrokerOutputForwarder {
                             {
                                 let _ = session.send_json_rpc(message).await;
                             }
+                        }
+
+                        for listener in telemetry_response_listeners {
+                            let _ = listener.send(BrokerOutput::new(response.clone())).await;
                         }
                     } else {
                         error!(
@@ -1279,7 +1301,7 @@ impl BrokerOutputForwarder {
     async fn handle_event(
         platform_state: PlatformState,
         method: String,
-        broker_request: BrokerRequest,
+        _broker_request: BrokerRequest,
         rpc_request: RpcRequest,
         mut response: JsonRpcApiResponse,
     ) {
@@ -1288,31 +1310,41 @@ impl BrokerOutputForwarder {
         let protocol = rpc_request.ctx.protocol.clone();
         let mut platform_state_c = platform_state.clone();
 
-        if let Ok(Value::String(res)) =
+        // FIXME: As we transition to full RPCv2 support we need to be able to post-process the results from an event
+        // handler as defined by Rule::event_handler, however as currently implemented event_handler logic short-circuits
+        // rule transform logic. Need to refactor to support this, disabing below for now.
+
+        // if let Ok(Value::String(res)) =
+        //     BrokerUtils::process_internal_main_request(&mut platform_state_c, method.as_str(), None)
+        //         .await
+        // {
+        //     let mut filter = res.clone();
+        //     if let Some(transform_data) = broker_request.rule.transform.get_transform_data(
+        //         super::rules_engine::RuleTransformType::Event(
+        //             rpc_request.ctx.context.contains(&RPC_V2.into()),
+        //         ),
+        //     ) {
+        //         filter = transform_data
+        //             .replace("$event_handler_response", format!("\"{}\"", res).as_str());
+        //     }
+
+        //     let response_result_value = serde_json::to_value(filter.clone()).unwrap();
+
+        //     apply_rule_for_event(
+        //         &broker_request,
+        //         &response_result_value,
+        //         &rpc_request,
+        //         &filter,
+        //         &mut response,
+        //     );
+        // } else {
+        //     error!("handle_event: error processing internal main request");
+        // }
+        if let Ok(res) =
             BrokerUtils::process_internal_main_request(&mut platform_state_c, method.as_str(), None)
                 .await
         {
-            let mut filter = res.clone();
-            if let Some(transform_data) = broker_request.rule.transform.get_transform_data(
-                super::rules_engine::RuleTransformType::Event(
-                    rpc_request.ctx.context.contains(&RPC_V2.into()),
-                ),
-            ) {
-                filter = transform_data
-                    .replace("$event_handler_response", format!("\"{}\"", res).as_str());
-            }
-
-            let response_result_value = serde_json::to_value(filter.clone()).unwrap();
-
-            apply_rule_for_event(
-                &broker_request,
-                &response_result_value,
-                &rpc_request,
-                &filter,
-                &mut response,
-            );
-        } else {
-            error!("handle_event: error processing internal main request");
+            response.result = Some(res.clone());
         }
 
         response.id = Some(request_id);
@@ -1524,6 +1556,7 @@ mod tests {
                     },
                     subscription_processed: None,
                     workflow_callback: None,
+                    telemetry_response_listeners: vec![],
                 },
                 RippleError::InvalidInput,
             )
@@ -1599,6 +1632,7 @@ mod tests {
                 },
                 None,
                 None,
+                vec![],
             );
             request.ctx.call_id = 2;
             state.update_request(
@@ -1613,6 +1647,7 @@ mod tests {
                 },
                 None,
                 None,
+                vec![],
             );
 
             // Hardcoding the id here will be a problem as multiple tests uses the atomic id and there is no guarantee

@@ -141,7 +141,7 @@ pub struct FailedAppInstall {
     pub last_good_version: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct AppInstall {
     pub app_id: String,
     pub version: String,
@@ -431,7 +431,7 @@ fn install_complete(mut state: AppsUpdaterState, op: AppOperationComplete) {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "tdk"))]
 pub mod tests {
 
     use std::{
@@ -537,7 +537,7 @@ pub mod tests {
         Async,
     }
 
-    #[derive(Clone, Serialize, Deserialize)]
+    #[derive(Serialize, Deserialize)]
     enum PMControl {
         SetInstalledVersion(String),
     }

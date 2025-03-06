@@ -43,7 +43,7 @@ use crate::{
     },
     thunder_state::ThunderState,
 };
-use base64::{engine::general_purpose::STANDARD as base64, Engine};
+use base64::{engine::general_purpose, Engine as _};
 use ripple_sdk::api::app_catalog::{AppCatalogRequest, AppOperationComplete, AppsUpdate};
 use ripple_sdk::api::device::device_apps::DeviceAppMetadata;
 use ripple_sdk::api::firebolt::fb_capabilities::FireboltPermissions;
@@ -83,7 +83,7 @@ pub struct ThunderPackageManagerRequestProcessor {
     streamer: DefaultExtnStreamer,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct GetListRequest {
     pub id: String,
 }
@@ -94,7 +94,7 @@ impl GetListRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct UninstallAppRequest {
     pub id: String,
     pub version: String,
@@ -114,7 +114,7 @@ impl UninstallAppRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct InstallAppRequest {
     pub id: String,
     pub version: String,
@@ -152,7 +152,7 @@ impl InstallAppRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct CancelRequest {
     pub handle: String,
 }
@@ -163,7 +163,7 @@ impl CancelRequest {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct GetMetadataRequest {
     pub id: String,
     pub version: String,
@@ -175,7 +175,7 @@ impl GetMetadataRequest {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[derive(Debug, Clone, Serialize, Default, PartialEq)]
 pub struct AppData {
     pub version: String,
 }
@@ -273,7 +273,7 @@ impl OperationStatus {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum AppsOperationType {
     Install,
@@ -291,16 +291,16 @@ impl FromStr for AppsOperationType {
         }
     }
 }
-impl ToString for AppsOperationType {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for AppsOperationType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AppsOperationType::Install => "install".to_string(),
-            AppsOperationType::Uninstall => "uninstall".to_string(),
+            AppsOperationType::Install => write!(f, "install"),
+            AppsOperationType::Uninstall => write!(f, "uninstall"),
         }
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct AppsOperationStatus {
     pub handle: String,
     pub operation: AppsOperationType,
@@ -334,7 +334,7 @@ impl AppsOperationStatus {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct Metadata {
     pub appname: String,
     #[serde(rename = "type")]
@@ -342,13 +342,13 @@ pub struct Metadata {
     pub url: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct KeyValuePair {
     pub key: String,
     pub value: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct ThunderAppMetadata {
     pub metadata: Metadata,
     pub resources: Vec<KeyValuePair>,
@@ -792,7 +792,7 @@ impl ThunderPackageManagerRequestProcessor {
     }
 
     fn decode_permissions(perms_encoded: String) -> Result<FireboltPermissions, ()> {
-        let perms = base64.decode(perms_encoded);
+        let perms = general_purpose::STANDARD.decode(perms_encoded);
         if let Err(e) = perms {
             error!(
                 "decode_permissions: Could not decode permissions: e={:?}",
