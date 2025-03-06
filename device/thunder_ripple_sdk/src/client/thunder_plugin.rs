@@ -164,7 +164,7 @@ mod tests {
     }
     #[test]
     fn test_thunder_plugin_activates() {
-        assert_eq!(ThunderPlugin::activate_on_boot_plugins().len(), 4);
+        assert_eq!(ThunderPlugin::activate_on_boot_plugins().len(), 5);
         assert_eq!(ThunderPlugin::expect_activated_plugins().len(), 2);
     }
     #[test]
