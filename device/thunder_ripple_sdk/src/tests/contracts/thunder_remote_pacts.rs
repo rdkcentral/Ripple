@@ -15,8 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::{get_pact_with_params, send_thunder_call_message};
 use crate::tests::contracts::contract_utils::*;
+use crate::{get_pact_with_params, send_thunder_call_message};
 use crate::{
     ripple_sdk::serde_json::{self},
     thunder_state::ThunderState,
@@ -65,17 +65,21 @@ async fn test_device_remote_start_pairing() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.RemoteControl.1.startPairing",
-        "params": json!({
-            "netType": 21,
-            "timeout": 30
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.RemoteControl.1.startPairing",
+            "params": json!({
+                "netType": 21,
+                "timeout": 30
+            })
         })
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    )
+    .await;
 }
 
 // #[tokio::test(flavor = "multi_thread")]
@@ -144,14 +148,18 @@ async fn test_device_remote_network_status() {
     let protocol: Option<AccessoryProtocolListType> = Some(AccessoryProtocolListType::All);
     let list_params = AccessoryListRequest { _type, protocol };
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.RemoteControl.1.getNetStatus",
-        "params": json!({
-            "netType": 21
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.RemoteControl.1.getNetStatus",
+            "params": json!({
+                "netType": 21
+            })
         })
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;    
+    )
+    .await;
 }

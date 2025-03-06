@@ -68,16 +68,20 @@ async fn test_device_get_info_mac_address() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.System.1.getDeviceInfo",
-        "params": json!({
-            "params": ["estb_mac"]
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.System.1.getDeviceInfo",
+            "params": {
+                "params": ["estb_mac"]
+            }
         })
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -122,13 +126,17 @@ async fn test_device_get_model() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.System.1.getSystemVersions"
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.System.1.getSystemVersions"
+        })
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -175,13 +183,17 @@ async fn test_device_get_interfaces_wifi() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.Network.1.getInterfaces"
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.Network.1.getInterfaces"
+        })
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -228,13 +240,17 @@ async fn test_device_get_interfaces_ethernet() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.Network.1.getInterfaces"
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.Network.1.getInterfaces"
+        })
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -270,13 +286,17 @@ async fn test_device_get_audio() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.DisplaySettings.1.getAudioFormat"
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.DisplaySettings.1.getAudioFormat"
+        })
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -311,13 +331,17 @@ async fn test_device_get_hdcp_supported() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.HdcpProfile.1.getSettopHDCPSupport"
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.HdcpProfile.1.getSettopHDCPSupport"
+        })
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -358,13 +382,17 @@ async fn test_device_get_hdcp_status() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.HdcpProfile.1.getHDCPStatus"
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.HdcpProfile.1.getHDCPStatus"
+        })
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -395,13 +423,17 @@ async fn test_device_get_hdr() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.DisplaySettings.1.getTVHDRCapabilities"
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.DisplaySettings.1.getTVHDRCapabilities"
+        })
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -434,13 +466,17 @@ async fn test_device_get_screen_resolution_without_port() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.DisplaySettings.1.getCurrentResolution"
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.DisplaySettings.1.getCurrentResolution"
+        })
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -467,13 +503,17 @@ async fn test_device_get_make() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.System.1.getDeviceInfo"
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.System.1.getDeviceInfo"
+        })
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -517,13 +557,17 @@ async fn test_device_get_video_resolution() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.DisplaySettings.1.getCurrentResolution"
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.DisplaySettings.1.getCurrentResolution"
+        })
+    )
+    .await;
 }
 
 // #[tokio::test(flavor = "multi_thread")]
@@ -612,13 +656,17 @@ async fn test_device_get_timezone() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.System.1.getTimeZoneDST"
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.System.1.getTimeZoneDST"
+        })
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -669,13 +717,17 @@ async fn test_device_get_available_timezone() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.System.1.getTimeZones"
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.System.1.getTimeZones"
+        })
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -710,13 +762,17 @@ async fn test_device_get_voice_guidance_enabled() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.TextToSpeech.1.isttsenabled"
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.TextToSpeech.1.isttsenabled"
+        })
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -774,13 +830,17 @@ async fn test_device_get_voice_guidance_speed() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.TextToSpeech.1.getttsconfiguration"
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.TextToSpeech.1.getttsconfiguration"
+        })
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -817,16 +877,20 @@ async fn test_device_set_timezone() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.System.1.setTimeZoneDST",
-        "params": json!({
-            "timeZone": "America/New_York"
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.System.1.setTimeZoneDST",
+            "params": json!({
+                "timeZone": "America/New_York"
+            })
         })
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -861,16 +925,20 @@ async fn test_device_set_voice_guidance() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.TextToSpeech.1.enabletts",
-        "params": json!({
-            "enabletts": false
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.TextToSpeech.1.enabletts",
+            "params": json!({
+                "enabletts": false
+            })
         })
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -905,16 +973,20 @@ async fn test_device_set_voice_guidance_speed() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.TextToSpeech.1.setttsconfiguration",
-        "params": json!({
-            "rate": 50
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.TextToSpeech.1.setttsconfiguration",
+            "params": json!({
+                "rate": 50
+            })
         })
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -948,11 +1020,15 @@ async fn test_device_get_internet() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.Network.1.isConnectedToInternet"
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.Network.1.isConnectedToInternet"
+        })
+    )
+    .await;
 }

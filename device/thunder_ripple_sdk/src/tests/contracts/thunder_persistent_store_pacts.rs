@@ -91,22 +91,26 @@ async fn test_device_set_persistent_value(with_scope: bool) {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.PersistentStore.1.setValue",
-        "params": json!({
-            "namespace": "testNameSpace",
-            "key": "testKey",
-            "value": {
-                "update_time": Utc::now().to_rfc3339(),
-                "value": "testValue1"
-            },
-            "scope": "device"
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.PersistentStore.1.setValue",
+            "params": json!({
+                "namespace": "testNameSpace",
+                "key": "testKey",
+                "value": {
+                    "update_time": Utc::now().to_rfc3339(),
+                    "value": "testValue1"
+                },
+                "scope": "device"
+            })
         })
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    )
+    .await;
 }
 
 #[rstest(with_scope, case(true), case(false))]
@@ -161,18 +165,22 @@ async fn test_device_get_persistent_value(with_scope: bool) {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.PersistentStore.1.getValue",
-        "params": json!({
-            "namespace": "testNamespace",
-            "key": "testKey",
-            "scope": "device"
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.PersistentStore.1.getValue",
+            "params": json!({
+                "namespace": "testNamespace",
+                "key": "testKey",
+                "scope": "device"
+            })
         })
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    )
+    .await;
 }
 
 #[rstest(with_scope, case(true), case(false))]
@@ -225,16 +233,20 @@ async fn test_device_delete_persistent_value_by_key(with_scope: bool) {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let server_url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "org.rdk.PersistentStore.1.deleteKey",
-        "params": json!({
-            "namespace": "testNamespace",
-            "key": "testKey",
-            "scope": "device"
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.PersistentStore.1.deleteKey",
+            "params": json!({
+                "namespace": "testNamespace",
+                "key": "testKey",
+                "scope": "device"
+            })
         })
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    )
+    .await;
 }

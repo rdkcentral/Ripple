@@ -34,15 +34,19 @@ async fn test_register_state_change_event() {
         })
     );
 
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "Controller.1.register",
-        "params": json!({
-            "event": "statechange", "id": "client.Controller.1.events"
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "Controller.1.register",
+            "params": {
+                "event": "statechange",
+                "id": "client.Controller.1.events"
+            }
         })
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -80,13 +84,16 @@ async fn test_device_info_plugin_status() {
         })
     );
 
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "Controller.1.status@DeviceInfo",
-        "params": json!({})
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "Controller.1.status@DeviceInfo",
+            "params": json!({})
+        })
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -111,15 +118,18 @@ async fn test_device_info_plugin_state() {
         })
     );
 
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 2,
-        "method": "Controller.1.activate",
-        "params": json!({
-            "callsign": "DeviceInfo",
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "Controller.1.activate",
+            "params": json!({
+                "callsign": "DeviceInfo",
+            })
         })
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -157,12 +167,15 @@ async fn test_display_settings_plugin_status() {
         })
     );
 
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 3,
-        "method": "Controller.1.status@org.rdk.DisplaySettings",
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "Controller.1.status@org.rdk.DisplaySettings",
+        })
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -187,15 +200,18 @@ async fn test_activate_display_settings_plugin() {
         })
     );
 
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 4,
-        "method": "Controller.1.activate",
-        "params": json!({
-            "callsign": "org.rdk.DisplaySettings",
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "Controller.1.activate",
+            "params": json!({
+                "callsign": "org.rdk.DisplaySettings",
+            })
         })
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -233,12 +249,15 @@ async fn test_status_org_rdk_system() {
         })
     );
 
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 5,
-        "method": "Controller.1.status@org.rdk.System",
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "Controller.1.status@org.rdk.System",
+        })
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -263,15 +282,18 @@ async fn test_activate_org_rdk_system() {
         })
     );
 
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 6,
-        "method": "Controller.1.activate",
-        "params": json!({
-            "callsign": "org.rdk.System",
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "Controller.1.activate",
+            "params": json!({
+                "callsign": "org.rdk.System",
+            })
         })
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -309,12 +331,15 @@ async fn test_status_org_rdk_hdcp_profile() {
         })
     );
 
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 7,
-        "method": "Controller.1.status@org.rdk.HdcpProfile",
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 7,
+            "method": "Controller.1.status@org.rdk.HdcpProfile",
+        })
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -339,15 +364,18 @@ async fn test_activate_org_rdk_hdcp_profile() {
         })
     );
 
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 8,
-        "method": "Controller.1.activate",
-        "params": json!({
-            "callsign": "org.rdk.HdcpProfile",
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 8,
+            "method": "Controller.1.activate",
+            "params": json!({
+                "callsign": "org.rdk.HdcpProfile",
+            })
         })
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -386,12 +414,15 @@ async fn test_status_org_rdk_telemetry() {
         })
     );
 
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 9,
-        "method": "Controller.1.status@org.rdk.Telemetry",
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 9,
+            "method": "Controller.1.status@org.rdk.Telemetry",
+        })
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -416,13 +447,16 @@ async fn test_activate_org_rdk_telemetry() {
         })
     );
 
-    let request = json!({
-        "jsonrpc": "2.0",
-        "id": 10,
-        "method": "Controller.1.activate",
-        "params": json!({
-            "callsign": "org.rdk.Telemetry",
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "Controller.1.activate",
+            "params": json!({
+                "callsign": "org.rdk.Telemetry",
+            })
         })
-    });
-    send_thunder_call_message!(server_url.to_string(), request).await;
+    )
+    .await;
 }
