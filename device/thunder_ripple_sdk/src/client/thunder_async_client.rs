@@ -85,9 +85,17 @@ impl ThunderAsyncResponse {
     }
 
     fn new_error(id: u64, e: RippleError) -> Self {
+        let error_response = JsonRpcApiResponse {
+            id: Some(id),
+            jsonrpc: "2.0".to_string(),
+            result: None,
+            error: Some(serde_json::json!({"code":-32100,"message":e.to_string()})),
+            method: None,
+            params: None,
+        };
         Self {
             id: Some(id),
-            result: Err(e),
+            result: Ok(error_response),
         }
     }
 
@@ -446,8 +454,10 @@ mod tests {
     async fn test_thunder_async_response_new_error() {
         let error = RippleError::ServiceError;
         let async_response = ThunderAsyncResponse::new_error(1, error.clone());
-        assert_eq!(async_response.id, Some(1));
-        assert_eq!(async_response.result.unwrap_err(), error);
+        assert_eq!(
+            async_response.result.unwrap().error,
+            Some(json!({"code":-32100,"message":error.to_string()}))
+        );
     }
 
     #[tokio::test]
