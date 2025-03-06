@@ -36,7 +36,7 @@ pub enum UserGrantsStoreRequest {
     ClearUserGrants(PolicyPersistenceType),
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub enum UserGrantsPersistenceType {
     Account,
     Cloud,
@@ -69,7 +69,7 @@ impl ExtnPayloadProvider for UserGrantsStoreRequest {
     }
 }
 
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct UserGrantInfo {
     pub role: CapabilityRole,
     pub capability: String,

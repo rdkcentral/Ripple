@@ -38,7 +38,6 @@ use ripple_sdk::{
     utils::channel_utils::oneshot_send_and_log,
     uuid::Uuid,
 };
-use serde::{Deserialize, Serialize};
 
 use std::{
     collections::HashMap,
@@ -52,7 +51,7 @@ use crate::{
 
 const REQUEST_QUEUE_CAPACITY: usize = 3;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub enum ProviderError {
     General,
     NotFound,
@@ -60,7 +59,7 @@ pub enum ProviderError {
     IoError,
 }
 
-#[derive(Clone, Default)]
+#[derive(Default, Clone)]
 pub struct ProviderBrokerState {
     provider_methods: Arc<RwLock<HashMap<String, ProviderMethod>>>,
     active_sessions: Arc<RwLock<HashMap<String, ProviderSession>>>,
@@ -105,7 +104,7 @@ struct ProviderCaller {
     tx: oneshot::Sender<ProviderResponsePayload>,
 }
 
-#[derive(Debug, Serialize, Default, Clone)]
+#[derive(Debug)]
 pub struct ProviderResult {
     pub entries: HashMap<String, Vec<String>>,
 }

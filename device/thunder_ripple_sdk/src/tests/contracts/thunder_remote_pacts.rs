@@ -15,24 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::client::thunder_client_pool::ThunderClientPool;
-use crate::get_pact_with_params;
-use crate::processors::thunder_remote::ThunderRemoteAccessoryRequestProcessor;
-use crate::ripple_sdk::extn::client::extn_processor::ExtnRequestProcessor;
 use crate::tests::contracts::contract_utils::*;
-use crate::thunder_state::ThunderConnectionState;
+use crate::{get_pact_with_params, send_thunder_call_message};
 use crate::{
-    ripple_sdk::{
-        api::device::{
-            device_accessory::{
-                AccessoryPairRequest, AccessoryProtocol, AccessoryType, RemoteAccessoryRequest,
-            },
-            device_request::DeviceRequest,
-        },
-        async_channel::unbounded,
-        extn::extn_client_message::{ExtnPayload, ExtnRequest},
-        serde_json::{self},
-    },
+    ripple_sdk::serde_json::{self},
     thunder_state::ThunderState,
 };
 use pact_consumer::mock_server::StartMockServerAsync;
@@ -41,8 +27,11 @@ use ripple_sdk::api::device::device_accessory::AccessoryListType;
 use ripple_sdk::api::device::device_accessory::AccessoryProtocolListType;
 use serde_json::json;
 use std::collections::HashMap;
-use std::sync::Arc;
 
+use futures_util::{SinkExt, StreamExt};
+use tokio::time::{timeout, Duration};
+use tokio_tungstenite::connect_async;
+use tokio_tungstenite::tungstenite::protocol::Message;
 // #[tokio::test(flavor = "multi_thread")]
 // #[cfg_attr(not(feature = "contract_tests"), ignore)]
 #[allow(dead_code)]
@@ -76,34 +65,19 @@ async fn test_device_remote_start_pairing() {
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
-    let _type = AccessoryType::Remote;
-    let timeout = 1;
-    let protocol = AccessoryProtocol::BluetoothLE;
-    let pair_params = AccessoryPairRequest {
-        _type,
-        timeout,
-        protocol,
-    };
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Accessory(
-        RemoteAccessoryRequest::Pair(pair_params.clone()),
-    )));
-    let msg = get_extn_msg(payload);
-
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s.clone(), r.clone());
-
-    let state: ThunderState = ThunderState::new(extn_client, thunder_client);
-
-    let _ = ThunderRemoteAccessoryRequestProcessor::process_request(
-        state,
-        msg,
-        RemoteAccessoryRequest::Pair(pair_params.clone()),
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.RemoteControl.1.startPairing",
+            "params": json!({
+                "netType": 21,
+                "timeout": 30
+            })
+        })
     )
     .await;
 }
@@ -173,26 +147,19 @@ async fn test_device_remote_network_status() {
     let _type: Option<AccessoryListType> = Some(AccessoryListType::All);
     let protocol: Option<AccessoryProtocolListType> = Some(AccessoryProtocolListType::All);
     let list_params = AccessoryListRequest { _type, protocol };
-    let payload = ExtnPayload::Request(ExtnRequest::Device(DeviceRequest::Accessory(
-        RemoteAccessoryRequest::List(list_params.clone()),
-    )));
-    let msg = get_extn_msg(payload);
 
-    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap();
-    let thunder_client =
-        ThunderClientPool::start(url, None, Some(Arc::new(ThunderConnectionState::new())), 1)
-            .await
-            .unwrap();
-
-    let (s, r) = unbounded();
-    let extn_client = get_extn_client(s.clone(), r.clone());
-
-    let state: ThunderState = ThunderState::new(extn_client, thunder_client);
-
-    let _ = ThunderRemoteAccessoryRequestProcessor::process_request(
-        state,
-        msg,
-        RemoteAccessoryRequest::List(list_params.clone()),
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.RemoteControl.1.getNetStatus",
+            "params": json!({
+                "netType": 21
+            })
+        })
     )
     .await;
 }

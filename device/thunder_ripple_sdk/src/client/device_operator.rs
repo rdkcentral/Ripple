@@ -20,7 +20,6 @@ use ripple_sdk::{
     log::error,
     tokio::sync::{mpsc, oneshot::error::RecvError},
 };
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub const DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS: u64 = 5;
@@ -46,7 +45,7 @@ pub struct DeviceResponseSubscription {
     pub handlers: Vec<mpsc::Sender<DeviceResponseMessage>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum DeviceChannelRequest {
     Call(DeviceCallRequest),
     Subscribe(DeviceSubscribeRequest),
@@ -76,13 +75,13 @@ impl DeviceChannelRequest {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct DeviceCallRequest {
     pub method: String,
     pub params: Option<DeviceChannelParams>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct DeviceSubscribeRequest {
     pub module: String,
     pub event_name: String,
@@ -90,13 +89,13 @@ pub struct DeviceSubscribeRequest {
     pub sub_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct DeviceUnsubscribeRequest {
     pub module: String,
     pub event_name: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum DeviceChannelParams {
     Json(String),
     Literal(String),
@@ -128,7 +127,7 @@ impl DeviceChannelParams {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct DeviceResponseMessage {
     pub message: Value,
     pub sub_id: Option<String>,
