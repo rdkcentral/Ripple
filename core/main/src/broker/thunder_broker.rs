@@ -412,6 +412,14 @@ impl ThunderBroker {
     fn get_callsign_and_method_from_alias(alias: &str) -> (String, Option<&str>) {
         let mut collection: Vec<&str> = alias.split('.').collect();
         let method = collection.pop();
+
+        // Check if the second-to-last element is a digit (version number)
+        if let Some(&version) = collection.last() {
+            if version.chars().all(char::is_numeric) {
+                collection.pop(); // Remove the version number
+            }
+        }
+
         let callsign = collection.join(".");
         (callsign, method)
     }
@@ -500,7 +508,12 @@ impl ThunderBroker {
         }
 
         if status.state.is_activating() {
-            info!("Plugin {} is activating", callsign);
+            info!(
+                "Plugin {} is activating Adding broker request to pending list",
+                callsign
+            );
+            self.status_manager
+                .add_broker_request_to_pending_list(callsign.clone(), rpc_request.clone());
             return Err(RippleError::ServiceNotReady);
         }
 

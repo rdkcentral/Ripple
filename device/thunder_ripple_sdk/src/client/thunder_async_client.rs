@@ -185,7 +185,12 @@ impl ThunderAsyncClient {
         }
         // If the plugin is activating, return a service not ready error
         if status.state.is_activating() {
-            info!("Plugin {} is activating", callsign);
+            info!(
+                "Plugin {} is activating. Adding broker request to pending list",
+                callsign
+            );
+            self.status_manager
+                .add_async_client_request_to_pending_list(callsign.clone(), request.clone());
             return Err(RippleError::ServiceNotReady);
         }
         // If the plugin is not activated, add the request to the pending list and generate an activation request
@@ -364,16 +369,16 @@ impl ThunderAsyncClient {
                                 }
                             }
                             Err(e) => {
-                                let response = ThunderAsyncResponse::new_error(request.id,e.clone());
                                 match e {
                                     RippleError::ServiceNotReady => {
-                                        info!("prepare request failed for request {:?}", request);
+                                        info!("Thunder Service not ready, request is now in pending list {:?}", request);
                                     },
                                     _ => {
-                                        error!("error preparing request {:?}", e)
+                                        error!("error preparing request {:?}", e);
+                                        let response = ThunderAsyncResponse::new_error(request.id,e.clone());
+                                        self.callback.send(response).await;
                                     }
                                 }
-                                self.callback.send(response).await;
                             }
                         }
                     }
