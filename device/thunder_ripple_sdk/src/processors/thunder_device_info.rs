@@ -110,6 +110,7 @@ enum ThunderInterfaceType {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 struct ThunderInterfaceStatus {
     interface: ThunderInterfaceType,
     mac_address: String,
@@ -119,6 +120,7 @@ struct ThunderInterfaceStatus {
 
 #[derive(Debug, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 struct ThunderGetInterfacesResponse {
     interfaces: Vec<ThunderInterfaceStatus>,
 }
