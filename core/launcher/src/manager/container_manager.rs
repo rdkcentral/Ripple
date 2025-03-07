@@ -27,7 +27,6 @@ use ripple_sdk::{
     },
     log::{debug, error},
 };
-use serde::{Deserialize, Serialize};
 
 use crate::{
     launcher_state::LauncherState,
@@ -40,13 +39,13 @@ use super::{
     view_manager::{Position, ViewManager},
 };
 
-#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateChangeInternal {
     pub states: StateChange,
     pub container_props: ContainerProperties,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContainerProperties {
     pub name: String,
     pub view_id: ViewId,

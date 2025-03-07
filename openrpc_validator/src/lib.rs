@@ -6,7 +6,7 @@ use serde_json::{json, Map, Value};
 
 pub extern crate jsonschema;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct RpcMethodValidator {
     pub validators: Vec<FireboltOpenRpc>,
 }
@@ -76,12 +76,12 @@ impl RpcMethodValidator {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct FireboltOpenRpc {
     pub apis: HashMap<String, FireboltOpenRpcSpec>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Deserialize)]
 pub enum ValidationError {
     SpecVersionNotFound,
     MethodNotFound,
@@ -251,7 +251,7 @@ pub struct JsonRpcRequest {
     pub params: Value,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct FireboltOpenRpcSpec {
     pub methods: Vec<RpcMethod>,
     pub components: Value,
@@ -276,7 +276,7 @@ impl From<FireboltOpenRpcSpec> for OpenRpcSpec {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct OpenRpcSpec {
     pub methods: HashMap<String, RpcMethod>,
     pub additional_schemas: HashMap<String, Value>,
@@ -308,7 +308,7 @@ pub struct RpcMethod {
     pub examples: Option<Vec<MethodExample>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct JsonSchemaObject {
     pub r#type: String,
     pub properties: HashMap<String, Value>,

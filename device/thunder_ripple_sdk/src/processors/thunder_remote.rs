@@ -54,7 +54,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use tokio::time::{sleep, Duration};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RemoteStatus {
     net_type: u32,
@@ -62,33 +62,33 @@ struct RemoteStatus {
     remote_data: Vec<RemoteData>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RemoteData {
     make: String,
     model: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RemotePairRequest {
     net_type: u32,
     timeout: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RemoteListRequest {
     net_type: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[allow(non_camel_case_types, non_snake_case)]
 struct RemotePairError {
     code: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RemoteStatusEvent {
     status: RemoteStatus,
