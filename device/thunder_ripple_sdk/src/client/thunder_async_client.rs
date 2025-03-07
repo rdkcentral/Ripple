@@ -84,10 +84,18 @@ impl ThunderAsyncResponse {
         }
     }
 
-    fn new_error(id: u64, e: RippleError) -> Self {
+    pub fn new_error(id: u64, e: RippleError) -> Self {
+        let error_response = JsonRpcApiResponse {
+            id: Some(id),
+            jsonrpc: "2.0".to_string(),
+            result: None,
+            error: Some(serde_json::json!({"code":-32100,"message":e.to_string()})),
+            method: None,
+            params: None,
+        };
         Self {
             id: Some(id),
-            result: Err(e),
+            result: Ok(error_response),
         }
     }
 
@@ -185,7 +193,12 @@ impl ThunderAsyncClient {
         }
         // If the plugin is activating, return a service not ready error
         if status.state.is_activating() {
-            info!("Plugin {} is activating", callsign);
+            info!(
+                "Plugin {} is activating. Adding broker request to pending list",
+                callsign
+            );
+            self.status_manager
+                .add_async_client_request_to_pending_list(callsign.clone(), request.clone());
             return Err(RippleError::ServiceNotReady);
         }
         // If the plugin is not activated, add the request to the pending list and generate an activation request
@@ -364,16 +377,16 @@ impl ThunderAsyncClient {
                                 }
                             }
                             Err(e) => {
-                                let response = ThunderAsyncResponse::new_error(request.id,e.clone());
                                 match e {
                                     RippleError::ServiceNotReady => {
-                                        info!("prepare request failed for request {:?}", request);
+                                        info!("Thunder Service not ready, request is now in pending list {:?}", request);
                                     },
                                     _ => {
-                                        error!("error preparing request {:?}", e)
+                                        error!("error preparing request {:?}", e);
+                                        let response = ThunderAsyncResponse::new_error(request.id,e.clone());
+                                        self.callback.send(response).await;
                                     }
                                 }
-                                self.callback.send(response).await;
                             }
                         }
                     }
@@ -441,8 +454,10 @@ mod tests {
     async fn test_thunder_async_response_new_error() {
         let error = RippleError::ServiceError;
         let async_response = ThunderAsyncResponse::new_error(1, error.clone());
-        assert_eq!(async_response.id, Some(1));
-        assert_eq!(async_response.result.unwrap_err(), error);
+        assert_eq!(
+            async_response.result.unwrap().error,
+            Some(json!({"code":-32100,"message":error.to_string()}))
+        );
     }
 
     #[tokio::test]
