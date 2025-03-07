@@ -49,7 +49,7 @@ use ripple_sdk::{
 static START_PARTNER_EXCLUSION_SYNC_THREAD: Once = Once::new();
 
 use crate::{
-    service::{apps::apps_updater::AppsUpdater, data_governance::DataGovernance},
+    service::data_governance::DataGovernance,
     state::{cap::cap_state::CapState, metrics_state::MetricsState, platform_state::PlatformState},
 };
 
@@ -225,11 +225,6 @@ impl MainContextProcessor {
                         Self::sync_partner_exclusions(state).await;
                     }
                 }
-            }
-            if state.supports_app_catalog() {
-                state
-                    .get_client()
-                    .add_event_processor(AppsUpdater::init(state).await);
             }
         }
     }

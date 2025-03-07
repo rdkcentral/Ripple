@@ -123,8 +123,6 @@ pub enum RippleContract {
     Session(SessionAdjective),
     RippleContext,
     ExtnProvider(ExtnProviderAdjective),
-    AppCatalog,
-    Apps,
     // Runtime ability for a given distributor to turn off a certian feature
     RemoteFeatureControl,
     Analytics,
