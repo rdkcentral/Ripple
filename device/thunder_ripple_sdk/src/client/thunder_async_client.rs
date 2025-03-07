@@ -84,7 +84,7 @@ impl ThunderAsyncResponse {
         }
     }
 
-    fn new_error(id: u64, e: RippleError) -> Self {
+    pub fn new_error(id: u64, e: RippleError) -> Self {
         let error_response = JsonRpcApiResponse {
             id: Some(id),
             jsonrpc: "2.0".to_string(),
