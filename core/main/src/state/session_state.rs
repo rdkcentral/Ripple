@@ -82,7 +82,7 @@ impl Session {
 pub struct SessionState {
     session_map: Arc<RwLock<HashMap<String, Session>>>,
     account_session: Arc<RwLock<Option<AccountSession>>>,
-    pending_sessions: Arc<RwLock<HashMap<String, Option<PendingSessionInfo>>>>, // <pca> Can prolly get rid of this </pca>
+    pending_sessions: Arc<RwLock<HashMap<String, Option<PendingSessionInfo>>>>,
 }
 
 #[derive(Debug, Clone, Default)]
