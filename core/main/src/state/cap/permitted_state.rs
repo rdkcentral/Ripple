@@ -204,7 +204,7 @@ impl PermissionHandler {
 
     pub async fn device_fetch_and_store(_state: &PlatformState, _app_id: &str) -> RippleResponse {
         error!("device_fetch_and_store: Not supported");
-        return Err(RippleError::NotAvailable);
+        Err(RippleError::NotAvailable)
     }
 
     fn process_permissions(
