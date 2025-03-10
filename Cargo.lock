@@ -1718,18 +1718,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "launcher"
-version = "1.1.0"
-dependencies = [
- "jsonrpsee",
- "ripple_sdk",
- "serde",
- "serde_json",
- "url",
- "urlencoding",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2895,6 +2883,7 @@ dependencies = [
  "futures",
  "futures-channel",
  "jsonrpsee",
+ "lazy_static",
  "libloading",
  "log",
  "regex",
@@ -3507,6 +3496,7 @@ dependencies = [
  "expectest",
  "futures",
  "futures-channel",
+ "futures-util",
  "home",
  "jsonrpsee",
  "maplit",

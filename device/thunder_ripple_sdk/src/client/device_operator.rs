@@ -58,11 +58,37 @@ impl DeviceChannelRequest {
             DeviceChannelRequest::Call(c) => {
                 let mut collection: Vec<&str> = c.method.split('.').collect();
                 let method = collection.pop().unwrap_or_default();
+
+                // Check if the second-to-last element is a digit (version number)
+                if let Some(&version) = collection.last() {
+                    if version.chars().all(char::is_numeric) {
+                        collection.pop(); // Remove the version number
+                    }
+                }
+
                 let callsign = collection.join(".");
                 (callsign, method.into())
             }
-            DeviceChannelRequest::Subscribe(s) => (s.module.clone(), s.event_name.clone()),
-            DeviceChannelRequest::Unsubscribe(u) => (u.module.clone(), u.event_name.clone()),
+            DeviceChannelRequest::Subscribe(s) => {
+                let mut parts: Vec<&str> = s.module.split('.').collect();
+                if let Some(&last) = parts.last() {
+                    if last.chars().all(char::is_numeric) {
+                        parts.pop(); // Remove the version number
+                    }
+                }
+                let module_name = parts.join(".");
+                (module_name, s.event_name.clone())
+            }
+            DeviceChannelRequest::Unsubscribe(u) => {
+                let mut parts: Vec<&str> = u.module.split('.').collect();
+                if let Some(&last) = parts.last() {
+                    if last.chars().all(char::is_numeric) {
+                        parts.pop(); // Remove the version number
+                    }
+                }
+                let module_name = parts.join(".");
+                (module_name, u.event_name.clone())
+            }
         }
     }
 }
@@ -213,5 +239,80 @@ mod tests {
 
         assert_eq!(response.message, message);
         assert_eq!(response.sub_id, Some(sub_id));
+    }
+
+    #[test]
+    fn test_get_callsign_method() {
+        let call_request = DeviceChannelRequest::Call(DeviceCallRequest {
+            method: "org.rdk.System.1.testMethod".to_string(),
+            params: None,
+        });
+        let (callsign, method) = call_request.get_callsign_method();
+        assert_eq!(callsign, "org.rdk.System");
+        assert_eq!(method, "testMethod");
+
+        let call_request = DeviceChannelRequest::Call(DeviceCallRequest {
+            method: "org.rdk.System.testMethod".to_string(),
+            params: None,
+        });
+        let (callsign, method) = call_request.get_callsign_method();
+        assert_eq!(callsign, "org.rdk.System");
+        assert_eq!(method, "testMethod");
+
+        let call_request = DeviceChannelRequest::Call(DeviceCallRequest {
+            method: "org.testMethod".to_string(),
+            params: None,
+        });
+        let (callsign, method) = call_request.get_callsign_method();
+        assert_eq!(callsign, "org");
+        assert_eq!(method, "testMethod");
+
+        // subscribe request
+        let subscribe_request = DeviceChannelRequest::Subscribe(DeviceSubscribeRequest {
+            module: "org.rdk.System.1".to_string(),
+            event_name: "onPowerStateEvent".to_string(),
+            params: None,
+            sub_id: None,
+        });
+        let (callsign, method) = subscribe_request.get_callsign_method();
+        assert_eq!(callsign, "org.rdk.System");
+        assert_eq!(method, "onPowerStateEvent");
+
+        let subscribe_request = DeviceChannelRequest::Subscribe(DeviceSubscribeRequest {
+            module: "org.rdk.System".to_string(),
+            event_name: "onPowerStateEvent".to_string(),
+            params: None,
+            sub_id: None,
+        });
+        let (callsign, method) = subscribe_request.get_callsign_method();
+        assert_eq!(callsign, "org.rdk.System");
+        assert_eq!(method, "onPowerStateEvent");
+
+        let subscribe_request = DeviceChannelRequest::Subscribe(DeviceSubscribeRequest {
+            module: "org".to_string(),
+            event_name: "onPowerStateEvent".to_string(),
+            params: None,
+            sub_id: None,
+        });
+        let (callsign, method) = subscribe_request.get_callsign_method();
+        assert_eq!(callsign, "org");
+        assert_eq!(method, "onPowerStateEvent");
+
+        // unsubscribe request
+        let unsubscribe_request = DeviceChannelRequest::Unsubscribe(DeviceUnsubscribeRequest {
+            module: "org.rdk.AuthService.1".to_string(),
+            event_name: "onTestEvent".to_string(),
+        });
+        let (callsign, method) = unsubscribe_request.get_callsign_method();
+        assert_eq!(callsign, "org.rdk.AuthService");
+        assert_eq!(method, "onTestEvent");
+
+        let unsubscribe_request = DeviceChannelRequest::Unsubscribe(DeviceUnsubscribeRequest {
+            module: "org".to_string(),
+            event_name: "onTestEvent".to_string(),
+        });
+        let (callsign, method) = unsubscribe_request.get_callsign_method();
+        assert_eq!(callsign, "org");
+        assert_eq!(method, "onTestEvent");
     }
 }

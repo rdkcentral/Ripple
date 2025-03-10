@@ -23,7 +23,6 @@ pub mod config;
 pub mod context;
 pub mod device;
 pub mod manifest;
-pub mod protocol;
 pub mod session;
 pub mod settings;
 pub mod status_update;
