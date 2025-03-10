@@ -102,7 +102,37 @@ macro_rules! mock_websocket_server {
 
     }
 }
+#[macro_export]
+macro_rules! send_thunder_call_message {
+    ($server_url:expr, $json_payload:expr) => {{
+        async {
+            let (ws_stream, _) = connect_async($server_url).await.expect("Failed to connect");
+            let (mut write, mut read) = ws_stream.split();
 
+            let json_string = serde_json::to_string(&$json_payload).unwrap();
+            write
+                .send(Message::Text(json_string))
+                .await
+                .expect("Failed to send message");
+
+            // Read the response with a timeout of 2 seconds
+            match timeout(Duration::from_secs(2), read.next()).await {
+                Ok(Some(Ok(response))) => {
+                    println!("Received response: {:?}", response);
+                }
+                Ok(Some(Err(e))) => {
+                    println!("Error reading response: {:?}", e);
+                }
+                Ok(None) => {
+                    println!("No response received");
+                }
+                Err(_) => {
+                    println!("Timed out waiting for response");
+                }
+            }
+        }
+    }};
+}
 pub struct ContractResult {
     pub result: HashMap<String, ContractMatcher>,
 }

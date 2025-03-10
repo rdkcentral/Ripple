@@ -39,16 +39,17 @@ use crate::{
     },
     thunder_state::ThunderState,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct ThunderGetValueResponse {
     success: bool,
     value: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 #[allow(non_camel_case_types, non_snake_case)]
+#[allow(dead_code)]
 struct WifiConnectError {
     code: u32,
 }

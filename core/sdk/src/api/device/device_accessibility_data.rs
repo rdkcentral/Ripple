@@ -17,7 +17,7 @@
 
 use serde::{Deserialize, Serialize, Serializer};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClosedCaptionsSettings {
     pub enabled: bool,
@@ -43,7 +43,7 @@ pub const FONT_EDGE_LIST: [&str; 6] = [
     "drop_shadow_right",
 ];
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClosedCaptionStyle {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -72,7 +72,7 @@ pub struct ClosedCaptionStyle {
     pub text_align_vertical: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 pub struct VoiceGuidanceSettings {
     pub enabled: bool,
     #[serde(serialize_with = "speed_serializer")]
@@ -87,17 +87,17 @@ where
     serializer.serialize_f64(s)
 }
 
-#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct VoiceGuidanceEnabledChangedEventData {
     pub state: bool,
 }
 
-#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+#[derive(Default, Debug, Serialize, Clone)]
 pub struct AudioDescriptionSettings {
     pub enabled: bool,
 }
 
-#[derive(Default, Debug, Serialize, Deserialize, Clone)]
+#[derive(Default, Debug, Deserialize, Clone)]
 pub struct AudioDescriptionSettingsSet {
     pub value: bool,
 }

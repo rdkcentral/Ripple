@@ -79,8 +79,6 @@ pub enum RippleContract {
     /// Provides list of permitted capabilities for a given application.
     Permissions,
     /// Alternate protocol mechanism to connect to Ripple.
-    BridgeProtocol,
-    /// Allows pairing and configuring hand-held remotes. Would soon become an Adjective for accessory.
     RemoteAccessory,
     /// Provides options for triggering the Keyboard provider UI.
     Keyboard,
