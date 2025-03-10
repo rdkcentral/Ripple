@@ -49,7 +49,8 @@ pub struct PluginManager {
     plugin_request: ThunderPluginBootParam,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(test, derive(Serialize))]
 pub struct PluginStateChangeEvent {
     pub callsign: String,
     pub state: PluginState,
@@ -60,7 +61,8 @@ pub struct ThunderActivatePluginParams {
     pub callsign: String,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Serialize, Clone)]
+#[derive(Debug, PartialEq, Deserialize, Clone)]
+#[cfg_attr(test, derive(Serialize))]
 pub struct PluginStatus {
     pub state: String,
 }
@@ -93,7 +95,8 @@ impl PluginStatus {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq, Serialize, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[cfg_attr(test, derive(Serialize))]
 pub enum PluginState {
     Activated,
     Activation,

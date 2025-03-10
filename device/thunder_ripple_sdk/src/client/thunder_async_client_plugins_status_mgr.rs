@@ -75,7 +75,7 @@ const DEFAULT_PLUGIN_ACTIVATION_TIMEOUT: i64 = 8;
 
 const STATE_CHANGE_EVENT_METHOD: &str = "thunder.Broker.Controller.events.statechange";
 
-#[derive(Debug, Deserialize, PartialEq, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct Status {
     pub callsign: String,
     pub state: String,
@@ -109,13 +109,13 @@ impl Status {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StateChangeEvent {
     pub callsign: String,
     pub state: State,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub enum State {
     Activated,
     Activation,
@@ -552,10 +552,7 @@ impl StatusManager {
 impl AsyncCallback {
     /// Default method used for sending errors via the BrokerCallback
     pub async fn send_error(&self, request: ThunderAsyncRequest, error: RippleError) {
-        let response = ThunderAsyncResponse {
-            id: Some(request.id),
-            result: Err(error),
-        };
+        let response = ThunderAsyncResponse::new_error(request.id, error);
         self.send(response).await;
     }
 }
