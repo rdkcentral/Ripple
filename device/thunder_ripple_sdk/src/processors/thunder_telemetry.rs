@@ -99,28 +99,6 @@ fn get_event_name(event: &TelemetryPayload) -> &'static str {
     }
 }
 
-pub enum ThunderMetricsTimerName {
-    PackageManagerGetList,
-    PackageManagerInstall,
-    PackageManagerUninstall,
-    PackageManagerGetMetadata,
-}
-
-impl std::fmt::Display for ThunderMetricsTimerName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ThunderMetricsTimerName::PackageManagerGetList => write!(f, "package_manager_get_list"),
-            ThunderMetricsTimerName::PackageManagerInstall => write!(f, "package_manager_install"),
-            ThunderMetricsTimerName::PackageManagerUninstall => {
-                write!(f, "package_manager_uninstall")
-            }
-            ThunderMetricsTimerName::PackageManagerGetMetadata => {
-                write!(f, "package_manager_get_metadata")
-            }
-        }
-    }
-}
-
 pub enum ThunderResponseStatus {
     Success,
     Failure,

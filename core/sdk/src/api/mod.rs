@@ -17,7 +17,6 @@
 
 pub mod accessory;
 pub mod account_link;
-pub mod app_catalog;
 pub mod apps;
 pub mod caps;
 pub mod config;
