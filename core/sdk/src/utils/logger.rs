@@ -62,11 +62,13 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
     println!("log level {}", log_string);
     let _version_string = version.to_string();
     let filter = log::LevelFilter::from_str(&log_string).unwrap_or(log::LevelFilter::Info);
+    // Read enable_log_signal from manifest
+    let enable_log_signal = read_enable_log_signal();
     fern::Dispatch::new()
         .format(move |out, message, record| {
             let _v = LOG_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             #[cfg(not(feature = "sysd"))]
-            if _v % 100 == 0 {
+            if enable_log_signal && _v % 100 == 0 {
                 LOG_COUNTER.store(1, std::sync::atomic::Ordering::Relaxed);
                 return out.finish(format_args!(
                     "{}[{}][{}][{}][{}]-{}",
@@ -88,7 +90,7 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
                 ));
             }
             #[cfg(feature = "sysd")]
-            if _v % 100 == 0 {
+            if enable_log_signal && _v % 100 == 0 {
                 LOG_COUNTER.store(1, std::sync::atomic::Ordering::Relaxed);
                 return out.finish(format_args!(
                     "[{}][{}][{}][{}]-{}",
@@ -124,4 +126,25 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
         .chain(std::io::stdout())
         .apply()?;
     Ok(())
+}
+
+fn read_enable_log_signal() -> bool {
+    use serde_json::Value;
+    use std::fs::File;
+    use std::io::Read;
+
+    if let Ok(mut file) = File::open("/etc/firebolt-device-manifest.json") {
+        let mut contents = String::new();
+        if file.read_to_string(&mut contents).is_ok() {
+            if let Ok(json) = serde_json::from_str::<Value>(&contents) {
+                if let Some(enable_log_signal) = json.get("enable_log_signal") {
+                    if let Some(bool_val) = enable_log_signal.as_bool() {
+                        return bool_val;
+                    }
+                }
+            }
+        }
+    }
+    // Default to false if manifest is not found or parsing fails
+    false
 }
