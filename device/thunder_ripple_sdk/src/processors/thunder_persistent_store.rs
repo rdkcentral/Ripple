@@ -167,7 +167,11 @@ impl ThunderStorageRequestProcessor {
         true
     }
 
-    async fn get_value(state: ThunderState, req: ExtnMessage, data: GetStorageProperty) -> bool {
+    pub async fn get_value(
+        state: &ThunderState,
+        req: ExtnMessage,
+        data: GetStorageProperty,
+    ) -> bool {
         let mut params_json = json!({
             "namespace": data.namespace,
             "key": data.key,
@@ -308,7 +312,7 @@ impl ExtnRequestProcessor for ThunderStorageRequestProcessor {
     ) -> bool {
         match extracted_message {
             DevicePersistenceRequest::Get(get_params) => {
-                Self::get_value(state.clone(), msg, get_params).await
+                Self::get_value(&state, msg, get_params).await
             }
             DevicePersistenceRequest::Set(set_params) => {
                 Self::set_value(state.clone(), msg, set_params).await
