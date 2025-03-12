@@ -14,6 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
+use super::privacy_rpc::{self};
 use crate::{
     firebolt::rpc::RippleRPCProvider,
     processor::storage::storage_manager::StorageManager,
@@ -25,20 +26,9 @@ use jsonrpsee::{
     proc_macros::rpc,
     RpcModule,
 };
-use ripple_sdk::{
-    api::{
-        gateway::rpc_gateway_api::CallContext,
-        storage_property::StorageProperty,
-    },
-    log::{debug, error},
-};
+use ripple_sdk::api::{gateway::rpc_gateway_api::CallContext, storage_property::StorageProperty};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
-
-use super::{
-    privacy_rpc::{self, PrivacyImpl},
-};
 
 const ADVERTISING_APP_BUNDLE_ID_SUFFIX: &str = "Comcast";
 
@@ -68,24 +58,24 @@ pub struct AdvertisingPolicy {
     pub limit_ad_tracking: bool,
 }
 
-#[derive(Debug, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AdvertisingIdRPCRequest {
     pub options: Option<ScopeOption>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ScopeOption {
     pub scope: Option<Scope>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Scope {
     #[serde(rename = "type")]
     pub _type: ScopeType,
     pub id: String,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum ScopeType {
     Browse,
