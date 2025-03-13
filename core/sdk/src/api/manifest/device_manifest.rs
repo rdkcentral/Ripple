@@ -38,12 +38,14 @@ use super::{apps::AppManifest, exclusory::ExclusoryImpl, remote_feature::Feature
 pub const PARTNER_EXCLUSION_REFRESH_TIMEOUT: u32 = 12 * 60 * 60; // 12 hours
 pub const METRICS_LOGGING_PERCENTAGE_DEFAULT: u32 = 10;
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct RippleConfiguration {
     #[serde(default = "ws_configuration_default")]
     pub ws_configuration: WsConfiguration,
     #[serde(default = "ws_configuration_internal_default")]
     pub internal_ws_configuration: WsConfiguration,
+    #[serde(default = "enable_log_signal_default")]
+    pub enable_log_signal: bool,
     #[serde(default = "platform_parameters_default")]
     pub platform_parameters: Value,
     pub distribution_id_salt: Option<IdSalt>,
@@ -198,7 +200,7 @@ pub struct ApplicationsConfiguration {
     pub distributor_app_aliases: HashMap<String, String>,
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Deserialize, Serialize, Debug, Clone, Default)]
 pub struct WsConfiguration {
     pub enabled: bool,
     pub gateway: String,
@@ -216,6 +218,10 @@ pub fn ws_configuration_internal_default() -> WsConfiguration {
         enabled: true,
         gateway: "127.0.0.1:3474".into(),
     }
+}
+
+pub fn enable_log_signal_default() -> bool {
+    false
 }
 
 pub fn platform_parameters_default() -> Value {
@@ -519,7 +525,7 @@ pub struct CloudService {
     pub url: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AppAuthorizationRules {
     pub app_ignore_rules: HashMap<String, Vec<String>>,
 }
@@ -556,7 +562,7 @@ fn default_saved_dir() -> String {
     String::from("/opt/persistent/ripple")
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DataGovernanceConfig {
     policies: Vec<DataGovernancePolicy>,
 }
@@ -601,7 +607,7 @@ pub fn default_drop_on_all_tags() -> bool {
     true
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DataGovernancePolicy {
     pub data_type: DataEventType,
     pub setting_tags: Vec<DataGovernanceSettingTag>,
@@ -623,7 +629,7 @@ impl DataGovernancePolicy {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DataGovernanceSettingTag {
     pub setting: StorageProperty,
     #[serde(default = "default_enforcement_value")]
@@ -641,7 +647,7 @@ impl DataGovernanceSettingTag {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct InternetMonitoringConfiguration {
     pub default_monitoring_interval_seconds: u32,
 }
@@ -659,6 +665,7 @@ impl Default for RippleConfiguration {
         Self {
             ws_configuration: Default::default(),
             internal_ws_configuration: Default::default(),
+            enable_log_signal: Default::default(),
             platform_parameters: Value::Null,
             distribution_id_salt: None,
             form_factor: Default::default(),
@@ -706,6 +713,10 @@ impl DeviceManifest {
 
     pub fn get_internal_ws_enabled(&self) -> bool {
         self.configuration.internal_ws_configuration.enabled
+    }
+
+    pub fn get_enable_log_signal(&self) -> bool {
+       self.configuration.enable_log_signal
     }
 
     pub fn get_ws_gateway_host(&self) -> String {
@@ -814,6 +825,7 @@ pub(crate) mod tests {
                         enabled: true,
                         gateway: "127.0.0.1:3474".to_string(),
                     },
+                    enable_log_signal: false,
                     platform_parameters: {
                         let mut params = HashMap::new();
                         params.insert(

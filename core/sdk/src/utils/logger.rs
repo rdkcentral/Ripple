@@ -16,6 +16,9 @@
 //
 
 use std::{str::FromStr, sync::atomic::AtomicU32};
+use log::info;
+use crate::api::manifest::device_manifest::DeviceManifest;
+use super::error::RippleError;
 
 pub static LOG_COUNTER: AtomicU32 = AtomicU32::new(1);
 
@@ -128,23 +131,64 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
     Ok(())
 }
 
-fn read_enable_log_signal() -> bool {
-    use serde_json::Value;
-    use std::fs::File;
-    use std::io::Read;
+type DeviceManifestLoader = Vec<fn() -> Result<(String, DeviceManifest), RippleError>>;
 
-    if let Ok(mut file) = File::open("/etc/firebolt-device-manifest.json") {
-        let mut contents = String::new();
-        if file.read_to_string(&mut contents).is_ok() {
-            if let Ok(json) = serde_json::from_str::<Value>(&contents) {
-                if let Some(enable_log_signal) = json.get("enable_log_signal") {
-                    if let Some(bool_val) = enable_log_signal.as_bool() {
-                        return bool_val;
-                    }
-                }
-            }
+fn try_manifest_files() -> Result<DeviceManifest, RippleError> {
+    let dm_arr: DeviceManifestLoader = if cfg!(feature = "local_dev") {
+        vec![load_from_env, load_from_home]
+    } else if cfg!(test) {
+        vec![load_from_env]
+    } else {
+        vec![load_from_etc]
+    };
+
+    for dm_provider in dm_arr {
+        if let Ok((p, m)) = dm_provider() {
+            info!("loaded_manifest_file_content={}", p);
+            return Ok(m);
         }
     }
-    // Default to false if manifest is not found or parsing fails
-    false
+    Err(RippleError::BootstrapError)
+}
+
+fn load_from_env() -> Result<(String, DeviceManifest), RippleError> {
+    let device_manifest_path = std::env::var("DEVICE_MANIFEST");
+    match device_manifest_path {
+        Ok(path) => DeviceManifest::load(path),
+        Err(_) => Err(RippleError::MissingInput),
+    }
+}
+
+fn load_from_home() -> Result<(String, DeviceManifest), RippleError> {
+    match std::env::var("HOME") {
+        Ok(home) => DeviceManifest::load(format!("{}/.ripple/firebolt-device-manifest.json", home)),
+        Err(_) => Err(RippleError::MissingInput),
+    }
+}
+
+fn load_from_etc() -> Result<(String, DeviceManifest), RippleError> {
+    DeviceManifest::load("/etc/firebolt-device-manifest.json".into())
+}
+
+fn read_enable_log_signal() -> bool {
+    match try_manifest_files() {
+        Ok(manifest) => {
+            if let Ok(value) = serde_json::to_value(&manifest.configuration) {
+                if let Some(signal_value) = value.get("enable_log_signal") {
+                    if let Some(signal_bool) = signal_value.as_bool() {
+                        return signal_bool;
+                    } else {
+                        return false;
+                      }
+                } else {
+                    return false;
+                  }
+            } else {
+                return false;
+              }
+        }
+        Err(_) => {
+           return false;
+        }
+    }
 }
