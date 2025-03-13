@@ -15,10 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{str::FromStr, sync::atomic::AtomicU32};
-use log::info;
-use crate::api::manifest::device_manifest::DeviceManifest;
 use super::error::RippleError;
+use crate::api::manifest::device_manifest::DeviceManifest;
+use log::info;
+use std::{str::FromStr, sync::atomic::AtomicU32};
 
 pub static LOG_COUNTER: AtomicU32 = AtomicU32::new(1);
 
@@ -171,24 +171,13 @@ fn load_from_etc() -> Result<(String, DeviceManifest), RippleError> {
 }
 
 fn read_enable_log_signal() -> bool {
-    match try_manifest_files() {
-        Ok(manifest) => {
-            if let Ok(value) = serde_json::to_value(&manifest.configuration) {
-                if let Some(signal_value) = value.get("enable_log_signal") {
-                    if let Some(signal_bool) = signal_value.as_bool() {
-                        return signal_bool;
-                    } else {
-                        return false;
-                      }
-                } else {
-                    return false;
-                  }
-            } else {
-                return false;
-              }
-        }
-        Err(_) => {
-           return false;
-        }
-    }
+    try_manifest_files()
+        .ok()
+        .and_then(|manifest| serde_json::to_value(&manifest.configuration).ok())
+        .and_then(|value| {
+            value
+                .get("enable_log_signal")
+                .and_then(|signal_value| signal_value.as_bool())
+        })
+        .unwrap_or_default()
 }

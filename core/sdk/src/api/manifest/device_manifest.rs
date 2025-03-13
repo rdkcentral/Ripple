@@ -716,7 +716,7 @@ impl DeviceManifest {
     }
 
     pub fn get_enable_log_signal(&self) -> bool {
-       self.configuration.enable_log_signal
+        self.configuration.enable_log_signal
     }
 
     pub fn get_ws_gateway_host(&self) -> String {

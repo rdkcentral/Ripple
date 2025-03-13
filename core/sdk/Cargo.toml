@@ -29,6 +29,7 @@ sysd = []
 test = ["jsonrpsee", "mock"]
 contract_tests = []
 mock = []
+local_dev = [] 
 
 [dependencies]
 
