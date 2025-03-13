@@ -44,7 +44,7 @@ const OPERATION_TIMEOUT_SECS: u64 = 12 * 60; // 12 minutes
     case(true, AppsOperationType::Uninstall, 360)
 )]
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_install_app(
     active_operations_some: bool,
     op_type_progress: AppsOperationType,
@@ -180,7 +180,7 @@ async fn test_install_app(
     case(true, AppsOperationType::Uninstall, 360)
 )]
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_uninstall_app(
     active_operations_some: bool,
     op_type_progress: AppsOperationType,
@@ -303,7 +303,7 @@ async fn test_uninstall_app(
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_get_installed_apps() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
     let installed_apps = vec![InstalledApp {
@@ -374,7 +374,7 @@ async fn test_get_installed_apps() {
 
 #[ignore]
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_init() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -539,7 +539,7 @@ async fn test_init() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_get_firebolt_permissions() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
     let installed_apps = vec![InstalledApp {

@@ -27,9 +27,17 @@ tdk = []
 full = ["rpc"]
 sysd = []
 test = ["jsonrpsee", "mock"]
-contract_tests = []
 mock = []
+http_contract_tests = [
+]
 
+websocket_contract_tests = [
+
+]
+contract_tests = [
+    "http_contract_tests",
+    "websocket_contract_tests",
+]
 [dependencies]
 
 #dependencies inherited from workspace
