@@ -37,8 +37,12 @@ use ripple_sdk::{
     },
     extn::extn_client_message::ExtnResponse,
 };
+use serde_json::{json, Value};
 
-use crate::utils::rpc_utils::{rpc_add_event_listener, rpc_err};
+use crate::{
+    broker::broker_utils::BrokerUtils,
+    utils::rpc_utils::{rpc_add_event_listener, rpc_err},
+};
 use crate::{
     firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManager,
     service::apps::provider_broker::ProviderBroker, state::platform_state::PlatformState,
@@ -123,6 +127,61 @@ pub trait Localization {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
+}
+
+enum MapEntryProperty {
+    Set(SetMapEntryProperty),
+    Remove(RemoveMapEntryProperty),
+}
+
+async fn update_additional_info(
+    mut platform_state: PlatformState,
+    map_entry_property: MapEntryProperty,
+) -> RpcResult<()> {
+    match BrokerUtils::process_internal_main_request(
+        &mut platform_state,
+        "localization.additionalInfo",
+        None,
+    )
+    .await
+    {
+        Ok(Value::Object(additional_info_map)) => {
+            let mut info_map = additional_info_map.clone();
+
+            match map_entry_property {
+                MapEntryProperty::Set(set_map_entry_property) => {
+                    info_map.insert(
+                        set_map_entry_property.key.clone(),
+                        Value::String(set_map_entry_property.value.clone()),
+                    );
+                }
+                MapEntryProperty::Remove(remove_map_entry_property) => {
+                    info_map.remove(&remove_map_entry_property.key);
+                }
+            }
+
+            let params = Some(json!({
+                "value": serde_json::to_string(&info_map).unwrap(),
+            }));
+
+            BrokerUtils::process_internal_main_request(
+                &mut platform_state,
+                "localization.setAdditionalInfo",
+                params,
+            )
+            .await?;
+        }
+        Err(e) => {
+            return Err(e);
+        }
+        _ => {
+            return Err(jsonrpsee::core::Error::Custom(String::from(
+                "Existing additional info is not an object",
+            )));
+        }
+    }
+
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -303,35 +362,26 @@ impl LocalizationServer for LocalizationImpl {
         .await
     }
 
-    // #[instrument(skip(self))]
     async fn add_additional_info(
         &self,
         _ctx: CallContext,
         set_map_entry_property: SetMapEntryProperty,
     ) -> RpcResult<()> {
-        /*
-        Per FIRE-189, AdditionalInfo is now individually updatable, so read the entire map out, and update
-        value in place, and then write entire map out
-
-         */
-        StorageManager::set_value_in_map(
-            &self.platform_state,
-            StorageProperty::AdditionalInfo,
-            set_map_entry_property.key,
-            set_map_entry_property.value,
+        update_additional_info(
+            self.platform_state.clone(),
+            MapEntryProperty::Set(set_map_entry_property),
         )
         .await
     }
-    // #[instrument(skip(self))]
+
     async fn remove_additional_info(
         &self,
         _ctx: CallContext,
         remove_map_entry_property: RemoveMapEntryProperty,
     ) -> RpcResult<()> {
-        StorageManager::remove_value_in_map(
-            &self.platform_state,
-            StorageProperty::AdditionalInfo,
-            remove_map_entry_property.key,
+        update_additional_info(
+            self.platform_state.clone(),
+            MapEntryProperty::Remove(remove_map_entry_property),
         )
         .await
     }
