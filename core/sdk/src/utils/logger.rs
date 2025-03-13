@@ -20,7 +20,7 @@ use std::{str::FromStr, sync::atomic::AtomicU32};
 pub static LOG_COUNTER: AtomicU32 = AtomicU32::new(1);
 
 pub fn init_logger(name: String) -> Result<(), fern::InitError> {
-    let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".into());
+    let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "trace".into());
     println!("log level {}", log_string);
     let filter = log::LevelFilter::from_str(&log_string).unwrap_or(log::LevelFilter::Info);
     fern::Dispatch::new()
@@ -58,7 +58,7 @@ pub fn init_logger(name: String) -> Result<(), fern::InitError> {
 }
 
 pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern::InitError> {
-    let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".into());
+    let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "trace".into());
     println!("log level {}", log_string);
     let _version_string = version.to_string();
     let filter = log::LevelFilter::from_str(&log_string).unwrap_or(log::LevelFilter::Info);
