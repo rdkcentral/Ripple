@@ -187,7 +187,7 @@ impl<T: std::fmt::Display + ContextAsJson> LogSignal<T> {
         }
     }
     pub fn emit_debug(&self) {
-        log::debug!("{}", serde_json::Value::from(self));
+        log::trace!("{}", serde_json::Value::from(self));
     }
     pub fn emit_error(&self) {
         log::error!("{}", serde_json::Value::from(self));
