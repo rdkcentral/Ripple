@@ -114,7 +114,6 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
             }
         })
         .level(filter)
-        .level_for("log-signal", log::LevelFilter::Trace)
         //log filter applied here, making the log level to OFF for the below mentioned crates
         .level_for("h2", log::LevelFilter::Off)
         .level_for("hyper", log::LevelFilter::Off)
