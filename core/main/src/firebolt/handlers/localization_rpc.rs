@@ -145,31 +145,35 @@ async fn update_additional_info(
     )
     .await
     {
-        Ok(Value::Object(additional_info_map)) => {
-            let mut info_map = additional_info_map.clone();
-
+        Ok(Value::Object(mut additional_info_map)) => {
             match map_entry_property {
                 MapEntryProperty::Set(set_map_entry_property) => {
-                    info_map.insert(
+                    additional_info_map.insert(
                         set_map_entry_property.key.clone(),
                         Value::String(set_map_entry_property.value.clone()),
                     );
                 }
                 MapEntryProperty::Remove(remove_map_entry_property) => {
-                    info_map.remove(&remove_map_entry_property.key);
+                    additional_info_map.remove(&remove_map_entry_property.key);
                 }
             }
 
-            let params = Some(json!({
-                "value": serde_json::to_string(&info_map).unwrap(),
-            }));
+            if let Ok(value) = serde_json::to_string(&additional_info_map) {
+                let params = Some(json!({
+                    "value": value,
+                }));
 
-            BrokerUtils::process_internal_main_request(
-                &mut platform_state,
-                "localization.setAdditionalInfo",
-                params,
-            )
-            .await?;
+                BrokerUtils::process_internal_main_request(
+                    &mut platform_state,
+                    "localization.setAdditionalInfo",
+                    params,
+                )
+                .await?;
+            } else {
+                return Err(jsonrpsee::core::Error::Custom(String::from(
+                    "Error while serializing additional info",
+                )));
+            }
         }
         Err(e) => {
             return Err(e);
