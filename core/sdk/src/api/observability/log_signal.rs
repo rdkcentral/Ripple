@@ -1,9 +1,29 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
-use crate::api::gateway::rpc_gateway_api::{
-    CallContext, ClientContext, JsonRpcApiResponse, RpcRequest,
+use crate::api::{
+    gateway::rpc_gateway_api::{CallContext, ClientContext, JsonRpcApiResponse, RpcRequest},
+    manifest::device_manifest::try_manifest_files,
 };
 
+use std::sync::OnceLock;
+
+static LOG_LEVEL: OnceLock<log::LevelFilter> = OnceLock::new();
+fn log_level_string_to_log_level(level: &str) -> log::LevelFilter {
+    log::LevelFilter::from_str(level).unwrap_or(log::LevelFilter::Off)
+}
+pub fn initialize_log_signal() {
+    // Initialize the logger
+    match try_manifest_files() {
+        Ok(device_manifest) => {
+            LOG_LEVEL.get_or_init(|| {
+                log_level_string_to_log_level(&device_manifest.configuration.log_signal_log_level)
+            });
+        }
+        Err(_) => {
+            LOG_LEVEL.get_or_init(|| log::LevelFilter::Off);
+        }
+    }
+}
 /*
 
 Abstractions around ease of use contextual logging
@@ -186,11 +206,22 @@ impl<T: std::fmt::Display + ContextAsJson> LogSignal<T> {
             context,
         }
     }
+    pub fn emit(&self) {
+        if let Some(level) = LOG_LEVEL.get() {
+            match level {
+                log::LevelFilter::Error => log::error!("{}", serde_json::Value::from(self)),
+                log::LevelFilter::Debug => log::debug!("{}", serde_json::Value::from(self)),
+                log::LevelFilter::Info => log::info!("{}", serde_json::Value::from(self)),
+                log::LevelFilter::Trace => log::trace!("{}", serde_json::Value::from(self)),
+                _ => {}
+            }
+        };
+    }
     pub fn emit_debug(&self) {
-        log::trace!("{}", serde_json::Value::from(self));
+        self.emit();
     }
     pub fn emit_error(&self) {
-        log::error!("{}", serde_json::Value::from(self));
+        self.emit();
     }
 
     pub fn with_diagnostic_context(mut self, diagnostic_context: HashMap<String, String>) -> Self {
@@ -203,7 +234,7 @@ impl<T: std::fmt::Display + ContextAsJson> LogSignal<T> {
         self
     }
 }
-/*write unit tests for this file */
+
 #[cfg(test)]
 mod tests {
     use super::*;
