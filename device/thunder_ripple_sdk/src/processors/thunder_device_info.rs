@@ -299,10 +299,6 @@ impl ThunderAllTimezonesResponse {
         }
     }
 
-    fn as_array(&self) -> Vec<String> {
-        self.timezones.keys().cloned().collect()
-    }
-
     fn get_offset(&self, key: &str) -> i64 {
         if let Some(tz) = self.timezones.get(key) {
             if let Some(utc_tz) = self.timezones.get("Etc/UTC").cloned() {
@@ -1027,20 +1023,6 @@ impl ThunderDeviceInfoRequestProcessor {
         }
     }
 
-    async fn get_available_timezones(state: CachedState, req: ExtnMessage) -> bool {
-        if let Ok(v) = Self::get_all_timezones(&state).await {
-            Self::respond(
-                state.get_client(),
-                req,
-                ExtnResponse::AvailableTimezones(v.as_array()),
-            )
-            .await
-            .is_ok()
-        } else {
-            Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
-        }
-    }
-
     async fn voice_guidance_enabled(state: CachedState, request: ExtnMessage) -> bool {
         let response = state
             .get_thunder_client()
@@ -1418,9 +1400,6 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             }
             DeviceInfoRequest::GetTimezoneWithOffset => {
                 Self::get_timezone_with_offset(state.clone(), msg).await
-            }
-            DeviceInfoRequest::GetAvailableTimezones => {
-                Self::get_available_timezones(state.clone(), msg).await
             }
             DeviceInfoRequest::SetVoiceGuidanceEnabled(v) => {
                 Self::voice_guidance_set_enabled(state.clone(), msg, v).await
