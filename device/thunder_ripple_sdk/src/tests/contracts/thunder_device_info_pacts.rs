@@ -623,6 +623,54 @@ async fn test_device_get_video_resolution() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "contract_tests"), ignore)]
+async fn test_device_get_timezone() {
+    let mut pact_builder_async = get_pact_builder_async_obj().await;
+
+    let mut result = HashMap::new();
+    result.insert(
+        "timeZone".into(),
+        ContractMatcher::MatchType("America/New_York".into()),
+    );
+    result.insert(
+        "accuracy".into(),
+        ContractMatcher::MatchRegex("(INITIAL|INTERIM|FINAL)".into(), "INITIAL".into()),
+    );
+    result.insert("success".into(), ContractMatcher::MatchBool(true));
+
+    pact_builder_async
+        .synchronous_message_interaction(
+            "A request to get the device timezone",
+            |mut i| async move {
+                i.contents_from(get_pact!(
+                    "org.rdk.System.1.getTimeZoneDST",
+                    ContractResult { result }
+                ))
+                .await;
+                i.test_name("get_device_timezone");
+                i
+            },
+        )
+        .await;
+
+    let mock_server = pact_builder_async
+        .start_mock_server_async(Some("websockets/transport/websockets"))
+        .await;
+
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.System.1.getTimeZoneDST"
+        })
+    )
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[cfg_attr(not(feature = "contract_tests"), ignore)]
 async fn test_device_get_available_timezone() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -790,6 +838,56 @@ async fn test_device_get_voice_guidance_speed() {
             "jsonrpc": "2.0",
             "id": 0,
             "method": "org.rdk.TextToSpeech.1.getttsconfiguration"
+        })
+    )
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[cfg_attr(not(feature = "contract_tests"), ignore)]
+async fn test_device_set_timezone() {
+    let mut pact_builder_async = get_pact_builder_async_obj().await;
+
+    let mut result = HashMap::new();
+    result.insert("success".into(), ContractMatcher::MatchBool(true));
+
+    let mut params = HashMap::new();
+    params.insert(
+        "timeZone".into(),
+        ContractMatcher::MatchType("America/New_York".into()),
+    );
+
+    pact_builder_async
+        .synchronous_message_interaction(
+            "A request to set the device timezone",
+            |mut i| async move {
+                i.contents_from(get_pact_with_params!(
+                    "org.rdk.System.1.setTimeZoneDST",
+                    ContractResult { result },
+                    ContractParams { params }
+                ))
+                .await;
+                i.test_name("set_device_timezone");
+                i
+            },
+        )
+        .await;
+
+    let mock_server = pact_builder_async
+        .start_mock_server_async(Some("websockets/transport/websockets"))
+        .await;
+
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.System.1.setTimeZoneDST",
+            "params": json!({
+                "timeZone": "America/New_York"
+            })
         })
     )
     .await;
