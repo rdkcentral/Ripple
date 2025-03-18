@@ -50,7 +50,7 @@ use crate::{
 };
 
 use super::{
-    cap::cap_state::CapState, metrics_state::MetricsState, openrpc_state::OpenRpcState,
+    cap::cap_state::CapState, openrpc_state::OpenRpcState, otel_state::OtelState,
     ripple_cache::RippleCache, session_state::SessionState,
 };
 
@@ -104,7 +104,7 @@ pub struct PlatformState {
     pub open_rpc_state: OpenRpcState,
     pub router_state: RouterState,
     pub data_governance: DataGovernanceState,
-    pub metrics: MetricsState,
+    pub otel: OtelState,
     pub device_session_id: DeviceSessionIdentifier,
     pub ripple_cache: RippleCache,
     pub version: Option<String>,
@@ -124,7 +124,7 @@ impl PlatformState {
         let rule_engine = RuleEngine::build(&extn_manifest);
         let extn_sdks = extn_manifest.extn_sdks.clone();
         let provider_registations = extn_manifest.provider_registrations.clone();
-        let metrics_state = MetricsState::default();
+        let metrics_state = OtelState::default();
         Self {
             extn_manifest,
             cap_state: CapState::new(manifest.clone()),
@@ -138,7 +138,7 @@ impl PlatformState {
             open_rpc_state: OpenRpcState::new(Some(exclusory), extn_sdks, provider_registations),
             router_state: RouterState::new(),
             data_governance: DataGovernanceState::default(),
-            metrics: metrics_state.clone(),
+            otel: metrics_state.clone(),
             device_session_id: DeviceSessionIdentifier::default(),
             ripple_cache: RippleCache::default(),
             version,

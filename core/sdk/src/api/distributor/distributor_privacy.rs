@@ -85,6 +85,33 @@ impl PrivacySettings {
             allow_watch_history: false,
         }
     }
+
+    pub fn update(&mut self, data: PrivacySettings) {
+        self.allow_acr_collection = data.allow_acr_collection;
+        self.allow_resume_points = data.allow_resume_points;
+
+        self.allow_app_content_ad_targeting = data.allow_app_content_ad_targeting;
+
+        self.allow_business_analytics = data.allow_business_analytics;
+
+        self.allow_camera_analytics = data.allow_camera_analytics;
+
+        self.allow_personalization = data.allow_personalization;
+
+        self.allow_primary_browse_ad_targeting = data.allow_primary_browse_ad_targeting;
+
+        self.allow_primary_content_ad_targeting = data.allow_primary_content_ad_targeting;
+
+        self.allow_product_analytics = data.allow_product_analytics;
+
+        self.allow_remote_diagnostics = data.allow_remote_diagnostics;
+
+        self.allow_unentitled_personalization = data.allow_unentitled_personalization;
+
+        self.allow_unentitled_resume_points = data.allow_unentitled_resume_points;
+
+        self.allow_watch_history = data.allow_watch_history;
+    }
 }
 
 impl Default for PrivacySettings {

@@ -72,15 +72,31 @@ impl BrokerUtils {
         }
     }
 
+    pub async fn process_for_app_main_request(
+        state: &mut PlatformState,
+        method: &str,
+        params: Option<Value>,
+        app_id: &str,
+    ) -> RpcResult<Value> {
+        let mut rpc_request = RpcRequest::internal(method).with_params(params);
+        rpc_request.ctx.app_id = app_id.to_owned();
+        Self::process(state, rpc_request).await
+    }
+
     pub async fn process_internal_main_request<'a>(
         state: &mut PlatformState,
         method: &'a str,
         params: Option<Value>,
     ) -> RpcResult<Value> {
         let rpc_request = RpcRequest::internal(method).with_params(params);
+        Self::process(state, rpc_request).await
+    }
+
+    async fn process(state: &mut PlatformState, rpc_request: RpcRequest) -> RpcResult<Value> {
+        let method = rpc_request.method.clone();
         state
-            .metrics
-            .add_api_stats(&rpc_request.ctx.request_id, method);
+            .otel
+            .add_api_stats(&rpc_request.ctx.request_id, &method);
 
         match state.internal_rpc_request(&rpc_request).await {
             Ok(res) => match res.as_value() {

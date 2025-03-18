@@ -19,8 +19,7 @@ use crate::{
     api::{
         default_storage_properties::DefaultStorageProperties,
         device::device_peristence::{
-            DeleteStorageProperty, DevicePersistenceRequest, GetStorageProperty,
-            SetStorageProperty, StorageData,
+            DeleteStorageProperty, GetStorageProperty, SetStorageProperty, StorageData,
         },
         firebolt::fb_capabilities::CAPABILITY_NOT_AVAILABLE,
         storage_manager_utils::{
@@ -29,7 +28,7 @@ use crate::{
         },
         storage_property::{StorageProperty, StoragePropertyData},
     },
-    extn::extn_client_message::{ExtnMessage, ExtnResponse},
+    extn::extn_client_message::ExtnResponse,
     framework::RippleResponse,
     log::trace,
     serde_json::{json, Value},
@@ -40,7 +39,7 @@ use async_trait::async_trait;
 use jsonrpsee::core::RpcResult;
 use std::collections::HashMap;
 
-use super::{manifest::device_manifest::DefaultValues, ripple_cache::IPrivacyUpdated};
+use super::{manifest::device_manifest::DefaultValues, ripple_cache::RippleCache};
 
 #[derive(Debug)]
 pub enum StorageManagerResponse<T> {
@@ -68,12 +67,12 @@ pub enum StorageManagerError {
 
 #[async_trait]
 pub trait IStorageOperator {
-    fn get_cached<T>(&self, property: &StorageProperty) -> Option<T>;
+    fn get_cache(&self) -> RippleCache;
     fn get_default(&self) -> DefaultValues;
-    async fn persist(&self, request: DevicePersistenceRequest) -> RippleResponse;
-    async fn pull(&self, request: DevicePersistenceRequest) -> Result<ExtnMessage, RippleError>;
-    async fn delete(&self, request: DevicePersistenceRequest) -> RippleResponse;
-    fn on_privacy_updated(&self, property: &StorageProperty, value: bool);
+    async fn persist(&self, request: SetStorageProperty) -> RippleResponse;
+    async fn pull(&self, request: GetStorageProperty) -> Result<ExtnResponse, RippleError>;
+    async fn delete(&self, request: DeleteStorageProperty) -> RippleResponse;
+    fn on_privacy_updated(&self, cache: RippleCache);
     fn emit(&self, event_name: &str, result: &Value, context: Option<Value>);
 }
 
@@ -84,9 +83,11 @@ impl StorageManager {
     pub async fn get_bool(
         state: &impl IStorageOperator,
         property: StorageProperty,
-        privacy_updater: Option<&impl IPrivacyUpdated>,
     ) -> RpcResult<bool> {
-        if let Some(val) = state.get_cached(&property) {
+        if let Some(val) = state
+            .get_cache()
+            .get_cached_bool_storage_property(&property)
+        {
             return Ok(val);
         }
         let data = property.as_data();
@@ -95,9 +96,9 @@ impl StorageManager {
         {
             Ok(StorageManagerResponse::Ok(value)) | Ok(StorageManagerResponse::NoChange(value)) => {
                 if property.is_a_privacy_setting_property() {
-                    if let Some(privacy) = privacy_updater {
-                        privacy.on_privacy_updated(&property, value);
-                    }
+                    state
+                        .get_cache()
+                        .update_cached_bool_storage_property(state, &property, value);
                 }
                 Ok(value)
             }
@@ -111,11 +112,13 @@ impl StorageManager {
         property: StorageProperty,
         value: bool,
         context: Option<Value>,
-        privacy_updater: Option<&impl IPrivacyUpdated>,
     ) -> RpcResult<()> {
         let data = property.as_data();
         trace!("Storage property: {:?} as data: {:?}", property, data);
-        if let Some(val) = state.get_cached::<bool>(&property) {
+        if let Some(val) = state
+            .get_cache()
+            .get_cached_bool_storage_property(&property)
+        {
             if val == value {
                 return Ok(());
             }
@@ -132,10 +135,10 @@ impl StorageManager {
         .await
         {
             Ok(StorageManagerResponse::Ok(_)) | Ok(StorageManagerResponse::NoChange(_)) => {
-                if property.is_a_privacy_setting_property() && privacy_updater.is_some() {
-                    if let Some(privacy) = privacy_updater {
-                        privacy.on_privacy_updated(&property, value);
-                    }
+                if property.is_a_privacy_setting_property() {
+                    state
+                        .get_cache()
+                        .update_cached_bool_storage_property(state, &property, value);
                 }
                 Ok(())
             }
@@ -445,7 +448,7 @@ impl StorageManager {
             scope,
         };
 
-        match state.persist(DevicePersistenceRequest::Set(ssp)).await {
+        match state.persist(ssp).await {
             Ok(_) => {
                 StorageManager::notify(state, value.clone(), event_names, context).await;
                 Ok(StorageManagerResponse::Ok(()))
@@ -575,18 +578,7 @@ impl StorageManager {
             key: key.clone(),
             scope,
         };
-        let result = state.pull(DevicePersistenceRequest::Get(data)).await;
-
-        match result {
-            Ok(msg) => {
-                if let Some(m) = msg.payload.extract() {
-                    Ok(m)
-                } else {
-                    Err(RippleError::ParseError)
-                }
-            }
-            Err(e) => Err(e),
-        }
+        state.pull(data).await
     }
 
     pub async fn delete(
@@ -601,7 +593,7 @@ impl StorageManager {
             key: key.clone(),
             scope,
         };
-        state.delete(DevicePersistenceRequest::Delete(data)).await
+        state.delete(data).await
     }
 
     pub fn get_firebolt_error(property: &StorageProperty) -> JsonRpcErrorType {

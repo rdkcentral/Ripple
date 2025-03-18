@@ -18,6 +18,7 @@
 use crate::utils::error::RippleError;
 
 pub mod bootstrap;
+pub mod device_manifest_bootstrap;
 pub mod file_store;
 pub mod ripple_contract;
 pub type RippleResponse = Result<(), RippleError>;

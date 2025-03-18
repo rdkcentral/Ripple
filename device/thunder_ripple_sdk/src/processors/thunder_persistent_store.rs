@@ -81,12 +81,10 @@ impl ThunderStorageRequestProcessor {
         }
     }
 
-    #[allow(dead_code)]
-    async fn delete_key(
-        state: ThunderState,
-        req: ExtnMessage,
+    pub async fn delete_key_in_persistent_store(
+        state: &ThunderState,
         data: DeleteStorageProperty,
-    ) -> bool {
+    ) -> Result<bool, RippleError> {
         let mut params_json = json!({
             "namespace": data.namespace,
             "key": data.key,
@@ -109,14 +107,26 @@ impl ThunderStorageRequestProcessor {
             .await;
 
         match response.message["success"].as_bool() {
-            Some(success) => {
-                let response = ExtnResponse::Boolean(success);
+            Some(success) => Ok(success),
+            None => Err(RippleError::ProcessorError),
+        }
+    }
+
+    #[allow(dead_code)]
+    async fn delete_key(
+        state: ThunderState,
+        req: ExtnMessage,
+        data: DeleteStorageProperty,
+    ) -> bool {
+        match Self::delete_key_in_persistent_store(&state, data).await {
+            Ok(v) => {
+                let response = ExtnResponse::Boolean(v);
                 info!("thunder : {:?}", response);
                 Self::respond(state.get_client(), req, response)
                     .await
                     .is_ok()
             }
-            None => false,
+            Err(e) => Self::handle_error(state.get_client(), req, e).await,
         }
     }
 
@@ -167,11 +177,10 @@ impl ThunderStorageRequestProcessor {
         true
     }
 
-    pub async fn get_value(
+    pub async fn get_value_in_persistent_store(
         state: &ThunderState,
-        req: ExtnMessage,
         data: GetStorageProperty,
-    ) -> bool {
+    ) -> Result<ExtnResponse, RippleError> {
         let mut params_json = json!({
             "namespace": data.namespace,
             "key": data.key,
@@ -205,30 +214,12 @@ impl ThunderStorageRequestProcessor {
                     if value_resp.success {
                         if let Ok(v) = serde_json::from_str::<Value>(&value_resp.value) {
                             if let Ok(v) = serde_json::from_value(v.clone()) {
-                                return Self::respond(
-                                    state.get_client(),
-                                    req.clone(),
-                                    ExtnResponse::StorageData(v),
-                                )
-                                .await
-                                .is_ok();
+                                return Ok(ExtnResponse::StorageData(v));
                             } else if let Ok(v) = serde_json::from_value(v.clone()) {
-                                return Self::respond(
-                                    state.get_client(),
-                                    req.clone(),
-                                    ExtnResponse::Value(v),
-                                )
-                                .await
-                                .is_ok();
+                                return Ok(ExtnResponse::Value(v));
                             }
                         } else {
-                            return Self::respond(
-                                state.get_client(),
-                                req.clone(),
-                                ExtnResponse::String(value_resp.value),
-                            )
-                            .await
-                            .is_ok();
+                            return Ok(ExtnResponse::String(value_resp.value));
                         }
                     } else {
                         error!("success failure response from thunder");
@@ -236,16 +227,26 @@ impl ThunderStorageRequestProcessor {
                 } else {
                     error!("malformed response from thunder");
                 }
-            } else {
-                return Self::respond(state.get_client(), req.clone(), ExtnResponse::None(()))
-                    .await
-                    .is_ok();
             }
         }
-        Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
+        Ok(ExtnResponse::None(()))
     }
 
-    async fn set_value(state: ThunderState, req: ExtnMessage, data: SetStorageProperty) -> bool {
+    pub async fn get_value(
+        state: &ThunderState,
+        req: ExtnMessage,
+        data: GetStorageProperty,
+    ) -> bool {
+        match Self::get_value_in_persistent_store(state, data).await {
+            Ok(v) => Self::respond(state.get_client(), req, v).await.is_ok(),
+            Err(e) => Self::handle_error(state.get_client(), req, e).await,
+        }
+    }
+
+    pub async fn set_in_peristent_store(
+        state: &ThunderState,
+        data: SetStorageProperty,
+    ) -> Result<bool, RippleError> {
         let mut params_json = json!({
             "namespace": data.namespace,
             "key": data.key,
@@ -271,10 +272,18 @@ impl ThunderStorageRequestProcessor {
             .await;
         info!("{}", response.message);
 
-        let response = match response.message["success"].as_bool() {
-            Some(v) => ExtnResponse::Boolean(v),
-            None => ExtnResponse::Error(RippleError::InvalidOutput),
+        match response.message["success"].as_bool() {
+            Some(v) => Ok(v),
+            None => Err(RippleError::InvalidOutput),
+        }
+    }
+
+    async fn set_value(state: ThunderState, req: ExtnMessage, data: SetStorageProperty) -> bool {
+        let response = match Self::set_in_peristent_store(&state, data).await {
+            Ok(v) => ExtnResponse::Boolean(v),
+            Err(e) => ExtnResponse::Error(e),
         };
+
         info!("thunder : {:?}", response);
 
         Self::respond(state.get_client(), req, response)

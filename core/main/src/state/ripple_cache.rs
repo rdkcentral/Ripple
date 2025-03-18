@@ -52,7 +52,7 @@ impl RippleCache {
             let mut cache = self.privacy_settings_cache.write().unwrap();
             property.set_privacy_setting_value(&mut cache, value);
             platform_state
-                .metrics
+                .otel
                 .update_data_governance_tags(platform_state, &cache);
         }
     }

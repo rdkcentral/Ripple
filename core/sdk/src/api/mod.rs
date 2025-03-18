@@ -47,7 +47,6 @@ pub mod distributor {
     pub mod distributor_platform;
     pub mod distributor_privacy;
     pub mod distributor_request;
-    pub mod distributor_sync;
     pub mod distributor_token;
     pub mod distributor_usergrants;
 }
@@ -74,7 +73,6 @@ pub mod firebolt {
 }
 
 pub mod observability {
-    pub mod analytics;
     pub mod log_signal;
     pub mod metrics_util;
     pub mod operational_metrics;

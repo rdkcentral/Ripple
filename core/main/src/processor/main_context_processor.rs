@@ -15,10 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{
-    sync::{Arc, Once, RwLock},
-    time::Duration,
-};
+use std::sync::{Arc, RwLock};
 
 use ripple_sdk::{
     api::{
@@ -28,9 +25,7 @@ use ripple_sdk::{
             device_request::{InternetConnectionStatus, PowerState, SystemPowerState},
             device_user_grants_data::GrantLifespan,
         },
-        distributor::distributor_sync::{SyncAndMonitorModule, SyncAndMonitorRequest},
         firebolt::fb_capabilities::{CapEvent, CapabilityRole, FireboltCap, FireboltPermission},
-        manifest::device_manifest::PrivacySettingsStorageType,
         session::{AccountSessionRequest, AccountSessionResponse},
     },
     async_trait::async_trait,
@@ -46,11 +41,10 @@ use ripple_sdk::{
         sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
     },
 };
-static START_PARTNER_EXCLUSION_SYNC_THREAD: Once = Once::new();
 
 use crate::{
-    service::{apps::apps_updater::AppsUpdater, data_governance::DataGovernance},
-    state::{cap::cap_state::CapState, metrics_state::MetricsState, platform_state::PlatformState},
+    service::apps::apps_updater::AppsUpdater,
+    state::{cap::cap_state::CapState, platform_state::PlatformState},
 };
 
 #[derive(Debug, Clone)]
@@ -92,7 +86,6 @@ impl MainContextProcessor {
         {
             if let Some(session) = response.payload.extract() {
                 state.session_state.insert_account_session(session);
-                MetricsState::update_account_session(state).await;
                 event = CapEvent::OnAvailable;
                 let state_c = state.clone();
                 // update ripple context for token asynchronously
@@ -145,30 +138,6 @@ impl MainContextProcessor {
         debug!("token::platform available status: {:?}", available_result);
         available_result.is_ok()
     }
-
-    async fn sync_partner_exclusions(state: &PlatformState) {
-        let state_for_exclusion = state.clone();
-        START_PARTNER_EXCLUSION_SYNC_THREAD.call_once(|| {
-            debug!("Starting partner exclusion sync thread");
-            tokio::spawn(async move {
-                let duration = state_for_exclusion
-                    .get_device_manifest()
-                    .configuration
-                    .partner_exclusion_refresh_timeout
-                    .into();
-                let mut interval = tokio::time::interval(Duration::from_secs(duration));
-                loop {
-                    let resp: bool =
-                        DataGovernance::refresh_partner_exclusions(&state_for_exclusion).await;
-                    debug!(
-                        "refresh_partner_exclusions: {:?} interval : {:?}",
-                        resp, interval
-                    );
-                    interval.tick().await;
-                }
-            });
-        });
-    }
     pub async fn initialize_session(state: &PlatformState) {
         // If the platform:token capability is available then the current call is
         // to update token. If not it is the first time we are receiving token
@@ -176,61 +145,10 @@ impl MainContextProcessor {
         let update_token = Self::is_update_token(state);
         if !update_token && !Self::check_account_session_token(state).await {
             error!("Account session still not available");
-        } else {
-            if state.supports_cloud_sync() {
-                debug!("Cloud Sync  configured as a required contract so starting.");
-                if state
-                    .get_device_manifest()
-                    .configuration
-                    .features
-                    .privacy_settings_storage_type
-                    == PrivacySettingsStorageType::Sync
-                {
-                    debug!(
-                        "Privacy settings storage type is set as sync so starting cloud monitor"
-                    );
-                    if let Some(account_session) = state.session_state.get_account_session() {
-                        debug!("Successfully got account session");
-                        if !update_token {
-                            let sync_response = state
-                                .get_client()
-                                .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
-                                    SyncAndMonitorModule::Privacy,
-                                    account_session.clone(),
-                                ))
-                                .await;
-                            debug!("Received Sync response for privacy: {:?}", sync_response);
-                            let sync_response = state
-                                .get_client()
-                                .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
-                                    SyncAndMonitorModule::UserGrants,
-                                    account_session.clone(),
-                                ))
-                                .await;
-                            debug!(
-                                "Received Sync response for user grants: {:?}",
-                                sync_response
-                            );
-                        } else {
-                            debug!("cap already available so just updating the token alone");
-                            let update_token_response = state
-                                .get_client()
-                                .send_extn_request(SyncAndMonitorRequest::UpdateDistributorToken(
-                                    account_session.token.clone(),
-                                ))
-                                .await;
-                            debug!("Cap token:account is already in available state. just updating Token res: {:?}", update_token_response);
-                        }
-                        //sync up partner exclusion data and setup polling thread for refreshing it.
-                        Self::sync_partner_exclusions(state).await;
-                    }
-                }
-            }
-            if state.supports_app_catalog() {
-                state
-                    .get_client()
-                    .add_event_processor(AppsUpdater::init(state).await);
-            }
+        } else if state.supports_app_catalog() {
+            state
+                .get_client()
+                .add_event_processor(AppsUpdater::init(state).await);
         }
     }
 

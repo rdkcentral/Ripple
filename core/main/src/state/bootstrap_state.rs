@@ -21,16 +21,14 @@ use ripple_sdk::{
     api::apps::AppRequest,
     async_channel::{unbounded, Receiver as CReceiver, Sender as CSender},
     extn::ffi::ffi_message::CExtnMessage,
-    framework::bootstrap::TransientChannel,
+    framework::{bootstrap::TransientChannel, device_manifest_bootstrap::LoadDeviceManifestStep},
     log::{info, warn},
     tokio::sync::mpsc::{self, Receiver, Sender},
     utils::error::RippleError,
 };
 
 use crate::{
-    bootstrap::manifest::{
-        apps::LoadAppLibraryStep, device::LoadDeviceManifestStep, extn::LoadExtnManifestStep,
-    },
+    bootstrap::manifest::{apps::LoadAppLibraryStep, extn::LoadExtnManifestStep},
     broker::endpoint_broker::BrokerOutput,
     firebolt::firebolt_gateway::FireboltGatewayCommand,
     service::extn::ripple_client::RippleClient,

@@ -34,15 +34,12 @@ use ripple_sdk::{
                 LCM_EVENT_ON_SESSION_TRANSITION_CANCELED,
                 LCM_EVENT_ON_SESSION_TRANSITION_COMPLETED,
             },
-            fb_metrics::{
-                AppLifecycleState, AppLifecycleStateChange, BehavioralMetricContext,
-                BehavioralMetricPayload,
-            },
+            fb_metrics::{AppLifecycleState, AppLifecycleStateChange},
             fb_secondscreen::SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST,
         },
         gateway::rpc_gateway_api::{AppIdentification, CallerSession},
     },
-    log::{debug, error, trace, warn},
+    log::{debug, error, warn},
     serde_json::{self},
     tokio::sync::oneshot,
     utils::{error::RippleError, time_utils::Timer},
@@ -71,7 +68,7 @@ use ripple_sdk::{
 use serde_json::{json, Value};
 
 use crate::{
-    processor::metrics_processor::send_metric_for_app_state_change,
+    broker::broker_utils::BrokerUtils,
     service::{
         apps::{
             app_events::AppEvents, pending_session_event_processor::PendingSessionEventProcessor,
@@ -85,7 +82,6 @@ use crate::{
         platform_state::PlatformState, session_state::PendingSessionInfo,
     },
     utils::rpc_utils::rpc_await_oneshot,
-    SEMVER_LIGHTWEIGHT,
 };
 
 const APP_ID_TITLE_FILE_NAME: &str = "appInfo.json";
@@ -547,61 +543,80 @@ impl DelegatedLauncherHandler {
         &mut self,
         app_id: &str,
         method: &AppMethod,
-        _app_manager_response: Result<AppManagerResponse, AppError>,
+        app_manager_response: Result<AppManagerResponse, AppError>,
     ) {
-        let previous_state = self
+        if self
             .platform_state
-            .app_manager_state
-            .get_internal_state(app_id);
+            .endpoint_state
+            .has_rule("ripple.reportLifecycleStateChange")
+        {
+            let previous_state = self
+                .platform_state
+                .app_manager_state
+                .get_internal_state(app_id);
 
-        let context = BehavioralMetricContext {
-            app_id: app_id.to_string(),
-            product_version: SEMVER_LIGHTWEIGHT.to_string(),
-            partner_id: String::from("partner.id.not.set"),
-            app_session_id: String::from("app_session_id.not.set"),
-            durable_app_id: app_id.to_string(),
-            app_version: None,
-            app_user_session_id: None,
-            governance_state: None,
-        };
-
-        /*
-        Do not forward internal errors from the launch handler as AppErrors. Only forward third-party application error messages as AppErrors.
-        TBD: Collaborate with the SIFT team to obtain the appropriate SIFT code for sharing error messages from the AppLauncher.
-        */
-
-        let inactive = self
-            .platform_state
-            .app_manager_state
-            .get(app_id)
-            .map_or(false, |app| app.initial_session.launch.inactive);
-
-        let to_state = map_event(method, inactive);
-
-        if to_state.is_none() {
             /*
-            NOOP, the launcher implementation does not care about this state w/respect to metrics */
-            return;
-        };
-        let from_state = match previous_state {
-            Some(state) => map_event(&state, inactive),
-            None => None,
-        };
+            Do not forward internal errors from the launch handler as AppErrors. Only forward third-party application error messages as AppErrors.
+            TBD: Collaborate with the SIFT team to obtain the appropriate SIFT code for sharing error messages from the AppLauncher.
+            */
 
-        let app_state_change_message =
-            BehavioralMetricPayload::AppStateChange(AppLifecycleStateChange {
-                context,
-                previous_state: from_state,
+            let inactive = self
+                .platform_state
+                .app_manager_state
+                .get(app_id)
+                .map_or(false, |app| app.initial_session.launch.inactive);
+
+            let to_state = map_event(method, inactive);
+
+            if to_state.is_none() {
+                /*
+                NOOP, the launcher implementation does not care about this state w/respect to metrics */
+                return;
+            };
+            let from_state = match previous_state {
+                Some(state) => map_event(&state, inactive),
+                None => None,
+            };
+            let params = serde_json::to_value(AppLifecycleStateChange {
+                context: app_id.into(),
                 new_state: to_state.unwrap(),
-            });
+                previous_state: from_state,
+            })
+            .unwrap();
+            if BrokerUtils::process_for_app_main_request(
+                &mut self.platform_state.clone(),
+                "ripple.reportLifecycleStateChange",
+                Some(params),
+                app_id,
+            )
+            .await
+            .is_err()
+            {
+                error!("Error reporting lifecycle state")
+            }
+        }
 
-        trace!("metrics.media_load_start={:?}", app_state_change_message);
-        let _ = send_metric_for_app_state_change(
-            &self.platform_state,
-            app_state_change_message,
-            app_id,
-        )
-        .await;
+        if let AppMethod::BrowserSession(_) = method {
+            if self
+                .platform_state
+                .endpoint_state
+                .has_rule("ripple.reportSessionUpdate")
+            {
+                if let Ok(AppManagerResponse::Session(a)) = app_manager_response {
+                    let params = serde_json::to_value(a).unwrap();
+                    if BrokerUtils::process_internal_main_request(
+                        &mut self.platform_state.clone(),
+                        "ripple.reportSessionUpdate",
+                        Some(params),
+                    )
+                    .await
+                    .is_err()
+                    {
+                        error!("Error reporting lifecycle state")
+                    }
+                }
+            }
+        }
 
         self.platform_state
             .app_manager_state

@@ -193,7 +193,7 @@ impl FireboltGateway {
                             ApiMessage::new(protocol, data, rpc_request.ctx.request_id.clone());
 
                         if let Some(api_stats) = platform_state
-                            .metrics
+                            .otel
                             .get_api_stats(&rpc_request.ctx.request_id.clone())
                         {
                             api_message.stats = Some(api_stats);
@@ -288,14 +288,9 @@ impl FireboltGateway {
         request_c.method = FireboltOpenRpcMethod::name_with_lowercase_module(&request.method);
 
         platform_state
-            .metrics
+            .otel
             .add_api_stats(&request_c.ctx.request_id, &request_c.method);
 
-        let metrics_timer = TelemetryBuilder::start_firebolt_metrics_timer(
-            &platform_state.get_client().get_extn_client(),
-            request_c.method.clone(),
-            request_c.ctx.app_id.clone(),
-        );
         let fail_open = matches!(
             platform_state
                 .get_device_manifest()
@@ -307,16 +302,9 @@ impl FireboltGateway {
         let open_rpc_state = self.state.platform_state.open_rpc_state.clone();
 
         tokio::spawn(async move {
-            capture_stage(&platform_state.metrics, &request_c, "context_ready");
+            capture_stage(&platform_state.otel, &request_c, "context_ready");
             // Validate incoming request parameters.
             if let Err(error_string) = validate_request(open_rpc_state, &request_c, fail_open) {
-                TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
-                    &platform_state.clone(),
-                    metrics_timer,
-                    format!("{}", JSON_RPC_STANDARD_ERROR_INVALID_PARAMS),
-                )
-                .await;
-
                 let json_rpc_error = JsonRpcError {
                     code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
                     message: error_string,
@@ -327,7 +315,7 @@ impl FireboltGateway {
                 return;
             }
 
-            capture_stage(&platform_state.metrics, &request_c, "openrpc_val");
+            capture_stage(&platform_state.otel, &request_c, "openrpc_val");
 
             let result = if extn_request {
                 // extn protocol means its an internal Ripple request skip permissions.
@@ -336,7 +324,7 @@ impl FireboltGateway {
                 FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await
             };
 
-            capture_stage(&platform_state.metrics, &request_c, "permission");
+            capture_stage(&platform_state.otel, &request_c, "permission");
 
             match result {
                 Ok(p) => {
@@ -406,13 +394,8 @@ impl FireboltGateway {
                                     .emit_debug();
 
                                     // if the websocket disconnects before the session is recieved this leads to an error
-                                    RpcRouter::route(
-                                        platform_state.clone(),
-                                        request_c,
-                                        session,
-                                        metrics_timer.clone(),
-                                    )
-                                    .await;
+                                    RpcRouter::route(platform_state.clone(), request_c, session)
+                                        .await;
                                 } else {
                                     error!("session is missing request is not forwarded for request {:?}", request_c.ctx);
                                 }
@@ -423,12 +406,6 @@ impl FireboltGateway {
                 Err(e) => {
                     let deny_reason = e.reason;
                     // log firebolt response message in RDKTelemetry 1.0 friendly format
-                    TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
-                        &platform_state.clone(),
-                        metrics_timer,
-                        format!("{}", deny_reason.get_observability_error_code()),
-                    )
-                    .await;
 
                     error!(
                         "Failed gateway present error {:?} {:?}",
@@ -561,17 +538,14 @@ async fn send_json_rpc_error(
                 request.clone().ctx.request_id,
             );
 
-            if let Some(api_stats) = platform_state
-                .metrics
-                .get_api_stats(&request.ctx.request_id)
-            {
+            if let Some(api_stats) = platform_state.otel.get_api_stats(&request.ctx.request_id) {
                 api_message.stats = Some(ApiStats {
                     api: request.method.clone(),
                     stats_ref: get_rpc_header_with_status(request, status_code),
                     stats: api_stats.stats.clone(),
                 });
             }
-            platform_state.metrics.update_api_stats_ref(
+            platform_state.otel.update_api_stats_ref(
                 &request.ctx.request_id,
                 get_rpc_header_with_status(request, status_code),
             );

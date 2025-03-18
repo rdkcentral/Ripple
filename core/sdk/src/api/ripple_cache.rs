@@ -20,9 +20,7 @@ use crate::api::{
     distributor::distributor_privacy::PrivacySettingsData, storage_property::StorageProperty,
 };
 
-pub trait IPrivacyUpdated {
-    fn on_privacy_updated(&self, property: &StorageProperty, value: bool);
-}
+use super::storage_manager::IStorageOperator;
 
 #[derive(Debug, Clone, Default)]
 pub struct RippleCache {
@@ -32,6 +30,10 @@ pub struct RippleCache {
 }
 
 impl RippleCache {
+    pub fn get(&self) -> PrivacySettingsData {
+        self.privacy_settings_cache.read().unwrap().clone()
+    }
+
     pub fn get_cached_bool_storage_property(&self, property: &StorageProperty) -> Option<bool> {
         if property.is_a_privacy_setting_property() {
             // check if the privacy setting property is available in cache
@@ -45,14 +47,17 @@ impl RippleCache {
 
     pub fn update_cached_bool_storage_property(
         &self,
+        state: &impl IStorageOperator,
         property: &StorageProperty,
         value: bool,
-    ) -> PrivacySettingsData {
+    ) {
         {
             // update the privacy setting property in cache
-            let mut cache = self.privacy_settings_cache.write().unwrap();
-            property.set_privacy_setting_value(&mut cache, value);
-            cache.clone()
+            {
+                let mut cache = self.privacy_settings_cache.write().unwrap();
+                property.set_privacy_setting_value(&mut cache, value);
+            }
+            state.on_privacy_updated(self.clone());
         }
     }
 }

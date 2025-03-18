@@ -21,16 +21,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{
-    api::{gateway::rpc_gateway_api::CallContext, session::AccountSession},
-    extn::{
-        client::extn_client::ExtnClient,
-        extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
-    },
-    framework::ripple_contract::RippleContract,
-};
-
-use super::fb_telemetry::{OperationalMetricRequest, TelemetryPayload};
+use crate::api::gateway::rpc_gateway_api::CallContext;
 
 //https://developer.comcast.com/firebolt/core/sdk/latest/api/metrics
 
@@ -55,6 +46,21 @@ impl From<CallContext> for BehavioralMetricContext {
             partner_id: String::from("partner.id.not.set"),
             app_session_id: String::from("app_session_id.not.set"),
             durable_app_id: call_context.app_id,
+            app_version: None,
+            app_user_session_id: None,
+            governance_state: None,
+        }
+    }
+}
+
+impl From<&str> for BehavioralMetricContext {
+    fn from(app_id: &str) -> Self {
+        BehavioralMetricContext {
+            app_id: app_id.to_owned(),
+            product_version: String::from("product.version.not.implemented"),
+            partner_id: String::from("partner.id.not.set"),
+            app_session_id: String::from("app_session_id.not.set"),
+            durable_app_id: app_id.to_owned(),
             app_version: None,
             app_user_session_id: None,
             governance_state: None,
@@ -396,6 +402,12 @@ pub struct AppLifecycleStateChange {
     pub previous_state: Option<AppLifecycleState>,
     pub new_state: AppLifecycleState,
 }
+
+pub trait IUpdateContext {
+    fn update_context(&mut self, context: BehavioralMetricContext);
+    fn get_context(&self) -> BehavioralMetricContext;
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum BehavioralMetricPayload {
     Ready(Ready),
@@ -421,8 +433,8 @@ pub enum BehavioralMetricPayload {
     Raw(RawBehaviorMetricRequest),
 }
 
-impl BehavioralMetricPayload {
-    pub fn update_context(&mut self, context: BehavioralMetricContext) {
+impl IUpdateContext for BehavioralMetricPayload {
+    fn update_context(&mut self, context: BehavioralMetricContext) {
         match self {
             Self::Ready(r) => r.context = context,
             Self::SignIn(s) => s.context = context,
@@ -447,7 +459,8 @@ impl BehavioralMetricPayload {
             Self::Raw(r) => r.context = context,
         }
     }
-    pub fn get_context(&self) -> BehavioralMetricContext {
+
+    fn get_context(&self) -> BehavioralMetricContext {
         match self {
             Self::Ready(r) => r.context.clone(),
             Self::SignIn(s) => s.context.clone(),
@@ -542,9 +555,6 @@ impl Counter {
         } else {
             false
         }
-    }
-    pub fn to_extn_request(&self) -> OperationalMetricRequest {
-        OperationalMetricRequest::Counter(self.clone())
     }
 }
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -657,18 +667,9 @@ impl Timer {
             my_tags.insert("error".to_string(), true.to_string());
         }
     }
-
-    pub fn to_extn_request(&self) -> OperationalMetricRequest {
-        OperationalMetricRequest::Timer(self.clone())
-    }
 }
 
 static FIREBOLT_RPC_NAME: &str = "firebolt_rpc_call";
-impl From<Timer> for OperationalMetricRequest {
-    fn from(timer: Timer) -> Self {
-        OperationalMetricRequest::Timer(timer)
-    }
-}
 
 pub fn fb_api_counter(method_name: String, tags: Option<HashMap<String, String>>) -> Counter {
     let counter_tags = match tags {
@@ -687,11 +688,6 @@ pub fn fb_api_counter(method_name: String, tags: Option<HashMap<String, String>>
         value: 1,
         tags: Some(counter_tags),
     }
-}
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-pub enum OperationalMetricPayload {
-    Timer(Timer),
-    Counter(Counter),
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -832,7 +828,7 @@ impl MetricsContext {
 
 #[async_trait]
 pub trait BehavioralMetricsService {
-    async fn send_metric(&mut self, metrics: BehavioralMetricPayload) -> ();
+    async fn send_metric(&self, metrics: BehavioralMetricPayload) -> ();
 }
 #[async_trait]
 pub trait ContextualMetricsService {
@@ -841,89 +837,6 @@ pub trait ContextualMetricsService {
 #[async_trait]
 pub trait MetricsManager: Send + Sync {
     async fn send_metric(&mut self, metrics: BehavioralMetricPayload) -> ();
-}
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct BehavioralMetricRequest {
-    pub context: Option<MetricsContext>,
-    pub payload: BehavioralMetricPayload,
-    pub session: AccountSession,
-}
-
-impl ExtnPayloadProvider for BehavioralMetricRequest {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::BehavioralMetric(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<BehavioralMetricRequest> {
-        if let ExtnPayload::Request(ExtnRequest::BehavioralMetric(r)) = payload {
-            return Some(r);
-        }
-
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::BehaviorMetrics
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum MetricsResponse {
-    None,
-    Boolean,
-}
-
-impl ExtnPayloadProvider for MetricsResponse {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Response(ExtnResponse::Value(
-            serde_json::to_value(self.clone()).unwrap(),
-        ))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        if let ExtnPayload::Response(ExtnResponse::Value(value)) = payload {
-            if let Ok(v) = serde_json::from_value(value) {
-                return Some(v);
-            }
-        }
-
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::BehaviorMetrics
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum MetricsPayload {
-    BehaviorMetric(BehavioralMetricPayload, CallContext),
-    TelemetryPayload(TelemetryPayload),
-    OperationalMetric(OperationalMetricPayload),
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct MetricsRequest {
-    pub payload: MetricsPayload,
-    /// Additional info extensions want to send which can be appended to the context of the Metrics data
-    pub context: Option<HashMap<String, String>>,
-}
-
-impl ExtnPayloadProvider for MetricsRequest {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::Metrics(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<MetricsRequest> {
-        if let ExtnPayload::Request(ExtnRequest::Metrics(r)) = payload {
-            return Some(r);
-        }
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::Metrics
-    }
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -989,41 +902,6 @@ impl Tag {
     }
 }
 
-pub fn get_metrics_tags(
-    extn_client: &ExtnClient,
-    interaction_type: InteractionType,
-    app_id: Option<String>,
-) -> Option<HashMap<String, String>> {
-    let metrics_context = extn_client.get_metrics_context()?;
-    let mut tags: HashMap<String, String> = HashMap::new();
-
-    tags.insert(Tag::Type.key(), interaction_type.to_string());
-
-    if let Some(app) = app_id {
-        tags.insert(Tag::App.key(), app);
-    }
-
-    tags.insert(Tag::Firmware.key(), metrics_context.firmware.clone());
-    tags.insert(Tag::RippleVersion.key(), metrics_context.ripple_version);
-
-    let features = extn_client.get_features();
-    let feature_count = features.len();
-    let mut features_str = String::new();
-
-    if feature_count > 0 {
-        for (i, feature) in features.iter().enumerate() {
-            features_str.push_str(feature);
-            if i < feature_count - 1 {
-                features_str.push(',');
-            }
-        }
-    }
-
-    tags.insert(Tag::Features.key(), features_str);
-
-    Some(tags)
-}
-
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct BehavioralMetricsEvent {
@@ -1043,8 +921,6 @@ pub struct BehavioralMetricsEvent {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::gateway::rpc_gateway_api::ApiProtocol;
-    use crate::utils::test_utils::test_extn_payload_provider;
     use serde_json::json;
 
     #[test]
@@ -1100,118 +976,6 @@ mod tests {
         timer.stop();
         assert!(timer.elapsed().as_millis() > 100);
         assert!(timer.elapsed().as_millis() < 200);
-    }
-
-    #[test]
-    fn test_extn_request_behavioral_metric() {
-        let behavioral_metric_context = BehavioralMetricContext {
-            app_id: "test_app_id".to_string(),
-            product_version: "test_product_version".to_string(),
-            partner_id: "test_partner_id".to_string(),
-            app_session_id: "test_app_session_id".to_string(),
-            app_user_session_id: Some("test_user_session_id".to_string()),
-            durable_app_id: "test_durable_app_id".to_string(),
-            app_version: Some("test_app_version".to_string()),
-            governance_state: Some(AppDataGovernanceState {
-                data_tags_to_apply: HashSet::new(),
-            }),
-        };
-
-        let ready_payload = Ready {
-            context: behavioral_metric_context,
-            ttmu_ms: 100,
-        };
-
-        let behavioral_metric_request = BehavioralMetricRequest {
-            context: Some(MetricsContext {
-                enabled: true,
-                device_language: "en".to_string(),
-                device_model: "iPhone".to_string(),
-                device_id: Some("test_device_id".to_string()),
-                account_id: Some("test_account_id".to_string()),
-                device_timezone: "GMT".to_string(),
-                device_timezone_offset: "+0:00".to_string(),
-                device_name: Some("TestDevice".to_string()),
-                platform: "iOS".to_string(),
-                os_name: "test_os_name".to_string(),
-                os_ver: "14.0".to_string(),
-                distribution_tenant_id: "test_distribution_tenant_id".to_string(),
-                device_session_id: "test_device_session_id".to_string(),
-                mac_address: "test_mac_address".to_string(),
-                serial_number: "test_serial_number".to_string(),
-                firmware: "test_firmware".to_string(),
-                ripple_version: "test_ripple_version".to_string(),
-                data_governance_tags: None,
-                activated: None,
-                proposition: "test_proposition".to_string(),
-                retailer: None,
-                primary_provider: None,
-                coam: None,
-                country: None,
-                region: None,
-                account_type: None,
-                operator: None,
-                account_detail_type: None,
-                device_type: "test_device_type".to_string(),
-                device_manufacturer: "test_device_manufacturer".to_string(),
-                authenticated: None,
-            }),
-            payload: BehavioralMetricPayload::Ready(ready_payload),
-            session: AccountSession {
-                id: "test_session_id".to_string(),
-                token: "test_token".to_string(),
-                account_id: "test_account_id".to_string(),
-                device_id: "test_device_id".to_string(),
-            },
-        };
-
-        let contract_type: RippleContract = RippleContract::BehaviorMetrics;
-        test_extn_payload_provider(behavioral_metric_request, contract_type);
-    }
-
-    #[test]
-    fn test_extn_request_metrics() {
-        let behavior_metric_payload = BehavioralMetricPayload::Ready(Ready {
-            context: BehavioralMetricContext {
-                app_id: "test_app_id".to_string(),
-                product_version: "test_product_version".to_string(),
-                partner_id: "test_partner_id".to_string(),
-                app_session_id: "test_app_session_id".to_string(),
-                app_user_session_id: Some("test_user_session_id".to_string()),
-                durable_app_id: "test_durable_app_id".to_string(),
-                app_version: Some("test_app_version".to_string()),
-                governance_state: Some(AppDataGovernanceState {
-                    data_tags_to_apply: HashSet::new(),
-                }),
-            },
-            ttmu_ms: 100,
-        });
-        let call_context = CallContext {
-            session_id: "test_session_id".to_string(),
-            request_id: "test_request_id".to_string(),
-            app_id: "test_app_id".to_string(),
-            call_id: 123,
-            protocol: ApiProtocol::Extn,
-            method: "some method".to_string(),
-            cid: Some("test_cid".to_string()),
-            gateway_secure: true,
-            context: Vec::new(),
-        };
-
-        let metrics_request = MetricsRequest {
-            payload: MetricsPayload::BehaviorMetric(behavior_metric_payload, call_context),
-            context: None,
-        };
-
-        let contract_type: RippleContract = RippleContract::Metrics;
-        test_extn_payload_provider(metrics_request, contract_type);
-    }
-
-    #[test]
-    fn test_extn_response_metrics() {
-        let metrics_response = MetricsResponse::None;
-        let contract_type: RippleContract = RippleContract::BehaviorMetrics;
-        test_extn_payload_provider(metrics_response, contract_type);
     }
 
     #[test]
@@ -1401,13 +1165,6 @@ mod tests {
         );
         timer.error();
         assert_eq!(timer.tags.unwrap().get("error"), Some(&"true".to_string()));
-    }
-
-    #[test]
-    fn test_timer_to_extn_request() {
-        let timer = Timer::start("test_timer".to_string(), None, None);
-        let request = timer.to_extn_request();
-        assert_eq!(request, OperationalMetricRequest::Timer(timer));
     }
 
     #[test]

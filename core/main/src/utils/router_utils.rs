@@ -22,7 +22,7 @@ use ripple_sdk::{
     utils::error::RippleError,
 };
 
-use crate::state::metrics_state::MetricsState;
+use crate::state::otel_state::OtelState;
 
 pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage) {
     let callback = match extn_msg.clone().callback {
@@ -70,7 +70,7 @@ pub fn add_telemetry_status_code(original_ref: &str, status_code: &str) -> Optio
     Some(format!("{},{}", original_ref, status_code))
 }
 
-pub fn capture_stage(metrics_state: &MetricsState, request: &RpcRequest, stage: &str) {
+pub fn capture_stage(metrics_state: &OtelState, request: &RpcRequest, stage: &str) {
     let mut state = metrics_state.clone();
     let duration = state.update_api_stage(&request.ctx.request_id, stage);
 

@@ -15,24 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use ripple_sdk::{
-    api::{
-        firebolt::fb_metrics::BehavioralMetricsEvent, observability::analytics::AnalyticsRequest,
-    },
-    async_trait::async_trait,
-    extn::{
-        client::{
-            extn_client::ExtnClient,
-            extn_processor::{
-                DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
-            },
-        },
-        extn_client_message::{ExtnMessage, ExtnResponse},
-    },
-    serde_json,
-    tokio::sync::mpsc::{Receiver as MReceiver, Sender as MSender},
-    utils::error::RippleError,
-};
+use ripple_sdk::{api::firebolt::fb_metrics::BehavioralMetricsEvent, serde_json};
 
 use crate::{
     client::{
@@ -44,71 +27,7 @@ use crate::{
     thunder_state::ThunderState,
 };
 
-#[derive(Debug)]
-pub struct ThunderAnalyticsProcessor {
-    state: ThunderState,
-    streamer: DefaultExtnStreamer,
-}
-
-impl ThunderAnalyticsProcessor {
-    pub fn new(state: ThunderState) -> ThunderAnalyticsProcessor {
-        ThunderAnalyticsProcessor {
-            state,
-            streamer: DefaultExtnStreamer::new(),
-        }
-    }
-}
-
-impl ExtnStreamProcessor for ThunderAnalyticsProcessor {
-    type VALUE = AnalyticsRequest;
-    type STATE = ThunderState;
-
-    fn get_state(&self) -> Self::STATE {
-        self.state.clone()
-    }
-
-    fn sender(&self) -> MSender<ExtnMessage> {
-        self.streamer.sender()
-    }
-
-    fn receiver(&mut self) -> MReceiver<ExtnMessage> {
-        self.streamer.receiver()
-    }
-}
-
-#[async_trait]
-impl ExtnRequestProcessor for ThunderAnalyticsProcessor {
-    fn get_client(&self) -> ExtnClient {
-        self.state.get_client()
-    }
-
-    async fn process_request(
-        state: Self::STATE,
-        msg: ExtnMessage,
-        extracted_message: Self::VALUE,
-    ) -> bool {
-        let response_message = match extracted_message {
-            AnalyticsRequest::SendMetrics(event) => send_metrics(state.clone(), event).await,
-        };
-
-        let extn_response = match response_message.message["success"].as_bool() {
-            Some(success) => {
-                if success {
-                    ExtnResponse::None(())
-                } else {
-                    ExtnResponse::Error(RippleError::ExtnError)
-                }
-            }
-            None => ExtnResponse::Error(RippleError::ExtnError),
-        };
-
-        Self::respond(state.get_client(), msg, extn_response)
-            .await
-            .is_ok()
-    }
-}
-
-async fn send_metrics(
+pub async fn send_to_analytics_plugin(
     thunder_state: ThunderState,
     metrics_event: BehavioralMetricsEvent,
 ) -> DeviceResponseMessage {
