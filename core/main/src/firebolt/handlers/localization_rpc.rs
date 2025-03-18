@@ -52,7 +52,7 @@ use serde::Deserialize;
 #[derive(Deserialize, Debug)]
 pub struct SetMapEntryProperty {
     pub key: String,
-    pub value: String,
+    pub value: Value,
 }
 #[derive(Deserialize, Debug)]
 pub struct RemoveMapEntryProperty {
@@ -150,7 +150,7 @@ async fn update_additional_info(
                 MapEntryProperty::Set(set_map_entry_property) => {
                     additional_info_map.insert(
                         set_map_entry_property.key.clone(),
-                        Value::String(set_map_entry_property.value.clone()),
+                        set_map_entry_property.value.clone(),
                     );
                 }
                 MapEntryProperty::Remove(remove_map_entry_property) => {
