@@ -476,7 +476,12 @@ this is only used once so far, but a bit more maintainable as a const
 /*
 test , local_dev and contract tests load the firebolt open rpc file from either a path or from the openrpc_validator version as compiled in.
 */
-#[cfg(any(feature = "local_dev", feature = "contract_tests", test))]
+#[cfg(any(
+    feature = "local_dev",
+    feature = "websocket_contract_tests",
+    feature = "http_contract_tests",
+    test
+))]
 fn load_firebolt_open_rpc_path() -> Result<String, RippleError> {
     if let Ok(path) = std::env::var("FIREBOLT_OPEN_RPC") {
         info!(
@@ -494,7 +499,12 @@ fn load_firebolt_open_rpc_path() -> Result<String, RippleError> {
 // /*
 // Production load of the firebolt open rpc file
 // */
-#[cfg(not(any(feature = "local_dev", feature = "contract_tests", test)))]
+#[cfg(not(any(
+    feature = "local_dev",
+    feature = "websocket_contract_tests",
+    feature = "http_contract_tests",
+    test
+)))]
 fn load_firebolt_open_rpc_path() -> Result<String, RippleError> {
     info!(
         "production: loading firebolt_open_rpc from file {}",
