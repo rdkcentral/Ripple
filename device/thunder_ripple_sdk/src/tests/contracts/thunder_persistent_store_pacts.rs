@@ -32,7 +32,7 @@ use tokio_tungstenite::tungstenite::protocol::Message;
 
 #[rstest(with_scope, case(true), case(false))]
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_set_persistent_value(with_scope: bool) {
     let mut pact_builder_async = PactBuilder::new_v4("ripple", "rdk_service")
         .using_plugin("websockets", None)
@@ -115,7 +115,7 @@ async fn test_device_set_persistent_value(with_scope: bool) {
 
 #[rstest(with_scope, case(true), case(false))]
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_persistent_value(with_scope: bool) {
     // Define Pact request and response - Start
     let mut pact_builder_async = PactBuilder::new_v4("ripple", "rdk_service")
@@ -185,7 +185,7 @@ async fn test_device_get_persistent_value(with_scope: bool) {
 
 #[rstest(with_scope, case(true), case(false))]
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_delete_persistent_value_by_key(with_scope: bool) {
     // Define Pact request and response - Start
     let mut pact_builder_async = PactBuilder::new_v4("ripple", "rdk_service")

@@ -110,9 +110,11 @@ impl StoreUserGrantsProcessor {
                 None => Some(GrantLifespan::Forever),
             },
             last_modified_time: user_grant_info.last_modified_time,
-            lifespan_ttl_in_secs: user_grant_info
-                .expiry_time
-                .map(|epoch_duration| epoch_duration.as_secs()),
+            lifespan_ttl_in_secs: user_grant_info.expiry_time.map(|epoch_duration| {
+                epoch_duration
+                    .as_secs()
+                    .saturating_sub(user_grant_info.last_modified_time.as_secs())
+            }),
         };
         state
             .cap_state
