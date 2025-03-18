@@ -13,7 +13,7 @@ use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_register_state_change_event() {
     mock_websocket_server!(
         builder,
@@ -50,7 +50,7 @@ async fn test_register_state_change_event() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_info_plugin_status() {
     mock_websocket_server!(
         builder,
@@ -97,7 +97,7 @@ async fn test_device_info_plugin_status() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_info_plugin_state() {
     mock_websocket_server!(
         builder,
@@ -133,7 +133,7 @@ async fn test_device_info_plugin_state() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_display_settings_plugin_status() {
     mock_websocket_server!(
         builder,
@@ -179,7 +179,7 @@ async fn test_display_settings_plugin_status() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_activate_display_settings_plugin() {
     mock_websocket_server!(
         builder,
@@ -215,7 +215,7 @@ async fn test_activate_display_settings_plugin() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_status_org_rdk_system() {
     mock_websocket_server!(
         builder,
@@ -261,7 +261,7 @@ async fn test_status_org_rdk_system() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_activate_org_rdk_system() {
     mock_websocket_server!(
         builder,
@@ -297,7 +297,7 @@ async fn test_activate_org_rdk_system() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_status_org_rdk_hdcp_profile() {
     mock_websocket_server!(
         builder,
@@ -343,7 +343,7 @@ async fn test_status_org_rdk_hdcp_profile() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_activate_org_rdk_hdcp_profile() {
     mock_websocket_server!(
         builder,
@@ -379,7 +379,7 @@ async fn test_activate_org_rdk_hdcp_profile() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_status_org_rdk_telemetry() {
     mock_websocket_server!(
         builder,
@@ -426,7 +426,7 @@ async fn test_status_org_rdk_telemetry() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_activate_org_rdk_telemetry() {
     mock_websocket_server!(
         builder,
