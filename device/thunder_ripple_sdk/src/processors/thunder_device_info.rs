@@ -29,7 +29,6 @@ use crate::{
     },
     ripple_sdk::{
         api::device::{device_info_request::DeviceCapabilities, device_request::AudioProfile},
-        chrono::NaiveDateTime,
         extn::client::extn_client::ExtnClient,
         tokio::sync::mpsc,
     },
@@ -59,6 +58,8 @@ use crate::{
     },
     utils::get_audio_profile_from_value,
 };
+use chrono::{TimeZone as ChronoTimezone, Utc};
+use chrono_tz::{OffsetComponents, Tz};
 use regex::{Match, Regex};
 use ripple_sdk::{
     api::{
@@ -234,7 +235,7 @@ impl CachedState {
 pub struct ThunderNetworkService;
 
 impl ThunderNetworkService {
-    async fn has_internet(state: &CachedState) -> bool {
+    pub async fn has_internet(state: &ThunderState) -> bool {
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -301,22 +302,6 @@ impl ThunderAllTimezonesResponse {
 
     fn as_array(&self) -> Vec<String> {
         self.timezones.keys().cloned().collect()
-    }
-
-    fn get_offset(&self, key: &str) -> i64 {
-        if let Some(tz) = self.timezones.get(key) {
-            if let Some(utc_tz) = self.timezones.get("Etc/UTC").cloned() {
-                if let Ok(ntz) = NaiveDateTime::parse_from_str(tz, "%a %b %d %H:%M:%S %Y %Z") {
-                    if let Ok(nutz) =
-                        NaiveDateTime::parse_from_str(&utc_tz, "%a %b %d %H:%M:%S %Y %Z")
-                    {
-                        let delta = (ntz - nutz).num_seconds();
-                        return round_to_nearest_quarter_hour(delta);
-                    }
-                }
-            }
-        }
-        0
     }
 }
 impl<'de> Deserialize<'de> for ThunderAllTimezonesResponse {
@@ -822,7 +807,7 @@ impl ThunderDeviceInfoRequestProcessor {
         if tokio::time::timeout(
             Duration::from_millis(timeout),
             Self::respond(state.get_client(), req.clone(), {
-                let value = ThunderNetworkService::has_internet(&state).await;
+                let value = ThunderNetworkService::has_internet(&state.state).await;
 
                 if let ExtnPayload::Response(r) =
                     DeviceResponse::InternetConnectionStatus(match value {
@@ -846,49 +831,51 @@ impl ThunderDeviceInfoRequestProcessor {
         }
     }
 
+    pub async fn get_firmware_version(state: &ThunderState) -> FireboltSemanticVersion {
+        let version: FireboltSemanticVersion;
+        let resp = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::System.method("getSystemVersions"),
+                params: None,
+            })
+            .await;
+        info!("{}", resp.message);
+        if let Ok(tsv) = serde_json::from_value::<SystemVersion>(resp.message) {
+            let tsv_split = tsv.receiver_version.split('.');
+            let tsv_vec: Vec<&str> = tsv_split.collect();
+
+            if tsv_vec.len() >= 3 {
+                let major: String = tsv_vec[0].chars().filter(|c| c.is_ascii_digit()).collect();
+                let minor: String = tsv_vec[1].chars().filter(|c| c.is_ascii_digit()).collect();
+                let patch: String = tsv_vec[2].chars().filter(|c| c.is_ascii_digit()).collect();
+
+                version = FireboltSemanticVersion {
+                    major: major.parse::<u32>().unwrap(),
+                    minor: minor.parse::<u32>().unwrap(),
+                    patch: patch.parse::<u32>().unwrap(),
+                    readable: tsv.stb_version,
+                };
+            } else {
+                version = FireboltSemanticVersion {
+                    readable: tsv.stb_version,
+                    ..FireboltSemanticVersion::default()
+                };
+            }
+        } else {
+            version = FireboltSemanticVersion::default()
+        }
+        version
+    }
+
     async fn get_os_info(state: &CachedState) -> FirmwareInfo {
         let version: FireboltSemanticVersion;
         // TODO: refactor this to use return syntax and not use response variable across branches
         match state.get_version() {
             Some(v) => version = v,
             None => {
-                let resp = state
-                    .get_thunder_client()
-                    .call(DeviceCallRequest {
-                        method: ThunderPlugin::System.method("getSystemVersions"),
-                        params: None,
-                    })
-                    .await;
-                info!("{}", resp.message);
-                if let Ok(tsv) = serde_json::from_value::<SystemVersion>(resp.message) {
-                    let tsv_split = tsv.receiver_version.split('.');
-                    let tsv_vec: Vec<&str> = tsv_split.collect();
-
-                    if tsv_vec.len() >= 3 {
-                        let major: String =
-                            tsv_vec[0].chars().filter(|c| c.is_ascii_digit()).collect();
-                        let minor: String =
-                            tsv_vec[1].chars().filter(|c| c.is_ascii_digit()).collect();
-                        let patch: String =
-                            tsv_vec[2].chars().filter(|c| c.is_ascii_digit()).collect();
-
-                        version = FireboltSemanticVersion {
-                            major: major.parse::<u32>().unwrap(),
-                            minor: minor.parse::<u32>().unwrap(),
-                            patch: patch.parse::<u32>().unwrap(),
-                            readable: tsv.stb_version,
-                        };
-                        state.update_version(version.clone());
-                    } else {
-                        version = FireboltSemanticVersion {
-                            readable: tsv.stb_version,
-                            ..FireboltSemanticVersion::default()
-                        };
-                        state.update_version(version.clone())
-                    }
-                } else {
-                    version = FireboltSemanticVersion::default()
-                }
+                version = Self::get_firmware_version(&state.state).await;
+                state.update_version(version.clone());
             }
         }
         FirmwareInfo {
@@ -934,7 +921,7 @@ impl ThunderDeviceInfoRequestProcessor {
         Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
     }
 
-    async fn get_timezone_value(state: &CachedState) -> Result<String, RippleError> {
+    async fn get_timezone_value(state: &ThunderState) -> Result<String, RippleError> {
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -953,7 +940,7 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     async fn get_timezone(state: CachedState, req: ExtnMessage) -> bool {
-        if let Ok(v) = Self::get_timezone_value(&state).await {
+        if let Ok(v) = Self::get_timezone_value(&state.state).await {
             Self::respond(state.get_client(), req, ExtnResponse::String(v))
                 .await
                 .is_ok()
@@ -1001,17 +988,41 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     pub async fn get_timezone_and_offset(state: &CachedState) -> Option<TimeZone> {
-        let timezone_result = ThunderDeviceInfoRequestProcessor::get_timezone_value(state).await;
-        let timezones_result = ThunderDeviceInfoRequestProcessor::get_all_timezones(state).await;
+        let timezone_result =
+            ThunderDeviceInfoRequestProcessor::get_timezone_value(&state.state).await;
 
-        if let (Ok(timezone), Ok(timezones)) = (timezone_result, timezones_result) {
+        if let Ok(timezone) = timezone_result {
             Some(TimeZone {
                 time_zone: timezone.clone(),
-                offset: timezones.get_offset(&timezone),
+                offset: Self::get_offset_seconds(&timezone).unwrap_or(0),
             })
         } else {
             None
         }
+    }
+
+    pub fn get_offset_seconds(timezone: &str) -> Option<i64> {
+        // Parse the timezone (e.g., "America/Los_Angeles")
+        let tz: Tz = timezone.parse().ok()?;
+
+        // Get the current UTC time
+        let utc_now = Utc::now();
+
+        // Convert the current UTC time to the specified timezone
+        let local_time = tz.from_utc_datetime(&utc_now.naive_utc());
+
+        // Get the base UTC offset and DST adjustment
+        let base_offset = local_time.offset().base_utc_offset().num_seconds();
+        let dst_offset = local_time.offset().dst_offset().num_seconds();
+
+        // Calculate the total offset in seconds
+        let total_offset = base_offset + dst_offset;
+
+        // Round the total offset to the nearest quarter hour
+        const QUARER_HOUR: i64 = 900;
+        let rounded_offset = ((total_offset as f64 / 900.0).round() as i64) * QUARER_HOUR;
+
+        Some(rounded_offset)
     }
 
     async fn get_all_timezones(
@@ -1176,7 +1187,7 @@ impl ThunderDeviceInfoRequestProcessor {
         Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
     }
 
-    async fn power_state(state: CachedState, req: ExtnMessage) -> bool {
+    pub async fn get_power_state(state: &ThunderState) -> Result<PowerState, RippleError> {
         let dev_response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -1184,31 +1195,26 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        let resp = dev_response.message.get("powerState").cloned();
-        if resp.is_none() {
-            error!("Unable to get power state from thunder");
-            return Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await;
+
+        if let Some(response) = dev_response.message.get("powerState").cloned() {
+            if let Ok(v) = serde_json::from_value(response) {
+                return Ok(v);
+            }
+        }
+        Err(RippleError::ProcessorError)
+    }
+
+    async fn power_state(state: CachedState, req: ExtnMessage) -> bool {
+        let mut response = ExtnResponse::Error(RippleError::ProcessorError);
+        if let Ok(v) = Self::get_power_state(&state.state).await {
+            if let ExtnPayload::Response(r) = DeviceResponse::PowerState(v).get_extn_payload() {
+                response = r;
+            }
         }
 
-        let value = resp.unwrap();
-        let power_state = serde_json::from_value::<PowerState>(value);
-        if power_state.is_err() {
-            return Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await;
-        }
-        let power_state = power_state.unwrap();
-        Self::respond(
-            state.get_client(),
-            req,
-            if let ExtnPayload::Response(r) =
-                DeviceResponse::PowerState(power_state).get_extn_payload()
-            {
-                r
-            } else {
-                ExtnResponse::Error(RippleError::ProcessorError)
-            },
-        )
-        .await
-        .is_ok()
+        Self::respond(state.get_client(), req, response)
+            .await
+            .is_ok()
     }
 
     async fn get_device_capabilities(state: CachedState, keys: &[&str], msg: ExtnMessage) -> bool {
@@ -1490,17 +1496,6 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             _ => false,
         }
     }
-}
-
-fn round_to_nearest_quarter_hour(offset_seconds: i64) -> i64 {
-    // Convert minutes to quarter hours
-    let quarter_hours = (offset_seconds as f64 / 900.0).round() as i64;
-
-    // Convert back to minutes
-    let rounded_minutes = quarter_hours * 15;
-
-    // Convert minutes back to seconds
-    rounded_minutes * 60
 }
 
 #[cfg(test)]

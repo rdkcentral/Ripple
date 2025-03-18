@@ -93,6 +93,9 @@ pub trait LifecycleManagement {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
+
+    #[method(name = "ripple.getAppCatalogId")]
+    async fn get_app_catalog_id(&self, ctx: CallContext, app_id: String) -> RpcResult<String>;
 }
 
 #[derive(Debug)]
@@ -260,6 +263,23 @@ impl LifecycleManagementServer for LifecycleManagementImpl {
             listening: listen,
             event: LCM_EVENT_ON_SESSION_TRANSITION_CANCELED.to_string(),
         })
+    }
+
+    async fn get_app_catalog_id(&self, _: CallContext, app_id: String) -> RpcResult<String> {
+        let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
+
+        let app_request =
+            AppRequest::new(AppMethod::GetAppContentCatalog(app_id.clone()), app_resp_tx);
+        if let Err(e) = self.state.get_client().send_app_request(app_request) {
+            error!("Send error for AppMethod::GetAppContentCatalog {:?}", e);
+        }
+        let resp = rpc_await_oneshot(app_resp_rx).await;
+
+        if let Ok(Ok(AppManagerResponse::AppContentCatalog(content_catalog))) = resp {
+            return Ok(content_catalog.map_or(app_id.to_owned(), |x| x));
+        }
+
+        Ok(app_id)
     }
 }
 

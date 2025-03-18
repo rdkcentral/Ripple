@@ -20,7 +20,6 @@ mod general_advertising_processor;
 mod general_discovery_processor;
 mod general_distributor_token_processor;
 mod general_media_events_processor;
-mod general_metrics_processor;
 mod general_paltform_token_processor;
 mod general_permission_processor;
 mod general_privacy_processor;

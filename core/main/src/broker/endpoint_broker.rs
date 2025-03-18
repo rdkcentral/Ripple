@@ -49,7 +49,7 @@ use crate::{
     broker::broker_utils::BrokerUtils,
     firebolt::firebolt_gateway::{FireboltGatewayCommand, JsonRpcError},
     service::extn::ripple_client::RippleClient,
-    state::{metrics_state::MetricsState, platform_state::PlatformState, session_state::Session},
+    state::{otel_state::OtelState, platform_state::PlatformState, session_state::Session},
     utils::router_utils::{
         add_telemetry_status_code, capture_stage, get_rpc_header, return_extn_response,
     },
@@ -372,7 +372,7 @@ pub struct EndpointBrokerState {
     cleaner_list: Arc<RwLock<Vec<BrokerCleaner>>>,
     reconnect_tx: Sender<BrokerConnectRequest>,
     provider_broker_state: ProvideBrokerState,
-    metrics_state: MetricsState,
+    metrics_state: OtelState,
 }
 impl Default for EndpointBrokerState {
     fn default() -> Self {
@@ -385,14 +385,14 @@ impl Default for EndpointBrokerState {
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx: mpsc::channel(2).0,
             provider_broker_state: ProvideBrokerState::default(),
-            metrics_state: MetricsState::default(),
+            metrics_state: OtelState::default(),
         }
     }
 }
 
 impl EndpointBrokerState {
     pub fn new(
-        metrics_state: MetricsState,
+        metrics_state: OtelState,
         tx: Sender<BrokerOutput>,
         rule_engine: RuleEngine,
         ripple_client: RippleClient,
@@ -843,6 +843,10 @@ impl EndpointBrokerState {
         }
     }
 
+    pub fn has_rule(&self, method: &str) -> bool {
+        self.rule_engine.has_rule(method)
+    }
+
     pub fn get_rule(&self, rpc_request: &RpcRequest) -> Option<Rule> {
         self.rule_engine.get_rule(rpc_request)
     }
@@ -1233,7 +1237,7 @@ impl BrokerOutputForwarder {
                                 }
                             }
 
-                            platform_state.metrics.update_api_stats_ref(
+                            platform_state.otel.update_api_stats_ref(
                                 &rpc_request.ctx.request_id,
                                 add_telemetry_status_code(
                                     &tm_str,
@@ -1242,14 +1246,14 @@ impl BrokerOutputForwarder {
                             );
 
                             if let Some(api_stats) = platform_state
-                                .metrics
+                                .otel
                                 .get_api_stats(&rpc_request.ctx.request_id)
                             {
                                 message.stats = Some(api_stats);
 
                                 if rpc_request.ctx.app_id.eq_ignore_ascii_case("internal") {
                                     platform_state
-                                        .metrics
+                                        .otel
                                         .remove_api_stats(&rpc_request.ctx.request_id);
                                 }
                             }
@@ -1602,7 +1606,7 @@ mod tests {
                 endpoint_broker::tests::RippleClient,
                 rules_engine::{Rule, RuleEngine, RuleSet, RuleTransform},
             },
-            state::{bootstrap_state::ChannelsState, metrics_state::MetricsState},
+            state::{bootstrap_state::ChannelsState, otel_state::OtelState},
         };
 
         use super::EndpointBrokerState;
@@ -1612,7 +1616,7 @@ mod tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let state = EndpointBrokerState::new(
-                MetricsState::default(),
+                OtelState::default(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),

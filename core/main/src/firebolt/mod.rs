@@ -31,14 +31,13 @@ pub mod handlers {
     pub mod lcm_rpc;
     pub mod lifecycle_rpc;
     pub mod localization_rpc;
-    pub mod metrics_management_rpc;
-    pub mod metrics_rpc;
     pub mod parameters_rpc;
     pub mod privacy_rpc;
     pub mod profile_rpc;
     pub mod provider_registrar;
     pub mod second_screen_rpc;
     pub mod secure_storage_rpc;
+    pub mod telemetry_rpc;
     pub mod user_grants_rpc;
     pub mod voice_guidance_rpc;
     pub mod wifi_rpc;

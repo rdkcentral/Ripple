@@ -184,4 +184,29 @@ impl MockThunderController {
         let thunder_state = ThunderState::new(extn_client, thunder_client);
         (CachedState::new(thunder_state), r)
     }
+
+    /**
+     * Creates state object that points to a mock thunder controller.
+     * Pass in the custom thunder handlers to mock the thunder responses
+     * Returns the state and a receiver which can be used to listen to responses that
+     * come back from the extension
+     */
+    pub fn get_thunder_state_mock() -> ThunderState {
+        let s_thunder = MockThunderController::start_with_custom_handlers(None);
+        let thunder_client = ThunderClient {
+            sender: Some(s_thunder),
+            pooled_sender: None,
+            id: Uuid::new_v4(),
+            plugin_manager_tx: None,
+            subscriptions: None,
+            thunder_async_client: None,
+            thunder_async_subscriptions: None,
+            thunder_async_callbacks: None,
+            use_thunder_async: false,
+        };
+
+        let (s, _) = unbounded();
+        let extn_client = MockExtnClient::client(s);
+        ThunderState::new(extn_client, thunder_client)
+    }
 }

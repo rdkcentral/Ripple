@@ -48,9 +48,6 @@ use ripple_sdk::api::app_catalog::{AppCatalogRequest, AppOperationComplete, Apps
 use ripple_sdk::api::device::device_apps::DeviceAppMetadata;
 use ripple_sdk::api::firebolt::fb_capabilities::FireboltPermissions;
 use ripple_sdk::api::firebolt::fb_metrics::{Timer, TimerType};
-use ripple_sdk::api::observability::metrics_util::{
-    start_service_metrics_timer, stop_and_send_service_metrics_timer,
-};
 
 #[cfg(not(test))]
 use ripple_sdk::log::{debug, error, info};
@@ -65,7 +62,7 @@ use serde_json::Value;
 #[cfg(test)]
 use {println as info, println as debug, println as error};
 
-use super::thunder_telemetry::{ThunderMetricsTimerName, ThunderResponseStatus};
+use super::thunder_telemetry::ThunderResponseStatus;
 
 // TODO: If/when ripple supports selectable download speeds we'll probably want multiple configurable values or compute this based on throughput.
 const DEFAULT_OPERATION_TIMEOUT_SECS: u64 = 12 * 60; // 12 minutes
@@ -578,11 +575,6 @@ impl ThunderPackageManagerRequestProcessor {
         let method: String = ThunderPlugin::PackageManager.method("getlist");
         let request = GetListRequest::new(id.unwrap_or_default());
 
-        let metrics_timer = start_service_metrics_timer(
-            &thunder_state.get_client(),
-            ThunderMetricsTimerName::PackageManagerGetList.to_string(),
-        );
-
         let device_response = thunder_state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -593,7 +585,7 @@ impl ThunderPackageManagerRequestProcessor {
             })
             .await;
 
-        let (status, extn_resp) =
+        let (_, extn_resp) =
             match serde_json::from_value::<Vec<InstalledApp>>(device_response.message) {
                 Ok(apps) => (
                     ThunderResponseStatus::Success,
@@ -604,13 +596,6 @@ impl ThunderPackageManagerRequestProcessor {
                     ExtnResponse::Error(RippleError::ProcessorError),
                 ),
             };
-
-        stop_and_send_service_metrics_timer(
-            thunder_state.get_client().clone(),
-            metrics_timer,
-            status.to_string(),
-        )
-        .await;
 
         extn_resp
     }
@@ -659,11 +644,6 @@ impl ThunderPackageManagerRequestProcessor {
         let method: String = ThunderPlugin::PackageManager.method("install");
         let request = InstallAppRequest::new(app.clone());
 
-        let metrics_timer = start_service_metrics_timer(
-            &state.thunder_state.get_client(),
-            ThunderMetricsTimerName::PackageManagerInstall.to_string(),
-        );
-
         let device_response = state
             .thunder_state
             .get_thunder_client()
@@ -682,13 +662,6 @@ impl ThunderPackageManagerRequestProcessor {
         } else {
             ThunderResponseStatus::Failure
         };
-
-        stop_and_send_service_metrics_timer(
-            state.thunder_state.get_client().clone(),
-            metrics_timer,
-            status.to_string(),
-        )
-        .await;
 
         match thunder_resp {
             Ok(handle) => {
@@ -742,11 +715,6 @@ impl ThunderPackageManagerRequestProcessor {
         let method: String = ThunderPlugin::PackageManager.method("uninstall");
         let request = UninstallAppRequest::new(app.clone());
 
-        let metrics_timer = start_service_metrics_timer(
-            &state.thunder_state.get_client(),
-            ThunderMetricsTimerName::PackageManagerUninstall.to_string(),
-        );
-
         let device_response = state
             .thunder_state
             .get_thunder_client()
@@ -765,13 +733,6 @@ impl ThunderPackageManagerRequestProcessor {
         } else {
             ThunderResponseStatus::Failure
         };
-
-        stop_and_send_service_metrics_timer(
-            state.thunder_state.get_client().clone(),
-            metrics_timer,
-            status.to_string(),
-        )
-        .await;
 
         let extn_resp = match thunder_resp {
             Ok(handle) => {
@@ -888,11 +849,6 @@ impl ThunderPackageManagerRequestProcessor {
         let method: String = ThunderPlugin::PackageManager.method("getmetadata");
         let request = GetMetadataRequest::new(app.id.clone(), app.version.clone());
 
-        let metrics_timer = start_service_metrics_timer(
-            &state.thunder_state.get_client(),
-            ThunderMetricsTimerName::PackageManagerGetMetadata.to_string(),
-        );
-
         let device_response = state
             .thunder_state
             .get_thunder_client()
@@ -908,18 +864,11 @@ impl ThunderPackageManagerRequestProcessor {
 
         let thunder_resp = serde_json::from_value::<ThunderAppMetadata>(device_response.message);
 
-        let status = if thunder_resp.is_ok() {
+        if thunder_resp.is_ok() {
             ThunderResponseStatus::Success
         } else {
             ThunderResponseStatus::Failure
         };
-
-        stop_and_send_service_metrics_timer(
-            state.thunder_state.get_client().clone(),
-            metrics_timer,
-            status.to_string(),
-        )
-        .await;
 
         let extn_resp = match thunder_resp {
             Ok(metadata) => {
@@ -951,11 +900,6 @@ impl ThunderPackageManagerRequestProcessor {
         let method: String = ThunderPlugin::PackageManager.method("cancel");
         let request = CancelRequest::new(handle);
 
-        let metrics_timer = start_service_metrics_timer(
-            &state.thunder_state.get_client(),
-            ThunderMetricsTimerName::PackageManagerUninstall.to_string(),
-        );
-
         let device_response = state
             .thunder_state
             .get_thunder_client()
@@ -967,7 +911,7 @@ impl ThunderPackageManagerRequestProcessor {
             })
             .await;
 
-        let status = if device_response.message.is_null() {
+        if device_response.message.is_null() {
             ThunderResponseStatus::Success
         } else {
             error!(
@@ -977,13 +921,6 @@ impl ThunderPackageManagerRequestProcessor {
 
             ThunderResponseStatus::Failure
         };
-
-        stop_and_send_service_metrics_timer(
-            state.thunder_state.get_client().clone(),
-            metrics_timer,
-            status.to_string(),
-        )
-        .await;
     }
 }
 
