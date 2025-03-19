@@ -117,7 +117,7 @@ impl CapabilityImpl {
 #[async_trait]
 impl CapabilityServer for CapabilityImpl {
     async fn get_capability_permit(&self, ctx: CallContext, role: RoleInfo) -> RpcResult<bool> {
-        is_permitted(&mut self.state.clone(), &ctx, &role).await
+        is_permitted(&self.state.clone(), &ctx, &role).await
     }
 
     async fn supported(&self, _ctx: CallContext, cap: CapRPCRequest) -> RpcResult<bool> {
