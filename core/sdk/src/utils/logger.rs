@@ -22,7 +22,7 @@ use crate::api::observability::log_signal::initialize_log_signal;
 pub static LOG_COUNTER: AtomicU32 = AtomicU32::new(1);
 
 pub fn init_logger(name: String) -> Result<(), fern::InitError> {
-    let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "trace".into());
+    let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "Info".into());
 
     println!("log level {}", log_string);
     initialize_log_signal();
@@ -62,7 +62,7 @@ pub fn init_logger(name: String) -> Result<(), fern::InitError> {
 }
 
 pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern::InitError> {
-    let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".into());
+    let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "Info".into());
     println!("log level {}", log_string);
     initialize_log_signal();
     let _version_string = version.to_string();
