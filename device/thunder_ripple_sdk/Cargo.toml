@@ -24,9 +24,8 @@ repository = "https://github.com/rdkcentral/Ripple"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-# Enable dependencies for contract tests
-contract_tests = [
-    "pact_consumer",
+http_contract_tests = [
+     "pact_consumer",
     "reqwest",
     "expectest",
     "maplit",
@@ -35,7 +34,22 @@ contract_tests = [
     "tree_magic_mini",
     "rstest",
     "futures-util"
+]
+websocket_contract_tests = [
+     "pact_consumer",
+    "reqwest",
+    "expectest",
+    "maplit",
+    "test-log",
+    "home",
+    "tree_magic_mini",
+    "rstest",
+    "futures-util"    
+]
 
+contract_tests = [
+    "http_contract_tests",
+    "websocket_contract_tests",
 ]
 local_dev=[]
 
