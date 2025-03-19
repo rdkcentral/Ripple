@@ -92,7 +92,7 @@ pub enum AdvertisingResponse {
     AdConfig(AdConfigResponse),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct AdvertisingFrameworkConfig {
     pub ad_server_url: String,
