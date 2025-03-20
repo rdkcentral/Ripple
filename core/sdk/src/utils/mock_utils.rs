@@ -53,9 +53,7 @@ fn get_mock_queue() -> &'static MockResponseQueue {
 pub fn queue_mock_response(test_context: &str, response: Result<ExtnMessage, RippleError>) {
     let mock_queue = get_mock_queue();
     let mut mock_queues = mock_queue.write().unwrap();
-    let queue = mock_queues
-        .entry(test_context.to_string())
-        .or_default();
+    let queue = mock_queues.entry(test_context.to_string()).or_default();
     queue.push_back(response);
 
     // Print the size for debugging
