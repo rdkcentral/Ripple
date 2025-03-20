@@ -750,7 +750,6 @@ impl ExtnClient {
                 self.request(payload),
             )
             .await;
-            println!("**** request_with_timeout: response: {:?}", resp);
             match resp {
                 Ok(Ok(message)) => {
                     if let Some(payload) = message.payload.extract() {
@@ -767,19 +766,12 @@ impl ExtnClient {
         // if mock is enabled for testing
         #[cfg(any(test, feature = "mock"))]
         {
-            println!("**** request_with_timeout: test context: {:?}", test_ctx);
             // Get the mock response using the test_ctx
             if let Some(context) = &test_ctx {
-                println!("**** request_with_timeout: test context: {:?}", context);
                 if let Some(response) = get_next_mock_response(context) {
-                    println!("**** request_with_timeout: mock response: {:?}", response);
                     match response {
                         Ok(message) => {
                             if let Some(payload) = message.payload.extract::<T>() {
-                                println!(
-                                    "**** request_with_timeout: mock response payload: {:?}",
-                                    payload
-                                );
                                 return Ok(payload);
                             } else {
                                 return Err(RippleError::ParseError);
@@ -788,10 +780,6 @@ impl ExtnClient {
                         Err(e) => return Err(e),
                     }
                 }
-                println!(
-                    "**** request_with_timeout: no mock response found for payload: {:?}",
-                    payload
-                );
             }
 
             // If no mock response found or no test_context provided
@@ -822,7 +810,6 @@ impl ExtnClient {
                 self.send_rpc_main(payload),
             )
             .await;
-            println!("**** request_with_timeout_main: response: {:?}", resp);
             match resp {
                 Ok(Ok(message)) => {
                     if let Some(payload) = message.payload.extract() {
@@ -842,10 +829,6 @@ impl ExtnClient {
             // Get the mock response using the test_ctx
             if let Some(context) = &test_ctx {
                 if let Some(response) = get_next_mock_response(context) {
-                    println!(
-                        "**** request_with_timeout_main: mock response: {:?}",
-                        response
-                    );
                     match response {
                         Ok(message) => {
                             if let Some(payload) = message.payload.extract::<T>() {
@@ -857,10 +840,6 @@ impl ExtnClient {
                         Err(e) => return Err(e),
                     }
                 }
-                println!(
-                    "**** request_with_timeout_main: no mock response found for payload: {:?}",
-                    payload
-                );
             }
 
             // If no mock response found or no test_context provided
@@ -1125,12 +1104,13 @@ pub mod tests {
             callback: None,
             ts: Some(Utc::now().timestamp_millis()),
         };
-        set_mock_response("request_with_timeout".to_string(), Ok(msg.clone()));
+        let id = Uuid::new_v4().to_string();
+        set_mock_response(id.clone(), Ok(msg.clone()));
         let result: Result<ExtnResponse, RippleError> = client
             .request_with_timeout(
                 AccountSessionRequest::Get,
                 5000,
-                Some("request_with_timeout".to_string()),
+                Some(id),
             )
             .await;
         assert!(result.is_ok());
@@ -1149,12 +1129,13 @@ pub mod tests {
             callback: None,
             ts: Some(Utc::now().timestamp_millis()),
         };
-        set_mock_response("request_with_timeout_main".to_string(), Ok(msg.clone()));
+        let id = Uuid::new_v4().to_string();
+        set_mock_response(id.clone(), Ok(msg.clone()));
         let result: Result<ExtnResponse, RippleError> = client
             .request_with_timeout_main(
                 AccountSessionRequest::Get,
                 5000,
-                Some("request_with_timeout_main".to_string()),
+                Some(id),
             )
             .await;
         assert!(result.is_ok());

@@ -566,13 +566,12 @@ impl ThunderClient {
         request: &ThunderAsyncRequest,
         dev_resp_callback: Sender<DeviceResponseMessage>,
     ) {
-        let mut callbacks = match self.thunder_async_callbacks.as_ref() {
-            Some(callbacks) => callbacks.write().unwrap(),
-            None => {
-                error!("thunder_async_callbacks is None");
-                return;
-            }
-        };
+        let mut callbacks = self
+            .thunder_async_callbacks
+            .as_ref()
+            .unwrap()
+            .write()
+            .unwrap();
         callbacks.insert(request.id, Some(dev_resp_callback));
     }
 
