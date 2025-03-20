@@ -361,10 +361,8 @@ impl Default for ThunderEventProcessor {
 
 #[cfg(test)]
 pub mod tests {
-    use ripple_sdk::{extn::client::extn_client::ExtnClient, tokio};
+    use ripple_sdk::tokio;
     use serde_json::json;
-
-    use crate::client::thunder_client::ThunderClient;
 
     use super::*;
 
@@ -398,25 +396,25 @@ pub mod tests {
         maps.insert(event6, value6.clone());
 
         for map in maps.iter() {
-            if let Some(event_message) = ThunderEventMessage::get(*map.0, map.1) {
+            if let Some(event_message) = ThunderEventMessage::get(map.0, map.1) {
                 match event_message {
                     ThunderEventMessage::PowerState(v) => {
                         assert_eq!(v.power_state, PowerState::Standby);
                         assert_eq!(v.current_power_state, PowerState::On);
                     }
                     ThunderEventMessage::ActiveInput(v) => {
-                        assert_eq!(v.active_input, true);
+                        assert!(!v.active_input);
                     }
                     ThunderEventMessage::VoiceGuidance(v) => {
-                        assert_eq!(v.state, true);
+                        assert!(!v.state);
                     }
                     ThunderEventMessage::Audio(v) => {
-                        assert_eq!(*v.get(&AudioProfile::Stereo).unwrap(), false);
-                        assert_eq!(*v.get(&AudioProfile::DolbyDigital5_1).unwrap(), false);
-                        assert_eq!(*v.get(&AudioProfile::DolbyAtmos).unwrap(), false);
-                        assert_eq!(*v.get(&AudioProfile::DolbyDigital5_1Plus).unwrap(), false);
-                        assert_eq!(*v.get(&AudioProfile::DolbyDigital7_1).unwrap(), false);
-                        assert_eq!(*v.get(&AudioProfile::DolbyDigital7_1Plus).unwrap(), false);
+                        assert!(!*v.get(&AudioProfile::Stereo).unwrap());
+                        assert!(!*v.get(&AudioProfile::DolbyDigital5_1).unwrap());
+                        assert!(!*v.get(&AudioProfile::DolbyAtmos).unwrap());
+                        assert!(!*v.get(&AudioProfile::DolbyDigital5_1Plus).unwrap());
+                        assert!(!*v.get(&AudioProfile::DolbyDigital7_1).unwrap());
+                        assert!(!*v.get(&AudioProfile::DolbyDigital7_1Plus).unwrap());
                     }
                     ThunderEventMessage::Internet(v) => {
                         assert_eq!(v, InternetConnectionStatus::FullyConnected);
@@ -436,7 +434,7 @@ pub mod tests {
             }
         }
     }
-
+    // matches!(event, ThunderEventMessage::PowerState(_))
     #[tokio::test]
     async fn test_thunder_event_processor() {
         let thunder_event_processor = ThunderEventProcessor::new();
@@ -449,18 +447,12 @@ pub mod tests {
                 sub_id: Some("onPowerStateChanged".to_string()),
             },
             handle: |_, _, _| {},
-            is_valid: |event| match event {
-                ThunderEventMessage::PowerState(_) => true,
-                _ => false,
-            },
+            is_valid: |event| matches!(event, ThunderEventMessage::PowerState(_)),
             listeners: vec![],
             id: "onPowerStateChanged".to_string(),
             callback_type: DeviceEventCallback::ExtnEvent,
         };
-        assert_eq!(
-            thunder_event_processor.add_event_listener(app_id.clone(), handler.clone()),
-            true
-        );
+        assert!(thunder_event_processor.add_event_listener(app_id.clone(), handler.clone()));
         assert_eq!(
             thunder_event_processor
                 .get_handler(&handler.get_id())
@@ -469,25 +461,16 @@ pub mod tests {
                 .module,
             handler.clone().request.module
         );
-        assert_eq!(
-            thunder_event_processor.handle_listener(true, app_id.clone(), handler.clone()),
-            false
-        );
-        assert_eq!(
-            thunder_event_processor.handle_listener(false, app_id, handler),
-            true
-        );
+        assert!(!thunder_event_processor.handle_listener(true, app_id.clone(), handler.clone()));
+        assert!(thunder_event_processor.handle_listener(false, app_id, handler));
         thunder_event_processor.add_last_event(
             "onPowerStateChanged",
             &ExtnEvent::Value(json!({"powerState": "STANDBY","currentPowerState":"ON"})),
         );
-        assert_eq!(
-            thunder_event_processor.check_last_event(
-                "onPowerStateChanged",
-                &ExtnEvent::Value(json!({"powerState": "STANDBY","currentPowerState":"ON"}))
-            ),
-            true
-        );
+        assert!(thunder_event_processor.check_last_event(
+            "onPowerStateChanged",
+            &ExtnEvent::Value(json!({"powerState": "STANDBY","currentPowerState":"ON"}))
+        ));
 
         thunder_event_processor.set_backoff("test_event", 10);
         assert_eq!(
@@ -516,10 +499,7 @@ pub mod tests {
                 sub_id: Some("onPowerStateChanged".to_string()),
             },
             handle: |_, _, _| {},
-            is_valid: |event| match event {
-                ThunderEventMessage::PowerState(_) => true,
-                _ => false,
-            },
+            is_valid: |event| matches!(event, ThunderEventMessage::PowerState(_)),
             listeners: vec![],
             id: "onPowerStateChanged".to_string(),
             callback_type: DeviceEventCallback::ExtnEvent,
