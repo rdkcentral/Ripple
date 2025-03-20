@@ -1109,6 +1109,7 @@ pub mod tests {
         let result: Result<ExtnResponse, RippleError> = client
             .request_with_timeout(AccountSessionRequest::Get, 5000, Some(id))
             .await;
+        println!("result: {:?}", result);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExtnResponse::String("success".to_string()));
     }
