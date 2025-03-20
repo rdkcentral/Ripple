@@ -32,7 +32,107 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 #[cfg(any(test, feature = "mock"))]
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, OnceLock, RwLock},
+};
+
+#[cfg(any(test, feature = "mock"))]
+type MockResponseQueue = Arc<RwLock<HashMap<String, VecDeque<Result<ExtnMessage, RippleError>>>>>;
+
+#[cfg(any(test, feature = "mock"))]
+static MOCK_RESPONSE_QUEUE: OnceLock<MockResponseQueue> = OnceLock::new();
+
+#[cfg(any(test, feature = "mock"))]
+fn get_mock_queue() -> &'static MockResponseQueue {
+    MOCK_RESPONSE_QUEUE.get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
+}
+
+/// Adds a mock response to the queue for the specified test context
+#[cfg(any(test, feature = "mock"))]
+pub fn queue_mock_response(test_context: &str, response: Result<ExtnMessage, RippleError>) {
+    let mock_queue = get_mock_queue();
+    let mut mock_queues = mock_queue.write().unwrap();
+    let queue = mock_queues.entry(test_context.to_string()).or_default();
+    queue.push_back(response);
+
+    // Print the size for debugging
+    println!(
+        "**** Queued mock response for context '{}'. Queue size: {}",
+        test_context,
+        queue.len()
+    );
+}
+
+/// Retrieves and removes the next mock response for the specified test context
+#[cfg(any(test, feature = "mock"))]
+pub fn get_next_mock_response(test_context: &str) -> Option<Result<ExtnMessage, RippleError>> {
+    let mock_queue = get_mock_queue();
+    let mut mock_queues = mock_queue.write().unwrap();
+
+    if let Some(queue) = mock_queues.get_mut(test_context) {
+        let response = queue.pop_front();
+
+        // Print the remaining size for debugging
+        println!(
+            "Retrieved mock response for context '{}'. Remaining queue size: {}",
+            test_context,
+            queue.len()
+        );
+
+        response
+    } else {
+        println!("No mock queue found for context '{}'", test_context);
+        None
+    }
+}
+
+/// Checks the number of remaining mocks for a test context
+#[cfg(any(test, feature = "mock"))]
+pub fn get_mock_queue_size(test_context: &str) -> usize {
+    let mock_queue = get_mock_queue();
+    let mock_queues = mock_queue.read().unwrap();
+
+    if let Some(queue) = mock_queues.get(test_context) {
+        queue.len()
+    } else {
+        0
+    }
+}
+
+/// Clears all mock responses for a specific test context
+#[cfg(any(test, feature = "mock"))]
+pub fn clear_test_mocks(test_context: &str) {
+    let mock_queue = get_mock_queue();
+    let mut mock_queues = mock_queue.write().unwrap();
+
+    if let Some(queue) = mock_queues.get_mut(test_context) {
+        println!(
+            "Clearing {} mock responses for context '{}'",
+            queue.len(),
+            test_context
+        );
+        queue.clear();
+    }
+}
+
+/// Clears all mock responses for all test contexts
+#[cfg(any(test, feature = "mock"))]
+pub fn clear_all_test_mocks() {
+    let mock_queue = get_mock_queue();
+    let mut mock_queues = mock_queue.write().unwrap();
+
+    // Print all queues being cleared
+    for (context, queue) in mock_queues.iter() {
+        println!(
+            "Clearing {} mock responses for context '{}'",
+            queue.len(),
+            context
+        );
+    }
+
+    mock_queues.clear();
+}
 
 #[cfg(any(test, feature = "mock"))]
 pub type MockResponseStore = Arc<RwLock<HashMap<String, Result<ExtnMessage, RippleError>>>>;
@@ -53,6 +153,7 @@ pub fn get_mock_response(id: &str) -> Option<Result<ExtnMessage, RippleError>> {
     let mock_responses = MOCK_RESPONSES.read().unwrap();
     mock_responses.get(id).cloned()
 }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MockEvent {
     pub event_name: String,
