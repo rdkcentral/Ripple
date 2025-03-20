@@ -403,10 +403,10 @@ pub mod tests {
                         assert_eq!(v.current_power_state, PowerState::On);
                     }
                     ThunderEventMessage::ActiveInput(v) => {
-                        assert!(!v.active_input);
+                        assert!(v.active_input);
                     }
                     ThunderEventMessage::VoiceGuidance(v) => {
-                        assert!(!v.state);
+                        assert!(v.state);
                     }
                     ThunderEventMessage::Audio(v) => {
                         assert!(!*v.get(&AudioProfile::Stereo).unwrap());
