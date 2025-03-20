@@ -358,3 +358,172 @@ impl Default for ThunderEventProcessor {
         Self::new()
     }
 }
+
+#[cfg(test)]
+pub mod tests {
+    use ripple_sdk::{extn::client::extn_client::ExtnClient, tokio};
+    use serde_json::json;
+
+    use crate::client::thunder_client::ThunderClient;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_thunder_event_message_get() {
+        let event1: &str = "device.onPowerStateChanged";
+        let value1 = json!({"powerState": "STANDBY","currentPowerState":"ON"});
+
+        let event2: &str = "device.onHdcpChanged";
+        let value2 = json!({"activeInput": true});
+
+        let event3: &str = "voiceguidance.onEnabledChanged";
+        let value3 = json!({"state": true});
+
+        let event4: &str = "device.onAudioChanged";
+        let value4 = json!({"DolbyDigitalPlusDecodeCapable":false,"HDMIAudioDelay":0,"HDMIAudioFormat":{"current":"Auto","options":["Auto","Dolby Di
+        gital Plus","Dolby Digital","PCM Stereo","Passthrough"]}});
+
+        let event5: &str = "device.onInternetStatusChange";
+        let value5 = json!({"status": InternetConnectionStatus::FullyConnected});
+
+        let event6: &str = "localization.onTimeZoneChanged";
+        let value6 = json!({"newTimeZone": "US/EST", "newAccuracy": "HIGH", "oldTimeZone": "US/Pacific", "oldAccuracy": "HIGH"});
+
+        let mut maps: HashMap<&str, Value> = HashMap::new();
+        maps.insert(event1, value1.clone());
+        maps.insert(event2, value2.clone());
+        maps.insert(event3, value3.clone());
+        maps.insert(event4, value4.clone());
+        maps.insert(event5, value5.clone());
+        maps.insert(event6, value6.clone());
+
+        for map in maps.iter() {
+            if let Some(event_message) = ThunderEventMessage::get(*map.0, map.1) {
+                match event_message {
+                    ThunderEventMessage::PowerState(v) => {
+                        assert_eq!(v.power_state, PowerState::Standby);
+                        assert_eq!(v.current_power_state, PowerState::On);
+                    }
+                    ThunderEventMessage::ActiveInput(v) => {
+                        assert_eq!(v.active_input, true);
+                    }
+                    ThunderEventMessage::VoiceGuidance(v) => {
+                        assert_eq!(v.state, true);
+                    }
+                    ThunderEventMessage::Audio(v) => {
+                        assert_eq!(*v.get(&AudioProfile::Stereo).unwrap(), false);
+                        assert_eq!(*v.get(&AudioProfile::DolbyDigital5_1).unwrap(), false);
+                        assert_eq!(*v.get(&AudioProfile::DolbyAtmos).unwrap(), false);
+                        assert_eq!(*v.get(&AudioProfile::DolbyDigital5_1Plus).unwrap(), false);
+                        assert_eq!(*v.get(&AudioProfile::DolbyDigital7_1).unwrap(), false);
+                        assert_eq!(*v.get(&AudioProfile::DolbyDigital7_1Plus).unwrap(), false);
+                    }
+                    ThunderEventMessage::Internet(v) => {
+                        assert_eq!(v, InternetConnectionStatus::FullyConnected);
+                    }
+                    ThunderEventMessage::TimeZone(v) => {
+                        assert_eq!(v.new_time_zone, "US/EST");
+                        assert_eq!(v.new_accuracy, "HIGH");
+                        assert_eq!(v.old_time_zone, "US/Pacific");
+                        assert_eq!(v.old_accuracy, "HIGH");
+                    }
+                    _ => {
+                        panic!("Expected PowerState or ActiveInput event")
+                    }
+                }
+            } else {
+                panic!("Expected Some event message");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_thunder_event_processor() {
+        let thunder_event_processor = ThunderEventProcessor::new();
+        let app_id = "app_id_1".to_string();
+        let handler = ThunderEventHandler {
+            request: DeviceSubscribeRequest {
+                module: "device".to_string(),
+                event_name: "onPowerStateChanged".to_string(),
+                params: None,
+                sub_id: Some("onPowerStateChanged".to_string()),
+            },
+            handle: |_, _, _| {},
+            is_valid: |event| match event {
+                ThunderEventMessage::PowerState(_) => true,
+                _ => false,
+            },
+            listeners: vec![],
+            id: "onPowerStateChanged".to_string(),
+            callback_type: DeviceEventCallback::ExtnEvent,
+        };
+        assert_eq!(
+            thunder_event_processor.add_event_listener(app_id.clone(), handler.clone()),
+            true
+        );
+        assert_eq!(
+            thunder_event_processor
+                .get_handler(&handler.get_id())
+                .unwrap()
+                .request
+                .module,
+            handler.clone().request.module
+        );
+        assert_eq!(
+            thunder_event_processor.handle_listener(true, app_id.clone(), handler.clone()),
+            false
+        );
+        assert_eq!(
+            thunder_event_processor.handle_listener(false, app_id, handler),
+            true
+        );
+        thunder_event_processor.add_last_event(
+            "onPowerStateChanged",
+            &ExtnEvent::Value(json!({"powerState": "STANDBY","currentPowerState":"ON"})),
+        );
+        assert_eq!(
+            thunder_event_processor.check_last_event(
+                "onPowerStateChanged",
+                &ExtnEvent::Value(json!({"powerState": "STANDBY","currentPowerState":"ON"}))
+            ),
+            true
+        );
+
+        thunder_event_processor.set_backoff("test_event", 10);
+        assert_eq!(
+            thunder_event_processor
+                .get_backoff("test_event")
+                .unwrap()
+                .current_back_off,
+            10
+        );
+        assert_eq!(
+            thunder_event_processor
+                .clear_backoff("test_event")
+                .unwrap()
+                .current_back_off,
+            10
+        );
+    }
+
+    #[tokio::test]
+    async fn test_thunder_event_handler() {
+        let handler = ThunderEventHandler {
+            request: DeviceSubscribeRequest {
+                module: "device".to_string(),
+                event_name: "onPowerStateChanged".to_string(),
+                params: None,
+                sub_id: Some("onPowerStateChanged".to_string()),
+            },
+            handle: |_, _, _| {},
+            is_valid: |event| match event {
+                ThunderEventMessage::PowerState(_) => true,
+                _ => false,
+            },
+            listeners: vec![],
+            id: "onPowerStateChanged".to_string(),
+            callback_type: DeviceEventCallback::ExtnEvent,
+        };
+        assert_eq!(handler.get_id(), "onPowerStateChanged");
+    }
+}
