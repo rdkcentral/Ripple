@@ -1596,6 +1596,254 @@ mod tests {
         };
 
         use super::EndpointBrokerState;
+        use crate::broker::endpoint_broker::BrokerConnectRequest;
+        use crate::broker::rules_engine::RuleEndpoint;
+        use crate::broker::rules_engine::RuleEndpointProtocol;
+        use ripple_sdk::api::session::AccountSession;
+
+        #[tokio::test]
+        async fn test_build_endpoint_http() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+
+            let endpoint = RuleEndpoint {
+                protocol: RuleEndpointProtocol::Http,
+                ..Default::default()
+            };
+
+            let request = BrokerConnectRequest::new(
+                "http_endpoint".to_string(),
+                endpoint.clone(),
+                state.reconnect_tx.clone(),
+            );
+
+            state.build_endpoint(None, request);
+
+            let endpoints = state.get_endpoints();
+            assert!(endpoints.contains_key("http_endpoint"));
+        }
+
+        #[tokio::test]
+        async fn test_build_endpoint_websocket() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+
+            let endpoint = RuleEndpoint {
+                protocol: RuleEndpointProtocol::Websocket,
+                ..Default::default()
+            };
+
+            let request = BrokerConnectRequest::new(
+                "websocket_endpoint".to_string(),
+                endpoint.clone(),
+                state.reconnect_tx.clone(),
+            );
+
+            state.build_endpoint(None, request);
+
+            let endpoints = state.get_endpoints();
+            assert!(endpoints.contains_key("websocket_endpoint"));
+        }
+
+        #[tokio::test]
+        async fn test_build_endpoint_thunder() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+
+            let endpoint = RuleEndpoint {
+                protocol: RuleEndpointProtocol::Thunder,
+                ..Default::default()
+            };
+
+            let request = BrokerConnectRequest::new(
+                "thunder_endpoint".to_string(),
+                endpoint.clone(),
+                state.reconnect_tx.clone(),
+            );
+
+            state.build_endpoint(None, request);
+
+            let endpoints = state.get_endpoints();
+            assert!(endpoints.contains_key("thunder_endpoint"));
+        }
+
+        #[tokio::test]
+        async fn test_build_endpoint_workflow() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+
+            let endpoint = RuleEndpoint {
+                protocol: RuleEndpointProtocol::Workflow,
+                ..Default::default()
+            };
+
+            let request = BrokerConnectRequest::new(
+                "workflow_endpoint".to_string(),
+                endpoint.clone(),
+                state.reconnect_tx.clone(),
+            );
+
+            state.build_endpoint(None, request);
+
+            let endpoints = state.get_endpoints();
+            assert!(endpoints.contains_key("workflow_endpoint"));
+        }
+
+        #[tokio::test]
+        async fn test_build_endpoint_extn() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+
+            let endpoint = RuleEndpoint {
+                protocol: RuleEndpointProtocol::Extn,
+                ..Default::default()
+            };
+
+            let request = BrokerConnectRequest::new(
+                "extn_endpoint".to_string(),
+                endpoint.clone(),
+                state.reconnect_tx.clone(),
+            );
+
+            state.build_endpoint(None, request);
+
+            let endpoints = state.get_endpoints();
+            assert!(endpoints.contains_key("extn_endpoint"));
+        }
+
+        #[tokio::test]
+        async fn test_build_endpoint_with_cleaner() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+
+            let endpoint = RuleEndpoint {
+                protocol: RuleEndpointProtocol::Websocket,
+                ..Default::default()
+            };
+
+            let request = BrokerConnectRequest::new(
+                "websocket_with_cleaner".to_string(),
+                endpoint.clone(),
+                state.reconnect_tx.clone(),
+            );
+
+            state.build_endpoint(None, request);
+
+            let cleaners = state.cleaner_list.read().unwrap();
+            assert!(!cleaners.is_empty());
+        }
+
+        #[tokio::test]
+        async fn test_build_endpoint_duplicate_key() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+
+            let endpoint = RuleEndpoint {
+                protocol: RuleEndpointProtocol::Http,
+                ..Default::default()
+            };
+
+            let request = BrokerConnectRequest::new(
+                "duplicate_key".to_string(),
+                endpoint.clone(),
+                state.reconnect_tx.clone(),
+            );
+
+            state.build_endpoint(None, request.clone());
+            state.build_endpoint(None, request);
+
+            let endpoints = state.get_endpoints();
+            assert_eq!(endpoints.len(), 1);
+            assert!(endpoints.contains_key("duplicate_key"));
+        }
+
+        #[tokio::test]
+        async fn test_build_endpoint_with_session() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+
+            let endpoint = RuleEndpoint {
+                protocol: RuleEndpointProtocol::Extn,
+                ..Default::default()
+            };
+
+            let session = Some(AccountSession::default());
+            let request = BrokerConnectRequest::new_with_sesssion(
+                "extn_with_session".to_string(),
+                endpoint.clone(),
+                state.reconnect_tx.clone(),
+                session.clone(),
+            );
+
+            state.build_endpoint(None, request);
+
+            let endpoints = state.get_endpoints();
+            assert!(endpoints.contains_key("extn_with_session"));
+        }
 
         #[tokio::test]
         async fn get_request() {
