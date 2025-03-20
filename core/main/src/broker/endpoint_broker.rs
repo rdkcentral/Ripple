@@ -1587,9 +1587,91 @@ mod tests {
 
         use super::EndpointBrokerState;
         use crate::broker::endpoint_broker::BrokerConnectRequest;
+        use crate::broker::endpoint_broker::ATOMIC_ID;
         use crate::broker::rules_engine::RuleEndpoint;
         use crate::broker::rules_engine::RuleEndpointProtocol;
         use ripple_sdk::api::session::AccountSession;
+        use std::sync::atomic::Ordering;
+        #[cfg(test)]
+        mod get_next_id_tests {
+            use super::*;
+
+            #[test]
+            fn test_get_next_id_initial_value() {
+                // Reset the ATOMIC_ID to a known state for testing
+                ATOMIC_ID.store(0, Ordering::Relaxed);
+
+                let id = EndpointBrokerState::get_next_id();
+                assert_eq!(id, 1, "Expected initial ID to be 0");
+            }
+
+            #[test]
+            fn test_get_next_id_increment() {
+                // Reset the ATOMIC_ID to a known state for testing
+                ATOMIC_ID.store(0, Ordering::Relaxed);
+
+                let id1 = EndpointBrokerState::get_next_id();
+                let id2 = EndpointBrokerState::get_next_id();
+                let id3 = EndpointBrokerState::get_next_id();
+
+                assert_eq!(id1, 1, "Expected first ID to be 0");
+                assert_eq!(id2, 2, "Expected second ID to be 1");
+                assert_eq!(id3, 3, "Expected third ID to be 2");
+            }
+
+            #[test]
+            fn test_get_next_id_large_values() {
+                // Set ATOMIC_ID to a large value
+                ATOMIC_ID.store(u64::MAX - 2, Ordering::Relaxed);
+
+                let id1 = EndpointBrokerState::get_next_id();
+                let id2 = EndpointBrokerState::get_next_id();
+
+                assert_eq!(id1, u64::MAX - 1, "Expected first ID to be u64::MAX - 1");
+                assert_eq!(id2, u64::MAX, "Expected second ID to be u64::MAX");
+            }
+
+            #[test]
+            fn test_get_next_id_wraparound_behavior() {
+                // Set ATOMIC_ID to the maximum value
+                ATOMIC_ID.store(u64::MAX, Ordering::Relaxed);
+
+                let id = EndpointBrokerState::get_next_id();
+
+                // In a real-world scenario, this would likely panic or wrap around.
+                // For this test, we assume wrapping behavior.
+                assert_eq!(id, 0, "Expected ID to wrap around to 0");
+            }
+
+            #[test]
+            fn test_get_next_id_thread_safety() {
+                // Reset the ATOMIC_ID to a known state for testing
+                ATOMIC_ID.store(0, Ordering::Relaxed);
+
+                let num_threads = 10;
+                let num_iterations = 1000;
+                let mut handles = vec![];
+
+                for _ in 0..num_threads {
+                    handles.push(std::thread::spawn(move || {
+                        for _ in 0..num_iterations {
+                            EndpointBrokerState::get_next_id();
+                        }
+                    }));
+                }
+
+                for handle in handles {
+                    handle.join().unwrap();
+                }
+
+                let final_id = ATOMIC_ID.load(Ordering::Relaxed);
+                assert_eq!(
+                    final_id,
+                    (num_threads * num_iterations) as u64,
+                    "Expected final ID to match the total number of increments"
+                );
+            }
+        }
 
         #[tokio::test]
         async fn test_build_endpoint_http() {
