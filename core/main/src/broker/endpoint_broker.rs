@@ -553,16 +553,6 @@ impl EndpointBrokerState {
     pub fn get_endpoints(&self) -> HashMap<String, BrokerSender> {
         self.endpoint_map.read().unwrap().clone()
     }
-    pub fn get_other_endpoints(&self, me: &str) -> HashMap<String, BrokerSender> {
-        let f = self.endpoint_map.read().unwrap().clone();
-        let mut result = HashMap::new();
-        for (k, v) in f.iter() {
-            if k.as_str() != me {
-                result.insert(k.clone(), v.clone());
-            }
-        }
-        result
-    }
 
     fn build_endpoint(&mut self, ps: Option<PlatformState>, request: BrokerConnectRequest) {
         let endpoint = request.endpoint.clone();
