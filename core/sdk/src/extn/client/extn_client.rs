@@ -1033,7 +1033,7 @@ pub mod tests {
         },
         utils::{
             logger::init_logger,
-            mock_utils::{get_mock_extn_client, set_mock_response, MockEvent, MockRequest},
+            mock_utils::{get_mock_extn_client, queue_mock_response, MockEvent, MockRequest},
         },
     };
     use async_channel::unbounded;
@@ -1105,7 +1105,7 @@ pub mod tests {
             ts: Some(Utc::now().timestamp_millis()),
         };
         let id = Uuid::new_v4().to_string();
-        set_mock_response(id.clone(), Ok(msg.clone()));
+        queue_mock_response(&id, Ok(msg.clone()));
         let result: Result<ExtnResponse, RippleError> = client
             .request_with_timeout(
                 AccountSessionRequest::Get,
@@ -1130,7 +1130,7 @@ pub mod tests {
             ts: Some(Utc::now().timestamp_millis()),
         };
         let id = Uuid::new_v4().to_string();
-        set_mock_response(id.clone(), Ok(msg.clone()));
+        queue_mock_response(&id, Ok(msg.clone()));
         let result: Result<ExtnResponse, RippleError> = client
             .request_with_timeout_main(
                 AccountSessionRequest::Get,
