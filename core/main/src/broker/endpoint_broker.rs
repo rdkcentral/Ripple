@@ -2055,4 +2055,253 @@ mod tests {
         apply_response(filter, &rpc_request.ctx.method, &mut response);
         assert_eq!(response.result.unwrap(), "GB");
     }
+    #[cfg(test)]
+    mod static_rules {
+        use crate::broker::endpoint_broker::apply_response;
+        use crate::broker::endpoint_broker::BrokerConnectRequest;
+        use crate::broker::endpoint_broker::BrokerOutput;
+        use crate::broker::endpoint_broker::{BrokerCallback, EndpointBrokerState};
+        use crate::broker::rules_engine::RuleEndpoint;
+        use crate::broker::rules_engine::RuleEndpointProtocol;
+        use crate::broker::rules_engine::RuleEngine;
+        use crate::broker::rules_engine::RuleSet;
+        use crate::broker::rules_engine::{Rule, RuleTransform};
+        use crate::service::extn::ripple_client::RippleClient;
+        use crate::state::bootstrap_state::ChannelsState;
+        use crate::state::metrics_state::MetricsState;
+        use jaq_interpret::Val;
+        use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
+        use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
+
+        use ripple_sdk::tokio;
+        use ripple_sdk::tokio::sync::mpsc::channel;
+        use ripple_sdk::Mockable;
+        use serde_json::json;
+        use serde_json::Value;
+        #[tokio::test]
+        pub async fn test_static_rule_happy_path() {
+            //write this test case to test static rule happy path
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+            let endpoint = RuleEndpoint {
+                protocol: RuleEndpointProtocol::Http,
+                ..Default::default()
+            };
+            let request = BrokerConnectRequest::new(
+                "http_endpoint".to_string(),
+                endpoint.clone(),
+                state.reconnect_tx.clone(),
+            );
+            state.build_endpoint(None, request);
+            let mut data = JsonRpcApiResponse::mock();
+            data.result = Some(
+                json!( { "success" : true, "stbVersion":"SCXI11BEI_VBN_24Q3_sprint_20240717150752sdy_FG","receiverVersion":""} ),
+            );
+            let mut output: BrokerOutput = BrokerOutput::new(data.clone());
+            let filter = "if .result and .result.success then (.result.stbVersion | split(\"_\") [0]) elif .error then if .error.code == -32601 then {error: { code: -1, message: \"Unknown method.\" }} else \"Error occurred with a different code\" end else \"No result or recognizable error\" end".to_string();
+            let mut response = JsonRpcApiResponse::mock();
+            response.result = data.result;
+            let mut rpc_request = RpcRequest::mock();
+            rpc_request.ctx.call_id = 2;
+            let rule = Rule {
+                alias: "somecallsign.method".to_owned(),
+                transform: RuleTransform::default(),
+                endpoint: None,
+                filter: None,
+                event_handler: None,
+                sources: None,
+            };
+            state.update_request(&rpc_request, rule, None, None, vec![]);
+            apply_response(filter, &rpc_request.ctx.method, &mut output.data);
+            assert_eq!(output.data.result.unwrap(), "SCXI11BEI".to_string());
+        }
+        #[tokio::test]
+        pub async fn test_static_rule_no_success_field() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+            let endpoint = RuleEndpoint {
+                protocol: RuleEndpointProtocol::Http,
+                ..Default::default()
+            };
+            let request = BrokerConnectRequest::new(
+                "http_endpoint".to_string(),
+                endpoint.clone(),
+                state.reconnect_tx.clone(),
+            );
+            state.build_endpoint(None, request);
+            let mut data = JsonRpcApiResponse::mock();
+            data.result =
+                Some(json!({ "stbVersion": "SCXI11BEI_VBN_24Q3_sprint_20240717150752sdy_FG" }));
+            let mut output: BrokerOutput = BrokerOutput::new(data.clone());
+            let filter = "if .result and .result.success then (.result.stbVersion | split(\"_\") [0]) elif .error then if .error.code == -32601 then {error: { code: -1, message: \"Unknown method.\" }} else \"Error occurred with a different code\" end else \"No result or recognizable error\" end".to_string();
+            let mut response = JsonRpcApiResponse::mock();
+            response.result = data.result;
+            let mut rpc_request = RpcRequest::mock();
+            rpc_request.ctx.call_id = 2;
+            let rule = Rule {
+                alias: "somecallsign.method".to_owned(),
+                transform: RuleTransform::default(),
+                endpoint: None,
+                filter: None,
+                event_handler: None,
+                sources: None,
+            };
+            state.update_request(&rpc_request, rule, None, None, vec![]);
+            apply_response(filter, &rpc_request.ctx.method, &mut output.data);
+            assert_eq!(
+                output.data.result.unwrap(),
+                "No result or recognizable error"
+            );
+        }
+
+        #[tokio::test]
+        pub async fn test_static_rule_error_code_handling() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+            let endpoint = RuleEndpoint {
+                protocol: RuleEndpointProtocol::Http,
+                ..Default::default()
+            };
+            let request = BrokerConnectRequest::new(
+                "http_endpoint".to_string(),
+                endpoint.clone(),
+                state.reconnect_tx.clone(),
+            );
+            state.build_endpoint(None, request);
+            let mut data = JsonRpcApiResponse::mock();
+            data.error = Some(json!({ "code": -32601, "message": "Method not found" }));
+            let mut output: BrokerOutput = BrokerOutput::new(data.clone());
+            let filter = "if .result and .result.success then (.result.stbVersion | split(\"_\") [0]) elif .error then if .error.code == -32601 then {error: { code: -1, message: \"Unknown method.\" }} else \"Error occurred with a different code\" end else \"No result or recognizable error\" end".to_string();
+            let mut response = JsonRpcApiResponse::mock();
+            response.error = data.error;
+            let mut rpc_request = RpcRequest::mock();
+            rpc_request.ctx.call_id = 2;
+            let rule = Rule {
+                alias: "somecallsign.method".to_owned(),
+                transform: RuleTransform::default(),
+                endpoint: None,
+                filter: None,
+                event_handler: None,
+                sources: None,
+            };
+            state.update_request(&rpc_request, rule, None, None, vec![]);
+            apply_response(filter, &rpc_request.ctx.method, &mut output.data);
+            assert_eq!(
+                output.data.error.unwrap(),
+                json!({ "code": -1, "message": "Unknown method." })
+            );
+        }
+
+        #[tokio::test]
+        pub async fn test_static_rule_no_result_or_error() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+            let endpoint = RuleEndpoint {
+                protocol: RuleEndpointProtocol::Http,
+                ..Default::default()
+            };
+            let request = BrokerConnectRequest::new(
+                "http_endpoint".to_string(),
+                endpoint.clone(),
+                state.reconnect_tx.clone(),
+            );
+            state.build_endpoint(None, request);
+            let mut data = JsonRpcApiResponse::mock();
+            let mut output: BrokerOutput = BrokerOutput::new(data.clone());
+            let filter = "if .result and .result.success then (.result.stbVersion | split(\"_\") [0]) elif .error then if .error.code == -32601 then {error: { code: -1, message: \"Unknown method.\" }} else \"Error occurred with a different code\" end else \"No result or recognizable error\" end".to_string();
+            let mut response = JsonRpcApiResponse::mock();
+            response.result = data.result;
+            let mut rpc_request = RpcRequest::mock();
+            rpc_request.ctx.call_id = 2;
+            let rule = Rule {
+                alias: "somecallsign.method".to_owned(),
+                transform: RuleTransform::default(),
+                endpoint: None,
+                filter: None,
+                event_handler: None,
+                sources: None,
+            };
+            state.update_request(&rpc_request, rule, None, None, vec![]);
+            apply_response(filter, &rpc_request.ctx.method, &mut output.data);
+            assert_eq!(
+                output.data.result.unwrap(),
+                "No result or recognizable error"
+            );
+        }
+
+        #[tokio::test]
+        pub async fn test_static_rule_success_with_empty_stb_version() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+            let endpoint = RuleEndpoint {
+                protocol: RuleEndpointProtocol::Http,
+                ..Default::default()
+            };
+            let request = BrokerConnectRequest::new(
+                "http_endpoint".to_string(),
+                endpoint.clone(),
+                state.reconnect_tx.clone(),
+            );
+            state.build_endpoint(None, request);
+            let mut data = JsonRpcApiResponse::mock();
+            data.result = Some(json!({ "success": true, "stbVersion": "" }));
+            let mut output: BrokerOutput = BrokerOutput::new(data.clone());
+            let filter = "if .result and .result.success then (.result.stbVersion | split(\"_\") [0]) elif .error then if .error.code == -32601 then {error: { code: -1, message: \"Unknown method.\" }} else \"Error occurred with a different code\" end else \"No result or recognizable error\" end".to_string();
+            let mut response = JsonRpcApiResponse::mock();
+            response.result = data.result;
+            let mut rpc_request = RpcRequest::mock();
+            rpc_request.ctx.call_id = 2;
+            let rule = Rule {
+                alias: "somecallsign.method".to_owned(),
+                transform: RuleTransform::default(),
+                endpoint: None,
+                filter: None,
+                event_handler: None,
+                sources: None,
+            };
+            state.update_request(&rpc_request, rule, None, None, vec![]);
+            apply_response(filter, &rpc_request.ctx.method, &mut output.data);
+            assert_eq!(output.data.result.unwrap(), Value::Null);
+        }
+    }
 }
