@@ -55,7 +55,7 @@ pub fn queue_mock_response(test_context: &str, response: Result<ExtnMessage, Rip
     let mut mock_queues = mock_queue.write().unwrap();
     let queue = mock_queues
         .entry(test_context.to_string())
-        .or_insert_with(VecDeque::new);
+        .or_default();
     queue.push_back(response);
 
     // Print the size for debugging

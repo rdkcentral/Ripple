@@ -1107,11 +1107,7 @@ pub mod tests {
         let id = Uuid::new_v4().to_string();
         queue_mock_response(&id, Ok(msg.clone()));
         let result: Result<ExtnResponse, RippleError> = client
-            .request_with_timeout(
-                AccountSessionRequest::Get,
-                5000,
-                Some(id),
-            )
+            .request_with_timeout(AccountSessionRequest::Get, 5000, Some(id))
             .await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExtnResponse::String("success".to_string()));
@@ -1132,11 +1128,7 @@ pub mod tests {
         let id = Uuid::new_v4().to_string();
         queue_mock_response(&id, Ok(msg.clone()));
         let result: Result<ExtnResponse, RippleError> = client
-            .request_with_timeout_main(
-                AccountSessionRequest::Get,
-                5000,
-                Some(id),
-            )
+            .request_with_timeout_main(AccountSessionRequest::Get, 5000, Some(id))
             .await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExtnResponse::String("success".to_string()));
