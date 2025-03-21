@@ -45,7 +45,7 @@ use ripple_sdk::{
 use serde_json::{json, Value};
 
 use crate::{
-    broker::broker_utils,
+    broker::broker_utils::{self, BrokerUtils},
     firebolt::handlers::{
         capabilities_rpc::is_permitted,
         closed_captions_rpc::ClosedcaptionsImpl,
@@ -207,35 +207,53 @@ impl SettingsProcessor {
             debug!("Checking Key {:?}", key);
             match key {
                 SettingKey::VoiceGuidanceEnabled => {
-                    if voice_guidance_settings_enabled_changed(
-                        state,
-                        ctx,
-                        &ListenRequest { listen: true },
-                        Some(Box::new(SettingsChangeEventDecorator {
-                            request: request.clone(),
-                        })),
+                    // <pca>
+                    // if voice_guidance_settings_enabled_changed(
+                    //     state,
+                    //     ctx,
+                    //     &ListenRequest { listen: true },
+                    //     Some(Box::new(SettingsChangeEventDecorator {
+                    //         request: request.clone(),
+                    //     })),
+                    // )
+                    // .await
+                    // .is_err()
+                    // {
+                    //     resp = false;
+                    // }
+                    resp = BrokerUtils::process_internal_main_request(
+                        &mut state.clone(),
+                        "badger.voiceguidance.onEnabledChanged",
+                        serde_json::to_value(json!({"listen": true})).ok(),
                     )
                     .await
-                    .is_err()
-                    {
-                        resp = false;
-                    }
+                    .is_ok();
+                    // </pca>
                 }
                 SettingKey::ClosedCaptions => {
-                    if rpc_add_event_listener_with_decorator(
-                        state,
-                        ctx.clone(),
-                        ListenRequest { listen: true },
-                        EVENT_CLOSED_CAPTIONS_ENABLED,
-                        Some(Box::new(SettingsChangeEventDecorator {
-                            request: request.clone(),
-                        })),
+                    // <pca>
+                    // if rpc_add_event_listener_with_decorator(
+                    //     state,
+                    //     ctx.clone(),
+                    //     ListenRequest { listen: true },
+                    //     EVENT_CLOSED_CAPTIONS_ENABLED,
+                    //     Some(Box::new(SettingsChangeEventDecorator {
+                    //         request: request.clone(),
+                    //     })),
+                    // )
+                    // .await
+                    // .is_err()
+                    // {
+                    //     resp = false;
+                    // }
+                    resp = BrokerUtils::process_internal_main_request(
+                        &mut state.clone(),
+                        "badger.closedcaptions.onEnabledChanged",
+                        serde_json::to_value(json!({"listen": true})).ok(),
                     )
                     .await
-                    .is_err()
-                    {
-                        resp = false;
-                    }
+                    .is_ok();
+                    // </pca>
                 }
                 SettingKey::AllowPersonalization => {
                     if PrivacyImpl::listen_content_policy_changed(

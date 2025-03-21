@@ -1301,7 +1301,7 @@ impl BrokerOutputForwarder {
     async fn handle_event(
         platform_state: PlatformState,
         method: String,
-        _broker_request: BrokerRequest,
+        broker_request: BrokerRequest,
         rpc_request: RpcRequest,
         mut response: JsonRpcApiResponse,
     ) {
@@ -1340,12 +1340,38 @@ impl BrokerOutputForwarder {
         // } else {
         //     error!("handle_event: error processing internal main request");
         // }
-        if let Ok(res) =
-            BrokerUtils::process_internal_main_request(&mut platform_state_c, method.as_str(), None)
-                .await
+
+        // <pca>
+        // if let Ok(res) =
+        //     BrokerUtils::process_internal_main_request(&mut platform_state_c, method.as_str(), None)
+        //         .await
+        // {
+        //     response.result = Some(res.clone());
+        // }
+
+        let params = if let Some(request) = broker_request.rule.transform.request {
+            println!("*** _DEBUG: handle_event: request={:?}", request);
+            if let Ok(map) = serde_json::from_str::<serde_json::Map<String, Value>>(&request) {
+                Some(Value::Object(map))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        println!("*** _DEBUG: handle_event: params={:?}", params);
+
+        if let Ok(res) = BrokerUtils::process_internal_main_request(
+            &mut platform_state_c,
+            method.as_str(),
+            params,
+        )
+        .await
         {
             response.result = Some(res.clone());
         }
+        // </pca>
 
         response.id = Some(request_id);
 

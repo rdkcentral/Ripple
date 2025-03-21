@@ -228,6 +228,10 @@ impl AppEvents {
         event_context: Option<Value>,
         decorator: Option<Box<dyn AppEventDecorator + Send + Sync>>,
     ) {
+        println!(
+            "*** _DEBUG: add_listener_with_context_and_decorator: event_name={}",
+            event_name
+        );
         let session = match state.session_state.get_session(&call_ctx) {
             Some(session) => session,
             None => {

@@ -16,6 +16,7 @@
 //
 
 use crate::{
+    broker::broker_utils::BrokerUtils,
     firebolt::rpc::RippleRPCProvider,
     service::apps::app_events::{AppEventDecorator, AppEvents},
     state::platform_state::PlatformState,
@@ -46,11 +47,10 @@ use ripple_sdk::{
         },
         gateway::rpc_gateway_api::CallContext,
     },
-    extn::extn_client_message::ExtnResponse,
     log::error,
     utils::rpc_utils::rpc_error_with_code_result,
 };
-use serde_json::json;
+use serde_json::{json, Value};
 
 #[rpc(server)]
 pub trait Voiceguidance {
@@ -73,26 +73,51 @@ pub struct VoiceguidanceImpl {
     pub state: PlatformState,
 }
 
+// <pca>
+// pub async fn voice_guidance_settings_enabled(state: &PlatformState) -> RpcResult<bool> {
+//     let resp = state
+//         .get_client()
+//         .send_extn_request(DeviceInfoRequest::VoiceGuidanceEnabled)
+//         .await;
+//     match resp {
+//         Ok(value) => {
+//             if let Some(ExtnResponse::Boolean(v)) = value.payload.extract() {
+//                 Ok(v)
+//             } else {
+//                 Err(jsonrpsee::core::Error::Custom(String::from(
+//                     "Voice guidance enabled error response TBD1",
+//                 )))
+//             }
+//         }
+//         Err(_) => Err(jsonrpsee::core::Error::Custom(String::from(
+//             "Voice guidance enabled error response TBD2",
+//         ))),
+//     }
+// }
 pub async fn voice_guidance_settings_enabled(state: &PlatformState) -> RpcResult<bool> {
-    let resp = state
-        .get_client()
-        .send_extn_request(DeviceInfoRequest::VoiceGuidanceEnabled)
-        .await;
-    match resp {
-        Ok(value) => {
-            if let Some(ExtnResponse::Boolean(v)) = value.payload.extract() {
-                Ok(v)
+    match BrokerUtils::process_internal_main_request(
+        &mut state.clone(),
+        "voiceguidance.enabled",
+        None,
+    )
+    .await
+    {
+        Ok(enabled_value) => {
+            if let Value::Bool(enabled) = enabled_value {
+                Ok(enabled)
             } else {
                 Err(jsonrpsee::core::Error::Custom(String::from(
-                    "Voice guidance enabled error response TBD1",
+                    "voice_guidance_settings_enabled: Unexpected value type",
                 )))
             }
         }
-        Err(_) => Err(jsonrpsee::core::Error::Custom(String::from(
-            "Voice guidance enabled error response TBD2",
+        Err(e) => Err(jsonrpsee::core::Error::Custom(format!(
+            "voice_guidance_settings_enabled: e={}",
+            e
         ))),
     }
 }
+// </pca>
 
 pub async fn voice_guidance_settings_enabled_changed(
     platform_state: &PlatformState,
