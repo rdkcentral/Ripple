@@ -553,6 +553,7 @@ impl EndpointBrokerState {
     pub fn get_endpoints(&self) -> HashMap<String, BrokerSender> {
         self.endpoint_map.read().unwrap().clone()
     }
+
     pub fn get_other_endpoints(&self, me: &str) -> HashMap<String, BrokerSender> {
         let f = self.endpoint_map.read().unwrap().clone();
         let mut result = HashMap::new();
@@ -1524,7 +1525,9 @@ fn apply_filter(broker_request: &BrokerRequest, result: &Value, rpc_request: &Rp
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::broker::rules_engine::RuleSet;
     use crate::broker::rules_engine::RuleTransform;
+    use crate::state::bootstrap_state::ChannelsState;
     use ripple_sdk::{tokio::sync::mpsc::channel, Mockable};
 
     #[tokio::test]
@@ -1806,5 +1809,235 @@ mod tests {
         response.result = Some(result);
         apply_response(filter, &rpc_request.ctx.method, &mut response);
         assert_eq!(response.result.unwrap(), "GB");
+    }
+
+    #[tokio::test]
+    async fn test_get_endpoints() {
+        let (tx, _) = channel(2);
+        let client = RippleClient::new(ChannelsState::new());
+        let mut state = EndpointBrokerState::new(
+            MetricsState::default(),
+            tx,
+            RuleEngine {
+                rules: RuleSet::default(),
+            },
+            client,
+        );
+
+        // Add endpoints to the state
+        let (sender1, _) = channel(2);
+        let broker_sender1 = BrokerSender { sender: sender1 };
+        state.add_endpoint("endpoint1".to_string(), broker_sender1.clone());
+
+        let (sender2, _) = channel(2);
+        let broker_sender2 = BrokerSender { sender: sender2 };
+        state.add_endpoint("endpoint2".to_string(), broker_sender2.clone());
+
+        // Call the get_endpoints function
+        let endpoints = state.get_endpoints();
+
+        // Assert that the endpoints are correctly retrieved
+        assert_eq!(endpoints.len(), 2);
+        assert!(endpoints.contains_key("endpoint1"));
+        assert!(endpoints.contains_key("endpoint2"));
+        assert_eq!(endpoints.get("endpoint1").unwrap().sender.capacity(), 2);
+        assert_eq!(endpoints.get("endpoint2").unwrap().sender.capacity(), 2);
+    }
+
+    #[test]
+    fn test_get_next_id() {
+        // Reset the ATOMIC_ID to a known state for testing
+        ATOMIC_ID.store(0, Ordering::Relaxed);
+        ATOMIC_ID.fetch_add(9, Ordering::Relaxed);
+
+        // Call the function and verify the returned IDs
+        let id1 = EndpointBrokerState::get_next_id();
+        let id2 = EndpointBrokerState::get_next_id();
+        let id3 = EndpointBrokerState::get_next_id();
+
+        assert_eq!(id1, 10);
+        assert_eq!(id2, 11);
+        assert_eq!(id3, 12);
+
+        // Verify the internal state of ATOMIC_ID
+        assert_eq!(ATOMIC_ID.load(Ordering::Relaxed), 12);
+    }
+
+    #[cfg(test)]
+    mod handle_brokerage_tests {
+        use super::*;
+
+        #[tokio::test]
+        async fn test_handle_brokerage_static_rule() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet {
+                        rules: {
+                            let mut map = HashMap::new();
+                            map.insert(
+                                "static".to_string(),
+                                Rule {
+                                    alias: "static".to_string(),
+                                    transform: RuleTransform::default(),
+                                    endpoint: None,
+                                    filter: None,
+                                    event_handler: None,
+                                    sources: None,
+                                },
+                            );
+                            map
+                        },
+                        endpoints: HashMap::new(),
+                    },
+                },
+                client,
+            );
+
+            let rpc_request = RpcRequest::mock();
+            let handled = state.handle_brokerage(rpc_request, None, None, vec![], None, vec![]);
+
+            assert_eq!(handled, false);
+        }
+
+        #[tokio::test]
+        async fn test_handle_brokerage_provided_rule() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet {
+                        rules: {
+                            let mut map = HashMap::new();
+                            map.insert(
+                                "provided".to_string(),
+                                Rule {
+                                    alias: "provided".to_string(),
+                                    transform: RuleTransform::default(),
+                                    endpoint: None,
+                                    filter: None,
+                                    event_handler: None,
+                                    sources: None,
+                                },
+                            );
+                            map
+                        },
+                        endpoints: HashMap::new(),
+                    },
+                },
+                client,
+            );
+
+            let rpc_request = RpcRequest::mock();
+            let handled = state.handle_brokerage(rpc_request, None, None, vec![], None, vec![]);
+
+            assert_eq!(handled, false);
+        }
+
+        #[tokio::test]
+        async fn test_handle_brokerage_no_rule_found() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+
+            let rpc_request = RpcRequest::mock();
+            let handled = state.handle_brokerage(rpc_request, None, None, vec![], None, vec![]);
+
+            assert!(!handled, "No rule found should not be handled");
+        }
+
+        #[tokio::test]
+        async fn test_handle_brokerage_with_endpoint() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet {
+                        rules: {
+                            let mut map = HashMap::new();
+                            map.insert(
+                                "test_rule".to_string(),
+                                Rule {
+                                    alias: "test_rule".to_string(),
+                                    transform: RuleTransform::default(),
+                                    endpoint: Some("test_endpoint".to_string()),
+                                    filter: None,
+                                    event_handler: None,
+                                    sources: None,
+                                },
+                            );
+                            map
+                        },
+                        endpoints: HashMap::new(),
+                    },
+                },
+                client,
+            );
+
+            let (sender, _) = channel(2);
+            let broker_sender = BrokerSender { sender };
+            state.add_endpoint("test_endpoint".to_string(), broker_sender);
+
+            let rpc_request = RpcRequest::mock();
+            let handled = state.handle_brokerage(rpc_request, None, None, vec![], None, vec![]);
+
+            assert_eq!(handled, false);
+        }
+
+        #[tokio::test]
+        async fn test_handle_brokerage_unlisten_request() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet {
+                        rules: {
+                            let mut map = HashMap::new();
+                            map.insert(
+                                "test_rule".to_string(),
+                                Rule {
+                                    alias: "test_rule".to_string(),
+                                    transform: RuleTransform::default(),
+                                    endpoint: Some("test_endpoint".to_string()),
+                                    filter: None,
+                                    event_handler: None,
+                                    sources: None,
+                                },
+                            );
+                            map
+                        },
+                        endpoints: HashMap::new(),
+                    },
+                },
+                client,
+            );
+
+            let (sender, _) = channel(2);
+            let broker_sender = BrokerSender { sender };
+            state.add_endpoint("test_endpoint".to_string(), broker_sender);
+
+            let mut rpc_request = RpcRequest::mock();
+            rpc_request.method = "unlisten".to_string();
+
+            let handled = state.handle_brokerage(rpc_request, None, None, vec![], None, vec![]);
+
+            assert_eq!(handled, false);
+        }
     }
 }
