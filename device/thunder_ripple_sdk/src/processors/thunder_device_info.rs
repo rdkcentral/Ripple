@@ -500,28 +500,6 @@ impl ThunderDeviceInfoRequestProcessor {
         }
     }
 
-    async fn start_internet_monitoring_changes(
-        state: CachedState,
-        request: ExtnMessage,
-        interval_in_seconds: u32,
-    ) -> bool {
-        // Self::start_internet_monitoring(&state).await
-        let response = state
-            .get_thunder_client()
-            .call(DeviceCallRequest {
-                method: ThunderPlugin::Network.method("startConnectivityMonitoring"),
-                params: Some(DeviceChannelParams::Json(
-                    json!({"interval":interval_in_seconds}).to_string(),
-                )),
-            })
-            .await;
-        if check_thunder_response_success(&response) {
-            return Self::respond(state.get_client(), request, ExtnResponse::None(()))
-                .await
-                .is_ok();
-        }
-        Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
-    }
     async fn internet_connection_status(state: CachedState, req: ExtnMessage) -> bool {
         if let Some(response) = Self::get_internet_connection_status(&state).await {
             trace!(
@@ -1482,9 +1460,6 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             DeviceInfoRequest::InternetConnectionStatus => {
                 Self::internet_connection_status(state.clone(), msg).await
             }
-            DeviceInfoRequest::StartMonitoringInternetChanges(i) => {
-                Self::start_internet_monitoring_changes(state.clone(), msg, i).await
-            }
             DeviceInfoRequest::FullCapabilities(keys) => {
                 let keys_as_str: Vec<&str> = keys.iter().map(String::as_str).collect();
                 Self::get_device_capabilities(state.clone(), &keys_as_str, msg).await
@@ -1493,7 +1468,6 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             DeviceInfoRequest::PlatformBuildInfo => {
                 Self::platform_build_info(state.clone(), msg).await
             }
-            _ => false,
         }
     }
 }

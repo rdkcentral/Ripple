@@ -16,7 +16,6 @@
 //
 
 pub mod apps;
-pub mod context_manager;
 pub mod extn;
 pub mod telemetry_builder;
 pub mod user_grants;

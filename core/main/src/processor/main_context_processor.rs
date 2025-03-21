@@ -21,25 +21,21 @@ use ripple_sdk::{
     api::{
         context::{ActivationStatus, RippleContext, RippleContextUpdateType},
         device::{
-            device_info_request::DeviceInfoRequest,
-            device_request::{InternetConnectionStatus, PowerState, SystemPowerState},
+            device_request::{PowerState, SystemPowerState},
             device_user_grants_data::GrantLifespan,
         },
         firebolt::fb_capabilities::{CapEvent, CapabilityRole, FireboltCap, FireboltPermission},
-        session::{AccountSessionRequest, AccountSessionResponse},
+        session::AccountSessionRequest,
     },
     async_trait::async_trait,
     extn::{
         client::extn_processor::{
             DefaultExtnStreamer, ExtnEventProcessor, ExtnStreamProcessor, ExtnStreamer,
         },
-        extn_client_message::{ExtnMessage, ExtnResponse},
+        extn_client_message::ExtnMessage,
     },
     log::{debug, error, info},
-    tokio::{
-        self,
-        sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
-    },
+    tokio::sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
 };
 
 use crate::{
@@ -87,26 +83,6 @@ impl MainContextProcessor {
             if let Some(session) = response.payload.extract() {
                 state.session_state.insert_account_session(session);
                 event = CapEvent::OnAvailable;
-                let state_c = state.clone();
-                // update ripple context for token asynchronously
-                tokio::spawn(async move {
-                    if let Ok(response) = state_c
-                        .get_client()
-                        .send_extn_request(AccountSessionRequest::GetAccessToken)
-                        .await
-                    {
-                        if let Some(ExtnResponse::AccountSession(
-                            AccountSessionResponse::AccountSessionToken(token),
-                        )) = response.payload.extract::<ExtnResponse>()
-                        {
-                            state_c.get_client().get_extn_client().context_update(
-                                ripple_sdk::api::context::RippleContextUpdateRequest::Token(token),
-                            )
-                        } else {
-                            error!("couldnt update the session response")
-                        }
-                    }
-                });
                 token_available = true;
             }
         }
@@ -152,30 +128,6 @@ impl MainContextProcessor {
         }
     }
 
-    fn handle_internet_connection_change(
-        state: &PlatformState,
-        internet_state: &Option<InternetConnectionStatus>,
-        // internet_state: &InternetConnectionStatus,
-    ) {
-        debug!("handling internet connection change: {:?}", internet_state);
-        let internet_state = match internet_state {
-            Some(state) => state,
-            None => return,
-        };
-
-        if matches!(internet_state, InternetConnectionStatus::FullyConnected) {
-            // get internet monitoring interval from platformState configuration
-            let interval_in_seconds = state
-                .get_device_manifest()
-                .get_internet_monitoring_interval();
-            //Send request to start internet monitoring.
-            if let Err(err) = state.get_client().get_extn_client().request_transient(
-                DeviceInfoRequest::StartMonitoringInternetChanges(interval_in_seconds),
-            ) {
-                error!("Error in sending start monitoring: {:?}", err);
-            }
-        }
-    }
     fn handle_power_state(state: &PlatformState, power_state: &Option<SystemPowerState>) {
         // fn handle_power_state(state: &PlatformState, power_state: &SystemPowerState) {
         let power_state = match power_state {
@@ -246,12 +198,6 @@ impl ExtnEventProcessor for MainContextProcessor {
                 }
                 RippleContextUpdateType::PowerStateChanged => {
                     Self::handle_power_state(&state.state, &extracted_message.system_power_state)
-                }
-                RippleContextUpdateType::InternetConnectionChanged => {
-                    Self::handle_internet_connection_change(
-                        &state.state,
-                        &extracted_message.internet_connectivity,
-                    )
                 }
                 _ => {}
             }
