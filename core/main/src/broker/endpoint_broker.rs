@@ -1871,7 +1871,7 @@ mod tests {
         async fn test_handle_brokerage_static_rule() {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
-            let mut state = EndpointBrokerState::new(
+            let state = EndpointBrokerState::new(
                 MetricsState::default(),
                 tx,
                 RuleEngine {
@@ -1900,7 +1900,7 @@ mod tests {
             let rpc_request = RpcRequest::mock();
             let handled = state.handle_brokerage(rpc_request, None, None, vec![], None, vec![]);
 
-            assert_eq!(handled, false);
+            assert!(!handled);
         }
 
         #[tokio::test]
@@ -1936,7 +1936,7 @@ mod tests {
             let rpc_request = RpcRequest::mock();
             let handled = state.handle_brokerage(rpc_request, None, None, vec![], None, vec![]);
 
-            assert_eq!(handled, false);
+            assert!(!handled);
         }
 
         #[tokio::test]
@@ -1995,7 +1995,7 @@ mod tests {
             let rpc_request = RpcRequest::mock();
             let handled = state.handle_brokerage(rpc_request, None, None, vec![], None, vec![]);
 
-            assert_eq!(handled, false);
+            assert!(!handled);
         }
 
         #[tokio::test]
@@ -2037,7 +2037,7 @@ mod tests {
 
             let handled = state.handle_brokerage(rpc_request, None, None, vec![], None, vec![]);
 
-            assert_eq!(handled, false);
+            assert!(!handled);
         }
     }
 }
