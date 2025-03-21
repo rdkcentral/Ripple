@@ -17,31 +17,46 @@
 
 use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
 use ripple_sdk::{
-    api::{firebolt::fb_telemetry::TelemetryPayload, gateway::rpc_gateway_api::CallContext},
+    api::{
+        apps::AppEvent,
+        firebolt::{fb_general::ListenRequestWithEvent, fb_telemetry::TelemetryPayload},
+        gateway::rpc_gateway_api::CallContext,
+    },
     async_trait::async_trait,
 };
 
 use crate::{
-    firebolt::rpc::RippleRPCProvider, service::telemetry_builder::TelemetryBuilder,
+    firebolt::rpc::RippleRPCProvider,
+    service::{apps::app_events::AppEvents, telemetry_builder::TelemetryBuilder},
     state::platform_state::PlatformState,
 };
 
 #[rpc(server)]
-pub trait Telemetry {
+pub trait Internal {
     #[method(name = "ripple.sendTelemetry")]
     async fn send_telemetry(&self, ctx: CallContext, payload: TelemetryPayload) -> RpcResult<()>;
 
     #[method(name = "ripple.setTelemetrySessionId")]
     fn set_telemetry_session_id(&self, ctx: CallContext, session_id: String) -> RpcResult<()>;
+
+    #[method(name = "ripple.sendAppEvent")]
+    async fn send_app_event(&self, ctx: CallContext, event: AppEvent) -> RpcResult<()>;
+
+    #[method(name = "ripple.registerAppEvent")]
+    async fn register_app_event(
+        &self,
+        ctx: CallContext,
+        request: ListenRequestWithEvent,
+    ) -> RpcResult<()>;
 }
 
 #[derive(Debug)]
-pub struct TelemetryImpl {
+pub struct InternalImpl {
     pub state: PlatformState,
 }
 
 #[async_trait]
-impl TelemetryServer for TelemetryImpl {
+impl InternalServer for InternalImpl {
     async fn send_telemetry(&self, _ctx: CallContext, payload: TelemetryPayload) -> RpcResult<()> {
         let _ = TelemetryBuilder::send_telemetry(&self.state, payload);
         Ok(())
@@ -51,11 +66,27 @@ impl TelemetryServer for TelemetryImpl {
         self.state.otel.update_session_id(Some(session_id));
         Ok(())
     }
+
+    async fn send_app_event(&self, _ctx: CallContext, event: AppEvent) -> RpcResult<()> {
+        AppEvents::emit_with_context(&self.state, &event.event_name, &event.result, event.context)
+            .await;
+        Ok(())
+    }
+
+    async fn register_app_event(
+        &self,
+        ctx: CallContext,
+        request: ListenRequestWithEvent,
+    ) -> RpcResult<()> {
+        let event = request.event.clone();
+        AppEvents::add_listener(&self.state, event, ctx, request.request);
+        Ok(())
+    }
 }
 
-pub struct TelemetryProvider;
-impl RippleRPCProvider<TelemetryImpl> for TelemetryProvider {
-    fn provide(state: PlatformState) -> RpcModule<TelemetryImpl> {
-        (TelemetryImpl { state }).into_rpc()
+pub struct InternalProvider;
+impl RippleRPCProvider<InternalImpl> for InternalProvider {
+    fn provide(state: PlatformState) -> RpcModule<InternalImpl> {
+        (InternalImpl { state }).into_rpc()
     }
 }

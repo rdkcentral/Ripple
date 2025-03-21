@@ -29,7 +29,6 @@ use println as error;
 
 use crate::{
     api::{
-        account_link::AccountLinkRequest,
         app_catalog::{AppCatalogRequest, AppMetadata, AppsUpdate},
         apps::AppEventRequest,
         caps::CapsRequest,
@@ -45,7 +44,6 @@ use crate::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
             distributor_platform::PlatformTokenRequest,
             distributor_privacy::{PrivacyCloudRequest, PrivacySettingsStoreRequest},
-            distributor_request::DistributorRequest,
             distributor_token::DistributorTokenRequest,
             distributor_usergrants::UserGrantsCloudStoreRequest,
         },
@@ -298,14 +296,12 @@ pub enum ExtnRequest {
     PinChallenge(PinChallengeRequestWithContext),
     Keyboard(KeyboardSessionRequest),
     Permission(PermissionRequest),
-    Distributor(DistributorRequest),
     AccountSession(AccountSessionRequest),
     SessionToken(SessionTokenRequest),
     SecureStorage(SecureStorageRequest),
     Advertising(AdvertisingRequest),
     PrivacySettings(PrivacyCloudRequest),
     StorageManager(StorageManagerRequest),
-    AccountLink(AccountLinkRequest),
     Settings(SettingsRequest),
     UserGrantsCloudStore(UserGrantsCloudStoreRequest),
     UserGrantsStore(UserGrantsStoreRequest),

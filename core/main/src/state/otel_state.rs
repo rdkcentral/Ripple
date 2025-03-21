@@ -21,15 +21,10 @@ use std::{
 };
 
 use ripple_sdk::{
-    api::{
-        distributor::distributor_privacy::PrivacySettingsData,
-        observability::metrics_util::ApiStats,
-    },
+    api::observability::metrics_util::ApiStats,
     chrono::{DateTime, Utc},
     log::{error, warn},
 };
-
-use super::platform_state::PlatformState;
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
@@ -46,13 +41,6 @@ pub struct OtelState {
 impl OtelState {
     pub fn get_device_session_id(&self) -> String {
         self.device_session_id.read().unwrap().clone().unwrap()
-    }
-
-    pub fn update_data_governance_tags(
-        &self,
-        _platform_state: &PlatformState,
-        _privacy_settings_data: &PrivacySettingsData,
-    ) {
     }
 
     pub fn operational_telemetry_listener(&self, target: &str, listen: bool) {

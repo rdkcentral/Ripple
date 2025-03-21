@@ -44,7 +44,6 @@ use crate::{
             app_events::AppEventsState, delegated_launcher_handler::AppManagerState,
             provider_broker::ProviderBrokerState,
         },
-        data_governance::DataGovernanceState,
         extn::ripple_client::RippleClient,
     },
 };
@@ -103,7 +102,6 @@ pub struct PlatformState {
     pub app_manager_state: AppManagerState,
     pub open_rpc_state: OpenRpcState,
     pub router_state: RouterState,
-    pub data_governance: DataGovernanceState,
     pub otel: OtelState,
     pub device_session_id: DeviceSessionIdentifier,
     pub ripple_cache: RippleCache,
@@ -137,7 +135,6 @@ impl PlatformState {
             app_manager_state: AppManagerState::new(&manifest.configuration.saved_dir),
             open_rpc_state: OpenRpcState::new(Some(exclusory), extn_sdks, provider_registations),
             router_state: RouterState::new(),
-            data_governance: DataGovernanceState::default(),
             otel: metrics_state.clone(),
             device_session_id: DeviceSessionIdentifier::default(),
             ripple_cache: RippleCache::default(),

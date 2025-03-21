@@ -44,9 +44,7 @@ pub enum RippleContract {
     /// Provided by the distributor useful for adding Governance implementation for handling
     /// privacy information and other sensitive data.
     Governance,
-    /// Provided by the distributor to discover content, apps, history and recommendations.
-    /// Used by [crate::api::distributor::distributor_discovery::DiscoveryRequest]
-    Discovery,
+
     /// Provided by the platform to handle launching and managing applications.
     /// Used by [crate::api::firebolt::fb_lifecycle_management::LifecycleManagementEventRequest]
     Launcher,

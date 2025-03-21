@@ -26,14 +26,14 @@ use crate::{
             audio_description_rpc::AudioDescriptionRPCProvider,
             authentication_rpc::AuthRPCProvider, capabilities_rpc::CapRPCProvider,
             closed_captions_rpc::ClosedcaptionsRPCProvider, device_rpc::DeviceRPCProvider,
-            discovery_rpc::DiscoveryRPCProvider, keyboard_rpc::KeyboardRPCProvider,
-            lcm_rpc::LifecycleManagementProvider, lifecycle_rpc::LifecycleRippleProvider,
-            localization_rpc::LocalizationRPCProvider, parameters_rpc::ParametersRPCProvider,
-            privacy_rpc::PrivacyProvider, profile_rpc::ProfileRPCProvider,
-            provider_registrar::ProviderRegistrar, second_screen_rpc::SecondScreenRPCProvider,
-            secure_storage_rpc::SecureStorageRPCProvider, telemetry_rpc::TelemetryProvider,
-            user_grants_rpc::UserGrantsRPCProvider, voice_guidance_rpc::VoiceguidanceRPCProvider,
-            wifi_rpc::WifiRPCProvider,
+            discovery_rpc::DiscoveryRPCProvider, internal_rpc::InternalProvider,
+            keyboard_rpc::KeyboardRPCProvider, lcm_rpc::LifecycleManagementProvider,
+            lifecycle_rpc::LifecycleRippleProvider, localization_rpc::LocalizationRPCProvider,
+            parameters_rpc::ParametersRPCProvider, privacy_rpc::PrivacyProvider,
+            profile_rpc::ProfileRPCProvider, provider_registrar::ProviderRegistrar,
+            second_screen_rpc::SecondScreenRPCProvider,
+            secure_storage_rpc::SecureStorageRPCProvider, user_grants_rpc::UserGrantsRPCProvider,
+            voice_guidance_rpc::VoiceguidanceRPCProvider, wifi_rpc::WifiRPCProvider,
         },
         rpc::RippleRPCProvider,
     },
@@ -75,7 +75,7 @@ impl FireboltGatewayStep {
         let _ = methods.merge(AudioDescriptionRPCProvider::provide_with_alias(
             state.clone(),
         ));
-        let _ = methods.merge(TelemetryProvider::provide_with_alias(state.clone()));
+        let _ = methods.merge(InternalProvider::provide_with_alias(state.clone()));
 
         // LCM Api(s) not required for internal launcher
         if !state.has_internal_launcher() {

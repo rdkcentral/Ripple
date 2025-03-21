@@ -90,7 +90,7 @@ impl StorageManager {
             Ok(StorageManagerResponse::Ok(value)) | Ok(StorageManagerResponse::NoChange(value)) => {
                 state
                     .ripple_cache
-                    .update_cached_bool_storage_property(state, &property, value);
+                    .update_cached_bool_storage_property(&property, value);
                 Ok(value)
             }
             Ok(StorageManagerResponse::Default(value)) => Ok(value),
@@ -128,7 +128,7 @@ impl StorageManager {
             Ok(StorageManagerResponse::Ok(_)) | Ok(StorageManagerResponse::NoChange(_)) => {
                 state
                     .ripple_cache
-                    .update_cached_bool_storage_property(state, &property, value);
+                    .update_cached_bool_storage_property(&property, value);
                 Ok(())
             }
             Ok(StorageManagerResponse::Default(_)) => Ok(()),
