@@ -15,9 +15,17 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use log::LevelFilter;
 use std::{str::FromStr, sync::atomic::AtomicU32};
 
 pub static LOG_COUNTER: AtomicU32 = AtomicU32::new(1);
+static mut LOG_SIGNAL_FILTER: LevelFilter = LevelFilter::Info;
+
+pub fn set_log_signal_filter(filter: LevelFilter) {
+    unsafe {
+        LOG_SIGNAL_FILTER = filter;
+    }
+}
 
 pub fn init_logger(name: String) -> Result<(), fern::InitError> {
     let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".into());
@@ -44,6 +52,7 @@ pub fn init_logger(name: String) -> Result<(), fern::InitError> {
             ));
         })
         .level(filter)
+        .level_for("log_signal", unsafe { LOG_SIGNAL_FILTER })
         //log filter applied here, making the log level to OFF for the below mentioned crates
         .level_for("h2", log::LevelFilter::Off)
         .level_for("hyper", log::LevelFilter::Off)
