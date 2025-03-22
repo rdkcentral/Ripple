@@ -15,8 +15,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::str::FromStr;
+
 use ripple_sdk::{
-    api::manifest::device_manifest::DeviceManifest, log::info, utils::error::RippleError,
+    api::manifest::device_manifest::DeviceManifest,
+    log::{info, LevelFilter},
+    utils::{error::RippleError, logger},
 };
 
 pub struct LoadDeviceManifestStep;
@@ -24,8 +28,12 @@ pub struct LoadDeviceManifestStep;
 impl LoadDeviceManifestStep {
     pub fn get_manifest() -> DeviceManifest {
         let r = try_manifest_files();
-        if let Ok(r) = r {
-            return r;
+        if let Ok(manifest) = &r {
+            let log_signal_level = manifest.configuration.log_signal_log_level.clone();
+            let filter = LevelFilter::from_str(&log_signal_level).unwrap_or(LevelFilter::Info);
+
+            logger::set_log_signal_filter(filter);
+            return manifest.clone();
         }
 
         r.expect("Need valid Device Manifest")
