@@ -125,3 +125,15 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
         .apply()?;
     Ok(())
 }
+
+pub fn set_log_level(log_signal_log_level: &str) {
+    let log_level = match log_signal_log_level {
+        "INFO" => log::LevelFilter::Info,
+        "Debug" => log::LevelFilter::Debug,
+        "WARN" => log::LevelFilter::Warn,
+        "ERROR" => log::LevelFilter::Error,
+        "TRACE" => log::LevelFilter::Trace,
+        _ => log::LevelFilter::Off,
+    };
+    log::set_max_level(log_level);
+}
