@@ -209,7 +209,7 @@ impl SettingsProcessor {
                 SettingKey::VoiceGuidanceEnabled => {
                     resp = BrokerUtils::process_internal_main_request(
                         &mut state.clone(),
-                        "badger.voiceguidance.onEnabledChanged",
+                        "sts.voiceguidance.onEnabledChanged",
                         serde_json::to_value(json!({"listen": true})).ok(),
                     )
                     .await
@@ -218,7 +218,7 @@ impl SettingsProcessor {
                 SettingKey::ClosedCaptions => {
                     resp = BrokerUtils::process_internal_main_request(
                         &mut state.clone(),
-                        "badger.closedcaptions.onEnabledChanged",
+                        "sts.closedcaptions.onEnabledChanged",
                         serde_json::to_value(json!({"listen": true})).ok(),
                     )
                     .await
