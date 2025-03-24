@@ -741,7 +741,7 @@ impl ExtnClient {
         &mut self,
         payload: impl ExtnPayloadProvider,
         timeout_in_msecs: u64,
-        test_ctx: Option<String>,
+        ctx_id: Option<String>,
     ) -> Result<T, RippleError> {
         #[cfg(all(not(feature = "mock"), not(test)))]
         {
@@ -766,8 +766,8 @@ impl ExtnClient {
         // if mock is enabled for testing
         #[cfg(any(test, feature = "mock"))]
         {
-            // Get the mock response using the test_ctx
-            if let Some(context) = &test_ctx {
+            // Get the mock response using the ctx_id
+            if let Some(context) = &ctx_id {
                 if let Some(response) = get_next_mock_response(context) {
                     match response {
                         Ok(message) => {
@@ -801,7 +801,7 @@ impl ExtnClient {
         &mut self,
         payload: impl ExtnPayloadProvider,
         timeout_in_msecs: u64,
-        test_ctx: Option<String>,
+        ctx_id: Option<String>,
     ) -> Result<T, RippleError> {
         #[cfg(all(not(feature = "mock"), not(test)))]
         {
@@ -826,8 +826,8 @@ impl ExtnClient {
         // if mock is enabled for testing
         #[cfg(any(test, feature = "mock"))]
         {
-            // Get the mock response using the test_ctx
-            if let Some(context) = &test_ctx {
+            // Get the mock response using the ctx_id
+            if let Some(context) = &ctx_id {
                 if let Some(response) = get_next_mock_response(context) {
                     match response {
                         Ok(message) => {
