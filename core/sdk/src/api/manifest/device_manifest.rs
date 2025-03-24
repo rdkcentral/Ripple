@@ -40,8 +40,6 @@ pub const METRICS_LOGGING_PERCENTAGE_DEFAULT: u32 = 10;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct RippleConfiguration {
-    #[serde(default = "log_signal_default_level")]
-    pub log_signal_log_level: String,
     #[serde(default = "ws_configuration_default")]
     pub ws_configuration: WsConfiguration,
     #[serde(default = "ws_configuration_internal_default")]
@@ -80,9 +78,6 @@ fn metrics_logging_percentage_default() -> u32 {
     METRICS_LOGGING_PERCENTAGE_DEFAULT
 }
 
-pub fn log_signal_default_level() -> String {
-    "OFF".to_string()
-}
 #[derive(Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CapabilityConfiguration {
@@ -679,7 +674,6 @@ impl Default for RippleConfiguration {
             partner_exclusion_refresh_timeout: partner_exclusion_refresh_timeout_default(),
             metrics_logging_percentage: metrics_logging_percentage_default(),
             internet_monitoring_configuration: Default::default(),
-            log_signal_log_level: log_signal_default_level(),
         }
     }
 }
@@ -812,7 +806,6 @@ pub(crate) mod tests {
         fn mock() -> DeviceManifest {
             DeviceManifest {
                 configuration: RippleConfiguration {
-                    log_signal_log_level: log_signal_default_level(),
                     ws_configuration: WsConfiguration {
                         enabled: true,
                         gateway: "127.0.0.1:3473".to_string(),
