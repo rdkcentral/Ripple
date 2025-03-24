@@ -187,11 +187,12 @@ impl<T: std::fmt::Display + ContextAsJson> LogSignal<T> {
         }
     }
     pub fn emit_debug(&self) {
-        log::debug!(target: "log_signal", "{}", serde_json::Value::from(self));
+        log::debug!("{}", serde_json::Value::from(self));
     }
     pub fn emit_error(&self) {
-        log::error!(target: "log_signal", "{}", serde_json::Value::from(self));
+        log::error!("{}", serde_json::Value::from(self));
     }
+
     pub fn with_diagnostic_context(mut self, diagnostic_context: HashMap<String, String>) -> Self {
         self.diagnostic_context = diagnostic_context;
         self

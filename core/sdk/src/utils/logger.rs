@@ -16,18 +16,19 @@
 //
 
 use log::LevelFilter;
-use std::{str::FromStr, sync::atomic::AtomicU32, sync::Mutex};
+use std::{str::FromStr, sync::atomic::AtomicU32};
 
 pub static LOG_COUNTER: AtomicU32 = AtomicU32::new(1);
-pub static LOG_SIGNAL_FILTER: Mutex<LevelFilter> = Mutex::new(LevelFilter::Info);
+static mut LOG_SIGNAL_FILTER: LevelFilter = LevelFilter::Info;
 
 pub fn set_log_signal_filter(filter: LevelFilter) {
-    let mut log_filter = LOG_SIGNAL_FILTER.lock().unwrap();
-    *log_filter = filter;
+    unsafe {
+        LOG_SIGNAL_FILTER = filter;
+    }
 }
 
 pub fn init_logger(name: String) -> Result<(), fern::InitError> {
-    let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "INFO".into());
+    let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".into());
     println!("log level {}", log_string);
     let filter = log::LevelFilter::from_str(&log_string).unwrap_or(log::LevelFilter::Info);
     fern::Dispatch::new()
@@ -51,7 +52,7 @@ pub fn init_logger(name: String) -> Result<(), fern::InitError> {
             ));
         })
         .level(filter)
-        .level_for("log_signal", *LOG_SIGNAL_FILTER.lock().unwrap())
+        .level_for("log_signal", unsafe { LOG_SIGNAL_FILTER })
         //log filter applied here, making the log level to OFF for the below mentioned crates
         .level_for("h2", log::LevelFilter::Off)
         .level_for("hyper", log::LevelFilter::Off)
@@ -66,7 +67,7 @@ pub fn init_logger(name: String) -> Result<(), fern::InitError> {
 }
 
 pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern::InitError> {
-    let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "INFO".into());
+    let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".into());
     println!("log level {}", log_string);
     let _version_string = version.to_string();
     let filter = log::LevelFilter::from_str(&log_string).unwrap_or(log::LevelFilter::Info);
@@ -117,7 +118,7 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
             }
         })
         .level(filter)
-        .level_for("log_signal", *LOG_SIGNAL_FILTER.lock().unwrap())
+        .level_for("log_signal", unsafe { LOG_SIGNAL_FILTER })
         //log filter applied here, making the log level to OFF for the below mentioned crates
         .level_for("h2", log::LevelFilter::Off)
         .level_for("hyper", log::LevelFilter::Off)
