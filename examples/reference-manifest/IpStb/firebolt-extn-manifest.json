@@ -99,5 +99,8 @@
         "device.model": [
             "custom.model"
         ]
-    }
+    },
+    "rules_path": [
+        "/etc/ripple.common.rules.json"
+    ]
 }

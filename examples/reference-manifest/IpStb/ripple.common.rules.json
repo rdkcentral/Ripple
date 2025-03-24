@@ -1,0 +1,356 @@
+{
+  "endpoints": {
+    "thunder": {
+      "protocol": "thunder",
+      "url": "ws://127.0.0.1:9998/jsonrpc"
+    },
+    "workflow": {
+      "protocol": "workflow",
+      "url": "http://asdf.com",
+      "jsonrpc": false
+    },
+    "busted": {
+      "protocol": "http",
+      "url": "http://asdfasdf.com"
+    }
+  },
+  "rules": {
+    "device.make": {
+      "alias": "org.rdk.System.getDeviceInfo",
+      "transform": {
+        "response": "if .result and .result.success then (.result.make) else \"unknown\" end"
+      }
+    },
+    "device.name": {
+      "alias": "org.rdk.System.getFriendlyName",
+      "transform": {
+        "response": "if .result and .result.success then (if .result.friendlyName | length == 0 then \"Living Room\" else .result.friendlyName end) else \"Living Room\" end"
+      }
+    },
+    "device.setName": {
+      "alias": "org.rdk.System.setFriendlyName",
+      "transform": {
+        "request": "{ friendlyName: .value}",
+        "response": "if .result and .result.success then null else { error: { code: -32100, message: \"couldn't set name\" }} end"
+      }
+    },
+    "device.network": {
+      "alias": "org.rdk.Network.getInterfaces",
+      "transform": {
+        "response": "def map_connected($connected): if $connected == true then  \"connected\" else \"disconnected\" end ; .result.interfaces| .[] |  select(.\"connected\"==true) | {type: .interface , state: map_connected(.connected)}| .type |= ascii_downcase|  [., inputs][0] "
+      }
+    },
+    "device.screenResolution": {
+      "alias": "org.rdk.DisplaySettings.getCurrentResolution",
+      "transform": {
+        "response": "if .result then [.result.w,.result.h] else { code: -32100, message: \"error, failed to get screen resolution\" } end"
+      }
+    },
+    "device.sku": {
+      "alias": "org.rdk.System.getSystemVersions",
+      "transform": {
+        "response": ".result.stbVersion | split(\"_\")[0]"
+      }
+    },
+    "advertising.skipRestriction": {
+      "alias": "org.rdk.PersistentStore.getValue",
+      "transform": {
+        "request": "{ namespace: \"Advertising\", key: \"skipRestriction\"}",
+        "response": "if .result and .result.success then (.result.value | fromjson | .value) else \"none\" end"
+      }
+    },
+    "advertising.setSkipRestriction": {
+      "alias": "org.rdk.PersistentStore.setValue",
+      "transform": {
+        "request": "{ value: {update_time: now | todateiso8601, value: .value}, namespace: \"Advertising\", key: \"skipRestriction\"}",
+        "response": "if .result and .result.success then null else { error: { code: -32100, message: \"couldn't set skip restriction\" }} end"
+      }
+    },
+    "advertising.onSkipRestrictionChanged": {
+      "alias": "org.rdk.PersistentStore.onValueChanged",
+      "transform": {
+        "event": "(.value | fromjson | .value)",
+        "rpcv2_event": "{ \"skipRestriction\": $event }"
+      },
+      "filter": "if .namespace == \"Advertising\" and .key == \"skipRestriction\" then true else false end"
+    },
+    "advertising.onPolicyChanged": {
+      "alias": "org.rdk.PersistentStore.onValueChanged",
+      "transform": {
+        "event": ".value",
+        "rpcv2_event": "{ \"policy\": $event }",
+        "event_decorator_method": "AdvertisingPolicyEventDecorator"
+      },
+      "filter": "if ((.namespace == \"Advertising\" and .key == \"skipRestriction\") or (.namespace == \"Privacy\" and .key == \"allowAppContentAdTargetting\")) then true else false end"
+    },
+    "localization.countryCode": {
+      "alias": "org.rdk.System.getTerritory",
+      "transform": {
+        "response": "if .result and .result.success then if .result.territory == \"CAN\" then \"CA\" else \"US\" end else \"US\" end"
+      }
+    },
+    "localization.setCountryCode": {
+      "alias": "org.rdk.System.setTerritory",
+      "transform": {
+        "request": "if .value == \"CA\" then { \"territory\": \"CAN\" } else { \"territory\": \"USA\" } end",
+        "response": "if .result and .result.success then null else { error: { code: -32100, message: \"couldn't set countrycode\" }} end"
+      }
+    },
+    "localization.onCountryCodeChanged": {
+      "alias": "org.rdk.System.onTerritoryChanged",
+      "transform": {
+        "event": "if .newTerritory == \"CAN\" then \"CA\" else \"US\" end",
+        "rpcv2_event": "{ \"countryCode\": $event }"
+      }
+    },
+    "localization.language": {
+      "alias": "org.rdk.UserSettings.getPresentationLanguage",
+      "transform": {
+        "response": "if .result then (.result | split(\"-\") | .[0])  else { error: { code: -32100, message: \"couldn't get locale\" }} end"
+      }
+    },
+    "localization.setLanguage": {
+      "alias": "static",
+      "transform": {
+        "response": "{ error: { code: -32600, message: \"set language not supported\" }}"
+      }
+    },
+    "localization.onLanguageChanged": {
+      "alias": "org.rdk.UserSettings.onPresentationLanguageChanged",
+      "transform": {
+        "event": "if .presentationLanguage | length == 0 then null else (.presentationLanguage | split(\"-\") | .[0]) end",
+        "rpcv2_event": "{ \"language\": $event }"
+      }
+    },
+    "localization.locale": {
+      "alias": "org.rdk.UserSettings.getPresentationLanguage",
+      "transform": {
+        "response": "if .result then .result else { error: { code: -32100, message: \"couldn't get locale\" }} end"
+      }
+    },
+    "localization.setLocale": {
+      "alias": "org.rdk.UserSettings.setPresentationLanguage",
+      "transform": {
+        "request": "{ presentationLanguage: .value }",
+        "response": "if .error then { error: { code: -32100, message: \"couldn't set locale\" }} else null end"
+      }
+    },
+    "localization.onLocaleChanged": {
+      "alias": "org.rdk.UserSettings.onPresentationLanguageChanged",
+      "transform": {
+        "event": "if .presentationLanguage | length == 0 then null else .presentationLanguage end",
+        "rpcv2_event": "{ \"locale\": $event }"
+      }
+    },
+    "localization.timeZone": {
+      "alias": "org.rdk.System.getTimeZoneDST",
+      "transform": {
+        "response": "if .result and .result.success then .result.timeZone else { error: { code: -32100, message: \"couldn't get timezone\" }} end"
+      }
+    },
+    "localization.additionalInfo": {
+      "alias": "org.rdk.PersistentStore.getValue",
+      "transform": {
+        "request": "{ namespace: \"Localization\", key: \"additionalInfo\"}",
+        "response": "if .result and .result.success then (.result.value | fromjson | .value | fromjson) else \"en\" end"
+      }
+    },
+    "localization.setAdditionalInfo": {
+      "alias": "org.rdk.PersistentStore.setValue",
+      "transform": {
+        "request": "{ value: {update_time: now | todateiso8601, value: .value}, namespace: \"Localization\", key: \"additionalInfo\"}",
+        "response": "if .result and .result.success then null else { error: { code: -32100, message: \"couldn't set additionalInfo\" }} end"
+      }
+    },
+    "localization.onAdditionalInfoChanged": {
+      "alias": "org.rdk.PersistentStore.onValueChanged",
+      "transform": {
+        "event": "(.value | fromjson | .value)",
+        "rpcv2_event": "{ \"additionalInfo\": $event }"
+      },
+      "filter": "if .namespace == \"Localization\" and .key == \"additionalInfo\" then true else false end"
+    },
+    "localization.preferredAudioLanguages": {
+      "alias": "org.rdk.UserSettings.getPreferredAudioLanguages",
+      "transform": {
+        "response": "if .result then (.result | split(\",\")) else [] end"
+      }
+    },
+    "localization.setPreferredAudioLanguages": {
+      "alias": "org.rdk.UserSettings.setPreferredAudioLanguages",
+      "transform": {
+        "request": "{ preferredLanguages: (.value | join(\",\"))}"
+      }
+    },
+    "localization.onPreferredAudioLanguagesChanged": {
+      "alias": "org.rdk.UserSettings.onPreferredAudioLanguagesChanged",
+      "transform": {
+        "event": "(.preferredLanguages | split(\",\"))",
+        "rpcv2_event": "{ \"preferredAudioLanguages\": $event }"
+      }
+    },
+    "secondscreen.device": {
+      "alias": "org.rdk.AuthService.getXDeviceId",
+      "transform": {
+        "response": "if .result and .result.success then .result.xDeviceId else { error: { code: -32100, message: \"couldn't get device ID\" }} end"
+      }
+    },
+    "authentication.root": {
+      "alias": "org.rdk.AuthService.getAuthToken",
+      "transform": {
+        "response": "if .result and .result.success then (.result.token) else { error: { code: -32100, message: \"failed to get authentication root\" }} end"
+      }
+    },
+    "account.id": {
+      "alias": "org.rdk.AuthService.getServiceAccountId",
+      "transform": {
+        "response": "if .result and .result.success then (.result.serviceAccountId) else { error: { code: -32100, message: \"failed to get account id\" }} end"
+      }
+    },
+    "account.setServiceAccountId": {
+      "alias": "org.rdk.AuthService.setServiceAccountId",
+      "transform": {
+        "response": "if .result and .result.success then true else false end"
+      }
+    },
+    "account.setXDeviceId": {
+      "alias": "org.rdk.AuthService.setXDeviceId",
+      "transform": {
+        "response": "if .result and .result.success then true else false end"
+      }
+    },
+    "account.setPartnerId": {
+      "alias": "org.rdk.AuthService.setPartnerId",
+      "transform": {
+        "response": "if .result and .result.success then true else false end"
+      }
+    },
+    "account.setServiceAccessToken": {
+      "alias": "org.rdk.AuthService.setServiceAccessToken",
+      "transform": {
+        "request": "{ token: .token, expires: .expires, status: \"0\" }",
+        "response": "if .result and .result.success then true else false end"
+      }
+    },
+    "device.onHdrChanged": {
+      "alias": "org.rdk.HdcpProfile.onDisplayConnectionChanged",
+      "event_handler": "device.hdr"
+    },
+    "device.onScreenResolutionChanged": {
+      "alias": "org.rdk.DisplaySettings.resolutionChanged",
+      "transform": {
+        "event": "[.width, .height]",
+        "rpcv2_event": "{ \"screenResolution\": $event }"
+      }
+    },
+    "device.onNetworkChanged": {
+      "alias": "org.rdk.Network.onConnectionstatusChanged",
+      "transform": {
+        "event": "(.value | fromjson | .value)",
+        "rpcv2_event": "{ \"network\": $event }"
+      }
+    },
+    "device.onNameChanged": {
+      "alias": "org.rdk.System.onFriendlyNameChanged",
+      "transform": {
+        "event": "if .friendlyName | length == 0 then \"Living Room\" else .friendlyName end",
+        "rpcv2_event": "{ \"friendlyName\": $event }"
+      }
+    },
+    "device.onVideoResolutionChanged": {
+      "alias": "org.rdk.DisplaySettings.resolutionChanged",
+      "event_handler": "device.videoResolution"
+    },
+    "voiceguidance.setEnabled": {
+      "alias": "org.rdk.TextToSpeech.enabletts",
+      "transform": {
+        "request": "{ enabletts: .value }",
+        "response": "if .result and .result.success then null else { error: { code: -32100, message: \"couldn't set voiceguidance enabled\" }} end"
+      }
+    },
+    "voiceguidance.enabled": {
+      "alias": "org.rdk.TextToSpeech.isttsenabled",
+      "transform": {
+        "response": ".result.isenabled"
+      }
+    },
+    "voiceguidance.onEnabledChanged": {
+      "alias": "org.rdk.TextToSpeech.onttsstatechanged",
+      "event_handler": "voiceguidance.enabled"
+    },
+    "voiceguidance.setSpeed": {
+      "alias": "org.rdk.TextToSpeech.setttsconfiguration",
+      "transform": {
+        "request": "if .value then if (0.5 <= .value and .value <= 2.0) then { rate: (.value * 50.0) } else { error: { code: -32602, message: \"Invalid Value for set speed\" } } end else { error: { code: -32602, message: \"Missing value\" } } end",
+        "response": "if .result and .result.success then null else { error: { code: -32100, message: \"couldn't set speed\" } } end"
+      }
+    },
+    "voiceguidance.speed": {
+      "alias": "org.rdk.TextToSpeech.getttsconfiguration",
+      "transform": {
+        "response": "if .result.success then if .result.rate < 25.0 then (25.0 / 50.0) else (.result.rate / 50.0) end else { error: { code: -32100, message: \"could not get device speed\" }} end"
+      }
+    },
+    "voiceguidance.onSpeedChanged": {
+      "alias": "org.rdk.TextToSpeech.onvoicechanged",
+      "event_handler": "voiceguidance.speed"
+    },
+    "accessibility.voiceGuidance": {
+      "alias": "workflow",
+      "endpoint": "workflow",
+      "sources": [
+        {
+          "method": "voiceguidance.enabled",
+          "namespace": "enabled"
+        },
+        {
+          "method": "voiceguidance.speed",
+          "namespace": "speed"
+        }
+      ],
+      "transform": {
+        "response": "{\"enabled\": .result.enabled, \"speed\": .result.speed  }"
+      }
+    },
+    "accessibility.voiceGuidanceSettings": {
+      "alias": "workflow",
+      "endpoint": "workflow",
+      "sources": [
+        {
+          "method": "voiceguidance.enabled",
+          "namespace": "enabled"
+        },
+        {
+          "method": "voiceguidance.speed",
+          "namespace": "speed"
+        }
+      ],
+      "transform": {
+        "response": "{\"enabled\": .result.enabled, \"speed\": .result.speed  }"
+      }
+    },
+    "accessibility.onVoiceGuidanceSettingsChanged": {
+      "alias": "org.rdk.TextToSpeech.onttsstatechanged",
+      "event_handler": "accessibility.voiceGuidanceSettings"
+    },
+    "audiodescriptions.enabled": {
+      "alias": "org.rdk.UserSettings.getAudioDescription",
+      "transform": {
+        "response": "if .error == null then .result end"
+      }
+    },
+    "audiodescriptions.setEnabled": {
+      "alias": "org.rdk.UserSettings.setAudioDescription",
+      "transform": {
+        "request": "{ enabled: .value }"
+      }
+    },
+    "audiodescriptions.onEnabledChanged": {
+      "alias": "org.rdk.UserSettings.onAudioDescriptionChanged",
+      "transform": {
+        "event": ".enabled",
+        "rpcv2_event": "{ \"enabled\": $event }"
+      }
+    }
+  }
+}
