@@ -248,7 +248,6 @@ impl VoiceGuidanceEnabledChangedEventHandler {
         value: ThunderEventMessage,
         callback_type: DeviceEventCallback,
     ) {
-        println!("*** _DEBUG: VoiceGuidanceEnabledChangedEventHandler::handle() ***");
         if let ThunderEventMessage::VoiceGuidance(voice_guidance_state) = value {
             if let Ok(v) = Self::get_extn_event(voice_guidance_state.clone(), callback_type) {
                 let thunder_state = state.clone();
@@ -301,10 +300,7 @@ impl ThunderEventHandlerProvider for VoiceGuidanceEnabledChangedEventHandler {
     }
 
     fn event_name() -> String {
-        // <pca>
-        //"onttsstatechanged".into()
         "onVoiceGuidanceChanged".into()
-        // </pca>
     }
 
     fn get_mapped_event() -> String {
@@ -312,10 +308,7 @@ impl ThunderEventHandlerProvider for VoiceGuidanceEnabledChangedEventHandler {
     }
 
     fn module() -> String {
-        // <pca>
-        //ThunderPlugin::TextToSpeech.callsign_string()
         ThunderPlugin::UserSettings.callsign_string()
-        // </pca>
     }
 
     fn get_extn_event(

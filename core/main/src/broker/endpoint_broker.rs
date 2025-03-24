@@ -1313,7 +1313,7 @@ impl BrokerOutputForwarder {
         // FIXME: As we transition to full RPCv2 support we need to be able to post-process the results from an event
         // handler as defined by Rule::event_handler, however as currently implemented event_handler logic short-circuits
         // rule transform logic. Need to refactor to support this, disabing below for now.
-
+        // ==============================================================================================================
         // if let Ok(Value::String(res)) =
         //     BrokerUtils::process_internal_main_request(&mut platform_state_c, method.as_str(), None)
         //         .await
@@ -1341,16 +1341,7 @@ impl BrokerOutputForwarder {
         //     error!("handle_event: error processing internal main request");
         // }
 
-        // <pca>
-        // if let Ok(res) =
-        //     BrokerUtils::process_internal_main_request(&mut platform_state_c, method.as_str(), None)
-        //         .await
-        // {
-        //     response.result = Some(res.clone());
-        // }
-
         let params = if let Some(request) = broker_request.rule.transform.request {
-            println!("*** _DEBUG: handle_event: request={:?}", request);
             if let Ok(map) = serde_json::from_str::<serde_json::Map<String, Value>>(&request) {
                 Some(Value::Object(map))
             } else {
@@ -1359,8 +1350,7 @@ impl BrokerOutputForwarder {
         } else {
             None
         };
-
-        println!("*** _DEBUG: handle_event: params={:?}", params);
+        // ==============================================================================================================
 
         if let Ok(res) = BrokerUtils::process_internal_main_request(
             &mut platform_state_c,
@@ -1371,7 +1361,6 @@ impl BrokerOutputForwarder {
         {
             response.result = Some(res.clone());
         }
-        // </pca>
 
         response.id = Some(request_id);
 

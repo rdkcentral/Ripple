@@ -73,27 +73,6 @@ pub struct VoiceguidanceImpl {
     pub state: PlatformState,
 }
 
-// <pca>
-// pub async fn voice_guidance_settings_enabled(state: &PlatformState) -> RpcResult<bool> {
-//     let resp = state
-//         .get_client()
-//         .send_extn_request(DeviceInfoRequest::VoiceGuidanceEnabled)
-//         .await;
-//     match resp {
-//         Ok(value) => {
-//             if let Some(ExtnResponse::Boolean(v)) = value.payload.extract() {
-//                 Ok(v)
-//             } else {
-//                 Err(jsonrpsee::core::Error::Custom(String::from(
-//                     "Voice guidance enabled error response TBD1",
-//                 )))
-//             }
-//         }
-//         Err(_) => Err(jsonrpsee::core::Error::Custom(String::from(
-//             "Voice guidance enabled error response TBD2",
-//         ))),
-//     }
-// }
 pub async fn voice_guidance_settings_enabled(state: &PlatformState) -> RpcResult<bool> {
     match BrokerUtils::process_internal_main_request(
         &mut state.clone(),
@@ -117,7 +96,6 @@ pub async fn voice_guidance_settings_enabled(state: &PlatformState) -> RpcResult
         ))),
     }
 }
-// </pca>
 
 pub async fn voice_guidance_settings_enabled_changed(
     platform_state: &PlatformState,

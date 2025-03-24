@@ -207,20 +207,6 @@ impl SettingsProcessor {
             debug!("Checking Key {:?}", key);
             match key {
                 SettingKey::VoiceGuidanceEnabled => {
-                    // <pca>
-                    // if voice_guidance_settings_enabled_changed(
-                    //     state,
-                    //     ctx,
-                    //     &ListenRequest { listen: true },
-                    //     Some(Box::new(SettingsChangeEventDecorator {
-                    //         request: request.clone(),
-                    //     })),
-                    // )
-                    // .await
-                    // .is_err()
-                    // {
-                    //     resp = false;
-                    // }
                     resp = BrokerUtils::process_internal_main_request(
                         &mut state.clone(),
                         "badger.voiceguidance.onEnabledChanged",
@@ -228,24 +214,8 @@ impl SettingsProcessor {
                     )
                     .await
                     .is_ok();
-                    // </pca>
                 }
                 SettingKey::ClosedCaptions => {
-                    // <pca>
-                    // if rpc_add_event_listener_with_decorator(
-                    //     state,
-                    //     ctx.clone(),
-                    //     ListenRequest { listen: true },
-                    //     EVENT_CLOSED_CAPTIONS_ENABLED,
-                    //     Some(Box::new(SettingsChangeEventDecorator {
-                    //         request: request.clone(),
-                    //     })),
-                    // )
-                    // .await
-                    // .is_err()
-                    // {
-                    //     resp = false;
-                    // }
                     resp = BrokerUtils::process_internal_main_request(
                         &mut state.clone(),
                         "badger.closedcaptions.onEnabledChanged",
@@ -253,7 +223,6 @@ impl SettingsProcessor {
                     )
                     .await
                     .is_ok();
-                    // </pca>
                 }
                 SettingKey::AllowPersonalization => {
                     if PrivacyImpl::listen_content_policy_changed(

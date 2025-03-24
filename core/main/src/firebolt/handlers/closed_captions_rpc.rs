@@ -417,12 +417,7 @@ impl ClosedcaptionsImpl {
         }
     }
 
-    // <pca>
-    // pub async fn cc_enabled(state: &PlatformState) -> RpcResult<bool> {
-    //     StorageManager::get_bool(state, SP::ClosedCaptionsEnabled).await
-    // }
     pub async fn cc_enabled(state: &PlatformState) -> RpcResult<bool> {
-        println!("*** _DEBUG: cc_enabled() called");
         match BrokerUtils::process_internal_main_request(
             &mut state.clone(),
             "closedcaptions.enabled",
@@ -445,7 +440,6 @@ impl ClosedcaptionsImpl {
             ))),
         }
     }
-    // </pca>
 }
 
 #[async_trait]
