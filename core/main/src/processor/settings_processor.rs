@@ -28,7 +28,7 @@ use ripple_sdk::{
         settings::{SettingKey, SettingValue, SettingsRequest, SettingsRequestParam},
         storage_property::{
             EVENT_ALLOW_PERSONALIZATION_CHANGED, EVENT_ALLOW_WATCH_HISTORY_CHANGED,
-            EVENT_CLOSED_CAPTIONS_ENABLED, EVENT_DEVICE_NAME_CHANGED, EVENT_SHARE_WATCH_HISTORY,
+            EVENT_DEVICE_NAME_CHANGED, EVENT_SHARE_WATCH_HISTORY,
         },
     },
     async_trait::async_trait,
@@ -47,13 +47,9 @@ use serde_json::{json, Value};
 use crate::{
     broker::broker_utils::{self, BrokerUtils},
     firebolt::handlers::{
-        capabilities_rpc::is_permitted,
-        closed_captions_rpc::ClosedcaptionsImpl,
-        discovery_rpc::DiscoveryImpl,
-        privacy_rpc::PrivacyImpl,
-        voice_guidance_rpc::{
-            voice_guidance_settings_enabled, voice_guidance_settings_enabled_changed,
-        },
+        capabilities_rpc::is_permitted, closed_captions_rpc::ClosedcaptionsImpl,
+        discovery_rpc::DiscoveryImpl, privacy_rpc::PrivacyImpl,
+        voice_guidance_rpc::voice_guidance_settings_enabled,
     },
     service::apps::app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
     state::platform_state::PlatformState,
