@@ -361,7 +361,6 @@ pub enum ExtnResponse {
     Permission(PermissionResponse),
     StorageData(StorageData),
     NetworkResponse(NetworkResponse),
-    AvailableTimezones(Vec<String>),
     TimezoneWithOffset(String, i64),
     Token(TokenResult),
     DefaultApp(AppLibraryEntry),
