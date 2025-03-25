@@ -60,7 +60,10 @@ use super::{
     extn_broker::ExtnBroker,
     http_broker::HttpBroker,
     provider_broker_state::{ProvideBrokerState, ProviderResult},
-    rules_engine::{jq_compile, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine},
+    rules_engine::{
+        jq_compile, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine, RuleRetrievalError,
+        RuleRetrieved,
+    },
     thunder_broker::ThunderBroker,
     websocket_broker::WebsocketBroker,
     workflow_broker::WorkflowBroker,
@@ -389,7 +392,12 @@ impl Default for EndpointBrokerState {
         }
     }
 }
-
+#[derive(Debug)]
+pub enum HandleBrokerageError {
+    RuleNotFound,
+    BrokerNotFound,
+    BrokerSendError,
+}
 impl EndpointBrokerState {
     pub fn new(
         metrics_state: MetricsState,
@@ -689,9 +697,16 @@ impl EndpointBrokerState {
     fn get_sender(&self, hash: &str) -> Option<BrokerSender> {
         self.endpoint_map.read().unwrap().get(hash).cloned()
     }
+    fn get_broker_rule(
+        &self,
+        rpc_request: &RpcRequest,
+    ) -> Result<RuleRetrieved, RuleRetrievalError> {
+        self.rule_engine.get_rule(rpc_request)
+    }
 
     /// Main handler method whcih checks for brokerage and then sends the request for
     /// asynchronous processing
+
     pub fn handle_brokerage(
         &self,
         rpc_request: RpcRequest,
@@ -700,7 +715,7 @@ impl EndpointBrokerState {
         permissions: Vec<FireboltPermission>,
         session: Option<Session>,
         telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
-    ) -> bool {
+    ) -> Result<BrokerRequest, HandleBrokerageError> {
         let mut handled: bool = true;
         let callback = self.callback.clone();
         let mut broker_sender = None;
@@ -711,7 +726,9 @@ impl EndpointBrokerState {
             rpc_request.ctx.clone(),
         )
         .emit_debug();
-        if let Some(rule) = self.rule_engine.get_rule(&rpc_request) {
+        if let Ok(RuleRetrieved::ExactMatch(rule)) | Ok(RuleRetrieved::WildcardMatch(rule)) =
+            self.get_broker_rule(&rpc_request)
+        {
             found_rule = Some(rule.clone());
 
             if let Some(endpoint) = rule.endpoint {
@@ -829,7 +846,7 @@ impl EndpointBrokerState {
         .with_diagnostic_context_item("handled", handled.to_string().as_str())
         .emit_debug();
 
-        handled
+        Err(HandleBrokerageError::RuleNotFound)
     }
 
     pub fn handle_broker_response(&self, data: JsonRpcApiResponse) {
@@ -838,7 +855,7 @@ impl EndpointBrokerState {
         }
     }
 
-    pub fn get_rule(&self, rpc_request: &RpcRequest) -> Option<Rule> {
+    pub fn get_rule(&self, rpc_request: &RpcRequest) -> Result<RuleRetrieved, RuleRetrievalError> {
         self.rule_engine.get_rule(rpc_request)
     }
 
@@ -1610,7 +1627,6 @@ mod tests {
             use crate::broker::endpoint_broker::tests::reset_counter;
 
             use super::*;
-          
 
             #[test]
             #[serial]
@@ -1712,10 +1728,10 @@ mod tests {
 
                 assert!(
                     /*
-                     this inequality is a "compromise" to deal with singleton counter being
-                     non deterministically incremented in other tests, causing this one to fail
-                     */
-                    ATOMIC_ID.load(Ordering::SeqCst)>= (num_threads * num_iterations) as u64,
+                    this inequality is a "compromise" to deal with singleton counter being
+                    non deterministically incremented in other tests, causing this one to fail
+                    */
+                    ATOMIC_ID.load(Ordering::SeqCst) >= (num_threads * num_iterations) as u64,
                     "Expected final ID to match the total number of increments"
                 );
             }
@@ -2424,6 +2440,45 @@ mod tests {
             state.update_request(&rpc_request, rule, None, None, vec![]);
             apply_response(filter, &rpc_request.ctx.method, &mut output.data);
             assert_eq!(output.data.result.unwrap(), Value::Null);
+        }
+    }
+    #[cfg(test)]
+    mod handle_brokerage {
+        use crate::{
+            broker::{
+                endpoint_broker::{EndpointBroker, EndpointBrokerState},
+                rules_engine::{RuleEngine, RuleSet},
+            },
+            service::extn::ripple_client::RippleClient,
+            state::{bootstrap_state::ChannelsState, metrics_state::MetricsState},
+        };
+        use ripple_sdk::{
+            api::gateway::rpc_gateway_api::RpcRequest,
+            extn::extn_client_message::ExtnMessage,
+            tokio::{self, sync::mpsc::channel},
+            Mockable,
+        };
+        #[tokio::test]
+        async fn test_basic() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let engine = RuleEngine {
+                rules: RuleSet::default(),
+            };
+            //engine.rules.add_rule("somecallsign.method".to_owned(), Default::default());
+            let under_test = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+            let request = RpcRequest::mock();
+            let extn_message = ExtnMessage::default();
+
+            let r = under_test.handle_brokerage(request, None, None, vec![], None, vec![]);
+            assert!(r.is_ok(),"Expected Ok but got: {:?}",r);
         }
     }
 }
