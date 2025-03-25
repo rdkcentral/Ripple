@@ -475,8 +475,13 @@ impl EndpointBrokerState {
     }
 
     pub fn get_next_id() -> u64 {
-        ATOMIC_ID.fetch_add(1, Ordering::Relaxed);
-        ATOMIC_ID.load(Ordering::Relaxed)
+        //https://en.cppreference.com/w/cpp/atomic/memory_order#Sequentially-consistent_ordering
+        /*
+        Switching to SeqCst for now, as the there could be consistency issues using Relaxed
+        note that fetch add returns the previous value after the add . This is
+        fine because the requirement is to have a unique id for each request
+        */
+        ATOMIC_ID.fetch_add(1, Ordering::SeqCst)
     }
 
     fn update_request(
@@ -1594,59 +1599,95 @@ mod tests {
         use std::sync::atomic::Ordering;
         #[cfg(test)]
         mod get_next_id_tests {
+            use std::u64;
+
             use super::*;
+            use serial_test::serial;
+            fn reset_counter(value: u64) {
+                ATOMIC_ID.store(value, Ordering::SeqCst);
+            }
 
             #[test]
+            #[serial]
             fn test_get_next_id_initial_value() {
                 // Reset the ATOMIC_ID to a known state for testing
-                ATOMIC_ID.store(0, Ordering::Relaxed);
+                reset_counter(0);
 
-                let id = EndpointBrokerState::get_next_id();
-                assert_eq!(id, 1, "Expected initial ID to be 0");
+                assert_eq!(
+                    EndpointBrokerState::get_next_id(),
+                    0,
+                    "Expected initial ID to be 0"
+                );
+
+                assert_eq!(
+                    EndpointBrokerState::get_next_id(),
+                    1,
+                    "Expected next ID to be 1"
+                );
             }
 
             #[test]
+            #[serial]
             fn test_get_next_id_increment() {
                 // Reset the ATOMIC_ID to a known state for testing
-                ATOMIC_ID.store(0, Ordering::Relaxed);
+                reset_counter(0);
 
-                let id1 = EndpointBrokerState::get_next_id();
-                let id2 = EndpointBrokerState::get_next_id();
-                let id3 = EndpointBrokerState::get_next_id();
-
-                assert_eq!(id1, 1, "Expected first ID to be 0");
-                assert_eq!(id2, 2, "Expected second ID to be 1");
-                assert_eq!(id3, 3, "Expected third ID to be 2");
+                assert_eq!(
+                    EndpointBrokerState::get_next_id(),
+                    0,
+                    "Expected first ID to be 0"
+                );
+                assert_eq!(
+                    EndpointBrokerState::get_next_id(),
+                    1,
+                    "Expected second ID to be 1"
+                );
+                assert_eq!(
+                    EndpointBrokerState::get_next_id(),
+                    2,
+                    "Expected third ID to be 2"
+                );
             }
 
             #[test]
+            #[serial]
             fn test_get_next_id_large_values() {
                 // Set ATOMIC_ID to a large value
-                ATOMIC_ID.store(u64::MAX - 2, Ordering::Relaxed);
+                reset_counter(u64::MAX);
 
-                let id1 = EndpointBrokerState::get_next_id();
-                let id2 = EndpointBrokerState::get_next_id();
-
-                assert_eq!(id1, u64::MAX - 1, "Expected first ID to be u64::MAX - 1");
-                assert_eq!(id2, u64::MAX, "Expected second ID to be u64::MAX");
+                assert_eq!(
+                    EndpointBrokerState::get_next_id(),
+                    u64::MAX,
+                    "Expected first ID to be u64::MAX - 1"
+                );
+                assert_eq!(
+                    EndpointBrokerState::get_next_id(),
+                    0,
+                    "Expected second ID to be 0 after wrapping around"
+                );
             }
 
             #[test]
+            #[serial]
             fn test_get_next_id_wraparound_behavior() {
                 // Set ATOMIC_ID to the maximum value
-                ATOMIC_ID.store(u64::MAX, Ordering::Relaxed);
-
-                let id = EndpointBrokerState::get_next_id();
+                reset_counter(u64::MAX);
+                let _ = EndpointBrokerState::get_next_id();
 
                 // In a real-world scenario, this would likely panic or wrap around.
                 // For this test, we assume wrapping behavior.
-                assert_eq!(id, 0, "Expected ID to wrap around to 0");
+                assert_eq!(
+                    EndpointBrokerState::get_next_id(),
+                    0,
+                    "Expected ID to wrap around to 0"
+                );
             }
 
             #[test]
+            #[serial]
             fn test_get_next_id_thread_safety() {
                 // Reset the ATOMIC_ID to a known state for testing
-                ATOMIC_ID.store(0, Ordering::Relaxed);
+                reset_counter(0);
 
                 let num_threads = 10;
                 let num_iterations = 1000;
@@ -1664,9 +1705,8 @@ mod tests {
                     handle.join().unwrap();
                 }
 
-                let final_id = ATOMIC_ID.load(Ordering::Relaxed);
                 assert_eq!(
-                    final_id,
+                    ATOMIC_ID.load(Ordering::SeqCst),
                     (num_threads * num_iterations) as u64,
                     "Expected final ID to match the total number of increments"
                 );
