@@ -901,53 +901,43 @@ pub trait EndpointBroker {
     /// Generic method which takes the given parameters from RPC request and adds rules using rule engine
     fn apply_request_rule(rpc_request: &BrokerRequest) -> Result<Value, RippleError> {
         if let Ok(mut params) = serde_json::from_str::<Vec<Value>>(&rpc_request.rpc.params_json) {
-            if params.len() > 1 {
-                if let Some(last) = params.pop() {
-                    if let Some(filter) = rpc_request
-                        .rule
-                        .transform
-                        .get_transform_data(super::rules_engine::RuleTransformType::Request)
-                    {
-                        let transformed_request_res = jq_compile(
-                            last,
-                            &filter,
-                            format!("{}_request", rpc_request.rpc.ctx.method),
-                        );
-
-                        LogSignal::new(
-                            "endpoint_broker".to_string(),
-                            "apply_request_rule".to_string(),
-                            rpc_request.rpc.ctx.clone(),
-                        )
-                        .with_diagnostic_context_item("success", "true")
-                        .with_diagnostic_context_item(
-                            "result",
-                            &format!("{:?}", transformed_request_res),
-                        )
-                        .emit_debug();
-
-                        return transformed_request_res;
-                    }
-                    LogSignal::new(
-                        "endpoint_broker".to_string(),
-                        "apply_request_rule".to_string(),
-                        rpc_request.rpc.ctx.clone(),
-                    )
-                    .with_diagnostic_context_item("success", "true")
-                    .with_diagnostic_context_item("result", &last.to_string())
-                    .emit_debug();
-                    return Ok(serde_json::to_value(&last).unwrap());
-                }
+            let last = if params.len() > 1 {
+                params.pop().unwrap()
             } else {
+                Value::Null
+            };
+
+            if let Some(filter) = rpc_request
+                .rule
+                .transform
+                .get_transform_data(super::rules_engine::RuleTransformType::Request)
+            {
+                let transformed_request_res = jq_compile(
+                    last,
+                    &filter,
+                    format!("{}_request", rpc_request.rpc.ctx.method),
+                );
+
                 LogSignal::new(
                     "endpoint_broker".to_string(),
                     "apply_request_rule".to_string(),
                     rpc_request.rpc.ctx.clone(),
                 )
-                .with_diagnostic_context_item("no rule to apply", "")
+                .with_diagnostic_context_item("success", "true")
+                .with_diagnostic_context_item("result", &format!("{:?}", transformed_request_res))
                 .emit_debug();
-                return Ok(Value::Null);
+
+                return transformed_request_res;
             }
+            LogSignal::new(
+                "endpoint_broker".to_string(),
+                "apply_request_rule".to_string(),
+                rpc_request.rpc.ctx.clone(),
+            )
+            .with_diagnostic_context_item("success", "true")
+            .with_diagnostic_context_item("result", &last.to_string())
+            .emit_debug();
+            return Ok(serde_json::to_value(&last).unwrap());
         }
         LogSignal::new(
             "endpoint_broker".to_string(),

@@ -18,27 +18,17 @@
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
-    tracing::error,
     RpcModule,
 };
-use ripple_sdk::{
-    api::{
-        device::{
-            device_events::{
-                DeviceEvent, DeviceEventCallback, DeviceEventRequest, TIME_ZONE_CHANGED,
-            },
-            device_info_request::DeviceInfoRequest,
-            device_peristence::SetStringProperty,
-            device_request::TimezoneProperty,
-        },
-        firebolt::fb_general::{ListenRequest, ListenerResponse},
-        gateway::rpc_gateway_api::CallContext,
-        storage_property::{StorageProperty, KEY_POSTAL_CODE},
-    },
-    extn::extn_client_message::ExtnResponse,
+use ripple_sdk::api::{
+    device::device_peristence::SetStringProperty,
+    firebolt::fb_general::{ListenRequest, ListenerResponse},
+    gateway::rpc_gateway_api::CallContext,
+    storage_property::{StorageProperty, KEY_POSTAL_CODE},
 };
+use serde_json::{json, Value};
 
-use crate::utils::rpc_utils::{rpc_add_event_listener, rpc_err};
+use crate::broker::broker_utils::BrokerUtils;
 use crate::{
     firebolt::rpc::RippleRPCProvider, processor::storage::storage_manager::StorageManager,
     service::apps::provider_broker::ProviderBroker, state::platform_state::PlatformState,
@@ -48,7 +38,7 @@ use serde::Deserialize;
 #[derive(Deserialize, Debug)]
 pub struct SetMapEntryProperty {
     pub key: String,
-    pub value: String,
+    pub value: Value,
 }
 #[derive(Deserialize, Debug)]
 pub struct RemoveMapEntryProperty {
@@ -113,16 +103,65 @@ pub trait Localization {
         ctx: CallContext,
         remove_map_entry_property: RemoveMapEntryProperty,
     ) -> RpcResult<()>;
-    #[method(name = "localization.setTimeZone")]
-    async fn timezone_set(&self, ctx: CallContext, set_request: TimezoneProperty) -> RpcResult<()>;
-    #[method(name = "localization.timeZone")]
-    async fn timezone(&self, ctx: CallContext) -> RpcResult<String>;
-    #[method(name = "localization.onTimeZoneChanged")]
-    async fn on_timezone_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
+}
+
+enum MapEntryProperty {
+    Set(SetMapEntryProperty),
+    Remove(RemoveMapEntryProperty),
+}
+
+async fn update_additional_info(
+    mut platform_state: PlatformState,
+    map_entry_property: MapEntryProperty,
+) -> RpcResult<()> {
+    match BrokerUtils::process_internal_main_request(
+        &mut platform_state,
+        "localization.additionalInfo",
+        None,
+    )
+    .await
+    {
+        Ok(Value::Object(mut additional_info_map)) => {
+            match map_entry_property {
+                MapEntryProperty::Set(set_map_entry_property) => {
+                    additional_info_map.insert(
+                        set_map_entry_property.key.clone(),
+                        set_map_entry_property.value.clone(),
+                    );
+                }
+                MapEntryProperty::Remove(remove_map_entry_property) => {
+                    additional_info_map.remove(&remove_map_entry_property.key);
+                }
+            }
+
+            if let Ok(value) = serde_json::to_string(&additional_info_map) {
+                let params = Some(json!({
+                    "value": value,
+                }));
+
+                BrokerUtils::process_internal_main_request(
+                    &mut platform_state,
+                    "localization.setAdditionalInfo",
+                    params,
+                )
+                .await?;
+            } else {
+                return Err(jsonrpsee::core::Error::Custom(String::from(
+                    "Error while serializing additional info",
+                )));
+            }
+        }
+        Err(e) => {
+            return Err(e);
+        }
+        _ => {
+            return Err(jsonrpsee::core::Error::Custom(String::from(
+                "Existing additional info is not an object",
+            )));
+        }
+    }
+
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -303,122 +342,28 @@ impl LocalizationServer for LocalizationImpl {
         .await
     }
 
-    // #[instrument(skip(self))]
     async fn add_additional_info(
         &self,
         _ctx: CallContext,
         set_map_entry_property: SetMapEntryProperty,
     ) -> RpcResult<()> {
-        /*
-        Per FIRE-189, AdditionalInfo is now individually updatable, so read the entire map out, and update
-        value in place, and then write entire map out
-
-         */
-        StorageManager::set_value_in_map(
-            &self.platform_state,
-            StorageProperty::AdditionalInfo,
-            set_map_entry_property.key,
-            set_map_entry_property.value,
+        update_additional_info(
+            self.platform_state.clone(),
+            MapEntryProperty::Set(set_map_entry_property),
         )
         .await
     }
-    // #[instrument(skip(self))]
+
     async fn remove_additional_info(
         &self,
         _ctx: CallContext,
         remove_map_entry_property: RemoveMapEntryProperty,
     ) -> RpcResult<()> {
-        StorageManager::remove_value_in_map(
-            &self.platform_state,
-            StorageProperty::AdditionalInfo,
-            remove_map_entry_property.key,
+        update_additional_info(
+            self.platform_state.clone(),
+            MapEntryProperty::Remove(remove_map_entry_property),
         )
         .await
-    }
-
-    async fn timezone_set(
-        &self,
-        _ctx: CallContext,
-        set_request: TimezoneProperty,
-    ) -> RpcResult<()> {
-        let resp = match self
-            .platform_state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::GetAvailableTimezones)
-            .await
-        {
-            Ok(r) => r,
-            Err(e) => {
-                error!("timezone_set: error response TBD: {:?}", e);
-                return Err(jsonrpsee::core::Error::Custom(String::from(
-                    "timezone_set: error response TBD",
-                )));
-            }
-        };
-        if let Some(ExtnResponse::AvailableTimezones(timezones)) = resp.payload.extract() {
-            if !timezones.contains(&set_request.value) {
-                error!(
-                    "timezone_set: Unsupported timezone: tz={}",
-                    set_request.value
-                );
-                return Err(jsonrpsee::core::Error::Custom(format!(
-                    "timezone_set: Unsupported timezone: tz={0}",
-                    set_request.value
-                )));
-            }
-        } else {
-            return Err(jsonrpsee::core::Error::Custom(String::from(
-                "timezone_set: error response TBD",
-            )));
-        }
-
-        if self
-            .platform_state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::SetTimezone(set_request.value.clone()))
-            .await
-            .is_ok()
-        {
-            return Ok(());
-        }
-
-        Err(rpc_err("timezone: error response TBD"))
-    }
-
-    async fn timezone(&self, _ctx: CallContext) -> RpcResult<String> {
-        if let Ok(response) = self
-            .platform_state
-            .get_client()
-            .send_extn_request(DeviceInfoRequest::GetTimezone)
-            .await
-        {
-            if let Some(ExtnResponse::String(v)) = response.payload.extract() {
-                return Ok(v);
-            }
-        }
-        Err(rpc_err("timezone: error response TBD"))
-    }
-
-    async fn on_timezone_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        if self
-            .platform_state
-            .get_client()
-            .send_extn_request(DeviceEventRequest {
-                event: DeviceEvent::TimeZoneChanged,
-                subscribe: true,
-                callback_type: DeviceEventCallback::FireboltAppEvent(ctx.app_id.to_owned()),
-            })
-            .await
-            .is_err()
-        {
-            error!("on_timezone_changed: Error while registration");
-        }
-
-        rpc_add_event_listener(&self.platform_state, ctx, request, TIME_ZONE_CHANGED).await
     }
 }
 
