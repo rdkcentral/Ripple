@@ -30,8 +30,6 @@ use ripple_sdk::api::{gateway::rpc_gateway_api::CallContext, storage_property::S
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-const ADVERTISING_APP_BUNDLE_ID_SUFFIX: &str = "Comcast";
-
 #[derive(Debug)]
 pub struct AdvertisingId {
     pub ifa: String,
@@ -93,8 +91,6 @@ impl ScopeType {
 
 #[rpc(server)]
 pub trait Advertising {
-    #[method(name = "advertising.appBundleId")]
-    fn app_bundle_id(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "advertising.policy")]
     async fn policy(&self, ctx: CallContext) -> RpcResult<AdvertisingPolicy>;
 }
@@ -141,13 +137,6 @@ pub struct AdvertisingImpl {
 
 #[async_trait]
 impl AdvertisingServer for AdvertisingImpl {
-    fn app_bundle_id(&self, ctx: CallContext) -> RpcResult<String> {
-        Ok(format!(
-            "{}.{}",
-            ctx.app_id, ADVERTISING_APP_BUNDLE_ID_SUFFIX
-        ))
-    }
-
     async fn policy(&self, _ctx: CallContext) -> RpcResult<AdvertisingPolicy> {
         Ok(get_advertisting_policy(&self.state).await)
     }

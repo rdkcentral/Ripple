@@ -325,6 +325,9 @@ pub trait Privacy {
         ctx: CallContext,
         scope_option: Option<ScopeOption>,
     ) -> RpcResult<HashMap<String, String>>;
+
+    #[method(name = "ripple.getAllowAppContentAdTargetting")]
+    async fn get_content_ad_targeting(&self) -> RpcResult<bool>;
 }
 
 //
@@ -1117,6 +1120,10 @@ impl PrivacyServer for PrivacyImpl {
             &ctx,
         )
         .await)
+    }
+
+    async fn get_content_ad_targeting(&self) -> RpcResult<bool> {
+        Ok(PrivacyImpl::get_allow_app_content_ad_targeting(&self.state).await)
     }
 }
 
