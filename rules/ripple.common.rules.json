@@ -189,49 +189,6 @@
         "rpcv2_event": "{ \"preferredAudioLanguages\": $event }"
       }
     },
-    "secondscreen.device": {
-      "alias": "org.rdk.AuthService.getXDeviceId",
-      "transform": {
-        "response": "if .result and .result.success then .result.xDeviceId else { error: { code: -32100, message: \"couldn't get device ID\" }} end"
-      }
-    },
-    "authentication.root": {
-      "alias": "org.rdk.AuthService.getAuthToken",
-      "transform": {
-        "response": "if .result and .result.success then (.result.token) else { error: { code: -32100, message: \"failed to get authentication root\" }} end"
-      }
-    },
-    "account.id": {
-      "alias": "org.rdk.AuthService.getServiceAccountId",
-      "transform": {
-        "response": "if .result and .result.success then (.result.serviceAccountId) else { error: { code: -32100, message: \"failed to get account id\" }} end"
-      }
-    },
-    "account.setServiceAccountId": {
-      "alias": "org.rdk.AuthService.setServiceAccountId",
-      "transform": {
-        "response": "if .result and .result.success then true else false end"
-      }
-    },
-    "account.setXDeviceId": {
-      "alias": "org.rdk.AuthService.setXDeviceId",
-      "transform": {
-        "response": "if .result and .result.success then true else false end"
-      }
-    },
-    "account.setPartnerId": {
-      "alias": "org.rdk.AuthService.setPartnerId",
-      "transform": {
-        "response": "if .result and .result.success then true else false end"
-      }
-    },
-    "account.setServiceAccessToken": {
-      "alias": "org.rdk.AuthService.setServiceAccessToken",
-      "transform": {
-        "request": "{ token: .token, expires: .expires, status: \"0\" }",
-        "response": "if .result and .result.success then true else false end"
-      }
-    },
     "device.onHdrChanged": {
       "alias": "org.rdk.HdcpProfile.onDisplayConnectionChanged",
       "event_handler": "device.hdr"

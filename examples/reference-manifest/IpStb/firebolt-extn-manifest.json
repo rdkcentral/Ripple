@@ -101,6 +101,6 @@
         ]
     },
     "rules_path": [
-        "./ripple.common.rules.json"
+        "/etc/ripple.common.rules.json"
     ]
 }
