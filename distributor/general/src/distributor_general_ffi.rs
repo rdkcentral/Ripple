@@ -62,7 +62,6 @@ fn init_library() -> CExtnMetadata {
             RippleContract::Advertising,
             RippleContract::Storage(StorageAdjective::PrivacyCloud),
             RippleContract::Session(SessionAdjective::Root),
-            RippleContract::BehaviorMetrics,
             RippleContract::Session(SessionAdjective::Device),
             RippleContract::Session(SessionAdjective::Distributor),
             RippleContract::Session(SessionAdjective::Platform),

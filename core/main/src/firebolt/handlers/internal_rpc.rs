@@ -18,18 +18,20 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
 use ripple_sdk::{
     api::{
-        apps::AppEvent,
-        context::{RippleContext, RippleContextUpdateRequest},
+        apps::{AppEvent, AppManagerResponse, AppMethod, AppRequest, AppResponse},
         firebolt::{fb_general::ListenRequestWithEvent, fb_telemetry::TelemetryPayload},
         gateway::rpc_gateway_api::CallContext,
     },
     async_trait::async_trait,
+    log::error,
+    tokio::sync::oneshot,
 };
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
     service::{apps::app_events::AppEvents, telemetry_builder::TelemetryBuilder},
     state::platform_state::PlatformState,
+    utils::rpc_utils::rpc_await_oneshot,
 };
 
 #[rpc(server)]
