@@ -101,11 +101,22 @@ impl RippleContext {
     pub fn update_with_context(&mut self, context: &RippleContext) {
         if let Some(update_type) = context.update_type.clone() {
             match update_type {
-                RippleContextUpdateType::ActivationStatusChanged | RippleContextUpdateType::TokenChanged => self.activation_status = context.activation_status.clone(),
-                RippleContextUpdateType::InternetConnectionChanged => self.internet_connectivity = context.internet_connectivity.clone(),
-                RippleContextUpdateType::FeaturesChanged => self.features = context.features.clone(),
-                RippleContextUpdateType::PowerStateChanged => self.system_power_state = context.system_power_state.clone(),
-                RippleContextUpdateType::TimeZoneChanged => self.time_zone = context.time_zone.clone(),
+                RippleContextUpdateType::ActivationStatusChanged
+                | RippleContextUpdateType::TokenChanged => {
+                    self.activation_status = context.activation_status.clone()
+                }
+                RippleContextUpdateType::InternetConnectionChanged => {
+                    self.internet_connectivity = context.internet_connectivity.clone()
+                }
+                RippleContextUpdateType::FeaturesChanged => {
+                    self.features = context.features.clone()
+                }
+                RippleContextUpdateType::PowerStateChanged => {
+                    self.system_power_state = context.system_power_state.clone()
+                }
+                RippleContextUpdateType::TimeZoneChanged => {
+                    self.time_zone = context.time_zone.clone()
+                }
             }
         }
     }
