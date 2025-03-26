@@ -64,7 +64,6 @@ use super::{
 pub async fn boot(state: BootstrapState) -> RippleResponse {
     let bootstrap = Bootstrap::new(state);
     execute_step(LoggingBootstrapStep, &bootstrap).await?;
-    execute_step(LoggingBootstrapStep, &bootstrap).await?;
     execute_step(StartCommunicationBroker, &bootstrap).await?;
     execute_step(SetupExtnClientStep, &bootstrap).await?;
     execute_step(LoadExtensionMetadataStep, &bootstrap).await?;

@@ -93,7 +93,7 @@ impl From<String> for DeviceSessionIdentifier {
 #[derive(Debug, Clone)]
 pub struct PlatformState {
     extn_manifest: ExtnManifest,
-    pub device_manifest: DeviceManifest,
+    device_manifest: DeviceManifest,
     pub ripple_client: RippleClient,
     pub app_library_state: AppLibraryState,
     pub session_state: SessionState,
