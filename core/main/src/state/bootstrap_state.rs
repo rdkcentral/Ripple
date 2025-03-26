@@ -25,11 +25,12 @@ use ripple_sdk::{
     log::{info, warn},
     tokio::sync::mpsc::{self, Receiver, Sender},
     utils::error::RippleError,
+    manifest::device::LoadDeviceManifestStep,
 };
 
 use crate::{
     bootstrap::manifest::{
-        apps::LoadAppLibraryStep, device::LoadDeviceManifestStep, extn::LoadExtnManifestStep,
+        apps::LoadAppLibraryStep, extn::LoadExtnManifestStep,
     },
     broker::endpoint_broker::BrokerOutput,
     firebolt::firebolt_gateway::FireboltGatewayCommand,
@@ -120,6 +121,7 @@ impl BootstrapState {
         let channels_state = ChannelsState::new();
         let client = RippleClient::new(channels_state.clone());
         let device_manifest = LoadDeviceManifestStep::get_manifest();
+        LoadDeviceManifestStep::read_env_variabled();
         let app_manifest_result = LoadAppLibraryStep::load_app_library();
         let extn_manifest = LoadExtnManifestStep::get_manifest();
         let extn_state = ExtnState::new(channels_state.clone(), extn_manifest.clone());
