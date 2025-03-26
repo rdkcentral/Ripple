@@ -1,8 +1,9 @@
-use crate::state::bootstrap_state::BootstrapState;
-use ripple_sdk::utils::logger::set_log_level;
+use crate::{state::bootstrap_state::BootstrapState, SEMVER_LIGHTWEIGHT};
 use ripple_sdk::{
     async_trait::async_trait,
     framework::{bootstrap::Bootstep, RippleResponse},
+    log,
+    utils::logger::init_and_configure_logger,
 };
 
 pub struct LoggingBootstrapStep;
@@ -14,11 +15,28 @@ impl Bootstep<BootstrapState> for LoggingBootstrapStep {
     }
 
     async fn setup(&self, state: BootstrapState) -> RippleResponse {
-        let device_manifest = &state.platform_state.device_manifest.configuration;
+        //let device_manifest = &state.platform_state.device_manifest.configuration;
+        let manifest = state.platform_state.get_device_manifest();
+        let log_level = match manifest
+            .configuration
+            .log_signal_log_level
+            .to_lowercase()
+            .as_str()
+        {
+            "info" => log::LevelFilter::Info,
+            "debug" => log::LevelFilter::Debug,
+            "trace" => log::LevelFilter::Trace,
+            _ => log::LevelFilter::Info,
+        };
 
-        //set log signal log level
-        let log_signal_log_level = device_manifest.log_signal_log_level.clone();
-        set_log_level(&log_signal_log_level);
+        let _ = init_and_configure_logger(
+            SEMVER_LIGHTWEIGHT,
+            "gateway".into(),
+            Some(vec![(
+                "ripple_sdk::api::observability::log_signal".to_string(),
+                log_level,
+            )]),
+        );
 
         Ok(())
     }

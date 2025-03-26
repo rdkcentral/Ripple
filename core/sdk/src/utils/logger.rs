@@ -57,12 +57,16 @@ pub fn init_logger(name: String) -> Result<(), fern::InitError> {
     Ok(())
 }
 
-pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern::InitError> {
+pub fn init_and_configure_logger(
+    version: &str,
+    name: String,
+    additional_modules: Option<Vec<(String, log::LevelFilter)>>,
+) -> Result<(), fern::InitError> {
     let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".into());
     println!("log level {}", log_string);
     let _version_string = version.to_string();
     let filter = log::LevelFilter::from_str(&log_string).unwrap_or(log::LevelFilter::Info);
-    fern::Dispatch::new()
+    let mut dispatch = fern::Dispatch::new()
         .format(move |out, message, record| {
             let _v = LOG_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             #[cfg(not(feature = "sysd"))]
@@ -121,8 +125,16 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
         .level_for("tungstenite", log::LevelFilter::Off)
         .level_for("soketto", log::LevelFilter::Off)
         .level_for("tracing", log::LevelFilter::Off)
-        .chain(std::io::stdout())
-        .apply()?;
+        .chain(std::io::stdout());
+
+    if let Some(modules) = additional_modules {
+        for (module_name, log_level) in modules {
+            println!("Setting log level for {} to {:?}", module_name, log_level);
+            dispatch = dispatch.level_for(module_name, log_level);
+        }
+    }
+    dispatch.apply()?;
+
     Ok(())
 }
 
