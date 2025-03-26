@@ -17,7 +17,7 @@ impl Bootstep<BootstrapState> for LoggingBootstrapStep {
     async fn setup(&self, state: BootstrapState) -> RippleResponse {
         //let device_manifest = &state.platform_state.device_manifest.configuration;
         let manifest = state.platform_state.get_device_manifest();
-        let log_level = match manifest
+        let log_signal_level = match manifest
             .configuration
             .log_signal_log_level
             .to_lowercase()

@@ -137,4 +137,3 @@ pub fn init_and_configure_logger(
 
     Ok(())
 }
-
