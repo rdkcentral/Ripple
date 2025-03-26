@@ -35,7 +35,6 @@ use crate::{
     events::thunder_event_processor::{
         ThunderEventHandler, ThunderEventHandlerProvider, ThunderEventMessage,
     },
-    processors::thunder_device_info::CachedState,
     ripple_sdk::{
         api::device::{
             device_events::{DeviceEventCallback, HDCP_CHANGED_EVENT, POWER_STATE_CHANGED},
@@ -388,10 +387,9 @@ impl TimezoneChangedEventHandler {
         _callback_type: DeviceEventCallback,
     ) {
         if let ThunderEventMessage::TimeZone(_v) = value {
-            let cached_state = CachedState::new(state.clone());
             tokio::spawn(async move {
                 if let Some(tz) =
-                    ThunderDeviceInfoRequestProcessor::get_timezone_and_offset(&cached_state).await
+                    ThunderDeviceInfoRequestProcessor::get_timezone_and_offset(&state).await
                 {
                     let event = ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
                         event_name: TIME_ZONE_CHANGED.to_string(),

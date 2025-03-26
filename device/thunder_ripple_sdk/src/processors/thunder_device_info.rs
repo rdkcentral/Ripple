@@ -45,6 +45,7 @@ use crate::{
             firebolt::fb_openrpc::FireboltSemanticVersion,
         },
         async_trait::async_trait,
+        chrono::NaiveDateTime,
         extn::{
             client::extn_processor::{
                 DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
@@ -58,8 +59,6 @@ use crate::{
     },
     utils::get_audio_profile_from_value,
 };
-use chrono::{TimeZone as ChronoTimezone, Utc};
-use chrono_tz::{OffsetComponents, Tz};
 use regex::{Match, Regex};
 use ripple_sdk::{
     api::{
@@ -148,7 +147,7 @@ pub struct CachedDeviceInfo {
 
 #[derive(Debug, Clone)]
 pub struct CachedState {
-    state: ThunderState,
+    pub state: ThunderState,
     cached: Arc<RwLock<CachedDeviceInfo>>,
 }
 
@@ -298,6 +297,22 @@ impl ThunderAllTimezonesResponse {
                 }
             }
         }
+    }
+
+    fn get_offset(&self, key: &str) -> i64 {
+        if let Some(tz) = self.timezones.get(key) {
+            if let Some(utc_tz) = self.timezones.get("Etc/UTC").cloned() {
+                if let Ok(ntz) = NaiveDateTime::parse_from_str(tz, "%a %b %d %H:%M:%S %Y %Z") {
+                    if let Ok(nutz) =
+                        NaiveDateTime::parse_from_str(&utc_tz, "%a %b %d %H:%M:%S %Y %Z")
+                    {
+                        let delta = (ntz - nutz).num_seconds();
+                        return round_to_nearest_quarter_hour(delta);
+                    }
+                }
+            }
+        }
+        0
     }
 }
 impl<'de> Deserialize<'de> for ThunderAllTimezonesResponse {
@@ -927,7 +942,7 @@ impl ThunderDeviceInfoRequestProcessor {
         }
 
         // If timezone or offset is None or empty
-        if let Some(tz) = Self::get_timezone_and_offset(&state).await {
+        if let Some(tz) = Self::get_timezone_and_offset(&state.state).await {
             let cloned_state = state.clone();
             let cloned_tz = tz.clone();
 
@@ -951,42 +966,46 @@ impl ThunderDeviceInfoRequestProcessor {
         Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
     }
 
-    pub async fn get_timezone_and_offset(state: &CachedState) -> Option<TimeZone> {
-        let timezone_result =
-            ThunderDeviceInfoRequestProcessor::get_timezone_value(&state.state).await;
+    pub async fn get_timezone_and_offset(state: &ThunderState) -> Option<TimeZone> {
+        let timezone_result = ThunderDeviceInfoRequestProcessor::get_timezone_value(&state).await;
+        let timezones_result = ThunderDeviceInfoRequestProcessor::get_all_timezones(state).await;
 
-        if let Ok(timezone) = timezone_result {
-            Some(TimeZone {
+        if let (Ok(timezone), Ok(timezones)) = (timezone_result, timezones_result) {
+            let timezone = TimeZone {
                 time_zone: timezone.clone(),
-                offset: Self::get_offset_seconds(&timezone).unwrap_or(0),
-            })
+                offset: timezones.get_offset(&timezone),
+            };
+            let timezone_c = timezone.clone();
+            let _ = state
+                .get_client()
+                .request_transient(RippleContextUpdateRequest::TimeZone(timezone_c));
+            Some(timezone)
         } else {
             None
         }
     }
 
-    pub fn get_offset_seconds(timezone: &str) -> Option<i64> {
-        // Parse the timezone (e.g., "America/Los_Angeles")
-        let tz: Tz = timezone.parse().ok()?;
-
-        // Get the current UTC time
-        let utc_now = Utc::now();
-
-        // Convert the current UTC time to the specified timezone
-        let local_time = tz.from_utc_datetime(&utc_now.naive_utc());
-
-        // Get the base UTC offset and DST adjustment
-        let base_offset = local_time.offset().base_utc_offset().num_seconds();
-        let dst_offset = local_time.offset().dst_offset().num_seconds();
-
-        // Calculate the total offset in seconds
-        let total_offset = base_offset + dst_offset;
-
-        // Round the total offset to the nearest quarter hour
-        const QUARER_HOUR: i64 = 900;
-        let rounded_offset = ((total_offset as f64 / 900.0).round() as i64) * QUARER_HOUR;
-
-        Some(rounded_offset)
+    async fn get_all_timezones(
+        state: &ThunderState,
+    ) -> Result<ThunderAllTimezonesResponse, RippleError> {
+        let response = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::System.method("getTimeZones"),
+                params: None,
+            })
+            .await;
+        if check_thunder_response_success(&response) {
+            match serde_json::from_value::<ThunderAllTimezonesResponse>(response.message) {
+                Ok(timezones) => Ok(timezones),
+                Err(e) => {
+                    error!("{}", e.to_string());
+                    Err(RippleError::ProcessorError)
+                }
+            }
+        } else {
+            Err(RippleError::ProcessorError)
+        }
     }
 
     async fn voice_guidance_enabled(state: CachedState, request: ExtnMessage) -> bool {
@@ -1359,9 +1378,6 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             DeviceInfoRequest::OnInternetConnected(time_out) => {
                 Self::on_internet_connected(state.clone(), msg, time_out.timeout).await
             }
-            DeviceInfoRequest::GetTimezoneWithOffset => {
-                Self::get_timezone_with_offset(state.clone(), msg).await
-            }
             DeviceInfoRequest::SetVoiceGuidanceEnabled(v) => {
                 Self::voice_guidance_set_enabled(state.clone(), msg, v).await
             }
@@ -1387,6 +1403,17 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             }
         }
     }
+}
+
+fn round_to_nearest_quarter_hour(offset_seconds: i64) -> i64 {
+    // Convert minutes to quarter hours
+    let quarter_hours = (offset_seconds as f64 / 900.0).round() as i64;
+
+    // Convert back to minutes
+    let rounded_minutes = quarter_hours * 15;
+
+    // Convert minutes back to seconds
+    rounded_minutes * 60
 }
 
 #[cfg(test)]
