@@ -46,7 +46,7 @@ use ripple_sdk::{
 
 #[rpc(server)]
 pub trait Capability {
-    #[method(name = "ripple.capabilitypermitcheck")]
+    #[method(name = "ripple.isPermitted")]
     async fn get_capability_permit(&self, ctx: CallContext, role: RoleInfo) -> RpcResult<bool>;
     #[method(name = "capabilities.supported")]
     async fn supported(&self, ctx: CallContext, cap: CapRPCRequest) -> RpcResult<bool>;
