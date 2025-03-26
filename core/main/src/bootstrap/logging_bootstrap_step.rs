@@ -34,7 +34,7 @@ impl Bootstep<BootstrapState> for LoggingBootstrapStep {
             "gateway".into(),
             Some(vec![(
                 "ripple_sdk::api::observability::log_signal".to_string(),
-                log_level,
+                log_signal_level,
             )]),
         );
 
