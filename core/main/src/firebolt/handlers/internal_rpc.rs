@@ -19,6 +19,7 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
 use ripple_sdk::{
     api::{
         apps::AppEvent,
+        context::{RippleContext, RippleContextUpdateRequest},
         firebolt::{fb_general::ListenRequestWithEvent, fb_telemetry::TelemetryPayload},
         gateway::rpc_gateway_api::CallContext,
     },
@@ -48,6 +49,9 @@ pub trait Internal {
         ctx: CallContext,
         request: ListenRequestWithEvent,
     ) -> RpcResult<()>;
+
+    #[method(name = "ripple.getAppCatalogId")]
+    async fn get_app_catalog_id(&self, ctx: CallContext, app_id: String) -> RpcResult<String>;
 }
 
 #[derive(Debug)]
@@ -81,6 +85,23 @@ impl InternalServer for InternalImpl {
         let event = request.event.clone();
         AppEvents::add_listener(&self.state, event, ctx, request.request);
         Ok(())
+    }
+
+    async fn get_app_catalog_id(&self, _: CallContext, app_id: String) -> RpcResult<String> {
+        let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
+
+        let app_request =
+            AppRequest::new(AppMethod::GetAppContentCatalog(app_id.clone()), app_resp_tx);
+        if let Err(e) = self.state.get_client().send_app_request(app_request) {
+            error!("Send error for AppMethod::GetAppContentCatalog {:?}", e);
+        }
+        let resp = rpc_await_oneshot(app_resp_rx).await;
+
+        if let Ok(Ok(AppManagerResponse::AppContentCatalog(content_catalog))) = resp {
+            return Ok(content_catalog.map_or(app_id.to_owned(), |x| x));
+        }
+
+        Ok(app_id)
     }
 }
 
