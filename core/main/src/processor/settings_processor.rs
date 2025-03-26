@@ -28,7 +28,7 @@ use ripple_sdk::{
         settings::{SettingKey, SettingValue, SettingsRequest, SettingsRequestParam},
         storage_property::{
             EVENT_ALLOW_PERSONALIZATION_CHANGED, EVENT_ALLOW_WATCH_HISTORY_CHANGED,
-            EVENT_DEVICE_NAME_CHANGED, EVENT_SHARE_WATCH_HISTORY,
+            EVENT_SHARE_WATCH_HISTORY,
         },
     },
     async_trait::async_trait,
@@ -53,7 +53,6 @@ use crate::{
     },
     service::apps::app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
     state::platform_state::PlatformState,
-    utils::rpc_utils::rpc_add_event_listener_with_decorator,
 };
 
 #[derive(Clone, Debug)]
@@ -203,8 +202,9 @@ impl SettingsProcessor {
             debug!("Checking Key {:?}", key);
             match key {
                 SettingKey::VoiceGuidanceEnabled => {
-                    resp = BrokerUtils::process_internal_main_request(
+                    resp = BrokerUtils::process_internal_request(
                         &mut state.clone(),
+                        Some(request.context.clone()),
                         "sts.voiceguidance.onEnabledChanged",
                         serde_json::to_value(json!({"listen": true})).ok(),
                     )
@@ -212,8 +212,9 @@ impl SettingsProcessor {
                     .is_ok();
                 }
                 SettingKey::ClosedCaptions => {
-                    resp = BrokerUtils::process_internal_main_request(
+                    resp = BrokerUtils::process_internal_request(
                         &mut state.clone(),
+                        Some(request.context.clone()),
                         "sts.closedcaptions.onEnabledChanged",
                         serde_json::to_value(json!({"listen": true})).ok(),
                     )
@@ -269,20 +270,14 @@ impl SettingsProcessor {
                     }
                 }
                 SettingKey::DeviceName => {
-                    if rpc_add_event_listener_with_decorator(
-                        state,
-                        ctx.clone(),
-                        ListenRequest { listen: true },
-                        EVENT_DEVICE_NAME_CHANGED,
-                        Some(Box::new(SettingsChangeEventDecorator {
-                            request: request.clone(),
-                        })),
+                    resp = BrokerUtils::process_internal_request(
+                        &mut state.clone(),
+                        Some(request.context.clone()),
+                        "sts.device.onNameChanged",
+                        serde_json::to_value(json!({"listen": true})).ok(),
                     )
                     .await
-                    .is_err()
-                    {
-                        resp = false;
-                    }
+                    .is_ok();
                 }
                 SettingKey::PowerSaving | SettingKey::LegacyMiniGuide => {
                     warn!("{} Not implemented", key.to_string());
