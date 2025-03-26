@@ -34,7 +34,7 @@ impl LoadDeviceManifestStep {
         r.expect("Need valid Device Manifest")
     }
     
-    pub fn read_env_variabled() {
+    pub fn read_env_variable() {
         let country_env = std::env::var("COUNTRY").unwrap_or_else(|_| "eu".to_string()); // Default to "US"
         println!("COUNTRY environment variable set to : {}", country_env);
 
