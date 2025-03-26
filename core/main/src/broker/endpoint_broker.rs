@@ -704,7 +704,7 @@ impl EndpointBrokerState {
         self.rule_engine.get_rule(rpc_request)
     }
 
-    /// Main handler method whcih checks for brokerage and then sends the request for
+    /// Main handler method which checks for brokerage and then sends the request for
     /// asynchronous processing
 
     pub fn handle_brokerage(
@@ -2214,6 +2214,7 @@ mod tests {
         use serde_json::json;
         use serde_json::Value;
         use serial_test::serial;
+
         #[serial]
         #[tokio::test]
         pub async fn test_static_rule_happy_path() {
@@ -2478,7 +2479,167 @@ mod tests {
             let extn_message = ExtnMessage::default();
 
             let r = under_test.handle_brokerage(request, None, None, vec![], None, vec![]);
-            assert!(r.is_ok(),"Expected Ok but got: {:?}",r);
+            assert!(r.is_ok(), "Expected Ok but got: {:?}", r);
+        }
+        #[cfg(test)]
+        mod update_request {
+            use ripple_sdk::tokio;
+
+            use crate::broker::{
+                endpoint_broker::BrokerCallback,
+                rules_engine::{Rule, RuleTransform},
+            };
+
+            use super::*;
+            use ripple_sdk::tokio::sync::mpsc::channel;
+
+            #[tokio::test]
+            async fn test_update_request_basic() {
+                let (tx, _) = channel(2);
+                let client = RippleClient::new(ChannelsState::new());
+                let state = EndpointBrokerState::new(
+                    MetricsState::default(),
+                    tx,
+                    RuleEngine {
+                        rules: RuleSet::default(),
+                    },
+                    client,
+                );
+
+                let rpc_request = RpcRequest::mock();
+                let rule = Rule {
+                    alias: "test.method".to_owned(),
+                    transform: RuleTransform::default(),
+                    endpoint: None,
+                    filter: None,
+                    event_handler: None,
+                    sources: None,
+                };
+
+                let (id, broker_request) =
+                    state.update_request(&rpc_request, rule.clone(), None, None, vec![]);
+
+                assert_eq!(id, broker_request.rpc.ctx.call_id);
+                assert_eq!(broker_request.rule.alias, rule.alias);
+            }
+
+            #[tokio::test]
+            async fn test_update_request_with_extn_message() {
+                let (tx, _) = channel(2);
+                let client = RippleClient::new(ChannelsState::new());
+                let state = EndpointBrokerState::new(
+                    MetricsState::default(),
+                    tx,
+                    RuleEngine {
+                        rules: RuleSet::default(),
+                    },
+                    client,
+                );
+
+                let rpc_request = RpcRequest::mock();
+                let rule = Rule {
+                    alias: "test.method".to_owned(),
+                    transform: RuleTransform::default(),
+                    endpoint: None,
+                    filter: None,
+                    event_handler: None,
+                    sources: None,
+                };
+                let extn_message = Some(ExtnMessage::default());
+
+                let (id, broker_request) = state.update_request(
+                    &rpc_request,
+                    rule.clone(),
+                    extn_message.clone(),
+                    None,
+                    vec![],
+                );
+
+                assert_eq!(id, broker_request.rpc.ctx.call_id);
+                assert_eq!(broker_request.rule.alias, rule.alias);
+                assert!(state
+                    .extension_request_map
+                    .read()
+                    .unwrap()
+                    .contains_key(&id));
+            }
+
+            #[tokio::test]
+            async fn test_update_request_with_workflow_callback() {
+                let (tx, _) = channel(2);
+                let client = RippleClient::new(ChannelsState::new());
+                let state = EndpointBrokerState::new(
+                    MetricsState::default(),
+                    tx,
+                    RuleEngine {
+                        rules: RuleSet::default(),
+                    },
+                    client,
+                );
+
+                let rpc_request = RpcRequest::mock();
+                let rule = Rule {
+                    alias: "test.method".to_owned(),
+                    transform: RuleTransform::default(),
+                    endpoint: None,
+                    filter: None,
+                    event_handler: None,
+                    sources: None,
+                };
+                let workflow_callback = Some(BrokerCallback::default());
+
+                let (id, broker_request) = state.update_request(
+                    &rpc_request,
+                    rule.clone(),
+                    None,
+                    workflow_callback.clone(),
+                    vec![],
+                );
+
+                assert_eq!(id, broker_request.rpc.ctx.call_id);
+                assert_eq!(broker_request.rule.alias, rule.alias);
+                assert!(broker_request.workflow_callback.is_some());
+            }
+
+            #[tokio::test]
+            async fn test_update_request_with_telemetry_response_listeners() {
+                let (tx, _) = channel(2);
+                let client = RippleClient::new(ChannelsState::new());
+                let state = EndpointBrokerState::new(
+                    MetricsState::default(),
+                    tx,
+                    RuleEngine {
+                        rules: RuleSet::default(),
+                    },
+                    client,
+                );
+
+                let rpc_request = RpcRequest::mock();
+                let rule = Rule {
+                    alias: "test.method".to_owned(),
+                    transform: RuleTransform::default(),
+                    endpoint: None,
+                    filter: None,
+                    event_handler: None,
+                    sources: None,
+                };
+                let telemetry_response_listeners = vec![channel(2).0];
+
+                let (id, broker_request) = state.update_request(
+                    &rpc_request,
+                    rule.clone(),
+                    None,
+                    None,
+                    telemetry_response_listeners.clone(),
+                );
+
+                assert_eq!(id, broker_request.rpc.ctx.call_id);
+                assert_eq!(broker_request.rule.alias, rule.alias);
+                assert_eq!(
+                    broker_request.telemetry_response_listeners.len(),
+                    telemetry_response_listeners.len()
+                );
+            }
         }
     }
 }

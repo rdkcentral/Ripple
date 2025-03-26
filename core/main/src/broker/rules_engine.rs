@@ -536,121 +536,116 @@ mod tests {
         .unwrap()
         .contains("nested"));
     }
-    // #[cfg(test)]
-    // mod tests {
-        use ripple_sdk::api::gateway::rpc_gateway_api::CallContext;
+    use ripple_sdk::api::gateway::rpc_gateway_api::CallContext;
 
-        use super::*;
+    #[test]
+    fn test_get_rule_exact_match() {
+        let mut rule_set = RuleSet::default();
+        let rule = Rule {
+            alias: "test_rule".to_string(),
+            ..Default::default()
+        };
+        rule_set
+            .rules
+            .insert("test.method".to_string(), rule.clone());
 
-        #[test]
-        fn test_get_rule_exact_match() {
-            let mut rule_set = RuleSet::default();
-            let rule = Rule {
-                alias: "test_rule".to_string(),
-                ..Default::default()
-            };
-            rule_set
-                .rules
-                .insert("test.method".to_string(), rule.clone());
+        let rule_engine = RuleEngine { rules: rule_set };
 
-            let rule_engine = RuleEngine { rules: rule_set };
-
-            let rpc_request = RpcRequest {
+        let rpc_request = RpcRequest {
+            method: "test.method".to_string(),
+            ctx: CallContext {
+                app_id: "test_app".to_string(),
                 method: "test.method".to_string(),
-                ctx: CallContext {
-                    app_id: "test_app".to_string(),
-                    method: "test.method".to_string(),
-                    ..Default::default()
-                },
                 ..Default::default()
-            };
+            },
+            ..Default::default()
+        };
 
-            let result = rule_engine.get_rule(&rpc_request);
-            match result {
-                Ok(RuleRetrieved::ExactMatch(retrieved_rule)) => {
-                    assert_eq!(retrieved_rule.alias, rule.alias);
-                }
-                _ => panic!("Expected exact match, but got {:?}", result),
+        let result = rule_engine.get_rule(&rpc_request);
+        match result {
+            Ok(RuleRetrieved::ExactMatch(retrieved_rule)) => {
+                assert_eq!(retrieved_rule.alias, rule.alias);
             }
+            _ => panic!("Expected exact match, but got {:?}", result),
         }
+    }
 
-        #[test]
-        fn test_get_rule_wildcard_match() {
-            let mut rule_set = RuleSet::default();
-            let rule = Rule {
-                alias: "wildcard_rule".to_string(),
-                ..Default::default()
-            };
-            rule_set.rules.insert("api.v1.*".to_string(), rule.clone());
+    #[test]
+    fn test_get_rule_wildcard_match() {
+        let mut rule_set = RuleSet::default();
+        let rule = Rule {
+            alias: "wildcard_rule".to_string(),
+            ..Default::default()
+        };
+        rule_set.rules.insert("api.v1.*".to_string(), rule.clone());
 
-            let rule_engine = RuleEngine { rules: rule_set };
+        let rule_engine = RuleEngine { rules: rule_set };
 
-            let rpc_request = RpcRequest {
+        let rpc_request = RpcRequest {
+            method: "api.v1.get".to_string(),
+            ctx: CallContext {
+                app_id: "test_app".to_string(),
                 method: "api.v1.get".to_string(),
-                ctx: CallContext {
-                    app_id: "test_app".to_string(),
-                    method: "api.v1.get".to_string(),
-                    ..Default::default()
-                },
                 ..Default::default()
-            };
+            },
+            ..Default::default()
+        };
 
-            let result = rule_engine.get_rule(&rpc_request);
-            match result {
-                Ok(RuleRetrieved::WildcardMatch(retrieved_rule)) => {
-                    assert_eq!(retrieved_rule.alias, rule.alias);
-                }
-                _ => panic!("Expected wildcard match, but got {:?}", result),
+        let result = rule_engine.get_rule(&rpc_request);
+        match result {
+            Ok(RuleRetrieved::WildcardMatch(retrieved_rule)) => {
+                assert_eq!(retrieved_rule.alias, rule.alias);
             }
+            _ => panic!("Expected wildcard match, but got {:?}", result),
         }
+    }
 
-        #[test]
-        fn test_get_rule_no_match() {
-            let rule_set = RuleSet::default();
-            let rule_engine = RuleEngine { rules: rule_set };
+    #[test]
+    fn test_get_rule_no_match() {
+        let rule_set = RuleSet::default();
+        let rule_engine = RuleEngine { rules: rule_set };
 
-            let rpc_request = RpcRequest {
+        let rpc_request = RpcRequest {
+            method: "nonexistent.method".to_string(),
+            ctx: CallContext {
+                app_id: "test_app".to_string(),
                 method: "nonexistent.method".to_string(),
-                ctx: CallContext {
-                    app_id: "test_app".to_string(),
-                    method: "nonexistent.method".to_string(),
-                    ..Default::default()
-                },
                 ..Default::default()
-            };
+            },
+            ..Default::default()
+        };
 
-            let result = rule_engine.get_rule(&rpc_request);
-            assert!(matches!(
-                result,
-                Err(RuleRetrievalError::RuleNotFoundAsWildcard)
-            ));
-        }
+        let result = rule_engine.get_rule(&rpc_request);
+        assert!(matches!(
+            result,
+            Err(RuleRetrievalError::RuleNotFoundAsWildcard)
+        ));
+    }
 
-        #[test]
-        fn test_get_rule_multiple_wildcard_matches() {
-            let mut rule_set = RuleSet::default();
-            rule_set
-                .rules
-                .insert("api.v1.*".to_string(), Rule::default());
-            rule_set.rules.insert("api.*".to_string(), Rule::default());
+    #[test]
+    fn test_get_rule_multiple_wildcard_matches() {
+        let mut rule_set = RuleSet::default();
+        rule_set
+            .rules
+            .insert("api.v1.*".to_string(), Rule::default());
+        rule_set.rules.insert("api.*".to_string(), Rule::default());
 
-            let rule_engine = RuleEngine { rules: rule_set };
+        let rule_engine = RuleEngine { rules: rule_set };
 
-            let rpc_request = RpcRequest {
+        let rpc_request = RpcRequest {
+            method: "api.v1.get".to_string(),
+            ctx: CallContext {
+                app_id: "test_app".to_string(),
                 method: "api.v1.get".to_string(),
-                ctx: CallContext {
-                    app_id: "test_app".to_string(),
-                    method: "api.v1.get".to_string(),
-                    ..Default::default()
-                },
                 ..Default::default()
-            };
+            },
+            ..Default::default()
+        };
 
-            let result = rule_engine.get_rule(&rpc_request);
-            assert!(matches!(
-                result,
-                Err(RuleRetrievalError::TooManyWildcardMatches)
-            ));
-        //}
+        let result = rule_engine.get_rule(&rpc_request);
+        assert!(matches!(
+            result,
+            Err(RuleRetrievalError::TooManyWildcardMatches)
+        ));
     }
 }

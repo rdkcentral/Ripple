@@ -1,6 +1,6 @@
 use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerRequest, BrokerSender,
-    EndpointBroker,
+    EndpointBroker, HandleBrokerageError,
 };
 use super::rules_engine::JsonDataSource;
 use crate::broker::endpoint_broker::{BrokerOutput, EndpointBrokerState};
@@ -28,6 +28,21 @@ pub enum SubBrokerErr {
     JsonRpcApiError(JsonRpcApiError),
 }
 pub type SubBrokerResult = Result<JsonRpcApiResponse, SubBrokerErr>;
+impl From<HandleBrokerageError> for SubBrokerErr {
+    fn from(e: HandleBrokerageError) -> Self {
+        match e {
+            HandleBrokerageError::BrokerNotFound => {
+                SubBrokerErr::RpcError(RippleError::BrokerError("Broker not found".to_string()))
+            }
+            HandleBrokerageError::RuleNotFound => {
+                SubBrokerErr::RpcError(RippleError::BrokerError("Rule not found".to_string()))
+            }
+            HandleBrokerageError::BrokerSendError => {
+                SubBrokerErr::RpcError(RippleError::BrokerError("Broker send error".to_string()))
+            }
+        }
+    }
+}
 
 async fn subbroker_call(
     endpoint_broker: EndpointBrokerState,
@@ -35,7 +50,7 @@ async fn subbroker_call(
     source: JsonDataSource,
 ) -> Result<serde_json::Value, SubBrokerErr> {
     let (brokered_tx, mut brokered_rx) = mpsc::channel::<BrokerOutput>(10);
-    endpoint_broker.handle_brokerage(
+    let r = endpoint_broker.handle_brokerage(
         rpc_request,
         None,
         Some(BrokerCallback {
@@ -44,7 +59,7 @@ async fn subbroker_call(
         Vec::new(),
         None,
         vec![],
-    );
+    )?;
 
     match brokered_rx.recv().await {
         Some(msg) => {
