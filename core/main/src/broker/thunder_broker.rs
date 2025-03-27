@@ -789,7 +789,6 @@ mod tests {
             },
             subscription_processed: None,
             workflow_callback: None,
-            telemetry_response_listeners: vec![],
         }
     }
 
