@@ -18,11 +18,7 @@
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt};
 
-use crate::{
-    api::session::AccountSession,
-    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
-    framework::ripple_contract::RippleContract,
-};
+use crate::api::session::AccountSession;
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum AdvertisingRequest {
@@ -67,24 +63,6 @@ pub struct AdConfigResponse {
     pub ifa_value: String,
 }
 
-impl ExtnPayloadProvider for AdvertisingRequest {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::Advertising(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<AdvertisingRequest> {
-        if let ExtnPayload::Request(ExtnRequest::Advertising(r)) = payload {
-            return Some(r);
-        }
-
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::Advertising
-    }
-}
-
 #[derive(Serialize, PartialEq, Deserialize, Debug, Clone)]
 pub enum AdvertisingResponse {
     None,
@@ -110,24 +88,6 @@ pub struct AdvertisingFrameworkConfig {
     pub device_ad_attributes: String,
     pub coppa: u32,
     pub authentication_entity: String,
-}
-
-impl ExtnPayloadProvider for AdvertisingResponse {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Response(ExtnResponse::Advertising(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        if let ExtnPayload::Response(ExtnResponse::Advertising(v)) = payload {
-            return Some(v);
-        }
-
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::Advertising
-    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
