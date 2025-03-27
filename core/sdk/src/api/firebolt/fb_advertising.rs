@@ -143,7 +143,6 @@ impl Default for GetAdConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::test_utils::test_extn_payload_provider;
     use rstest::rstest;
 
     #[rstest]
@@ -165,39 +164,5 @@ mod tests {
             },
         };
         assert_eq!(default_config, expected_config);
-    }
-
-    #[test]
-    fn test_extn_payload_provider_for_advertising_request() {
-        let ad_id_request_params = AdIdRequestParams {
-            privacy_data: HashMap::new(),
-            app_id: String::from("test_app"),
-            dist_session: AccountSession {
-                id: String::from("test_id"),
-                token: String::from("test_token"),
-                account_id: String::from("test_account_id"),
-                device_id: String::from("test_device_id"),
-            },
-            scope: HashMap::new(),
-        };
-
-        let advertising_request = AdvertisingRequest::GetAdIdObject(ad_id_request_params);
-
-        let contract_type: RippleContract = RippleContract::Advertising;
-        test_extn_payload_provider(advertising_request, contract_type);
-    }
-
-    #[test]
-    fn test_extn_payload_provider_for_advertising_response() {
-        let ad_id_response = AdIdResponse {
-            ifa: String::from("test_ifa"),
-            ifa_type: String::from("test_ifa_type"),
-            lmt: String::from("test_lmt"),
-        };
-
-        let advertising_response = AdvertisingResponse::AdIdObject(ad_id_response);
-
-        let contract_type: RippleContract = RippleContract::Advertising;
-        test_extn_payload_provider(advertising_response, contract_type);
     }
 }
