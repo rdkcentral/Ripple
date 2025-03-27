@@ -115,10 +115,24 @@ pub struct Rule {
 /*
 war on dots
 */
+#[derive(PartialEq)]
+pub enum RuleType {
+    Static,
+    Provided,
+    Endpoint,
+}
 impl Rule {
     fn apply_context(&mut self, rpc_request: &RpcRequest) -> &mut Self {
         self.transform.apply_context(rpc_request);
         self
+    }
+    pub fn rule_type(&self) -> RuleType {
+        if self.alias == *"static" {
+            return RuleType::Static;
+        } else if self.alias.eq_ignore_ascii_case("provided") {
+            return RuleType::Provided;
+        }
+        return RuleType::Endpoint;
     }
 }
 
@@ -261,6 +275,12 @@ impl RuleEngine {
             }
         }
     }
+    pub fn add_rules(&mut self, rules: RuleSet) {
+        self.rules.append(rules);
+    }
+    pub fn add_rule(&mut self, rule: Rule) {
+        self.rules.rules.insert(rule.alias.clone(), rule);
+    }
 
     pub fn has_rule(&self, request: &RpcRequest) -> bool {
         self.rules
@@ -286,13 +306,36 @@ impl RuleEngine {
             _ => Err(RuleRetrievalError::TooManyWildcardMatches),
         }
     }
-    //fn find_rule_by
+    pub fn get_rule(&self, rpc_request: &RpcRequest) -> Option<Rule> {
+        let method = rpc_request.method.to_lowercase();
+        if let Some(mut rule) = self.rules.rules.get(&method).cloned() {
+            rule.transform.apply_context(rpc_request);
+            return Some(rule);
+        } else {
+            for (key, value) in &self.rules.rules {
+                if key.ends_with(".*") && method.starts_with(&key[..key.len() - 2]) {
+                    let mut rule = value.clone();
+                    rule.transform.apply_context(rpc_request);
+                    return Some(rule);
+                }
+            }
+            trace!(
+                "Rule not available for {}, hence falling back to extension handler",
+                rpc_request.method
+            );
+        }
+        None
+    }
 
-    pub fn get_rule(&self, rpc_request: &RpcRequest) -> Result<RuleRetrieved, RuleRetrievalError> {
+    pub fn get_rule_new(
+        &self,
+        rpc_request: &RpcRequest,
+    ) -> Result<RuleRetrieved, RuleRetrievalError> {
         let method = rpc_request.method.to_lowercase();
         /*
         match directly from method name
          */
+
         if let Some(mut rule) = self.rules.get(&method).cloned() {
             return Ok(RuleRetrieved::ExactMatch(
                 rule.apply_context(rpc_request).to_owned(),
@@ -301,6 +344,7 @@ impl RuleEngine {
             /*
              * match, for example api.v1.* as rule name and api.v1.get as method name
              */
+            println!("-----------------looking for wildcard for {}", method);
             return Self::find_wildcard_rule(&self.rules.rules, &method);
             // for (key, value) in &self.rules.rules {
             //     if key.ends_with(".*") && method.starts_with(&key[..key.len() - 2]) {
@@ -311,7 +355,6 @@ impl RuleEngine {
             //     }
             // }
         }
-        //Err(RuleRetrievalError::RuleNotFound)
     }
 
     pub fn get_rule_by_method(&self, method: &str) -> Option<Rule> {
@@ -323,12 +366,22 @@ pub enum RuleRetrieved {
     ExactMatch(Rule),
     WildcardMatch(Rule),
 }
+impl From<RuleRetrieved> for Rule {
+    fn from(rule_retrieved: RuleRetrieved) -> Self {
+        match rule_retrieved {
+            RuleRetrieved::ExactMatch(rule) => rule,
+            RuleRetrieved::WildcardMatch(rule) => rule,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum RuleRetrievalError {
-    RuleNotFound,
+    RuleNotFound(String),
     RuleNotFoundAsWildcard,
     TooManyWildcardMatches,
 }
+
 /// Compiles and executes a JQ filter on a given JSON input value.
 ///
 /// # Arguments
@@ -561,7 +614,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = rule_engine.get_rule(&rpc_request);
+        let result = rule_engine.get_rule_new(&rpc_request);
         match result {
             Ok(RuleRetrieved::ExactMatch(retrieved_rule)) => {
                 assert_eq!(retrieved_rule.alias, rule.alias);
@@ -591,7 +644,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = rule_engine.get_rule(&rpc_request);
+        let result = rule_engine.get_rule_new(&rpc_request);
         match result {
             Ok(RuleRetrieved::WildcardMatch(retrieved_rule)) => {
                 assert_eq!(retrieved_rule.alias, rule.alias);
@@ -615,7 +668,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = rule_engine.get_rule(&rpc_request);
+        let result = rule_engine.get_rule_new(&rpc_request);
         assert!(matches!(
             result,
             Err(RuleRetrievalError::RuleNotFoundAsWildcard)
@@ -642,7 +695,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = rule_engine.get_rule(&rpc_request);
+        let result = rule_engine.get_rule_new(&rpc_request);
         assert!(matches!(
             result,
             Err(RuleRetrievalError::TooManyWildcardMatches)

@@ -31,7 +31,7 @@ use ripple_sdk::{
 
 use serde_json::json;
 
-use crate::state::session_state::Session;
+use crate::{firebolt::rpc, state::session_state::Session};
 
 use super::endpoint_broker::BrokerRequest;
 
@@ -90,30 +90,54 @@ impl ProvideBrokerState {
         }
         None
     }
-
-    pub fn send_to_provider(request: BrokerRequest, id: u64, session: Session) {
-        let method = request.clone().rpc.ctx.method;
-        let r = if let Some(p) = request.rpc.get_params() {
+    pub fn format_provider_message(rpc_request: &RpcRequest, id: u64) -> ApiMessage {
+        let r = if let Some(p) = rpc_request.get_params() {
             json!({
                 "jsonrpc": "2.0",
                 "id": id,
-                "method": method,
+                "method": rpc_request.ctx.method,
                 "params": p
             })
         } else {
             json!({
                 "jsonrpc": "2.0",
                 "id": id,
-                "method": request.rpc.ctx.method
+                "method": rpc_request.ctx.method
             })
         };
-        let message = ApiMessage::new(
+        ApiMessage::new(
             ApiProtocol::JsonRpc,
             serde_json::to_string(&r).unwrap(),
             "".into(),
-        );
+        )
+    }
+
+    pub fn send_to_provider(request: BrokerRequest, id: u64, session: Session) {
+        // let method = request.clone().rpc.ctx.method;
+        // let r = if let Some(p) = request.rpc.get_params() {
+        //     json!({
+        //         "jsonrpc": "2.0",
+        //         "id": id,
+        //         "method": method,
+        //         "params": p
+        //     })
+        // } else {
+        //     json!({
+        //         "jsonrpc": "2.0",
+        //         "id": id,
+        //         "method": request.rpc.ctx.method
+        //     })
+        // };
+        // let message = ApiMessage::new(
+        //     ApiProtocol::JsonRpc,
+        //     serde_json::to_string(&r).unwrap(),
+        //     "".into(),
+        // );
         tokio::spawn(async move {
-            if let Err(e) = session.send_json_rpc(message).await {
+            if let Err(e) = session
+                .send_json_rpc(Self::format_provider_message(&request.rpc, id))
+                .await
+            {
                 error!("Couldnt send Provider request {:?}", e)
             }
         });
