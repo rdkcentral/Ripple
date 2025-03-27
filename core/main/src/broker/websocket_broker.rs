@@ -306,6 +306,37 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn connect_non_json_rpc_websocket_test_invalid_response() {
+        let (tx, mut _tr) = mpsc::channel(1);
+        let (sender, mut rec) = mpsc::channel(1);
+        let send_data = vec![WSMockData::get("invalid json rpc response".to_string())];
+
+        let broker = setup_broker(tx, send_data, sender, false).await;
+        // Use Broker to connect to it
+        let request = BrokerRequest {
+            rpc: RpcRequest::get_new_internal("some_method".to_owned(), None),
+            rule: Rule {
+                alias: "".to_owned(),
+                transform: RuleTransform::default(),
+                endpoint: None,
+                filter: None,
+                event_handler: None,
+                sources: None,
+            },
+            workflow_callback: None,
+            subscription_processed: None,
+            telemetry_response_listeners: vec![],
+        };
+
+        broker.sender.send(request).await.unwrap();
+
+        // See if broker output gets the value
+
+        let v = tokio::time::timeout(Duration::from_secs(2), rec.recv()).await;
+        assert!(v.is_err());
+    }
+
+    #[tokio::test]
     async fn cleanup_non_json_rpc_websocket() {
         let (tx, mut tr) = mpsc::channel(1);
         let (sender, _) = mpsc::channel(1);
