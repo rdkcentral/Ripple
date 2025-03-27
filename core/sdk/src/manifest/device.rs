@@ -15,11 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
-use crate::{
-    api::manifest::device_manifest::DeviceManifest,
-    utils::error::RippleError,
-};
+use crate::{api::manifest::device_manifest::DeviceManifest, utils::error::RippleError};
 use log::info;
 
 pub struct LoadDeviceManifestStep;
@@ -33,13 +29,13 @@ impl LoadDeviceManifestStep {
 
         r.expect("Need valid Device Manifest")
     }
-    
+
     pub fn read_env_variable() {
         let country_env = std::env::var("COUNTRY").unwrap_or_else(|_| "eu".to_string()); // Default to "US"
         println!("COUNTRY environment variable set to : {}", country_env);
 
-     //   let device_type_env = std::env::var("DEVICE_TYPE").unwrap_or_else(|_| "TV".to_string());
-      //  println!("DEVICE_TYPE environment variable set to : {}", device_type_env);
+        //   let device_type_env = std::env::var("DEVICE_TYPE").unwrap_or_else(|_| "TV".to_string());
+        //  println!("DEVICE_TYPE environment variable set to : {}", device_type_env);
         match std::env::var("DEVICE_TYPE") {
             Ok(device_type) => {
                 println!("DEVICE_TYPE environment variable set to: {}", device_type);

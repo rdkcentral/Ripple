@@ -23,15 +23,13 @@ use ripple_sdk::{
     extn::ffi::ffi_message::CExtnMessage,
     framework::bootstrap::TransientChannel,
     log::{info, warn},
+    manifest::device::LoadDeviceManifestStep,
     tokio::sync::mpsc::{self, Receiver, Sender},
     utils::error::RippleError,
-    manifest::device::LoadDeviceManifestStep,
 };
 
 use crate::{
-    bootstrap::manifest::{
-        apps::LoadAppLibraryStep, extn::LoadExtnManifestStep,
-    },
+    bootstrap::manifest::{apps::LoadAppLibraryStep, extn::LoadExtnManifestStep},
     broker::endpoint_broker::BrokerOutput,
     firebolt::firebolt_gateway::FireboltGatewayCommand,
     service::extn::ripple_client::RippleClient,
