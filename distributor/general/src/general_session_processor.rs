@@ -196,8 +196,6 @@ impl ExtnRequestProcessor for DistributorSessionProcessor {
     ) -> bool {
         match extracted_message {
             AccountSessionRequest::Get => Self::get_token(state, msg).await,
-            AccountSessionRequest::Provision(p) => Self::provision(state, msg, p).await,
-            AccountSessionRequest::SetAccessToken(s) => Self::set_token(state, msg, s).await,
             AccountSessionRequest::GetAccessToken => Self::get_accesstoken(state, msg).await,
             AccountSessionRequest::Subscribe => Self::ack(state.client, msg).await.is_ok(),
         }
