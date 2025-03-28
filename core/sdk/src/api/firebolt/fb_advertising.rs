@@ -20,13 +20,6 @@ use std::{collections::HashMap, fmt};
 
 use crate::api::session::AccountSession;
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub enum AdvertisingRequest {
-    GetAdIdObject(AdIdRequestParams),
-    ResetAdIdentifier(AccountSession),
-    GetAdConfig(AdConfigRequestParams),
-}
-
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AdIdRequestParams {
     pub privacy_data: HashMap<String, String>,
@@ -61,13 +54,6 @@ pub struct AdConfigResponse {
     pub app_bundle_id: String,
     pub ifa: String,
     pub ifa_value: String,
-}
-
-#[derive(Serialize, PartialEq, Deserialize, Debug, Clone)]
-pub enum AdvertisingResponse {
-    None,
-    AdIdObject(AdIdResponse),
-    AdConfig(AdConfigResponse),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
