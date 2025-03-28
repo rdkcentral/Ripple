@@ -217,7 +217,10 @@ impl FireboltGateway {
                         );
                     }
                 }
-                Err(e) => error!("handle_broker_callback: e={:?}", e),
+                Err(e) => error!(
+                    "handle_broker_callback: e={:?} request_id={} method={} app_id={}",
+                    e, rpc_request.ctx.request_id, rpc_request.ctx.method, rpc_request.ctx.app_id
+                ),
             }
         });
 
