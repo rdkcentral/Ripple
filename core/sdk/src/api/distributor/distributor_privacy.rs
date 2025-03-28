@@ -361,7 +361,6 @@ pub enum PrivacyResponse {
     None,
     Bool(bool),
     Settings(PrivacySettings),
-    Exclusions(ExclusionPolicy),
     Grants(UserGrants),
 }
 

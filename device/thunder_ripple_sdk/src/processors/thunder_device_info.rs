@@ -28,7 +28,7 @@ use crate::{
         thunder_plugin::ThunderPlugin,
     },
     ripple_sdk::{
-        api::device::{device_info_request::DeviceCapabilities, device_request::AudioProfile},
+        api::device::device_request::AudioProfile,
         extn::client::extn_client::ExtnClient,
         tokio::sync::mpsc,
     },
@@ -62,23 +62,15 @@ use crate::{
 use regex::{Match, Regex};
 use ripple_sdk::{
     api::{
-        config::Config,
         context::RippleContextUpdateRequest,
         device::{
             device_info_request::{FirmwareInfo, PlatformBuildInfo},
             device_request::{InternetConnectionStatus, PowerState},
         },
-        device::{
-            device_info_request::{
-                DEVICE_INFO_AUTHORIZED, DEVICE_MAKE_MODEL_AUTHORIZED, DEVICE_SKU_AUTHORIZED,
-            },
-            device_request::TimeZone,
-        },
-        manifest::device_manifest::DefaultValues,
+        device::device_request::TimeZone,
     },
     log::trace,
     serde_json::{Map, Value},
-    tokio::join,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
@@ -139,9 +131,7 @@ pub struct CachedDeviceInfo {
     mac_address: Option<String>,
     serial_number: Option<String>,
     model: Option<String>,
-    make: Option<String>,
     hdcp_support: Option<HashMap<HdcpProfile, bool>>,
-    hdr_profile: Option<HashMap<HdrProfile, bool>>,
     version: Option<FireboltSemanticVersion>,
 }
 
@@ -176,15 +166,6 @@ impl CachedState {
         let _ = hdcp.hdcp_support.insert(value);
     }
 
-    fn get_hdr(&self) -> Option<HashMap<HdrProfile, bool>> {
-        self.cached.read().unwrap().hdr_profile.clone()
-    }
-
-    fn update_hdr_support(&self, value: HashMap<HdrProfile, bool>) {
-        let mut hdr = self.cached.write().unwrap();
-        let _ = hdr.hdr_profile.insert(value);
-    }
-
     fn get_mac_address(&self) -> Option<String> {
         self.cached.read().unwrap().mac_address.clone()
     }
@@ -210,15 +191,6 @@ impl CachedState {
     fn update_model(&self, model: String) {
         let mut cached = self.cached.write().unwrap();
         let _ = cached.model.insert(model);
-    }
-
-    fn get_make(&self) -> Option<String> {
-        self.cached.read().unwrap().make.clone()
-    }
-
-    fn update_make(&self, make: String) {
-        let mut cached = self.cached.write().unwrap();
-        let _ = cached.make.insert(make);
     }
 
     fn get_version(&self) -> Option<FireboltSemanticVersion> {
@@ -487,29 +459,6 @@ impl ThunderDeviceInfoRequestProcessor {
         }
         None
     }
-    async fn get_make(state: &CachedState) -> String {
-        match state.get_make() {
-            Some(value) => value,
-            None => {
-                let resp = state
-                    .get_thunder_client()
-                    .call(DeviceCallRequest {
-                        method: ThunderPlugin::System.method("getDeviceInfo"),
-                        params: None,
-                    })
-                    .await;
-                info!("{}", resp.message);
-                let r = resp.message.get("make");
-                if r.is_none() {
-                    "".into()
-                } else {
-                    let make = r.unwrap().as_str().unwrap().trim_matches('"');
-                    state.update_make(make.to_string());
-                    make.to_string()
-                }
-            }
-        }
-    }
 
     async fn internet_connection_status(state: CachedState, req: ExtnMessage) -> bool {
         if let Some(response) = Self::get_internet_connection_status(&state).await {
@@ -671,16 +620,6 @@ impl ThunderDeviceInfoRequestProcessor {
         .is_ok()
     }
 
-    async fn get_cached_hdr(state: &CachedState) -> HashMap<HdrProfile, bool> {
-        if let Some(v) = state.get_hdr() {
-            v
-        } else {
-            let v = Self::get_hdr(state.clone().state).await;
-            state.update_hdr_support(v.clone());
-            v
-        }
-    }
-
     pub async fn get_hdr(state: ThunderState) -> HashMap<HdrProfile, bool> {
         let response = state
             .get_thunder_client()
@@ -718,79 +657,6 @@ impl ThunderDeviceInfoRequestProcessor {
         hm
     }
 
-    async fn get_screen_resolution(state: &CachedState) -> Vec<i32> {
-        let response = state
-            .get_thunder_client()
-            .call(DeviceCallRequest {
-                method: ThunderPlugin::DisplaySettings.method("getCurrentResolution"),
-                params: None,
-            })
-            .await;
-        info!("{}", response.message);
-
-        if !check_thunder_response_success(&response) {
-            error!("{}", response.message);
-            return Vec::new();
-        }
-        info!("{}", response.message);
-        let resol = response.message["resolution"].as_str().unwrap_or_default();
-        get_dimension_from_resolution(resol)
-    }
-
-    async fn get_current_resolution(state: &CachedState) -> Result<Vec<i32>, ()> {
-        let response = state
-            .get_thunder_client()
-            .call(DeviceCallRequest {
-                method: ThunderPlugin::DisplaySettings.method("getCurrentResolution"),
-                params: None,
-            })
-            .await;
-        if !check_thunder_response_success(&response) {
-            error!("{}", response.message);
-            return Err(());
-        }
-        info!("{}", response.message);
-        let resol = response.message["resolution"].as_str().unwrap_or_default();
-        Ok(get_dimension_from_resolution(resol))
-    }
-
-    async fn get_default_resolution(state: &CachedState) -> Result<Vec<i32>, ()> {
-        let response = state
-            .get_thunder_client()
-            .call(DeviceCallRequest {
-                method: ThunderPlugin::DisplaySettings.method("getDefaultResolution"),
-                params: None,
-            })
-            .await;
-        if !check_thunder_response_success(&response) {
-            error!("{}", response.message);
-            return Err(());
-        }
-        info!("{}", response.message);
-        if let Some(resol) = response.message.get("defaultResolution") {
-            if let Some(r) = resol.as_str() {
-                return Ok(get_dimension_from_resolution(r));
-            }
-        }
-        Err(())
-    }
-
-    async fn get_video_resolution(state: &CachedState) -> Vec<i32> {
-        if let Ok(resolution) = Self::get_current_resolution(state).await {
-            return resolution;
-        }
-        if let Ok(resolution) = Self::get_default_resolution(state).await {
-            return resolution;
-        }
-        if let Ok(response) = state.get_client().request(Config::DefaultValues).await {
-            if let Some(ExtnResponse::Value(value)) = response.payload.extract() {
-                if let Ok(default_values) = serde_json::from_value::<DefaultValues>(value) {
-                    return default_values.video_dimensions;
-                }
-            }
-        }
-        vec![]
-    }
 
     async fn on_internet_connected(state: CachedState, req: ExtnMessage, timeout: u64) -> bool {
         if tokio::time::timeout(
@@ -1138,95 +1004,6 @@ impl ThunderDeviceInfoRequestProcessor {
             .is_ok()
     }
 
-    async fn get_device_capabilities(state: CachedState, keys: &[&str], msg: ExtnMessage) -> bool {
-        let device_info_authorized = keys.contains(&DEVICE_INFO_AUTHORIZED);
-        let (
-            video_dimensions,
-            native_dimensions,
-            firmware_info_result,
-            hdr_info,
-            hdcp_result,
-            audio_result,
-            model_result,
-            make_result,
-        ) = join!(
-            async {
-                if device_info_authorized {
-                    Some(Self::get_video_resolution(&state).await)
-                } else {
-                    None
-                }
-            },
-            async {
-                if device_info_authorized {
-                    Some(Self::get_screen_resolution(&state).await)
-                } else {
-                    None
-                }
-            },
-            async {
-                if device_info_authorized {
-                    Some(Self::get_os_info(&state).await.version)
-                } else {
-                    None
-                }
-            },
-            async {
-                if device_info_authorized {
-                    Some(Self::get_cached_hdr(&state).await)
-                } else {
-                    None
-                }
-            },
-            async {
-                if device_info_authorized {
-                    Some(Self::get_hdcp_status(&state).await)
-                } else {
-                    None
-                }
-            },
-            async {
-                if device_info_authorized {
-                    Some(Self::get_audio(&state).await)
-                } else {
-                    None
-                }
-            },
-            async {
-                if keys.contains(&DEVICE_SKU_AUTHORIZED) {
-                    Some(Self::get_model(&state).await)
-                } else {
-                    None
-                }
-            },
-            async {
-                if keys.contains(&DEVICE_MAKE_MODEL_AUTHORIZED) {
-                    Some(Self::get_make(&state).await)
-                } else {
-                    None
-                }
-            }
-        );
-
-        let device_capabilities = DeviceCapabilities {
-            audio: audio_result,
-            firmware_info: firmware_info_result,
-            hdcp: hdcp_result,
-            hdr: hdr_info,
-            make: make_result,
-            model: model_result,
-            video_resolution: video_dimensions,
-            screen_resolution: native_dimensions,
-        };
-        if let ExtnPayload::Response(r) =
-            DeviceResponse::FullCapabilities(device_capabilities).get_extn_payload()
-        {
-            Self::respond(state.get_client(), msg, r).await.is_ok()
-        } else {
-            Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await
-        }
-    }
-
     async fn platform_build_info(state: CachedState, msg: ExtnMessage) -> bool {
         let resp = state
             .get_thunder_client()
@@ -1392,10 +1169,6 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             }
             DeviceInfoRequest::InternetConnectionStatus => {
                 Self::internet_connection_status(state.clone(), msg).await
-            }
-            DeviceInfoRequest::FullCapabilities(keys) => {
-                let keys_as_str: Vec<&str> = keys.iter().map(String::as_str).collect();
-                Self::get_device_capabilities(state.clone(), &keys_as_str, msg).await
             }
             DeviceInfoRequest::PowerState => Self::power_state(state.clone(), msg).await,
             DeviceInfoRequest::PlatformBuildInfo => {
