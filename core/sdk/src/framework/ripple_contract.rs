@@ -321,7 +321,7 @@ mod tests {
 
     #[test]
     fn test_from_manifest() {
-        assert!(RippleContract::from_manifest("account_link").is_some());
+        assert!(RippleContract::from_manifest("permissions").is_some());
         assert!(RippleContract::from_manifest("account.session").is_some());
     }
 }
