@@ -17,12 +17,8 @@
 
 use ripple_sdk::{
     api::{
-        firebolt::{
-            fb_capabilities::{
-                FireboltPermission, CAPABILITY_NOT_AVAILABLE,
-                JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
-            },
-            provider::ProviderResponse,
+        firebolt::fb_capabilities::{
+            FireboltPermission, CAPABILITY_NOT_AVAILABLE, JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
         },
         gateway::rpc_gateway_api::{
             ApiMessage, ApiProtocol, CallContext, JsonRpcApiRequest, JsonRpcApiResponse,
@@ -50,11 +46,8 @@ use std::{
 };
 
 use crate::{
-    broker::{broker_utils::BrokerUtils, workflow_broker::tests::broker_request},
-    firebolt::{
-        firebolt_gateway::{FireboltGatewayCommand, JsonRpcError},
-        rpc,
-    },
+    broker::broker_utils::BrokerUtils,
+    firebolt::firebolt_gateway::{FireboltGatewayCommand, JsonRpcError},
     service::extn::ripple_client::RippleClient,
     state::{metrics_state::MetricsState, platform_state::PlatformState, session_state::Session},
     utils::router_utils::{
@@ -522,6 +515,8 @@ impl EndpointBrokerState {
         ATOMIC_ID.fetch_add(1, Ordering::SeqCst)
     }
     /// Generic method which takes the given parameters from RPC request and adds rules using rule engine
+    //TODO: decide fate of this function
+    #[allow(dead_code)]
     fn apply_request_rule(rpc_request: &BrokerRequest) -> Result<Value, RippleError> {
         if let Ok(mut params) = serde_json::from_str::<Vec<Value>>(&rpc_request.rpc.params_json) {
             let last = if params.len() > 1 {
@@ -888,15 +883,9 @@ impl EndpointBrokerState {
                 //let output = BrokerOutput { data };
                 //tokio::spawn(async move { callback.sender.send(output).await });
             }
-            Some(ProviderResult::Session(s)) => {
-                //Self::format_provider_message(rpc_request, id, s)
-                /// rpc_request
-                BrokerResponse::ApiMessage(ProvideBrokerState::format_provider_message(
-                    rpc_request,
-                    id,
-                ))
-                //ProvideBrokerState::send_to_provider(request, id, s);
-            }
+            Some(ProviderResult::Session(_s)) => BrokerResponse::ApiMessage(
+                ProvideBrokerState::format_provider_message(rpc_request, id),
+            ),
             Some(ProviderResult::NotAvailable(p)) => {
                 // Not Available
                 let data = JsonRpcApiResponse::new(
@@ -1132,7 +1121,7 @@ impl EndpointBrokerState {
                 let response = BrokerResponse::JsonRpc(
                     self.handle_static_request_new(rpc_request.clone(), rpc_request.ctx.call_id),
                 );
-                return Ok((endpoint, response));
+                Ok((endpoint, response))
             }
             super::rules_engine::RuleType::Provided => {
                 let response = self.handle_provided_request_new(
@@ -1141,13 +1130,13 @@ impl EndpointBrokerState {
                     permissions,
                     session,
                 );
-                return Ok((endpoint, response));
+                Ok((endpoint, response))
             }
             super::rules_engine::RuleType::Endpoint => {
                 if rpc_request.is_unlisten() {
-                    return Ok((endpoint, BrokerResponse::Unlisten(broker_request.1)));
+                    Ok((endpoint, BrokerResponse::Unlisten(broker_request.1)))
                 } else {
-                    return Ok((endpoint, BrokerResponse::BrokerRequest(broker_request.1)));
+                    Ok((endpoint, BrokerResponse::BrokerRequest(broker_request.1)))
                 }
             }
         }
@@ -1197,14 +1186,14 @@ impl EndpointBrokerState {
                         tokio::spawn(async move { endpoint.send(data).await });
                     }
                 }
-                return true;
+                true
             }
             Err(e) => {
                 error!("Error handling brokerage {:?}", e);
-                return false;
+                false
             }
         }
-        false
+        //false
     }
 
     pub fn handle_broker_response(&self, data: JsonRpcApiResponse) {
@@ -1896,7 +1885,7 @@ mod tests {
     use super::*;
     use crate::broker::rules_engine::RuleTransform;
     use ripple_sdk::{tokio::sync::mpsc::channel, Mockable};
-    use serial_test::serial;
+
     fn reset_counter(value: u64) {
         ATOMIC_ID.store(value, Ordering::SeqCst);
     }
@@ -1978,7 +1967,6 @@ mod tests {
         use std::sync::atomic::Ordering;
         #[cfg(test)]
         mod get_next_id_tests {
-            use std::u64;
 
             use serial_test::serial;
 
@@ -2554,7 +2542,7 @@ mod tests {
         use crate::broker::endpoint_broker::apply_response;
         use crate::broker::endpoint_broker::BrokerConnectRequest;
         use crate::broker::endpoint_broker::BrokerOutput;
-        use crate::broker::endpoint_broker::{BrokerCallback, EndpointBrokerState};
+        use crate::broker::endpoint_broker::EndpointBrokerState;
         use crate::broker::rules_engine::RuleEndpoint;
         use crate::broker::rules_engine::RuleEndpointProtocol;
         use crate::broker::rules_engine::RuleEngine;
@@ -2735,7 +2723,7 @@ mod tests {
                 state.reconnect_tx.clone(),
             );
             state.build_endpoint(None, request);
-            let mut data = JsonRpcApiResponse::mock();
+            let data = JsonRpcApiResponse::mock();
             let mut output: BrokerOutput = BrokerOutput::new(data.clone());
             let filter = "if .result and .result.success then (.result.stbVersion | split(\"_\") [0]) elif .error then if .error.code == -32601 then {error: { code: -1, message: \"Unknown method.\" }} else \"Error occurred with a different code\" end else \"No result or recognizable error\" end".to_string();
             let mut response = JsonRpcApiResponse::mock();
@@ -2806,8 +2794,7 @@ mod tests {
         use crate::{
             broker::{
                 endpoint_broker::{
-                    BrokerRequest, BrokerSender, EndpointBroker, EndpointBrokerState,
-                    HandleBrokerageError,
+                    BrokerRequest, BrokerSender, EndpointBrokerState, HandleBrokerageError,
                 },
                 rules_engine::{Rule, RuleEngine, RuleSet},
             },
@@ -2815,7 +2802,7 @@ mod tests {
             state::{bootstrap_state::ChannelsState, metrics_state::MetricsState},
         };
         use ripple_sdk::{
-            api::gateway::rpc_gateway_api::{JsonRpcApiResponse, RpcRequest},
+            api::gateway::rpc_gateway_api::RpcRequest,
             extn::extn_client_message::ExtnMessage,
             tokio::{
                 self,
@@ -2842,16 +2829,14 @@ mod tests {
             engine.add_rule(r);
             let mut under_test =
                 EndpointBrokerState::new(MetricsState::default(), tx, engine, client);
-            let (tx, mut rx) = mpsc::channel::<BrokerRequest>(10);
+            let (tx, _) = mpsc::channel::<BrokerRequest>(10);
             under_test.add_endpoint("thunder".to_string(), BrokerSender { sender: tx });
             let mut request = RpcRequest::mock();
             request.method = "static".to_string();
-            let extn_message = ExtnMessage::default();
 
             let r = under_test.dispatch_brokerage(request, None, None, vec![], None, vec![]);
             println!("------------------- result={:?}", r);
             assert!(r.is_ok(), "Expected Ok but got: {:?}", r);
-            let r = r.unwrap();
         }
         #[tokio::test]
         async fn test_dispatch_brokerage_static_rule() {
@@ -2874,7 +2859,7 @@ mod tests {
 
             let mut request = RpcRequest::mock();
             request.method = "static".to_string();
-            let (tx, mut tr) = mpsc::channel(10);
+            let (tx, _) = mpsc::channel(10);
             under_test.add_endpoint("thunder".to_string(), BrokerSender { sender: tx });
 
             let result = under_test.dispatch_brokerage(request, None, None, vec![], None, vec![]);
@@ -2897,8 +2882,7 @@ mod tests {
                 sources: None,
             };
             engine.add_rule(rule);
-            let mut under_test =
-                EndpointBrokerState::new(MetricsState::default(), tx, engine, client);
+            let under_test = EndpointBrokerState::new(MetricsState::default(), tx, engine, client);
 
             let mut request = RpcRequest::mock();
             request.method = "provided".to_string();
@@ -2972,8 +2956,7 @@ mod tests {
                 sources: None,
             };
             engine.add_rule(rule);
-            let mut under_test =
-                EndpointBrokerState::new(MetricsState::default(), tx, engine, client);
+            let under_test = EndpointBrokerState::new(MetricsState::default(), tx, engine, client);
 
             let mut request = RpcRequest::mock();
             request.method = "endpoint".to_string();
@@ -2991,7 +2974,7 @@ mod tests {
 
             use crate::broker::{
                 endpoint_broker::BrokerCallback,
-                rules_engine::{Rule, RuleTransform},
+                rules_engine::{Rule, RuleSet, RuleTransform},
             };
 
             use super::*;

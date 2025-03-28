@@ -31,7 +31,7 @@ use ripple_sdk::{
 
 use serde_json::json;
 
-use crate::{firebolt::rpc, state::session_state::Session};
+use crate::state::session_state::Session;
 
 use super::endpoint_broker::BrokerRequest;
 

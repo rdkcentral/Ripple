@@ -132,7 +132,7 @@ impl Rule {
         } else if self.alias.eq_ignore_ascii_case("provided") {
             return RuleType::Provided;
         }
-        return RuleType::Endpoint;
+        RuleType::Endpoint
     }
 }
 
@@ -344,8 +344,7 @@ impl RuleEngine {
             /*
              * match, for example api.v1.* as rule name and api.v1.get as method name
              */
-            println!("-----------------looking for wildcard for {}", method);
-            return Self::find_wildcard_rule(&self.rules.rules, &method);
+            Self::find_wildcard_rule(&self.rules.rules, &method)
             // for (key, value) in &self.rules.rules {
             //     if key.ends_with(".*") && method.starts_with(&key[..key.len() - 2]) {
             //         let mut rule = value.clone();

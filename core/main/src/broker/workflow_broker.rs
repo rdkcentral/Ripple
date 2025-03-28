@@ -17,7 +17,7 @@ use ripple_sdk::{
     log::{error, trace},
     tokio::{self, sync::mpsc},
 };
-use tokio_tungstenite::tungstenite::http::method;
+
 pub struct WorkflowBroker {
     sender: BrokerSender,
 }
@@ -46,6 +46,8 @@ impl From<HandleBrokerageError> for SubBrokerErr {
     }
 }
 
+//TODO: decide fate of this function
+#[allow(dead_code)]
 async fn subbroker_call(
     endpoint_broker: EndpointBrokerState,
     rpc_request: RpcRequest,
@@ -176,8 +178,9 @@ impl WorkflowBroker {
 
             // Serialize the merged parameters back into params_json
             rpc_request.params_json = serde_json::to_string(&existing_params).unwrap();
-            let t = subbroker_call(endpoint_broker.clone(), rpc_request, source).boxed(); // source is still usable here
-            futures.push(t);
+            //let t = subbroker_call(endpoint_broker.clone(), rpc_request, source).boxed(); // source is still usable here
+            let f = subbroker_call_new(endpoint_broker.clone(), rpc_request, source).boxed();
+            futures.push(f);
         }
         futures
     }
