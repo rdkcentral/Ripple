@@ -33,7 +33,7 @@ use ripple_sdk::{
     extn::extn_client_message::ExtnMessage,
     log::{debug, error, info, trace, warn},
     serde_json::{self, Value},
-    tokio,
+    tokio::{self, runtime::Handle},
 };
 use serde::{Deserialize, Serialize};
 
@@ -109,7 +109,16 @@ impl FireboltGateway {
             .channels_state
             .get_gateway_receiver()
             .expect("Gateway receiver to be available");
+        let handle = Handle::current().metrics();
+
         while let Some(cmd) = firebolt_gateway_rx.recv().await {
+            info!(
+                "Current gateway capacity {} {} {}",
+                firebolt_gateway_rx.capacity(),
+                handle.global_queue_depth(),
+                handle.num_alive_tasks()
+            );
+
             use FireboltGatewayCommand::*;
 
             match cmd {
