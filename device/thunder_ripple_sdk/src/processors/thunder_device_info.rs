@@ -967,7 +967,7 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     pub async fn get_timezone_and_offset(state: &ThunderState) -> Option<TimeZone> {
-        let timezone_result = ThunderDeviceInfoRequestProcessor::get_timezone_value(&state).await;
+        let timezone_result = ThunderDeviceInfoRequestProcessor::get_timezone_value(state).await;
         let timezones_result = ThunderDeviceInfoRequestProcessor::get_all_timezones(state).await;
 
         if let (Ok(timezone), Ok(timezones)) = (timezone_result, timezones_result) {

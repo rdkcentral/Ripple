@@ -14,24 +14,29 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-
-use serde_json::json;
+#[allow(dead_code, unused_imports)]
 use std::collections::HashMap;
-
+#[allow(dead_code, unused_imports)]
 use crate::get_pact_with_params;
-
+#[allow(dead_code, unused_imports)]
 use crate::ripple_sdk::{
-    serde_json::{self},
+    serde_json::{self, json},
     tokio,
 };
-
+#[allow(dead_code, unused_imports)]
 use crate::tests::contracts::contract_utils::*;
+#[allow(dead_code, unused_imports)]
 use crate::{get_pact, send_thunder_call_message};
+#[allow(dead_code, unused_imports)]
 use pact_consumer::mock_server::StartMockServerAsync;
 
+#[allow(dead_code, unused_imports)]
 use futures_util::{SinkExt, StreamExt};
+#[allow(dead_code, unused_imports)]
 use tokio::time::{timeout, Duration};
+#[allow(dead_code, unused_imports)]
 use tokio_tungstenite::connect_async;
+#[allow(dead_code, unused_imports)]
 use tokio_tungstenite::tungstenite::protocol::Message;
 
 #[tokio::test(flavor = "multi_thread")]
