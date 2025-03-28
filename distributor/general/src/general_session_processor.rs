@@ -18,9 +18,7 @@
 use ripple_sdk::{
     api::{
         device::device_request::AccountToken,
-        session::{
-            AccountSession, AccountSessionRequest, AccountSessionTokenRequest, ProvisionRequest,
-        },
+        session::{AccountSession, AccountSessionRequest},
     },
     async_trait::async_trait,
     extn::{
@@ -102,37 +100,6 @@ impl DistributorSessionProcessor {
         }
 
         Self::handle_error(state.client, msg, RippleError::ExtnError).await
-    }
-
-    async fn set_token(
-        state: DistSessionState,
-        msg: ExtnMessage,
-        token: AccountSessionTokenRequest,
-    ) -> bool {
-        {
-            let mut session = state.session.write().unwrap();
-            session.value.token = token.token;
-            session.sync();
-        }
-        Self::ack(state.client, msg).await.is_ok()
-    }
-
-    async fn provision(
-        state: DistSessionState,
-        msg: ExtnMessage,
-        provision: ProvisionRequest,
-    ) -> bool {
-        {
-            let mut session = state.session.write().unwrap();
-            session.value.account_id = provision.account_id;
-            session.value.device_id = provision.device_id;
-            if let Some(distributor) = provision.distributor_id {
-                session.value.id = distributor;
-            }
-
-            session.sync();
-        }
-        Self::ack(state.client, msg).await.is_ok()
     }
 
     async fn get_accesstoken(mut state: DistSessionState, msg: ExtnMessage) -> bool {

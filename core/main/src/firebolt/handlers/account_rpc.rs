@@ -20,15 +20,7 @@ use jsonrpsee::{
     proc_macros::rpc,
     RpcModule,
 };
-use ripple_sdk::{
-    api::{
-        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
-        session::AccountSessionTokenRequest,
-    },
-    extn::extn_client_message::{ExtnMessage, ExtnResponse},
-    utils::error::RippleError,
-};
-use serde_json::json;
+use ripple_sdk::api::gateway::rpc_gateway_api::CallContext;
 
 use crate::{
     firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState,

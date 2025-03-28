@@ -40,15 +40,12 @@ use ripple_sdk::{
             device_request::{AudioProfile, DeviceVersionResponse, HdcpProfile},
         },
         firebolt::fb_general::{ListenRequest, ListenerResponse},
-        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
-        session::ProvisionRequest,
+        gateway::rpc_gateway_api::CallContext,
         storage_property::{EVENT_DEVICE_DEVICE_NAME_CHANGED, EVENT_DEVICE_NAME_CHANGED},
     },
-    extn::extn_client_message::{ExtnMessage, ExtnResponse},
+    extn::extn_client_message::ExtnResponse,
     log::error,
-    utils::error::RippleError,
 };
-use serde_json::json;
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
