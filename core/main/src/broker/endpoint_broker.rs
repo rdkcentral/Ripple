@@ -1385,12 +1385,12 @@ impl BrokerOutputForwarder {
             None
         };
         let parse_result = serde_json::from_slice::<Value>(data);
-        error!("parse result {:?}", parse_result);
+        debug!("parse result {:?}", parse_result);
         if parse_result.is_err() {
             return Err(RippleError::ParseError);
         }
         let result = Some(parse_result.unwrap());
-        error!("result {:?}", result);
+        debug!("result {:?}", result);
         // build JsonRpcApiResponse
         let data = JsonRpcApiResponse {
             jsonrpc: "2.0".to_owned(),
