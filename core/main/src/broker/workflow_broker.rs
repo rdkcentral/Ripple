@@ -41,7 +41,9 @@ impl From<HandleBrokerageError> for SubBrokerErr {
             HandleBrokerageError::BrokerSendError => {
                 SubBrokerErr::RpcError(RippleError::BrokerError("Broker send error".to_string()))
             }
-            HandleBrokerageError::Broker => todo!(),
+            HandleBrokerageError::Broker => {
+                SubBrokerErr::RpcError(RippleError::BrokerError("Broker error".to_string()))
+            }
         }
     }
 }
