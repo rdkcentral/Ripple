@@ -28,6 +28,7 @@ full = ["rpc"]
 sysd = []
 test = ["jsonrpsee", "mock"]
 mock = []
+local_dev = []
 http_contract_tests = [
 ]
 

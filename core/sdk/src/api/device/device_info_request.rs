@@ -51,12 +51,9 @@ pub enum DeviceInfoRequest {
     SetVoiceGuidanceEnabled(bool),
     VoiceGuidanceSpeed,
     SetVoiceGuidanceSpeed(f32),
-    GetTimezoneWithOffset,
     FullCapabilities(Vec<String>),
     PowerState,
     SerialNumber,
-    StartMonitoringInternetChanges(u32),
-    StopMonitoringInternetChanges,
     PlatformBuildInfo,
 }
 

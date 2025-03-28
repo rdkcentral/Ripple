@@ -68,8 +68,6 @@
                         "root.session",
                         "secure.storage",
                         "advertising",
-                        "media_events",
-                        "discovery",
                         "behavior_metrics"
                     ]
                 }
@@ -89,7 +87,6 @@
         "secure.storage",
         "advertising",
         "privacy_settings",
-        "metrics",
         "account.session",
         "device.session",
         "distributor.session",

@@ -24,9 +24,7 @@ use crate::{
         app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
         provider_broker::{self, ProviderBroker},
     },
-    utils::rpc_utils::{
-        rpc_await_oneshot, rpc_downstream_service_err, rpc_err, rpc_navigate_reserved_app_err,
-    },
+    utils::rpc_utils::{rpc_await_oneshot, rpc_err, rpc_navigate_reserved_app_err},
 };
 use jsonrpsee::{
     core::{async_trait, Error, RpcResult},
@@ -36,16 +34,14 @@ use jsonrpsee::{
 
 use ripple_sdk::{
     api::{
-        account_link::AccountLinkRequest,
         apps::{AppError, AppManagerResponse, AppMethod, AppRequest, AppResponse},
         config::Config,
         firebolt::{
             fb_capabilities::FireboltCap,
             fb_discovery::{
-                ContentAccessRequest, EntitlementsInfo, LaunchRequest, LocalizedString, SignInInfo,
-                WatchNextInfo, WatchedInfo, DISCOVERY_EVENT_ON_NAVIGATE_TO, ENTITY_INFO_CAPABILITY,
-                ENTITY_INFO_EVENT, EVENT_DISCOVERY_POLICY_CHANGED, PURCHASED_CONTENT_CAPABILITY,
-                PURCHASED_CONTENT_EVENT,
+                LaunchRequest, LocalizedString, DISCOVERY_EVENT_ON_NAVIGATE_TO,
+                ENTITY_INFO_CAPABILITY, ENTITY_INFO_EVENT, EVENT_DISCOVERY_POLICY_CHANGED,
+                PURCHASED_CONTENT_CAPABILITY, PURCHASED_CONTENT_EVENT,
             },
             provider::{ProviderRequestPayload, ProviderResponse, ProviderResponsePayload},
         },
@@ -56,11 +52,9 @@ use ripple_sdk::{
 };
 use ripple_sdk::{
     api::{
-        account_link::WatchedRequest,
         device::entertainment_data::*,
         firebolt::{
             fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
-            fb_discovery::{EVENT_ON_SIGN_IN, EVENT_ON_SIGN_OUT},
             fb_general::{ListenRequest, ListenerResponse},
             provider::ExternalProviderResponse,
         },
@@ -74,47 +68,8 @@ use serde_json::Value;
 
 use crate::state::platform_state::PlatformState;
 
-#[derive(Default, Debug)]
-pub struct DiscoveryEmptyResult {
-    //Empty object to take care of OTTX-28709
-}
-
-impl PartialEq for DiscoveryEmptyResult {
-    fn eq(&self, _other: &Self) -> bool {
-        true
-    }
-}
-type EmptyResult = DiscoveryEmptyResult;
-
 #[rpc(server)]
 pub trait Discovery {
-    #[method(name = "discovery.entitlements")]
-    async fn entitlements(
-        &self,
-        ctx: CallContext,
-        entitlements_info: EntitlementsInfo,
-    ) -> RpcResult<bool>;
-    #[method(name = "discovery.signIn")]
-    async fn sign_in(&self, ctx: CallContext, sign_in_info: SignInInfo) -> RpcResult<bool>;
-    #[method(name = "discovery.signOut")]
-    async fn sign_out(&self, ctx: CallContext) -> RpcResult<bool>;
-    #[method(name = "discovery.onSignIn")]
-    async fn on_sign_in(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
-    #[method(name = "discovery.onSignOut")]
-    async fn on_sign_out(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
-    #[method(name = "discovery.watched")]
-    async fn watched(&self, ctx: CallContext, watched_info: WatchedInfo) -> RpcResult<bool>;
-    #[method(name = "discovery.watchNext")]
-    async fn watch_next(&self, ctx: CallContext, watch_next_info: WatchNextInfo)
-        -> RpcResult<bool>;
     #[method(name = "discovery.launch")]
     async fn launch(&self, ctx: CallContext, request: LaunchRequest) -> RpcResult<bool>;
     #[method(name = "discovery.onPullEntityInfo")]
@@ -171,14 +126,6 @@ pub trait Discovery {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
-    #[method(name = "discovery.contentAccess")]
-    async fn discovery_content_access(
-        &self,
-        ctx: CallContext,
-        request: ContentAccessRequest,
-    ) -> RpcResult<()>;
-    #[method(name = "discovery.clearContentAccess")]
-    async fn discovery_clear_content_access(&self, ctx: CallContext) -> RpcResult<()>;
 }
 
 pub struct DiscoveryImpl {
@@ -292,69 +239,6 @@ impl DiscoveryImpl {
         }
         title_map
     }
-
-    async fn process_sign_in_request(
-        &self,
-        ctx: CallContext,
-        is_signed_in: bool,
-    ) -> RpcResult<bool> {
-        let app_id = ctx.app_id.to_owned();
-        let res = self
-            .state
-            .get_client()
-            .send_extn_request(match is_signed_in {
-                true => AccountLinkRequest::SignIn(ctx),
-                false => AccountLinkRequest::SignOut(ctx),
-            })
-            .await
-            .is_ok();
-        if res {
-            AppEvents::emit(
-                &self.state,
-                if is_signed_in {
-                    EVENT_ON_SIGN_IN
-                } else {
-                    EVENT_ON_SIGN_OUT
-                },
-                &serde_json::json!({"appId": app_id,}),
-            )
-            .await;
-            return Ok(true);
-        }
-        Ok(false)
-    }
-
-    async fn content_access(
-        &self,
-        ctx: CallContext,
-        request: ContentAccessRequest,
-    ) -> RpcResult<EmptyResult> {
-        match self
-            .state
-            .get_client()
-            .send_extn_request(AccountLinkRequest::ContentAccess(ctx, request))
-            .await
-        {
-            Ok(_) => Ok(EmptyResult::default()),
-            Err(_) => Err(rpc_downstream_service_err(
-                "Could not notify Content AccessList to the platform",
-            )),
-        }
-    }
-
-    async fn clear_content_access(&self, ctx: CallContext) -> RpcResult<EmptyResult> {
-        match self
-            .state
-            .get_client()
-            .send_extn_request(AccountLinkRequest::ClearContentAccess(ctx))
-            .await
-        {
-            Ok(_) => Ok(EmptyResult::default()),
-            Err(_) => Err(rpc_downstream_service_err(
-                "Could not notify Content AccessList to the platform",
-            )),
-        }
-    }
 }
 
 #[derive(Clone)]
@@ -399,128 +283,6 @@ impl DiscoveryServer for DiscoveryImpl {
             listening: listen,
             event: EVENT_DISCOVERY_POLICY_CHANGED.to_string(),
         })
-    }
-
-    async fn entitlements(
-        &self,
-        ctx: CallContext,
-        entitlements_info: EntitlementsInfo,
-    ) -> RpcResult<bool> {
-        info!("Discovery.entitlements");
-        let resp = self.content_access(ctx, entitlements_info.into()).await;
-        match resp {
-            Ok(_) => Ok(true),
-            Err(e) => Err(e),
-        }
-    }
-
-    async fn sign_in(&self, ctx: CallContext, sign_in_info: SignInInfo) -> RpcResult<bool> {
-        info!("Discovery.signIn");
-
-        let mut resp = Ok(EmptyResult::default());
-        let fut = self.process_sign_in_request(ctx.clone(), true);
-
-        if sign_in_info.entitlements.is_some() {
-            resp = self.content_access(ctx, sign_in_info.into()).await;
-        }
-
-        let mut sign_in_resp = fut.await;
-
-        // Return Ok if both dpap calls are successful.
-        if sign_in_resp.is_ok() && resp.is_ok() {
-            sign_in_resp = Ok(true);
-        } else {
-            sign_in_resp = Err(rpc_downstream_service_err("Received error from Server"));
-        }
-        sign_in_resp
-    }
-    async fn sign_out(&self, ctx: CallContext) -> RpcResult<bool> {
-        info!("Discovery.signOut");
-        // Note : Do NOT issue clearContentAccess for Firebolt SignOut case.
-        self.process_sign_in_request(ctx.clone(), false).await
-    }
-
-    async fn on_sign_in(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        let listen = request.listen;
-        AppEvents::add_listener(&self.state, EVENT_ON_SIGN_IN.to_string(), ctx, request);
-
-        Ok(ListenerResponse {
-            listening: listen,
-            event: EVENT_ON_SIGN_IN.to_owned(),
-        })
-    }
-    async fn on_sign_out(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        let listen = request.listen;
-        AppEvents::add_listener(&self.state, EVENT_ON_SIGN_OUT.to_string(), ctx, request);
-
-        Ok(ListenerResponse {
-            listening: listen,
-            event: EVENT_ON_SIGN_OUT.to_owned(),
-        })
-    }
-
-    async fn watched(&self, context: CallContext, info: WatchedInfo) -> RpcResult<bool> {
-        info!("Discovery.watched");
-        let request = WatchedRequest {
-            context,
-            info,
-            unit: None,
-        };
-        if let Ok(response) = self
-            .state
-            .get_client()
-            .send_extn_request(AccountLinkRequest::Watched(request))
-            .await
-        {
-            if let Some(ExtnResponse::Boolean(v)) = response.payload.extract() {
-                return Ok(v);
-            }
-        }
-
-        Err(rpc_err(
-            "Did not receive a valid resposne from platform when notifying watched info",
-        ))
-    }
-
-    async fn watch_next(
-        &self,
-        ctx: CallContext,
-        watch_next_info: WatchNextInfo,
-    ) -> RpcResult<bool> {
-        info!("Discovery.watchNext");
-        let watched_info = WatchedInfo {
-            entity_id: watch_next_info.identifiers.entity_id.unwrap_or_default(),
-            progress: 1.0,
-            completed: Some(false),
-            watched_on: None,
-        };
-        let request = WatchedRequest {
-            context: ctx.clone(),
-            info: watched_info,
-            unit: None,
-        };
-        if let Ok(response) = self
-            .state
-            .get_client()
-            .send_extn_request(AccountLinkRequest::Watched(request))
-            .await
-        {
-            if let Some(ExtnResponse::Boolean(v)) = response.payload.extract() {
-                return Ok(v);
-            }
-        }
-
-        Err(rpc_err(
-            "Did not receive a valid resposne from platform when notifying watched info",
-        ))
     }
 
     async fn get_content_policy_rpc(&self, ctx: CallContext) -> RpcResult<ContentPolicy> {
@@ -767,25 +529,6 @@ impl DiscoveryServer for DiscoveryImpl {
         };
         ProviderBroker::provider_response(&self.state, response).await;
         Ok(true)
-    }
-
-    async fn discovery_content_access(
-        &self,
-        ctx: CallContext,
-        request: ContentAccessRequest,
-    ) -> RpcResult<()> {
-        let resp = self.content_access(ctx, request).await;
-        match resp {
-            Ok(_) => Ok(()),
-            Err(e) => Err(e),
-        }
-    }
-    async fn discovery_clear_content_access(&self, ctx: CallContext) -> RpcResult<()> {
-        let resp = self.clear_content_access(ctx).await;
-        match resp {
-            Ok(_) => Ok(()),
-            Err(e) => Err(e),
-        }
     }
 }
 fn update_intent_source(source_app_id: String, request: LaunchRequest) -> LaunchRequest {

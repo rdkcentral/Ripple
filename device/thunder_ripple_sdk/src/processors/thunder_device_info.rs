@@ -29,7 +29,6 @@ use crate::{
     },
     ripple_sdk::{
         api::device::{device_info_request::DeviceCapabilities, device_request::AudioProfile},
-        chrono::NaiveDateTime,
         extn::client::extn_client::ExtnClient,
         tokio::sync::mpsc,
     },
@@ -46,6 +45,7 @@ use crate::{
             firebolt::fb_openrpc::FireboltSemanticVersion,
         },
         async_trait::async_trait,
+        chrono::NaiveDateTime,
         extn::{
             client::extn_processor::{
                 DefaultExtnStreamer, ExtnRequestProcessor, ExtnStreamProcessor, ExtnStreamer,
@@ -147,7 +147,7 @@ pub struct CachedDeviceInfo {
 
 #[derive(Debug, Clone)]
 pub struct CachedState {
-    state: ThunderState,
+    pub state: ThunderState,
     cached: Arc<RwLock<CachedDeviceInfo>>,
 }
 
@@ -234,7 +234,7 @@ impl CachedState {
 pub struct ThunderNetworkService;
 
 impl ThunderNetworkService {
-    async fn has_internet(state: &CachedState) -> bool {
+    pub async fn has_internet(state: &ThunderState) -> bool {
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -511,28 +511,6 @@ impl ThunderDeviceInfoRequestProcessor {
         }
     }
 
-    async fn start_internet_monitoring_changes(
-        state: CachedState,
-        request: ExtnMessage,
-        interval_in_seconds: u32,
-    ) -> bool {
-        // Self::start_internet_monitoring(&state).await
-        let response = state
-            .get_thunder_client()
-            .call(DeviceCallRequest {
-                method: ThunderPlugin::Network.method("startConnectivityMonitoring"),
-                params: Some(DeviceChannelParams::Json(
-                    json!({"interval":interval_in_seconds}).to_string(),
-                )),
-            })
-            .await;
-        if check_thunder_response_success(&response) {
-            return Self::respond(state.get_client(), request, ExtnResponse::None(()))
-                .await
-                .is_ok();
-        }
-        Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
-    }
     async fn internet_connection_status(state: CachedState, req: ExtnMessage) -> bool {
         if let Some(response) = Self::get_internet_connection_status(&state).await {
             trace!(
@@ -818,7 +796,7 @@ impl ThunderDeviceInfoRequestProcessor {
         if tokio::time::timeout(
             Duration::from_millis(timeout),
             Self::respond(state.get_client(), req.clone(), {
-                let value = ThunderNetworkService::has_internet(&state).await;
+                let value = ThunderNetworkService::has_internet(&state.state).await;
 
                 if let ExtnPayload::Response(r) =
                     DeviceResponse::InternetConnectionStatus(match value {
@@ -842,49 +820,51 @@ impl ThunderDeviceInfoRequestProcessor {
         }
     }
 
+    pub async fn get_firmware_version(state: &ThunderState) -> FireboltSemanticVersion {
+        let version: FireboltSemanticVersion;
+        let resp = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::System.method("getSystemVersions"),
+                params: None,
+            })
+            .await;
+        info!("{}", resp.message);
+        if let Ok(tsv) = serde_json::from_value::<SystemVersion>(resp.message) {
+            let tsv_split = tsv.receiver_version.split('.');
+            let tsv_vec: Vec<&str> = tsv_split.collect();
+
+            if tsv_vec.len() >= 3 {
+                let major: String = tsv_vec[0].chars().filter(|c| c.is_ascii_digit()).collect();
+                let minor: String = tsv_vec[1].chars().filter(|c| c.is_ascii_digit()).collect();
+                let patch: String = tsv_vec[2].chars().filter(|c| c.is_ascii_digit()).collect();
+
+                version = FireboltSemanticVersion {
+                    major: major.parse::<u32>().unwrap(),
+                    minor: minor.parse::<u32>().unwrap(),
+                    patch: patch.parse::<u32>().unwrap(),
+                    readable: tsv.stb_version,
+                };
+            } else {
+                version = FireboltSemanticVersion {
+                    readable: tsv.stb_version,
+                    ..FireboltSemanticVersion::default()
+                };
+            }
+        } else {
+            version = FireboltSemanticVersion::default()
+        }
+        version
+    }
+
     async fn get_os_info(state: &CachedState) -> FirmwareInfo {
         let version: FireboltSemanticVersion;
         // TODO: refactor this to use return syntax and not use response variable across branches
         match state.get_version() {
             Some(v) => version = v,
             None => {
-                let resp = state
-                    .get_thunder_client()
-                    .call(DeviceCallRequest {
-                        method: ThunderPlugin::System.method("getSystemVersions"),
-                        params: None,
-                    })
-                    .await;
-                info!("{}", resp.message);
-                if let Ok(tsv) = serde_json::from_value::<SystemVersion>(resp.message) {
-                    let tsv_split = tsv.receiver_version.split('.');
-                    let tsv_vec: Vec<&str> = tsv_split.collect();
-
-                    if tsv_vec.len() >= 3 {
-                        let major: String =
-                            tsv_vec[0].chars().filter(|c| c.is_ascii_digit()).collect();
-                        let minor: String =
-                            tsv_vec[1].chars().filter(|c| c.is_ascii_digit()).collect();
-                        let patch: String =
-                            tsv_vec[2].chars().filter(|c| c.is_ascii_digit()).collect();
-
-                        version = FireboltSemanticVersion {
-                            major: major.parse::<u32>().unwrap(),
-                            minor: minor.parse::<u32>().unwrap(),
-                            patch: patch.parse::<u32>().unwrap(),
-                            readable: tsv.stb_version,
-                        };
-                        state.update_version(version.clone());
-                    } else {
-                        version = FireboltSemanticVersion {
-                            readable: tsv.stb_version,
-                            ..FireboltSemanticVersion::default()
-                        };
-                        state.update_version(version.clone())
-                    }
-                } else {
-                    version = FireboltSemanticVersion::default()
-                }
+                version = Self::get_firmware_version(&state.state).await;
+                state.update_version(version.clone());
             }
         }
         FirmwareInfo {
@@ -930,7 +910,7 @@ impl ThunderDeviceInfoRequestProcessor {
         Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
     }
 
-    async fn get_timezone_value(state: &CachedState) -> Result<String, RippleError> {
+    async fn get_timezone_value(state: &ThunderState) -> Result<String, RippleError> {
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -962,7 +942,7 @@ impl ThunderDeviceInfoRequestProcessor {
         }
 
         // If timezone or offset is None or empty
-        if let Some(tz) = Self::get_timezone_and_offset(&state).await {
+        if let Some(tz) = Self::get_timezone_and_offset(&state.state).await {
             let cloned_state = state.clone();
             let cloned_tz = tz.clone();
 
@@ -986,22 +966,27 @@ impl ThunderDeviceInfoRequestProcessor {
         Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
     }
 
-    pub async fn get_timezone_and_offset(state: &CachedState) -> Option<TimeZone> {
+    pub async fn get_timezone_and_offset(state: &ThunderState) -> Option<TimeZone> {
         let timezone_result = ThunderDeviceInfoRequestProcessor::get_timezone_value(state).await;
         let timezones_result = ThunderDeviceInfoRequestProcessor::get_all_timezones(state).await;
 
         if let (Ok(timezone), Ok(timezones)) = (timezone_result, timezones_result) {
-            Some(TimeZone {
+            let timezone = TimeZone {
                 time_zone: timezone.clone(),
                 offset: timezones.get_offset(&timezone),
-            })
+            };
+            let timezone_c = timezone.clone();
+            let _ = state
+                .get_client()
+                .request_transient(RippleContextUpdateRequest::TimeZone(timezone_c));
+            Some(timezone)
         } else {
             None
         }
     }
 
     async fn get_all_timezones(
-        state: &CachedState,
+        state: &ThunderState,
     ) -> Result<ThunderAllTimezonesResponse, RippleError> {
         let response = state
             .get_thunder_client()
@@ -1123,7 +1108,7 @@ impl ThunderDeviceInfoRequestProcessor {
         Self::handle_error(state.get_client(), request, RippleError::ProcessorError).await
     }
 
-    async fn power_state(state: CachedState, req: ExtnMessage) -> bool {
+    pub async fn get_power_state(state: &ThunderState) -> Result<PowerState, RippleError> {
         let dev_response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -1131,31 +1116,26 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        let resp = dev_response.message.get("powerState").cloned();
-        if resp.is_none() {
-            error!("Unable to get power state from thunder");
-            return Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await;
+
+        if let Some(response) = dev_response.message.get("powerState").cloned() {
+            if let Ok(v) = serde_json::from_value(response) {
+                return Ok(v);
+            }
+        }
+        Err(RippleError::ProcessorError)
+    }
+
+    async fn power_state(state: CachedState, req: ExtnMessage) -> bool {
+        let mut response = ExtnResponse::Error(RippleError::ProcessorError);
+        if let Ok(v) = Self::get_power_state(&state.state).await {
+            if let ExtnPayload::Response(r) = DeviceResponse::PowerState(v).get_extn_payload() {
+                response = r;
+            }
         }
 
-        let value = resp.unwrap();
-        let power_state = serde_json::from_value::<PowerState>(value);
-        if power_state.is_err() {
-            return Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await;
-        }
-        let power_state = power_state.unwrap();
-        Self::respond(
-            state.get_client(),
-            req,
-            if let ExtnPayload::Response(r) =
-                DeviceResponse::PowerState(power_state).get_extn_payload()
-            {
-                r
-            } else {
-                ExtnResponse::Error(RippleError::ProcessorError)
-            },
-        )
-        .await
-        .is_ok()
+        Self::respond(state.get_client(), req, response)
+            .await
+            .is_ok()
     }
 
     async fn get_device_capabilities(state: CachedState, keys: &[&str], msg: ExtnMessage) -> bool {
@@ -1398,9 +1378,6 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             DeviceInfoRequest::OnInternetConnected(time_out) => {
                 Self::on_internet_connected(state.clone(), msg, time_out.timeout).await
             }
-            DeviceInfoRequest::GetTimezoneWithOffset => {
-                Self::get_timezone_with_offset(state.clone(), msg).await
-            }
             DeviceInfoRequest::SetVoiceGuidanceEnabled(v) => {
                 Self::voice_guidance_set_enabled(state.clone(), msg, v).await
             }
@@ -1416,9 +1393,6 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             DeviceInfoRequest::InternetConnectionStatus => {
                 Self::internet_connection_status(state.clone(), msg).await
             }
-            DeviceInfoRequest::StartMonitoringInternetChanges(i) => {
-                Self::start_internet_monitoring_changes(state.clone(), msg, i).await
-            }
             DeviceInfoRequest::FullCapabilities(keys) => {
                 let keys_as_str: Vec<&str> = keys.iter().map(String::as_str).collect();
                 Self::get_device_capabilities(state.clone(), &keys_as_str, msg).await
@@ -1427,7 +1401,6 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             DeviceInfoRequest::PlatformBuildInfo => {
                 Self::platform_build_info(state.clone(), msg).await
             }
-            _ => false,
         }
     }
 }

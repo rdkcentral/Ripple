@@ -22,6 +22,12 @@ pub struct ListenRequest {
     pub listen: bool,
 }
 
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct ListenRequestWithEvent {
+    pub event: String,
+    pub request: ListenRequest,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ListenerResponse {
     pub listening: bool,

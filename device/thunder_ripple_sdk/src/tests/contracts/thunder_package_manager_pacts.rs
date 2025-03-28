@@ -1,5 +1,8 @@
+#[allow(dead_code, unused_imports)]
 use crate::tests::contracts::contract_utils::*;
+#[allow(dead_code, unused_imports)]
 use crate::thunder_state::ThunderConnectionState;
+#[allow(dead_code, unused_imports)]
 use crate::{
     client::thunder_client_pool::ThunderClientPool,
     get_pact_with_params,
@@ -25,13 +28,20 @@ use crate::{
     },
     thunder_state::ThunderState,
 };
+#[allow(dead_code, unused_imports)]
 use base64::{engine::general_purpose::STANDARD as base64, Engine};
+#[allow(dead_code, unused_imports)]
 use pact_consumer::mock_server::StartMockServerAsync;
+#[allow(dead_code, unused_imports)]
 use rstest::rstest;
+#[allow(dead_code, unused_imports)]
 use serde_json::json;
+#[allow(dead_code, unused_imports)]
 use std::collections::HashMap;
+#[allow(dead_code, unused_imports)]
 use std::sync::{Arc, Mutex};
 
+#[allow(dead_code)]
 const OPERATION_TIMEOUT_SECS: u64 = 12 * 60; // 12 minutes
 
 #[rstest(

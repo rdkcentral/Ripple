@@ -29,7 +29,6 @@ use println as error;
 
 use crate::{
     api::{
-        account_link::AccountLinkRequest,
         app_catalog::{AppCatalogRequest, AppMetadata, AppsUpdate},
         apps::AppEventRequest,
         caps::CapsRequest,
@@ -45,8 +44,6 @@ use crate::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
             distributor_platform::PlatformTokenRequest,
             distributor_privacy::{PrivacyCloudRequest, PrivacySettingsStoreRequest},
-            distributor_request::DistributorRequest,
-            distributor_sync::SyncAndMonitorRequest,
             distributor_token::DistributorTokenRequest,
             distributor_usergrants::UserGrantsCloudStoreRequest,
         },
@@ -55,14 +52,12 @@ use crate::{
             fb_authentication::TokenResult,
             fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
             fb_lifecycle_management::LifecycleManagementRequest,
-            fb_metrics::{BehavioralMetricRequest, MetricsRequest},
             fb_pin::{PinChallengeRequestWithContext, PinChallengeResponse},
             fb_secure_storage::{SecureStorageRequest, SecureStorageResponse},
             fb_telemetry::{OperationalMetricRequest, TelemetryPayload},
         },
         gateway::rpc_gateway_api::RpcRequest,
         manifest::device_manifest::AppLibraryEntry,
-        observability::analytics::AnalyticsRequest,
         session::{AccountSessionRequest, AccountSessionResponse, SessionTokenRequest},
         settings::{SettingValue, SettingsRequest},
         status_update::ExtnStatus,
@@ -301,28 +296,22 @@ pub enum ExtnRequest {
     PinChallenge(PinChallengeRequestWithContext),
     Keyboard(KeyboardSessionRequest),
     Permission(PermissionRequest),
-    Distributor(DistributorRequest),
     AccountSession(AccountSessionRequest),
     SessionToken(SessionTokenRequest),
     SecureStorage(SecureStorageRequest),
     Advertising(AdvertisingRequest),
     PrivacySettings(PrivacyCloudRequest),
-    BehavioralMetric(BehavioralMetricRequest),
     StorageManager(StorageManagerRequest),
-    AccountLink(AccountLinkRequest),
     Settings(SettingsRequest),
-    CloudSync(SyncAndMonitorRequest),
     UserGrantsCloudStore(UserGrantsCloudStoreRequest),
     UserGrantsStore(UserGrantsStoreRequest),
     PrivacySettingsStore(PrivacySettingsStoreRequest),
     AuthorizedInfo(CapsRequest),
-    Metrics(MetricsRequest),
     OperationalMetricsRequest(OperationalMetricRequest),
     PlatformToken(PlatformTokenRequest),
     DistributorToken(DistributorTokenRequest),
     Context(RippleContextUpdateRequest),
     AppCatalog(AppCatalogRequest),
-    Analytics(AnalyticsRequest),
 }
 
 impl ExtnPayloadProvider for ExtnRequest {
@@ -617,14 +606,5 @@ mod tests {
         let extn_event_payload = ExtnPayload::Event(event_payload);
         assert!(value.id.eq_ignore_ascii_case("test_id"));
         assert!(value.payload.eq(&extn_event_payload));
-    }
-    #[test]
-    fn test_analytics_request_serialization() {
-        let analytics_request = ExtnRequest::Analytics(AnalyticsRequest::default());
-        let payload = ExtnPayload::Request(analytics_request.clone());
-
-        // Test extraction
-        let extracted: Option<ExtnRequest> = payload.extract();
-        assert_eq!(extracted, Some(analytics_request));
     }
 }

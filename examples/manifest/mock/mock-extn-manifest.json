@@ -46,11 +46,7 @@
                         "secure.storage",
                         "advertising",
                         "privacy_cloud.storage",
-                        "metrics",
                         "session.token",
-                        "discovery",
-                        "media_events",
-                        "behavior_metrics",
                         "root.session",
                         "device.session"
                     ]
@@ -99,9 +95,6 @@
         "advertising",
         "privacy_settings",
         "session_token",
-        "metrics",
-        "discovery",
-        "media_events",
         "account.session"
     ],
     "rpc_aliases": {

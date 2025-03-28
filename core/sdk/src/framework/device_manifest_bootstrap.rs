@@ -15,9 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use ripple_sdk::{
-    api::manifest::device_manifest::DeviceManifest, log::info, utils::error::RippleError,
-};
+use crate::{api::manifest::device_manifest::DeviceManifest, log::info, utils::error::RippleError};
 
 pub struct LoadDeviceManifestStep;
 

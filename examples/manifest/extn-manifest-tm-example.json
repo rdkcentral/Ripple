@@ -50,10 +50,7 @@
                         "secure_storage",
                         "advertising",
                         "privacy_settings",
-                        "metrics",
-                        "session_token",
-                        "discovery",
-                        "media_events"
+                        "session_token"
                     ]
                 }
             ]
@@ -88,10 +85,7 @@
         "secure_storage",
         "advertising",
         "privacy_settings",
-        "session_token",
-        "metrics",
-        "discovery",
-        "media_events"
+        "session_token"
     ],
     "rpc_aliases": {
         "device.model": [
