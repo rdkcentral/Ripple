@@ -1,23 +1,12 @@
-// Copyright 2023 Comcast Cable Communications Management, LLC
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// SPDX-License-Identifier: Apache-2.0
-//
-
+use std::collections::HashMap;
+use std::sync::RwLock;
 use std::{str::FromStr, sync::atomic::AtomicU32};
 
 pub static LOG_COUNTER: AtomicU32 = AtomicU32::new(1);
+
+lazy_static::lazy_static! {
+    pub static ref MODULE_LOG_LEVELS: RwLock<HashMap<String, log::LevelFilter>> = RwLock::new(HashMap::new());
+}
 
 pub fn init_logger(name: String) -> Result<(), fern::InitError> {
     let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".into());
@@ -128,9 +117,11 @@ pub fn init_and_configure_logger(
         .chain(std::io::stdout());
 
     if let Some(modules) = additional_modules {
+        let mut log_levels = MODULE_LOG_LEVELS.write().unwrap();
         for (module_name, log_level) in modules {
             println!("Setting log level for {} to {:?}", module_name, log_level);
-            dispatch = dispatch.level_for(module_name, log_level);
+            dispatch = dispatch.level_for(module_name.clone(), log_level);
+            log_levels.insert(module_name, log_level);
         }
     }
     dispatch.apply()?;

@@ -26,6 +26,7 @@ impl Bootstep<BootstrapState> for LoggingBootstrapStep {
             "info" => log::LevelFilter::Info,
             "debug" => log::LevelFilter::Debug,
             "trace" => log::LevelFilter::Trace,
+            "error" => log::LevelFilter::Error,
             _ => log::LevelFilter::Info,
         };
 
