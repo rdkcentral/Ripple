@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::api::gateway::rpc_gateway_api::{
     CallContext, ClientContext, JsonRpcApiResponse, RpcRequest,
 };
+use crate::utils::logger::MODULE_LOG_LEVELS;
 
 /*
 
@@ -186,11 +187,34 @@ impl<T: std::fmt::Display + ContextAsJson> LogSignal<T> {
             context,
         }
     }
+    pub fn emit(&self) {
+        let log_levels = MODULE_LOG_LEVELS.read().unwrap();
+        if let Some(log_level) = log_levels.get("ripple_sdk::api::observability::log_signal") {
+            let target = "ripple_sdk::api::observability::log_signal";
+            let message = serde_json::Value::from(self).to_string();
+            match log_level {
+                log::LevelFilter::Error if log::log_enabled!(log::Level::Error) => {
+                    log::error!(target: target, "{}", message);
+                }
+                log::LevelFilter::Debug if log::log_enabled!(log::Level::Debug) => {
+                    log::debug!(target: target, "{}", message);
+                }
+                log::LevelFilter::Info if log::log_enabled!(log::Level::Info) => {
+                    log::info!(target: target, "{}", message);
+                }
+                log::LevelFilter::Trace if log::log_enabled!(log::Level::Trace) => {
+                    log::trace!(target: target, "{}", message);
+                }
+                _ => {}
+            }
+        }
+    }
+
     pub fn emit_debug(&self) {
-        log::debug!("{}", serde_json::Value::from(self));
+        self.emit();
     }
     pub fn emit_error(&self) {
-        log::error!("{}", serde_json::Value::from(self));
+        self.emit();
     }
 
     pub fn with_diagnostic_context(mut self, diagnostic_context: HashMap<String, String>) -> Self {
