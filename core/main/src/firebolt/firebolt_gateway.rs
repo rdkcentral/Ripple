@@ -30,14 +30,16 @@ use ripple_sdk::{
         },
         observability::{log_signal::LogSignal, metrics_util::ApiStats},
     },
+    chrono::Utc,
     extn::extn_client_message::ExtnMessage,
     log::{debug, error, info, trace, warn},
     serde_json::{self, Value},
-    tokio::{self, runtime::Handle},
+    tokio::{self, runtime::Handle, sync::mpsc::Sender},
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    broker::endpoint_broker::BrokerOutput,
     firebolt::firebolt_gatekeeper::FireboltGatekeeper,
     service::{
         apps::{app_events::AppEvents, provider_broker::ProviderBroker},
@@ -51,6 +53,7 @@ use crate::{
 };
 
 use super::rpc_router::RpcRouter;
+
 pub struct FireboltGateway {
     state: BootstrapState,
 }
@@ -159,6 +162,66 @@ impl FireboltGateway {
                 }
             }
         }
+    }
+
+    fn handle_broker_callback(
+        platform_state: PlatformState,
+        rpc_request: RpcRequest,
+    ) -> Sender<BrokerOutput> {
+        const REQUESTOR_CALLBACK_TIMEOUT_SECS: u64 = 10;
+
+        let (requestor_callback_tx, mut requestor_callback_rx) =
+            tokio::sync::mpsc::channel::<BrokerOutput>(1);
+
+        let start = Utc::now().timestamp_millis();
+        let protocol = rpc_request.ctx.protocol.clone();
+
+        tokio::spawn(async move {
+            let resp = tokio::time::timeout(
+                std::time::Duration::from_secs(REQUESTOR_CALLBACK_TIMEOUT_SECS),
+                requestor_callback_rx.recv(),
+            )
+            .await;
+
+            trace!("handle_broker_callback: resp={:?}", resp);
+
+            match resp {
+                Ok(has_broker_output) => {
+                    if let Some(broker_output) = has_broker_output {
+                        let now = Utc::now().timestamp_millis();
+
+                        let data = match serde_json::to_string(&broker_output.data) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                error!("handle_broker_callback: Could not serialize broker output: e={:?}", e);
+                                String::default()
+                            }
+                        };
+
+                        let mut api_message =
+                            ApiMessage::new(protocol, data, rpc_request.ctx.request_id.clone());
+
+                        if let Some(api_stats) = platform_state
+                            .metrics
+                            .get_api_stats(&rpc_request.ctx.request_id.clone())
+                        {
+                            api_message.stats = Some(api_stats);
+                        }
+
+                        TelemetryBuilder::send_fb_tt(
+                            &platform_state,
+                            rpc_request,
+                            now - start,
+                            !broker_output.data.is_error(),
+                            &api_message,
+                        );
+                    }
+                }
+                Err(e) => error!("handle_broker_callback: e={:?}", e),
+            }
+        });
+
+        requestor_callback_tx
     }
 
     pub fn handle_response(&self, response: JsonRpcApiResponse) {
@@ -309,13 +372,19 @@ impl FireboltGateway {
                         None
                     };
 
-                    if !platform_state.endpoint_state.handle_brokerage(
+                    let requestor_callback_tx =
+                        Self::handle_broker_callback(platform_state.clone(), request_c.clone());
+
+                    let handled = platform_state.endpoint_state.handle_brokerage(
                         request_c.clone(),
                         extn_msg.clone(),
                         None,
                         p,
                         session.clone(),
-                    ) {
+                        vec![requestor_callback_tx],
+                    );
+
+                    if !handled {
                         // Route
                         match request.clone().ctx.protocol {
                             ApiProtocol::Extn => {
