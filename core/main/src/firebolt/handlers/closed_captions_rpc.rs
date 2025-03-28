@@ -16,6 +16,7 @@
 //
 
 use crate::{
+    broker::broker_utils::BrokerUtils,
     firebolt::rpc::RippleRPCProvider,
     processor::storage::storage_manager::StorageManager,
     service::apps::app_events::{AppEventDecorationError, AppEventDecorator},
@@ -417,7 +418,27 @@ impl ClosedcaptionsImpl {
     }
 
     pub async fn cc_enabled(state: &PlatformState) -> RpcResult<bool> {
-        StorageManager::get_bool(state, SP::ClosedCaptionsEnabled).await
+        match BrokerUtils::process_internal_main_request(
+            &mut state.clone(),
+            "closedcaptions.enabled",
+            None,
+        )
+        .await
+        {
+            Ok(enabled_value) => {
+                if let Value::Bool(enabled) = enabled_value {
+                    Ok(enabled)
+                } else {
+                    Err(jsonrpsee::core::Error::Custom(String::from(
+                        "cc_enabled: Unexpected value type",
+                    )))
+                }
+            }
+            Err(e) => Err(jsonrpsee::core::Error::Custom(format!(
+                "cc_enabled: e={}",
+                e
+            ))),
+        }
     }
 }
 
