@@ -15,8 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 #[allow(dead_code, unused_imports)]
-use std::collections::HashMap;
-#[allow(dead_code, unused_imports)]
 use crate::get_pact_with_params;
 #[allow(dead_code, unused_imports)]
 use crate::ripple_sdk::{
@@ -29,6 +27,8 @@ use crate::tests::contracts::contract_utils::*;
 use crate::{get_pact, send_thunder_call_message};
 #[allow(dead_code, unused_imports)]
 use pact_consumer::mock_server::StartMockServerAsync;
+#[allow(dead_code, unused_imports)]
+use std::collections::HashMap;
 
 #[allow(dead_code, unused_imports)]
 use futures_util::{SinkExt, StreamExt};
