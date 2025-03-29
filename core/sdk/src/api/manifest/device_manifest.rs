@@ -68,6 +68,8 @@ pub struct RippleConfiguration {
     pub metrics_logging_percentage: u32,
     #[serde(default)]
     pub internet_monitoring_configuration: InternetMonitoringConfiguration,
+    #[serde(default = "log_signal_default_level")]
+    pub log_signal_log_level: String,
 }
 
 fn partner_exclusion_refresh_timeout_default() -> u32 {
@@ -76,6 +78,9 @@ fn partner_exclusion_refresh_timeout_default() -> u32 {
 
 fn metrics_logging_percentage_default() -> u32 {
     METRICS_LOGGING_PERCENTAGE_DEFAULT
+}
+pub fn log_signal_default_level() -> String {
+    "OFF".to_string()
 }
 
 #[derive(Deserialize, Debug, Clone, Default)]
@@ -674,6 +679,7 @@ impl Default for RippleConfiguration {
             partner_exclusion_refresh_timeout: partner_exclusion_refresh_timeout_default(),
             metrics_logging_percentage: metrics_logging_percentage_default(),
             internet_monitoring_configuration: Default::default(),
+            log_signal_log_level: log_signal_default_level(),
         }
     }
 }
@@ -792,6 +798,44 @@ impl DeviceManifest {
     }
 }
 
+type DeviceManifestLoader = Vec<fn() -> Result<(String, DeviceManifest), RippleError>>;
+pub fn try_manifest_files() -> Result<DeviceManifest, RippleError> {
+    let dm_arr: DeviceManifestLoader = if cfg!(feature = "local_dev") {
+        vec![load_from_env, load_from_home]
+    } else if cfg!(test) {
+        vec![load_from_env]
+    } else {
+        vec![load_from_etc]
+    };
+
+    for dm_provider in dm_arr {
+        if let Ok((p, m)) = dm_provider() {
+            info!("loaded_manifest_file_content={}", p);
+            return Ok(m);
+        }
+    }
+    Err(RippleError::BootstrapError)
+}
+
+fn load_from_env() -> Result<(String, DeviceManifest), RippleError> {
+    let device_manifest_path = std::env::var("DEVICE_MANIFEST");
+    match device_manifest_path {
+        Ok(path) => DeviceManifest::load(path),
+        Err(_) => Err(RippleError::MissingInput),
+    }
+}
+
+fn load_from_home() -> Result<(String, DeviceManifest), RippleError> {
+    match std::env::var("HOME") {
+        Ok(home) => DeviceManifest::load(format!("{}/.ripple/firebolt-device-manifest.json", home)),
+        Err(_) => Err(RippleError::MissingInput),
+    }
+}
+
+fn load_from_etc() -> Result<(String, DeviceManifest), RippleError> {
+    DeviceManifest::load("/etc/firebolt-device-manifest.json".into())
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -806,6 +850,7 @@ pub(crate) mod tests {
         fn mock() -> DeviceManifest {
             DeviceManifest {
                 configuration: RippleConfiguration {
+                    log_signal_log_level: log_signal_default_level(),
                     ws_configuration: WsConfiguration {
                         enabled: true,
                         gateway: "127.0.0.1:3473".to_string(),

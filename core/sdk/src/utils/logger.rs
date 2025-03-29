@@ -17,11 +17,15 @@
 
 use std::{str::FromStr, sync::atomic::AtomicU32};
 
+use crate::api::observability::log_signal::initialize_log_signal;
+
 pub static LOG_COUNTER: AtomicU32 = AtomicU32::new(1);
 
 pub fn init_logger(name: String) -> Result<(), fern::InitError> {
-    let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".into());
+    let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "INFO".into());
+
     println!("log level {}", log_string);
+    initialize_log_signal();
     let filter = log::LevelFilter::from_str(&log_string).unwrap_or(log::LevelFilter::Info);
     fern::Dispatch::new()
         .format(move |out, message, record| {
@@ -58,8 +62,9 @@ pub fn init_logger(name: String) -> Result<(), fern::InitError> {
 }
 
 pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern::InitError> {
-    let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".into());
+    let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "INFO".into());
     println!("log level {}", log_string);
+    initialize_log_signal();
     let _version_string = version.to_string();
     let filter = log::LevelFilter::from_str(&log_string).unwrap_or(log::LevelFilter::Info);
     fern::Dispatch::new()
