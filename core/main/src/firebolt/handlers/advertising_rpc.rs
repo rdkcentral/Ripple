@@ -56,7 +56,7 @@ pub struct AdvertisingPolicy {
     pub limit_ad_tracking: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Deserialize, Clone, Default)]
 pub struct AdvertisingIdRPCRequest {
     pub options: Option<ScopeOption>,
 }
