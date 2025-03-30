@@ -20,7 +20,7 @@ use futures::stream::{SplitSink, SplitStream};
 use futures_util::StreamExt;
 use jsonrpsee::core::RpcResult;
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{JsonRpcApiError, RpcRequest},
+    api::gateway::rpc_gateway_api::{CallContext, JsonRpcApiError, RpcRequest},
     log::{error, info},
     tokio::{self, net::TcpStream},
     utils::rpc_utils::extract_tcp_port,
@@ -77,7 +77,16 @@ impl BrokerUtils {
         method: &'a str,
         params: Option<Value>,
     ) -> RpcResult<Value> {
-        let rpc_request = RpcRequest::internal(method).with_params(params);
+        Self::process_internal_request(state, None, method, params).await
+    }
+
+    pub async fn process_internal_request<'a>(
+        state: &mut PlatformState,
+        on_behalf_of: Option<CallContext>,
+        method: &'a str,
+        params: Option<Value>,
+    ) -> RpcResult<Value> {
+        let rpc_request = RpcRequest::internal(method, on_behalf_of).with_params(params);
         state
             .metrics
             .add_api_stats(&rpc_request.ctx.request_id, method);
