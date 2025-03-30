@@ -187,6 +187,7 @@ impl<T: std::fmt::Display + ContextAsJson> LogSignal<T> {
             context,
         }
     }
+
     pub fn emit(&self) {
         let log_levels = MODULE_LOG_LEVELS.read().unwrap();
         if let Some(log_level) = log_levels.get("ripple_sdk::api::observability::log_signal") {

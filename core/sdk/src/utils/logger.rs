@@ -55,7 +55,18 @@ pub fn init_and_configure_logger(
     println!("log level {}", log_string);
     let _version_string = version.to_string();
     let filter = log::LevelFilter::from_str(&log_string).unwrap_or(log::LevelFilter::Info);
-    let mut dispatch = fern::Dispatch::new()
+    let (extracted_module_name, extracted_level_filter) = additional_modules
+        .and_then(|modules| modules.into_iter().last())
+        .unwrap_or(("no_module".to_string(), log::LevelFilter::Off));
+    MODULE_LOG_LEVELS
+        .write()
+        .unwrap()
+        .insert(extracted_module_name.clone(), extracted_level_filter);
+    println!(
+        "additional module: {}, Level filter : {}",
+        extracted_module_name, extracted_level_filter
+    );
+    fern::Dispatch::new()
         .format(move |out, message, record| {
             let _v = LOG_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             #[cfg(not(feature = "sysd"))]
@@ -102,6 +113,7 @@ pub fn init_and_configure_logger(
             }
         })
         .level(filter)
+        .level_for(extracted_module_name, extracted_level_filter)
         //log filter applied here, making the log level to OFF for the below mentioned crates
         .level_for("h2", log::LevelFilter::Off)
         .level_for("hyper", log::LevelFilter::Off)
@@ -114,17 +126,8 @@ pub fn init_and_configure_logger(
         .level_for("tungstenite", log::LevelFilter::Off)
         .level_for("soketto", log::LevelFilter::Off)
         .level_for("tracing", log::LevelFilter::Off)
-        .chain(std::io::stdout());
-
-    if let Some(modules) = additional_modules {
-        let mut log_levels = MODULE_LOG_LEVELS.write().unwrap();
-        for (module_name, log_level) in modules {
-            println!("Setting log level for {} to {:?}", module_name, log_level);
-            dispatch = dispatch.level_for(module_name.clone(), log_level);
-            log_levels.insert(module_name, log_level);
-        }
-    }
-    dispatch.apply()?;
+        .chain(std::io::stdout())
+        .apply()?;
 
     Ok(())
 }
