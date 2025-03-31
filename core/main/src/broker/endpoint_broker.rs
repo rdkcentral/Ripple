@@ -29,7 +29,7 @@ use ripple_sdk::{
     },
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
-    log::{debug, error, trace},
+    log::{debug, error, info, trace},
     tokio::{
         self,
         sync::mpsc::{self, Receiver, Sender},
@@ -47,7 +47,10 @@ use std::{
 
 use crate::{
     broker::broker_utils::BrokerUtils,
-    firebolt::firebolt_gateway::{FireboltGatewayCommand, JsonRpcError},
+    firebolt::{
+        firebolt_gateway::{FireboltGatewayCommand, JsonRpcError},
+        rpc,
+    },
     service::extn::ripple_client::RippleClient,
     state::{metrics_state::MetricsState, platform_state::PlatformState, session_state::Session},
     utils::router_utils::{
@@ -413,7 +416,7 @@ impl From<RuleRetrievalError> for HandleBrokerageError {
         }
     }
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BrokerResponse {
     JsonRpc(JsonRpcApiResponse),
     ApiMessage(ApiMessage),
@@ -440,6 +443,8 @@ impl EndpointBrokerState {
             provider_broker_state: ProvideBrokerState::default(),
             metrics_state,
         };
+        /*bobra: configuring this out for unit tests */
+        #[cfg(not(test))]
         state.reconnect_thread(rec_tr, ripple_client);
         state
     }
@@ -568,7 +573,7 @@ impl EndpointBrokerState {
     /// Adds BrokerContext to a given request used by the Broker Implementations
     /// just before sending the data through the protocol
     ///
-    fn update_request(
+    fn _update_request(
         &self,
         rpc_request: &RpcRequest,
         rule: Rule,
@@ -609,7 +614,7 @@ impl EndpointBrokerState {
         )
     }
 
-    fn update_request_new(
+    fn update_request(
         &self,
         rpc_request: &RpcRequest,
         rule: &Rule,
@@ -721,127 +726,8 @@ impl EndpointBrokerState {
             cleaner_list.push(cleaner);
         }
     }
-    // fn format_static_response(&self, rpc_request: RpcRequest, rule: Rule) -> JsonRpcApiResponse {
-    //     let (id, _updated_request) = self.update_request(
-    //         &rpc_request,
-    //         rule.clone(),
-    //         extn_message,
-    //         workflow_callback,
-    //         telemetry_response_listeners,
-    //     );
-    //     let mut data = JsonRpcApiResponse::default();
-    //     // return empty result and handle the rest with jq rule
-    //     let jv: Value = "".into();
-    //     data.result = Some(jv);
-    //     data.id = Some(id);
-    //     //let output = BrokerOutput::new(data);
 
-    // }
-    fn handle_static_request(
-        &self,
-        rpc_request: RpcRequest,
-        extn_message: Option<ExtnMessage>,
-        rule: Rule,
-        callback: BrokerCallback,
-        workflow_callback: Option<BrokerCallback>,
-        telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
-    ) {
-        let (id, _updated_request) = self.update_request(
-            &rpc_request,
-            rule.clone(),
-            extn_message,
-            workflow_callback,
-            telemetry_response_listeners,
-        );
-        let mut data = JsonRpcApiResponse::default();
-        // return empty result and handle the rest with jq rule
-        let jv: Value = "".into();
-        data.result = Some(jv);
-        data.id = Some(id);
-        let output = BrokerOutput::new(data);
-
-        capture_stage(&self.metrics_state, &rpc_request, "static_rule_request");
-        tokio::spawn(async move { callback.sender.send(output).await });
-    }
-
-    fn handle_provided_request(
-        &self,
-        rpc_request: &RpcRequest,
-        rule: Rule,
-        callback: BrokerCallback,
-        permission: Vec<FireboltPermission>,
-        session: Option<Session>,
-        telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
-    ) {
-        let (id, request) =
-            self.update_request(rpc_request, rule, None, None, telemetry_response_listeners);
-        match self.provider_broker_state.check_provider_request(
-            rpc_request,
-            &permission,
-            session.clone(),
-        ) {
-            Some(ProviderResult::Registered) => {
-                // return empty result and handle the rest with jq rule
-                let data = JsonRpcApiResponse {
-                    id: Some(id),
-                    jsonrpc: "2.0".to_string(),
-                    result: Some(Value::Null),
-                    error: None,
-                    method: None,
-                    params: None,
-                };
-
-                let output = BrokerOutput { data };
-                tokio::spawn(async move { callback.sender.send(output).await });
-            }
-            Some(ProviderResult::Session(s)) => {
-                ProvideBrokerState::send_to_provider(request, id, s);
-            }
-            Some(ProviderResult::NotAvailable(p)) => {
-                // Not Available
-                let data = JsonRpcApiResponse::new(
-                    Some(id),
-                    Some(json!({
-                        "error": CAPABILITY_NOT_AVAILABLE,
-                        "messsage": format!("{} not available", p)
-                    })),
-                );
-
-                let output = BrokerOutput { data };
-                tokio::spawn(async move { callback.sender.send(output).await });
-            }
-            None => {
-                // Not Available
-                let data = JsonRpcApiResponse::new(
-                    Some(id),
-                    Some(json!({
-                        "error": CAPABILITY_NOT_AVAILABLE,
-                        "messsage": "capability not available".to_string()
-                    })),
-                );
-
-                let output = BrokerOutput { data };
-                tokio::spawn(async move { callback.sender.send(output).await });
-            }
-        }
-    }
-    fn handle_static_request_new(
-        &self,
-        rpc_request: RpcRequest,
-        id: u64,
-        // extn_message: Option<ExtnMessage>,
-        // rule: Rule,
-        // callback: BrokerCallback,
-        // workflow_callback: Option<BrokerCallback>,
-        // telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
-    ) -> JsonRpcApiResponse {
-        // let (id, _updated_request) = self.update_request(
-        //     &rpc_request,
-        //     rule.clone(),
-        //     extn_message,
-        //     workflow_callback,
-        //     telemetry_response_listeners,
-        // );
+    fn handle_static_request(&self, rpc_request: RpcRequest, id: u64) -> JsonRpcApiResponse {
         let mut data = JsonRpcApiResponse::default();
         // return empty result and handle the rest with jq rule
         let jv: Value = "".into();
@@ -854,7 +740,7 @@ impl EndpointBrokerState {
         //tokio::spawn(async move { callback.sender.send(output).await });
     }
 
-    fn handle_provided_request_new(
+    fn handle_provided_request(
         &self,
         rpc_request: &RpcRequest,
         id: u64,
@@ -878,10 +764,8 @@ impl EndpointBrokerState {
                     method: None,
                     params: None,
                 };
+                println!("here");
                 BrokerResponse::JsonRpc(data)
-
-                //let output = BrokerOutput { data };
-                //tokio::spawn(async move { callback.sender.send(output).await });
             }
             Some(ProviderResult::Session(_s)) => BrokerResponse::ApiMessage(
                 ProvideBrokerState::format_provider_message(rpc_request, id),
@@ -895,10 +779,8 @@ impl EndpointBrokerState {
                         "messsage": format!("{} not available", p)
                     })),
                 );
+                println!("there");
                 BrokerResponse::JsonRpc(data)
-
-                // let output = BrokerOutput { data };
-                // tokio::spawn(async move { callback.sender.send(output).await });
             }
             None => {
                 // Not Available
@@ -909,9 +791,8 @@ impl EndpointBrokerState {
                         "messsage": "capability not available".to_string()
                     })),
                 );
+                println!("everhwher");
                 BrokerResponse::JsonRpc(data)
-                // let output = BrokerOutput { data };
-                // tokio::spawn(async move { callback.sender.send(output).await });
             }
         }
     }
@@ -936,135 +817,22 @@ impl EndpointBrokerState {
         session: Option<Session>,
         telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
     ) -> bool {
-        let mut handled: bool = true;
-        let callback = self.callback.clone();
-        let mut broker_sender = None;
-        let mut found_rule = None;
         LogSignal::new(
             "handle_brokerage".to_string(),
             "starting brokerage".to_string(),
             rpc_request.ctx.clone(),
         )
         .emit_debug();
-        if let Some(rule) = self.rule_engine.get_rule(&rpc_request) {
-            found_rule = Some(rule.clone());
 
-            if let Some(endpoint) = rule.endpoint {
-                LogSignal::new(
-                    "handle_brokerage".to_string(),
-                    "rule found".to_string(),
-                    rpc_request.ctx.clone(),
-                )
-                .with_diagnostic_context_item("rule_alias", &rule.alias)
-                .with_diagnostic_context_item("endpoint", &endpoint)
-                .emit_debug();
-                if let Some(endpoint) = self.get_sender(&endpoint) {
-                    broker_sender = Some(endpoint);
-                }
-            } else if rule.alias != "static" {
-                LogSignal::new(
-                    "handle_brokerage".to_string(),
-                    "rule found".to_string(),
-                    rpc_request.ctx.clone(),
-                )
-                .with_diagnostic_context_item("rule_alias", &rule.alias)
-                .with_diagnostic_context_item("static", rule.alias.as_str())
-                .emit_debug();
-                if let Some(endpoint) = self.get_sender("thunder") {
-                    broker_sender = Some(endpoint);
-                }
-            }
-        } else {
-            LogSignal::new(
-                "handle_brokerage".to_string(),
-                "rule not found".to_string(),
-                rpc_request.ctx.clone(),
-            )
-            .emit_debug();
-        }
-        trace!("found rule {:?}", found_rule);
-        if found_rule.is_some() {
-            let rule = found_rule.unwrap();
-
-            if rule.alias == *"static" {
-                trace!("handling static request for {:?}", rpc_request);
-                self.handle_static_request(
-                    rpc_request.clone(),
-                    extn_message,
-                    rule,
-                    callback,
-                    requestor_callback,
-                    telemetry_response_listeners,
-                );
-            } else if rule.alias.eq_ignore_ascii_case("provided") {
-                self.handle_provided_request(
-                    &rpc_request,
-                    rule,
-                    callback,
-                    permissions,
-                    session,
-                    telemetry_response_listeners,
-                );
-            } else if broker_sender.is_some() {
-                trace!("handling not static request for {:?}", rpc_request);
-                let broker_sender = broker_sender.unwrap();
-                let (_, updated_request) = self.update_request(
-                    &rpc_request,
-                    rule,
-                    extn_message,
-                    requestor_callback,
-                    telemetry_response_listeners,
-                );
-                capture_stage(&self.metrics_state, &rpc_request, "broker_request");
-                let thunder = self.get_sender("thunder");
-                let request_context = updated_request.rpc.ctx.clone();
-                tokio::spawn(async move {
-                    /*
-                    process "unlisten" requests here - the broker layers require state, which does not exist , as the
-                    state has already been deleted by the time the unlisten request is processed.
-                    */
-                    if updated_request.rpc.is_unlisten() {
-                        let result: JsonRpcApiResponse = updated_request.clone().rpc.into();
-                        LogSignal::new(
-                            "handle_brokerage".to_string(),
-                            "unlisten request".to_string(),
-                            request_context.clone(),
-                        )
-                        .emit_debug();
-                        /*
-                        This is suboptimal, but the only way to handle this is to send the unlisten request to the thunder, and then
-                        */
-                        if let Some(thunder) = thunder {
-                            match thunder.send(updated_request.clone()).await {
-                                Ok(_) => callback.send_json_rpc_api_response(result).await,
-                                Err(e) => callback.send_error(updated_request, e).await,
-                            }
-                        }
-                    } else if let Err(e) = broker_sender.send(updated_request.clone()).await {
-                        LogSignal::new(
-                            "handle_brokerage".to_string(),
-                            "broker send error".to_string(),
-                            request_context.clone(),
-                        )
-                        .emit_error();
-                        callback.send_error(updated_request, e).await
-                    }
-                });
-            } else {
-                handled = false;
-            }
-        } else {
-            handled = false;
-        }
-        LogSignal::new(
-            "handle_brokerage".to_string(),
-            "brokerage complete".to_string(),
-            rpc_request.ctx.clone(),
+        self.handle_brokerage_new(
+            rpc_request,
+            extn_message,
+            requestor_callback,
+            permissions,
+            session,
+            telemetry_response_listeners,
         )
-        .with_diagnostic_context_item("handled", handled.to_string().as_str())
-        .emit_debug();
-
-        handled
+        .is_ok()
     }
 
     fn get_endpoint(&self, rule: &Rule) -> Result<BrokerSender, HandleBrokerageError> {
@@ -1099,32 +867,46 @@ impl EndpointBrokerState {
         telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
     ) -> Result<(BrokerSender, BrokerResponse), HandleBrokerageError> {
         LogSignal::new(
-            "handle_brokerage".to_string(),
+            "dispatch_brokerage".to_string(),
             "starting brokerage".to_string(),
             rpc_request.ctx.clone(),
         )
         .emit_debug();
+
         let rule: Rule = match self.get_broker_rule(&rpc_request)? {
             RuleRetrieved::ExactMatch(rule) | RuleRetrieved::WildcardMatch(rule) => rule,
         };
+
         let endpoint = self.get_endpoint(&rule)?;
-        let broker_request = self.update_request_new(
+        LogSignal::new(
+            "dispatch_brokerage".to_string(),
+            "preconditions_met".to_string(),
+            rpc_request.ctx.clone(),
+        )
+        .with_diagnostic_context_item(
+            "endpoint",
+            rule.clone().endpoint.unwrap_or_default().as_str(),
+        )
+        .with_diagnostic_context_item("rule", rule.alias.as_str())
+        .emit_debug();
+
+        let (id, broker_request) = self.update_request(
             &rpc_request,
             &rule,
             extn_message,
             requestor_callback,
             telemetry_response_listeners,
         );
-
+        let rpc_request = broker_request.rpc.clone();
         match rule.rule_type() {
             super::rules_engine::RuleType::Static => {
                 let response = BrokerResponse::JsonRpc(
-                    self.handle_static_request_new(rpc_request.clone(), rpc_request.ctx.call_id),
+                    self.handle_static_request(rpc_request.clone(), rpc_request.ctx.call_id),
                 );
                 Ok((endpoint, response))
             }
             super::rules_engine::RuleType::Provided => {
-                let response = self.handle_provided_request_new(
+                let response = self.handle_provided_request(
                     &rpc_request,
                     rpc_request.ctx.call_id,
                     permissions,
@@ -1134,9 +916,9 @@ impl EndpointBrokerState {
             }
             super::rules_engine::RuleType::Endpoint => {
                 if rpc_request.is_unlisten() {
-                    Ok((endpoint, BrokerResponse::Unlisten(broker_request.1)))
+                    Ok((endpoint, BrokerResponse::Unlisten(broker_request)))
                 } else {
-                    Ok((endpoint, BrokerResponse::BrokerRequest(broker_request.1)))
+                    Ok((endpoint, BrokerResponse::BrokerRequest(broker_request)))
                 }
             }
         }
@@ -1150,47 +932,60 @@ impl EndpointBrokerState {
         permissions: Vec<FireboltPermission>,
         session: Option<Session>,
         telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
-    ) -> bool {
-        let f = self.dispatch_brokerage(
-            rpc_request,
+    ) -> Result<BrokerResponse, HandleBrokerageError> {
+        LogSignal::new(
+            "handle_brokerage_new".to_string(),
+            "starting new  brokerage".to_string(),
+            rpc_request.ctx.clone(),
+        )
+        .emit_debug();
+
+        let callback = self.callback.clone();
+
+        LogSignal::new(
+            "handle_brokerage_new".to_string(),
+            "dispatch_complete".to_string(),
+            rpc_request.ctx.clone(),
+        )
+        .emit_debug();
+        match self.dispatch_brokerage(
+            rpc_request.clone(),
             extn_message,
             requestor_callback,
             permissions,
             session.clone(),
             telemetry_response_listeners,
-        );
-        let callback = self.callback.clone();
-        match f {
-            Ok((endpoint, response)) => {
-                match response {
-                    BrokerResponse::JsonRpc(data) => {
-                        tokio::spawn(
-                            async move { callback.sender.send(BrokerOutput::new(data)).await },
-                        );
-                    }
-                    BrokerResponse::ApiMessage(data) => {
-                        if let Some(sesh) = session {
-                            tokio::spawn(async move { sesh.send_json_rpc(data).await });
-                        }
-                        //tokio::spawn(async move { endpoint.send(data).await });
-                    }
-                    BrokerResponse::Endpoint(data) => {
-                        tokio::spawn(
-                            async move { callback.send_json_rpc_api_response(data).await },
-                        );
-                    }
-                    BrokerResponse::Unlisten(data) => {
-                        tokio::spawn(async move { endpoint.send(data).await });
-                    }
-                    BrokerResponse::BrokerRequest(data) => {
-                        tokio::spawn(async move { endpoint.send(data).await });
-                    }
+        ) {
+            Ok((endpoint, response)) => match response.clone() {
+                BrokerResponse::JsonRpc(data) => {
+                    tokio::spawn(
+                        async move { callback.sender.send(BrokerOutput::new(data)).await },
+                    );
+
+                    Ok(response)
                 }
-                true
-            }
+                BrokerResponse::ApiMessage(data) => {
+                    if let Some(sesh) = session {
+                        tokio::spawn(async move { sesh.send_json_rpc(data).await });
+                    }
+                    Ok(response)
+                }
+                BrokerResponse::Endpoint(data) => {
+                    tokio::spawn(async move { callback.send_json_rpc_api_response(data).await });
+                    Ok(response)
+                }
+                BrokerResponse::Unlisten(data) => {
+                    tokio::spawn(async move { endpoint.send(data).await });
+                    Ok(response)
+                }
+                BrokerResponse::BrokerRequest(data) => {
+                    tokio::spawn(async move { endpoint.send(data).await });
+                    Ok(response)
+                }
+            },
             Err(e) => {
                 error!("Error handling brokerage {:?}", e);
-                false
+                Err(e)
             }
         }
         //false
@@ -1881,7 +1676,7 @@ fn apply_filter(broker_request: &BrokerRequest, result: &Value, rpc_request: &Rp
 }
 
 #[cfg(test)]
-mod tests {
+mod endpoint_broker {
     use super::*;
     use crate::broker::rules_engine::RuleTransform;
     use ripple_sdk::{tokio::sync::mpsc::channel, Mockable};
@@ -1952,7 +1747,7 @@ mod tests {
 
         use crate::{
             broker::{
-                endpoint_broker::tests::RippleClient,
+                endpoint_broker::endpoint_broker::RippleClient,
                 rules_engine::{Rule, RuleEngine, RuleSet, RuleTransform},
             },
             state::{bootstrap_state::ChannelsState, metrics_state::MetricsState},
@@ -1970,7 +1765,7 @@ mod tests {
 
             use serial_test::serial;
 
-            use crate::broker::endpoint_broker::tests::reset_counter;
+            use crate::broker::endpoint_broker::endpoint_broker::reset_counter;
 
             use super::*;
 
@@ -2327,55 +2122,55 @@ mod tests {
             assert!(endpoints.contains_key("extn_with_session"));
         }
 
-        #[tokio::test]
-        async fn get_request() {
-            let (tx, _) = channel(2);
-            let client = RippleClient::new(ChannelsState::new());
-            let state = EndpointBrokerState::new(
-                MetricsState::default(),
-                tx,
-                RuleEngine {
-                    rules: RuleSet::default(),
-                },
-                client,
-            );
-            let mut request = RpcRequest::mock();
-            state.update_request(
-                &request,
-                Rule {
-                    alias: "somecallsign.method".to_owned(),
-                    transform: RuleTransform::default(),
-                    endpoint: None,
-                    filter: None,
-                    event_handler: None,
-                    sources: None,
-                },
-                None,
-                None,
-                vec![],
-            );
-            request.ctx.call_id = 2;
-            state.update_request(
-                &request,
-                Rule {
-                    alias: "somecallsign.method".to_owned(),
-                    transform: RuleTransform::default(),
-                    endpoint: None,
-                    filter: None,
-                    event_handler: None,
-                    sources: None,
-                },
-                None,
-                None,
-                vec![],
-            );
+        // #[tokio::test]
+        // async fn get_request() {
+        //     let (tx, _) = channel(2);
+        //     let client = RippleClient::new(ChannelsState::new());
+        //     let state = EndpointBrokerState::new(
+        //         MetricsState::default(),
+        //         tx,
+        //         RuleEngine {
+        //             rules: RuleSet::default(),
+        //         },
+        //         client,
+        //     );
+        //     let mut request = RpcRequest::mock();
+        //     state.update_request(
+        //         &request,
+        //         Rule {
+        //             alias: "somecallsign.method".to_owned(),
+        //             transform: RuleTransform::default(),
+        //             endpoint: None,
+        //             filter: None,
+        //             event_handler: None,
+        //             sources: None,
+        //         },
+        //         None,
+        //         None,
+        //         vec![],
+        //     );
+        //     request.ctx.call_id = 2;
+        //     state.update_request(
+        //         &request,
+        //         Rule {
+        //             alias: "somecallsign.method".to_owned(),
+        //             transform: RuleTransform::default(),
+        //             endpoint: None,
+        //             filter: None,
+        //             event_handler: None,
+        //             sources: None,
+        //         },
+        //         None,
+        //         None,
+        //         vec![],
+        //     );
 
-            // Hardcoding the id here will be a problem as multiple tests uses the atomic id and there is no guarantee
-            // that this test case would always be the first one to run
-            // Revisit this test case, to make it more robust
-            // assert!(state.get_request(2).is_ok());
-            // assert!(state.get_request(1).is_ok());
-        }
+        //     // Hardcoding the id here will be a problem as multiple tests uses the atomic id and there is no guarantee
+        //     // that this test case would always be the first one to run
+        //     // Revisit this test case, to make it more robust
+        //     // assert!(state.get_request(2).is_ok());
+        //     // assert!(state.get_request(1).is_ok());
+        // }
     }
 
     #[tokio::test]
@@ -2603,7 +2398,7 @@ mod tests {
                 event_handler: None,
                 sources: None,
             };
-            state.update_request(&rpc_request, rule, None, None, vec![]);
+            state.update_request(&rpc_request, &rule, None, None, vec![]);
             apply_response(filter, &rpc_request.ctx.method, &mut output.data);
             assert_eq!(output.data.result.unwrap(), "SCXI11BEI".to_string());
         }
@@ -2647,7 +2442,7 @@ mod tests {
                 event_handler: None,
                 sources: None,
             };
-            state.update_request(&rpc_request, rule, None, None, vec![]);
+            state.update_request(&rpc_request, &rule, None, None, vec![]);
             apply_response(filter, &rpc_request.ctx.method, &mut output.data);
             assert_eq!(
                 output.data.result.unwrap(),
@@ -2693,7 +2488,7 @@ mod tests {
                 event_handler: None,
                 sources: None,
             };
-            state.update_request(&rpc_request, rule, None, None, vec![]);
+            state.update_request(&rpc_request, &rule, None, None, vec![]);
             apply_response(filter, &rpc_request.ctx.method, &mut output.data);
             assert_eq!(
                 output.data.error.unwrap(),
@@ -2738,7 +2533,7 @@ mod tests {
                 event_handler: None,
                 sources: None,
             };
-            state.update_request(&rpc_request, rule, None, None, vec![]);
+            state.update_request(&rpc_request, &rule, None, None, vec![]);
             apply_response(filter, &rpc_request.ctx.method, &mut output.data);
             assert_eq!(
                 output.data.result.unwrap(),
@@ -2784,11 +2579,68 @@ mod tests {
                 event_handler: None,
                 sources: None,
             };
-            state.update_request(&rpc_request, rule, None, None, vec![]);
+            state.update_request(&rpc_request, &rule, None, None, vec![]);
             apply_response(filter, &rpc_request.ctx.method, &mut output.data);
             assert_eq!(output.data.result.unwrap(), Value::Null);
         }
     }
+    #[cfg(test)]
+    mod provided_request {
+
+        use super::*;
+        use crate::{
+            broker::{
+                endpoint_broker::{BrokerRequest, BrokerResponse, EndpointBrokerState},
+                rules_engine::{Rule, RuleEngine, RuleSet, RuleTransform},
+            },
+            service::extn::ripple_client::RippleClient,
+            state::{
+                bootstrap_state::ChannelsState, metrics_state::MetricsState, session_state::Session,
+            },
+        };
+        use ripple_sdk::{
+            api::{gateway::rpc_gateway_api::RpcRequest, session::AccountSession},
+            tokio::sync::mpsc::channel,
+            Mockable,
+        };
+        #[test]
+        fn test_basic() {
+            let (tx, _) = channel(2);
+
+            let client = RippleClient::new(ChannelsState::new());
+            let mut engine = RuleEngine {
+                rules: RuleSet::default(),
+            };
+            let r = Rule {
+                alias: "provided".to_owned(),
+                transform: Default::default(),
+                endpoint: Some("thunder".to_string()),
+                filter: None,
+                event_handler: None,
+                sources: None,
+            };
+            engine.add_rule(r);
+            let mut under_test =
+                EndpointBrokerState::new(MetricsState::default(), tx, engine, client);
+
+            let f = under_test.handle_provided_request(
+                &RpcRequest::mock(),
+                EndpointBrokerState::get_next_id(),
+                vec![],
+                None,
+            );
+            match f {
+                BrokerResponse::JsonRpc(json_rpc_api_response) => {
+                    assert!(json_rpc_api_response.result.is_some())
+                }
+                BrokerResponse::ApiMessage(api_message) => panic!("invalid response"),
+                BrokerResponse::Endpoint(json_rpc_api_response) => panic!("invalid response"),
+                BrokerResponse::Unlisten(broker_request) => panic!("invalid response"),
+                BrokerResponse::BrokerRequest(broker_request) => panic!("invalid response"),
+            }
+        }
+    }
+
     #[cfg(test)]
     mod handle_brokerage {
         use crate::{
@@ -3004,7 +2856,7 @@ mod tests {
                 };
 
                 let (id, broker_request) =
-                    state.update_request(&rpc_request, rule.clone(), None, None, vec![]);
+                    state.update_request(&rpc_request, &rule, None, None, vec![]);
 
                 assert_eq!(id, broker_request.rpc.ctx.call_id);
                 assert_eq!(broker_request.rule.alias, rule.alias);
@@ -3034,13 +2886,8 @@ mod tests {
                 };
                 let extn_message = Some(ExtnMessage::default());
 
-                let (id, broker_request) = state.update_request(
-                    &rpc_request,
-                    rule.clone(),
-                    extn_message.clone(),
-                    None,
-                    vec![],
-                );
+                let (id, broker_request) =
+                    state.update_request(&rpc_request, &rule, extn_message.clone(), None, vec![]);
 
                 assert_eq!(id, broker_request.rpc.ctx.call_id);
                 assert_eq!(broker_request.rule.alias, rule.alias);
@@ -3077,7 +2924,7 @@ mod tests {
 
                 let (id, broker_request) = state.update_request(
                     &rpc_request,
-                    rule.clone(),
+                    &rule,
                     None,
                     workflow_callback.clone(),
                     vec![],
@@ -3114,7 +2961,7 @@ mod tests {
 
                 let (id, broker_request) = state.update_request(
                     &rpc_request,
-                    rule.clone(),
+                    &rule,
                     None,
                     None,
                     telemetry_response_listeners.clone(),
