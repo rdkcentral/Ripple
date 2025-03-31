@@ -100,7 +100,7 @@ impl BrokerUtils {
         let rpc_request = RpcRequest::internal(method, on_behalf_of).with_params(params);
         state
             .otel
-            .add_api_stats(&rpc_request.ctx.request_id, &method);
+            .add_api_stats(&rpc_request.ctx.request_id, method);
         Self::internal_request(state, rpc_request).await
     }
 
