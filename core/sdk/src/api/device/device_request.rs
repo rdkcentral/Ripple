@@ -122,6 +122,16 @@ pub enum InternetConnectionStatus {
     FullyConnected,
 }
 
+impl From<bool> for InternetConnectionStatus {
+    fn from(value: bool) -> Self {
+        if value {
+            InternetConnectionStatus::FullyConnected
+        } else {
+            InternetConnectionStatus::NoInternet
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum NetworkState {
@@ -206,11 +216,6 @@ impl Resolution {
             Resolution::ResolutionDefault => vec![1920, 1080],
         }
     }
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct OnInternetConnectedRequest {
-    pub timeout: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]

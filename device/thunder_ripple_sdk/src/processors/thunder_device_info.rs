@@ -18,7 +18,6 @@
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
-    time::Duration,
 };
 
 use crate::{
@@ -54,7 +53,6 @@ use crate::{
         },
         log::{error, info},
         serde_json::{self},
-        tokio,
         utils::error::RippleError,
     },
     utils::get_audio_profile_from_value,
@@ -65,11 +63,10 @@ use ripple_sdk::{
         context::RippleContextUpdateRequest,
         device::{
             device_info_request::{FirmwareInfo, PlatformBuildInfo},
-            device_request::{InternetConnectionStatus, PowerState},
+            device_request::PowerState,
         },
         device::device_request::TimeZone,
     },
-    log::trace,
     serde_json::{Map, Value},
 };
 use serde::{Deserialize, Deserializer, Serialize};
@@ -219,7 +216,9 @@ impl ThunderNetworkService {
         if response.is_none() {
             return false;
         }
-        response.unwrap().as_bool().unwrap_or(false)
+        let v = response.unwrap().as_bool().unwrap_or(false);
+        let _ = state.get_client().request_transient(RippleContextUpdateRequest::InternetStatus(v.into()));
+        v
     }
 }
 #[derive(Debug, Serialize, Deserialize)]
@@ -437,60 +436,6 @@ impl ThunderDeviceInfoRequestProcessor {
             .is_ok()
     }
 
-    async fn get_internet_connection_status(
-        state: &CachedState,
-    ) -> Option<InternetConnectionStatus> {
-        let dev_response = state
-            .get_thunder_client()
-            .call(DeviceCallRequest {
-                method: ThunderPlugin::Network.method("getInternetConnectionState"),
-                params: None,
-            })
-            .await;
-        let resp = dev_response.message.get("state")?;
-        if let Ok(internet_status) = serde_json::from_value::<u32>(resp.clone()) {
-            return match internet_status {
-                0 => Some(InternetConnectionStatus::NoInternet),
-                1 => Some(InternetConnectionStatus::LimitedInternet),
-                2 => Some(InternetConnectionStatus::CaptivePortal),
-                3 => Some(InternetConnectionStatus::FullyConnected),
-                _ => None,
-            };
-        }
-        None
-    }
-
-    async fn internet_connection_status(state: CachedState, req: ExtnMessage) -> bool {
-        if let Some(response) = Self::get_internet_connection_status(&state).await {
-            trace!(
-                "Successfully got internetConnection status from thunder: {:?}",
-                response
-            );
-            let event = RippleContextUpdateRequest::InternetStatus(response.clone());
-            let _send_event_result = state.get_client().request_transient(event);
-            trace!(
-                "Result of sending ripple context event: {:?}",
-                _send_event_result
-            );
-            Self::respond(
-                state.get_client(),
-                req,
-                if let ExtnPayload::Response(resp) =
-                    DeviceResponse::InternetConnectionStatus(response).get_extn_payload()
-                {
-                    resp
-                } else {
-                    ExtnResponse::Error(RippleError::ProcessorError)
-                },
-            )
-            .await
-            .is_ok()
-        } else {
-            error!("Unable to get internet connection status from thunder");
-            Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
-        }
-    }
-
     async fn get_audio(state: &CachedState) -> HashMap<AudioProfile, bool> {
         let response = state
             .get_thunder_client()
@@ -655,35 +600,6 @@ impl ThunderDeviceInfoRequestProcessor {
             0 != (supported_cap & hdr_flags::HDRSTANDARD_HDR10PLUS),
         );
         hm
-    }
-
-
-    async fn on_internet_connected(state: CachedState, req: ExtnMessage, timeout: u64) -> bool {
-        if tokio::time::timeout(
-            Duration::from_millis(timeout),
-            Self::respond(state.get_client(), req.clone(), {
-                let value = ThunderNetworkService::has_internet(&state.state).await;
-
-                if let ExtnPayload::Response(r) =
-                    DeviceResponse::InternetConnectionStatus(match value {
-                        true => InternetConnectionStatus::FullyConnected,
-                        false => InternetConnectionStatus::NoInternet,
-                    })
-                    .get_extn_payload()
-                {
-                    r
-                } else {
-                    ExtnResponse::Error(RippleError::ProcessorError)
-                }
-            }),
-        )
-        .await
-        .is_err()
-        {
-            Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
-        } else {
-            true
-        }
     }
 
     pub async fn get_firmware_version(state: &ThunderState) -> FireboltSemanticVersion {
@@ -1152,9 +1068,6 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
             DeviceInfoRequest::HdcpStatus => Self::hdcp_status(state.clone(), msg).await,
             DeviceInfoRequest::FirmwareInfo => Self::os_info(state.clone(), msg).await,
             DeviceInfoRequest::AvailableMemory => Self::available_memory(state.clone(), msg).await,
-            DeviceInfoRequest::OnInternetConnected(time_out) => {
-                Self::on_internet_connected(state.clone(), msg, time_out.timeout).await
-            }
             DeviceInfoRequest::SetVoiceGuidanceEnabled(v) => {
                 Self::voice_guidance_set_enabled(state.clone(), msg, v).await
             }
@@ -1168,7 +1081,7 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
                 Self::voice_guidance_speed(state.clone(), msg).await
             }
             DeviceInfoRequest::InternetConnectionStatus => {
-                Self::internet_connection_status(state.clone(), msg).await
+                ThunderNetworkService::has_internet(&state.state).await
             }
             DeviceInfoRequest::PowerState => Self::power_state(state.clone(), msg).await,
             DeviceInfoRequest::PlatformBuildInfo => {

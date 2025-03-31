@@ -28,7 +28,7 @@ use std::collections::HashMap;
 
 use super::device_request::{
     AudioProfile, DeviceRequest, HDCPStatus, HdcpProfile, HdrProfile, InternetConnectionStatus,
-    OnInternetConnectedRequest, PowerState, TimeZone,
+    PowerState, TimeZone,
 };
 
 pub const DEVICE_INFO_AUTHORIZED: &str = "device_info_authorized";
@@ -45,7 +45,6 @@ pub enum DeviceInfoRequest {
     HdcpStatus,
     Audio,
     AvailableMemory,
-    OnInternetConnected(OnInternetConnectedRequest),
     InternetConnectionStatus,
     VoiceGuidanceEnabled,
     SetVoiceGuidanceEnabled(bool),
