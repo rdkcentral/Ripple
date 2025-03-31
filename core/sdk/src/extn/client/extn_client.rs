@@ -2518,27 +2518,6 @@ pub mod tests {
         assert_eq!(activation_status_after_reset, None);
     }
 
-    #[rstest(
-        connectivity,
-        expected_result,
-        case(InternetConnectionStatus::FullyConnected, true),
-        case(InternetConnectionStatus::LimitedInternet, true),
-        case(InternetConnectionStatus::NoInternet, false),
-        case(InternetConnectionStatus::CaptivePortal, false)
-    )]
-    #[tokio::test]
-    async fn test_has_internet(connectivity: InternetConnectionStatus, expected_result: bool) {
-        let extn_client = ExtnClient::mock();
-        extn_client
-            .ripple_context
-            .write()
-            .unwrap()
-            .internet_connectivity = Some(connectivity);
-
-        let has_internet = extn_client.has_internet();
-        assert_eq!(has_internet, expected_result);
-    }
-
     #[tokio::test]
     async fn test_get_timezone() {
         let extn_client = ExtnClient::mock();

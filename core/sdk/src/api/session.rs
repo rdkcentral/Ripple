@@ -269,10 +269,7 @@ impl ContractAdjective for SessionAdjective {
 pub enum EventAdjective {
     Input,
     VoiceGuidance,
-    Internet,
     Audio,
-    SystemPowerState,
-    TimeZone,
 }
 
 impl ContractAdjective for EventAdjective {

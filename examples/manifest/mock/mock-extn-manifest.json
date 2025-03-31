@@ -22,10 +22,8 @@
                         "local.storage",
                         "input.device_events",
                         "voice_guidance.device_events",
-                        "internet.device_events",
+                        
                         "audio.device_events",
-                        "system_power_state.device_events",
-                        "time_zone.device_events",
                         "remote_feature_control",
                         "apps"
                     ]
