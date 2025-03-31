@@ -39,12 +39,14 @@ impl BrokerUtils {
         SplitSink<WebSocketStream<TcpStream>, Message>,
         SplitStream<WebSocketStream<TcpStream>>,
     ) {
+        println!("^^^ get_ws_broker 1");
         info!("Broker Endpoint url {}", endpoint);
         let url_path = if let Some(a) = alias {
             format!("{}{}", endpoint, a)
         } else {
             endpoint.to_owned()
         };
+        println!("^^^ get_ws_broker 2");
         let url = url::Url::parse(&url_path).unwrap();
         let port = extract_tcp_port(endpoint);
         let tcp_port = port.unwrap();
@@ -54,14 +56,18 @@ impl BrokerUtils {
 
         loop {
             // Try connecting to the tcp port first
+            println!("^^^ get_ws_broker 3");
             if let Ok(v) = TcpStream::connect(&tcp_port).await {
+                println!("^^^ get_ws_broker 4");
                 // Setup handshake for websocket with the tcp port
                 // Some WS servers lock on to the Port but not setup handshake till they are fully setup
                 if let Ok((stream, _)) = client_async(url_path.clone(), v).await {
+                    println!("^^^ get_ws_broker 5");
                     break stream.split();
                 }
             }
             if (index % 10).eq(&0) {
+                println!("^^^ get_ws_broker tries {}", index);
                 error!(
                     "Broker with {} failed with retry for last {} secs in {}",
                     url_path, index, tcp_port
