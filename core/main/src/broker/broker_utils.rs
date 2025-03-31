@@ -78,7 +78,7 @@ impl BrokerUtils {
         params: Option<Value>,
         app_id: &str,
     ) -> RpcResult<Value> {
-        let mut rpc_request = RpcRequest::internal(method,None).with_params(params);
+        let mut rpc_request = RpcRequest::internal(method, None).with_params(params);
         rpc_request.ctx.app_id = app_id.to_owned();
         Self::internal_request(state, rpc_request).await
     }
@@ -104,8 +104,10 @@ impl BrokerUtils {
         Self::internal_request(state, rpc_request).await
     }
 
-    async fn internal_request(state: &mut PlatformState, rpc_request:RpcRequest) -> RpcResult<Value>
-    {
+    async fn internal_request(
+        state: &mut PlatformState,
+        rpc_request: RpcRequest,
+    ) -> RpcResult<Value> {
         let method = rpc_request.method.clone();
         match state.internal_rpc_request(&rpc_request).await {
             Ok(res) => match res.as_value() {
