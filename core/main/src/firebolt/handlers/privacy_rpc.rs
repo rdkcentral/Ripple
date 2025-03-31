@@ -330,8 +330,6 @@ pub trait Privacy {
     async fn get_content_ad_targeting(&self) -> RpcResult<bool>;
 }
 
-//
-
 pub async fn get_allow_app_content_ad_targeting_settings(
     platform_state: &mut PlatformState,
     scope_option: Option<&ScopeOption>,
