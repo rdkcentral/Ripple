@@ -174,7 +174,7 @@ impl ThunderEventHandlerProvider for VoiceGuidanceEnabledChangedEventHandler {
     }
 
     fn event_name() -> String {
-        "onttsstatechanged".into()
+        "onVoiceGuidanceChanged".into()
     }
 
     fn get_mapped_event() -> String {
@@ -182,7 +182,7 @@ impl ThunderEventHandlerProvider for VoiceGuidanceEnabledChangedEventHandler {
     }
 
     fn module() -> String {
-        ThunderPlugin::TextToSpeech.callsign_string()
+        ThunderPlugin::UserSettings.callsign_string()
     }
 
     fn get_extn_event(

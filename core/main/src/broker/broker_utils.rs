@@ -20,7 +20,7 @@ use futures::stream::{SplitSink, SplitStream};
 use futures_util::StreamExt;
 use jsonrpsee::core::RpcResult;
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{JsonRpcApiError, RpcRequest},
+    api::gateway::rpc_gateway_api::{CallContext, JsonRpcApiError, RpcRequest},
     log::{error, info},
     tokio::{self, net::TcpStream},
     utils::rpc_utils::extract_tcp_port,
@@ -78,9 +78,9 @@ impl BrokerUtils {
         params: Option<Value>,
         app_id: &str,
     ) -> RpcResult<Value> {
-        let mut rpc_request = RpcRequest::internal(method).with_params(params);
+        let mut rpc_request = RpcRequest::internal(method,None).with_params(params);
         rpc_request.ctx.app_id = app_id.to_owned();
-        Self::process(state, rpc_request).await
+        Self::internal_request(state, rpc_request).await
     }
 
     pub async fn process_internal_main_request<'a>(
@@ -88,16 +88,25 @@ impl BrokerUtils {
         method: &'a str,
         params: Option<Value>,
     ) -> RpcResult<Value> {
-        let rpc_request = RpcRequest::internal(method).with_params(params);
-        Self::process(state, rpc_request).await
+        Self::process_internal_request(state, None, method, params).await
     }
 
-    async fn process(state: &mut PlatformState, rpc_request: RpcRequest) -> RpcResult<Value> {
-        let method = rpc_request.method.clone();
+    pub async fn process_internal_request<'a>(
+        state: &mut PlatformState,
+        on_behalf_of: Option<CallContext>,
+        method: &'a str,
+        params: Option<Value>,
+    ) -> RpcResult<Value> {
+        let rpc_request = RpcRequest::internal(method, on_behalf_of).with_params(params);
         state
             .otel
             .add_api_stats(&rpc_request.ctx.request_id, &method);
+        Self::internal_request(state, rpc_request).await
+    }
 
+    async fn internal_request(state: &mut PlatformState, rpc_request:RpcRequest) -> RpcResult<Value>
+    {
+        let method = rpc_request.method.clone();
         match state.internal_rpc_request(&rpc_request).await {
             Ok(res) => match res.as_value() {
                 Some(v) => Ok(v),
