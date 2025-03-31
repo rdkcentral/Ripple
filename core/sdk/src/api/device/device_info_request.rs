@@ -51,7 +51,6 @@ pub enum DeviceInfoRequest {
     VoiceGuidanceSpeed,
     SetVoiceGuidanceSpeed(f32),
     PowerState,
-    SerialNumber,
     PlatformBuildInfo,
 }
 
@@ -99,6 +98,15 @@ pub struct PlatformBuildInfo {
 pub struct FirmwareInfo {
     pub name: String,
     pub version: FireboltSemanticVersion,
+}
+
+impl From<FireboltSemanticVersion> for FirmwareInfo {
+    fn from(version: FireboltSemanticVersion) -> Self {
+        FirmwareInfo {
+            name: "rdk".into(),
+            version,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]

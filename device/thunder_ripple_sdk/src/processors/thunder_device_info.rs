@@ -27,8 +27,7 @@ use crate::{
         thunder_plugin::ThunderPlugin,
     },
     ripple_sdk::{
-        api::device::device_request::AudioProfile,
-        extn::client::extn_client::ExtnClient,
+        api::device::device_request::AudioProfile, extn::client::extn_client::ExtnClient,
         tokio::sync::mpsc,
     },
     thunder_state::ThunderState,
@@ -61,11 +60,11 @@ use regex::{Match, Regex};
 use ripple_sdk::{
     api::{
         context::RippleContextUpdateRequest,
+        device::device_request::TimeZone,
         device::{
             device_info_request::{FirmwareInfo, PlatformBuildInfo},
             device_request::PowerState,
         },
-        device::device_request::TimeZone,
     },
     serde_json::{Map, Value},
 };
@@ -126,7 +125,6 @@ pub struct SystemVersion {
 #[derive(Debug, Clone, Default)]
 pub struct CachedDeviceInfo {
     mac_address: Option<String>,
-    serial_number: Option<String>,
     model: Option<String>,
     hdcp_support: Option<HashMap<HdcpProfile, bool>>,
     version: Option<FireboltSemanticVersion>,
@@ -165,15 +163,6 @@ impl CachedState {
 
     fn get_mac_address(&self) -> Option<String> {
         self.cached.read().unwrap().mac_address.clone()
-    }
-
-    fn get_serial_number(&self) -> Option<String> {
-        self.cached.read().unwrap().serial_number.clone()
-    }
-
-    fn update_serial_number(&self, serial_number: String) {
-        let mut cached = self.cached.write().unwrap();
-        let _ = cached.serial_number.insert(serial_number);
     }
 
     fn update_mac_address(&self, mac: String) {
@@ -217,7 +206,9 @@ impl ThunderNetworkService {
             return false;
         }
         let v = response.unwrap().as_bool().unwrap_or(false);
-        let _ = state.get_client().request_transient(RippleContextUpdateRequest::InternetStatus(v.into()));
+        let _ = state
+            .get_client()
+            .request_transient(RippleContextUpdateRequest::InternetStatus(v.into()));
         v
     }
 }
@@ -339,25 +330,33 @@ impl ThunderDeviceInfoRequestProcessor {
         }
     }
 
+    pub async fn get_mac(state: &ThunderState) -> String {
+        let resp = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::System.method("getDeviceInfo"),
+                params: Some(DeviceChannelParams::Json(String::from(
+                    "{\"params\": [\"estb_mac\"]}",
+                ))),
+            })
+            .await;
+        info!("{}", resp.message);
+        let resp = resp.message.get("estb_mac");
+        if resp.is_none() {
+            return "".to_string();
+        }
+        resp.unwrap()
+            .as_str()
+            .unwrap()
+            .trim_matches('"')
+            .to_string()
+    }
+
     async fn get_mac_address(state: &CachedState) -> String {
         match state.get_mac_address() {
             Some(value) => value,
             None => {
-                let resp = state
-                    .get_thunder_client()
-                    .call(DeviceCallRequest {
-                        method: ThunderPlugin::System.method("getDeviceInfo"),
-                        params: Some(DeviceChannelParams::Json(String::from(
-                            "{\"params\": [\"estb_mac\"]}",
-                        ))),
-                    })
-                    .await;
-                info!("{}", resp.message);
-                let resp = resp.message.get("estb_mac");
-                if resp.is_none() {
-                    return "".to_string();
-                }
-                let mac = resp.unwrap().as_str().unwrap().trim_matches('"');
+                let mac = Self::get_mac(&state.state).await;
                 state.update_mac_address(mac.to_string());
                 mac.to_string()
             }
@@ -371,62 +370,48 @@ impl ThunderDeviceInfoRequestProcessor {
             .is_ok()
     }
 
-    async fn get_serial_number(state: &CachedState) -> String {
-        match state.get_serial_number() {
-            Some(value) => value,
-            None => {
-                let resp = state
-                    .get_thunder_client()
-                    .call(DeviceCallRequest {
-                        method: ThunderPlugin::System.method("getSerialNumber"),
-                        params: None,
-                    })
-                    .await;
-                info!("{}", resp.message);
+    pub async fn get_serial_number(state: &ThunderState) -> String {
+        let resp = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::System.method("getSerialNumber"),
+                params: None,
+            })
+            .await;
+        info!("{}", resp.message);
 
-                resp.message["serialNumber"].as_str().map_or_else(
-                    || "".to_string(),
-                    |serial_number| {
-                        let serial_number = serial_number.to_string();
-                        state.update_serial_number(serial_number.clone());
-                        serial_number
-                    },
-                )
-            }
-        }
+        resp.message["serialNumber"]
+            .as_str()
+            .map_or_else(|| "".to_string(), |serial_number| serial_number.to_string())
     }
 
-    async fn serial_number(state: CachedState, req: ExtnMessage) -> bool {
-        let response: String = Self::get_serial_number(&state).await;
-
-        Self::respond(state.get_client(), req, ExtnResponse::String(response))
-            .await
-            .is_ok()
+    pub async fn model_info(state: &ThunderState) -> String {
+        let resp = state
+            .get_thunder_client()
+            .call(DeviceCallRequest {
+                method: ThunderPlugin::System.method("getSystemVersions"),
+                params: None,
+            })
+            .await;
+        info!("{}", resp.message);
+        let resp = resp.message.get("stbVersion");
+        if resp.is_none() {
+            return "NA".to_owned();
+        }
+        let resp = resp.unwrap().as_str().unwrap().trim_matches('"');
+        let split_string: Vec<&str> = resp.split('_').collect();
+        String::from(split_string[0])
     }
 
     async fn get_model(state: &CachedState) -> String {
-        match state.get_model() {
-            Some(value) => value,
-            None => {
-                let resp = state
-                    .get_thunder_client()
-                    .call(DeviceCallRequest {
-                        method: ThunderPlugin::System.method("getSystemVersions"),
-                        params: None,
-                    })
-                    .await;
-                info!("{}", resp.message);
-                let resp = resp.message.get("stbVersion");
-                if resp.is_none() {
-                    return "NA".to_owned();
-                }
-                let resp = resp.unwrap().as_str().unwrap().trim_matches('"');
-                let split_string: Vec<&str> = resp.split('_').collect();
-                let model = String::from(split_string[0]);
-                state.update_model(model.clone());
-                model
-            }
-        }
+        let model = if let Some(m) = state.get_model() {
+            m
+        } else {
+            Self::model_info(&state.state).await
+        };
+
+        state.update_model(model.clone());
+        model
     }
 
     async fn model(state: CachedState, req: ExtnMessage) -> bool {
@@ -649,10 +634,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 state.update_version(version.clone());
             }
         }
-        FirmwareInfo {
-            name: "rdk".into(),
-            version,
-        }
+        version.into()
     }
 
     async fn os_info(state: CachedState, req: ExtnMessage) -> bool {
@@ -1061,7 +1043,6 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
     ) -> bool {
         match extracted_message {
             DeviceInfoRequest::MacAddress => Self::mac_address(state.clone(), msg).await,
-            DeviceInfoRequest::SerialNumber => Self::serial_number(state.clone(), msg).await,
             DeviceInfoRequest::Model => Self::model(state.clone(), msg).await,
             DeviceInfoRequest::Audio => Self::audio(state.clone(), msg).await,
             DeviceInfoRequest::HdcpSupport => Self::hdcp_support(state.clone(), msg).await,
