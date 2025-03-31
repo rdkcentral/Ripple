@@ -61,19 +61,19 @@ pub struct AdvertisingIdRPCRequest {
     pub options: Option<ScopeOption>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct ScopeOption {
     pub scope: Option<Scope>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Scope {
     #[serde(rename = "type")]
     pub _type: ScopeType,
     pub id: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum ScopeType {
     Browse,
