@@ -1878,6 +1878,382 @@ mod tests {
         assert_eq!(ATOMIC_ID.load(Ordering::Relaxed), 12);
     }
 
+    #[test]
+    fn test_get_other_endpoints() {
+        let (tx1, _) = channel(2);
+        let broker_sender1 = BrokerSender { sender: tx1 };
+        let (tx2, _) = channel(2);
+        let broker_sender2 = BrokerSender { sender: tx2 };
+
+        let mut state = EndpointBrokerState::default();
+        state.add_endpoint("endpoint1".to_string(), broker_sender1.clone());
+        state.add_endpoint("endpoint2".to_string(), broker_sender2.clone());
+
+        let other_endpoints = state.get_other_endpoints("endpoint7");
+
+        assert_eq!(other_endpoints.len(), 2);
+        assert!(other_endpoints.contains_key("endpoint1"));
+        assert!(other_endpoints.contains_key("endpoint2"));
+        assert_ne!(other_endpoints.contains_key("endpoint7"), true);
+    }
+
+    #[cfg(test)]
+    mod handle_broker_response_tests {
+        use super::*;
+
+        #[tokio::test]
+        async fn test_handle_broker_response_success() {
+            let (tx, mut rx) = mpsc::channel(2);
+            let callback = BrokerCallback { sender: tx };
+            let state = EndpointBrokerState {
+                endpoint_map: Arc::new(RwLock::new(HashMap::new())),
+                callback,
+                request_map: Arc::new(RwLock::new(HashMap::new())),
+                extension_request_map: Arc::new(RwLock::new(HashMap::new())),
+                rule_engine: RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                cleaner_list: Arc::new(RwLock::new(Vec::new())),
+                reconnect_tx: mpsc::channel(2).0,
+                provider_broker_state: ProvideBrokerState::default(),
+                metrics_state: MetricsState::default(),
+            };
+            //sending JsonRpcApiResponse result as true
+            let response = JsonRpcApiResponse {
+                jsonrpc: "2.0".to_owned(),
+                result: Some(serde_json::Value::Bool(true)),
+                id: Some(12),
+                error: None,
+                method: Some("method1".to_string()),
+                params: None,
+            };
+
+            state.handle_broker_response(response.clone());
+
+            let received = rx.recv().await.unwrap();
+            assert_eq!(received.data.result, Some(serde_json::Value::Bool(true)));
+        }
+
+        #[tokio::test]
+        async fn test_handle_broker_response_error() {
+            let (tx, mut rx) = mpsc::channel(2); // Create a channel with no capacity to force failure
+            let callback = BrokerCallback { sender: tx };
+            let state = EndpointBrokerState {
+                endpoint_map: Arc::new(RwLock::new(HashMap::new())),
+                callback,
+                request_map: Arc::new(RwLock::new(HashMap::new())),
+                extension_request_map: Arc::new(RwLock::new(HashMap::new())),
+                rule_engine: RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                cleaner_list: Arc::new(RwLock::new(Vec::new())),
+                reconnect_tx: mpsc::channel(2).0,
+                provider_broker_state: ProvideBrokerState::default(),
+                metrics_state: MetricsState::default(),
+            };
+            //sending JsonRpcApiResponse result as true
+            let response = JsonRpcApiResponse {
+                jsonrpc: "2.0".to_owned(),
+                result: Some(serde_json::Value::Bool(true)),
+                id: Some(12),
+                error: Some(serde_json::json!({"code": -32000, "message": "An error occurred"})),
+                method: Some("method1".to_string()),
+                params: None,
+            };
+
+            state.handle_broker_response(response.clone());
+
+            let received = rx.recv().await.unwrap();
+            assert!(received.data.error.is_some());
+        }
+    }
+
+    #[cfg(test)]
+    mod get_rule_tests {
+        use super::*;
+
+        #[test]
+        fn test_get_rule_found() {
+            let rule = Rule {
+                alias: "test_rule".to_string(),
+                ..Default::default()
+            };
+
+            let rule_engine = RuleEngine {
+                rules: RuleSet {
+                    rules: {
+                        let mut map = HashMap::new();
+                        map.insert("test_method".to_string(), rule.clone());
+                        map
+                    },
+                    endpoints: HashMap::new(),
+                },
+            };
+
+            let state = EndpointBrokerState {
+                rule_engine,
+                ..Default::default()
+            };
+
+            let rpc_request = RpcRequest {
+                method: "test_method".to_string(),
+                ..RpcRequest::mock()
+            };
+
+            let result = state.get_rule(&rpc_request);
+            assert!(result.is_some());
+            //assert_eq!(result.unwrap(), rule);
+        }
+
+        #[test]
+        fn test_get_rule_not_found() {
+            let rule_engine = RuleEngine {
+                rules: RuleSet::default(),
+            };
+
+            let state = EndpointBrokerState {
+                rule_engine,
+                ..Default::default()
+            };
+
+            let rpc_request = RpcRequest {
+                method: "non_existent_method".to_string(),
+                ..RpcRequest::mock()
+            };
+
+            let result = state.get_rule(&rpc_request);
+            assert!(result.is_none());
+        }
+    }
+
+    #[cfg(test)]
+    mod cleanup_for_app_tests {
+        use super::*;
+
+        #[tokio::test]
+        async fn test_cleanup_for_app() {
+            let (tx, mut rx) = mpsc::channel(2);
+            let cleaner = BrokerCleaner {
+                cleaner: Some(tx.clone()),
+            };
+
+            let state = EndpointBrokerState {
+                cleaner_list: Arc::new(RwLock::new(vec![cleaner])),
+                ..Default::default()
+            };
+
+            let app_id = "test_app";
+            state.cleanup_for_app(app_id).await;
+
+            let received = rx.recv().await.unwrap();
+            assert_eq!(received, app_id);
+        }
+
+        #[tokio::test]
+        async fn test_cleanup_for_app_no_cleaners() {
+            let state = EndpointBrokerState {
+                cleaner_list: Arc::new(RwLock::new(vec![])),
+                ..Default::default()
+            };
+
+            let app_id = "test_app";
+            state.cleanup_for_app(app_id).await;
+        }
+    }
+
+    #[cfg(test)]
+    mod build_endpoint_tests {
+        use super::*;
+
+        #[tokio::test]
+        async fn test_build_endpoint_http() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+
+            let request = BrokerConnectRequest::new(
+                "http_endpoint".to_string(),
+                RuleEndpoint {
+                    protocol: RuleEndpointProtocol::Http,
+                    jsonrpc: true,
+                    url: "http://google.com".to_string(),
+                    ..Default::default()
+                },
+                state.reconnect_tx.clone(),
+            );
+
+            state.build_endpoint(None, request);
+
+            let endpoints = state.get_endpoints();
+            assert!(endpoints.contains_key("http_endpoint"));
+        }
+
+        #[tokio::test]
+        async fn test_build_endpoint_websocket() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+
+            let request = BrokerConnectRequest::new(
+                "websocket_endpoint".to_string(),
+                RuleEndpoint {
+                    protocol: RuleEndpointProtocol::Websocket,
+                    ..Default::default()
+                },
+                state.reconnect_tx.clone(),
+            );
+
+            state.build_endpoint(None, request);
+
+            let endpoints = state.get_endpoints();
+            assert!(endpoints.contains_key("websocket_endpoint"));
+
+            let cleaners = state.cleaner_list.read().unwrap();
+            assert_eq!(cleaners.len(), 1);
+        }
+
+        #[tokio::test]
+        async fn test_build_endpoint_thunder() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+
+            let request = BrokerConnectRequest::new(
+                "thunder_endpoint".to_string(),
+                RuleEndpoint {
+                    protocol: RuleEndpointProtocol::Thunder,
+                    ..Default::default()
+                },
+                state.reconnect_tx.clone(),
+            );
+
+            state.build_endpoint(None, request);
+
+            let endpoints = state.get_endpoints();
+            assert!(endpoints.contains_key("thunder_endpoint"));
+
+            let cleaners = state.cleaner_list.read().unwrap();
+            assert_eq!(cleaners.len(), 1);
+        }
+
+        #[tokio::test]
+        async fn test_build_endpoint_workflow() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+
+            let request = BrokerConnectRequest::new(
+                "workflow_endpoint".to_string(),
+                RuleEndpoint {
+                    protocol: RuleEndpointProtocol::Workflow,
+                    ..Default::default()
+                },
+                state.reconnect_tx.clone(),
+            );
+
+            state.build_endpoint(None, request);
+
+            let endpoints = state.get_endpoints();
+            assert!(endpoints.contains_key("workflow_endpoint"));
+        }
+
+        #[tokio::test]
+        async fn test_build_endpoint_extn() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+
+            let request = BrokerConnectRequest::new(
+                "extn_endpoint".to_string(),
+                RuleEndpoint {
+                    protocol: RuleEndpointProtocol::Extn,
+                    jsonrpc: true,
+                    url: "http://example.com".to_string(),
+                    ..Default::default()
+                },
+                state.reconnect_tx.clone(),
+            );
+
+            state.build_endpoint(None, request);
+
+            let endpoints = state.get_endpoints();
+            assert!(endpoints.contains_key("extn_endpoint"));
+        }
+    }
+
+    #[cfg(test)]
+    mod handle_static_request_tests {
+        use super::*;
+
+        #[tokio::test]
+        async fn test_handle_static_request() {
+            let (tx, mut rx) = channel(2);
+            let callback = BrokerCallback { sender: tx };
+
+            let state = EndpointBrokerState {
+                callback,
+                metrics_state: MetricsState::default(),
+                ..Default::default()
+            };
+
+            let rpc_request = RpcRequest::mock();
+            let rule = Rule {
+                alias: "static".to_string(),
+                ..Default::default()
+            };
+
+            state.handle_static_request(
+                rpc_request.clone(),
+                None,
+                rule,
+                state.callback.clone(),
+                None,
+                vec![],
+            );
+
+            let received = rx.recv().await.unwrap();
+            assert_eq!(
+                received.data.result,
+                Some(serde_json::Value::String("".to_string()))
+            );
+        }
+    }
+
     #[cfg(test)]
     mod handle_brokerage_tests {
         use super::*;
