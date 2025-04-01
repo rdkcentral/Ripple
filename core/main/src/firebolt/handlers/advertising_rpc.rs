@@ -30,25 +30,6 @@ use ripple_sdk::api::{gateway::rpc_gateway_api::CallContext, storage_property::S
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Debug)]
-pub struct AdvertisingId {
-    pub ifa: String,
-    pub ifa_type: String,
-    pub lmt: String,
-}
-
-impl Serialize for AdvertisingId {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut map = serde_json::Map::new();
-        map.insert("ifa".to_string(), self.ifa.clone().into());
-        // include both ifaType and ifa_type for backward compatibility
-        map.insert("ifaType".to_string(), self.ifa_type.clone().into());
-        map.insert("ifa_type".to_string(), self.ifa_type.clone().into());
-        map.insert("lmt".to_string(), self.lmt.clone().into());
-        map.serialize(serializer)
-    }
-}
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AdvertisingPolicy {
