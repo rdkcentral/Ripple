@@ -19,6 +19,7 @@ use ripple_sdk::api::{
     gateway::rpc_gateway_api::RpcRequest, manifest::extn_manifest::ExtnManifest,
 };
 
+use ripple_sdk::serde_yaml::with;
 use ripple_sdk::{
     chrono::Utc,
     log::{debug, error, info, trace, warn},
@@ -52,7 +53,6 @@ impl RuleSet {
         self.rules.get(key)
     }
 }
-
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct RuleEndpoint {
     pub protocol: RuleEndpointProtocol,
@@ -133,6 +133,38 @@ impl Rule {
             return RuleType::Provided;
         }
         RuleType::Endpoint
+    }
+    pub fn with_alias(&mut self, alias: String) -> &mut Self {
+        self.alias = alias;
+        self
+    }
+    pub fn with_rule_tranformt(&mut self, transform: RuleTransform) -> &mut Self {
+        self.transform = transform;
+        self
+    }
+    pub fn with_filter(&mut self, filter: String) -> &mut Self {
+        self.filter = Some(filter);
+        self
+    }
+    pub fn with_event_handler(&mut self, event_handler: String) -> &mut Self {
+        self.event_handler = Some(event_handler);
+        self
+    }
+    pub fn with_endpoint(&mut self, endpoint: String) -> &mut Self {
+        self.endpoint = Some(endpoint);
+        self
+    }
+    pub fn with_sources(&mut self, sources: Vec<JsonDataSource>) -> &mut Self {
+        self.sources = Some(sources);
+        self
+    }
+    pub fn with_source(&mut self, source: JsonDataSource) -> &mut Self {
+        if let Some(sources) = &mut self.sources {
+            sources.push(source);
+        } else {
+            self.sources = Some(vec![source]);
+        }
+        self
     }
 }
 

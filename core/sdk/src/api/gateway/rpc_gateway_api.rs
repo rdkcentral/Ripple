@@ -493,6 +493,18 @@ impl RpcRequest {
         self.params_json = Self::prepend_ctx(params, &self.ctx);
         self
     }
+    pub fn with_method(mut self, method: String) -> Self {
+        self.method = method;
+        self
+    }
+    pub fn with_context(mut self, context: Vec<String>) -> Self {
+        self.ctx.context.extend(context);
+        self
+    }
+    pub fn with_cid(mut self, cid: String) -> Self {
+        self.ctx.cid = Some(cid);
+        self
+    }
 }
 impl ExtnPayloadProvider for RpcRequest {
     fn get_extn_payload(&self) -> ExtnPayload {

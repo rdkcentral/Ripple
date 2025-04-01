@@ -455,6 +455,10 @@ impl EndpointBrokerState {
         self.rule_engine = rule_engine;
         self
     }
+    pub fn add_rule(mut self, rule: Rule) -> Self {
+        self.rule_engine.add_rule(rule);
+        self
+    }
 
     fn reconnect_thread(&self, mut rx: Receiver<BrokerConnectRequest>, client: RippleClient) {
         let mut state = self.clone();
@@ -684,9 +688,12 @@ impl EndpointBrokerState {
         }
     }
 
-    fn add_endpoint(&mut self, key: String, endpoint: BrokerSender) {
-        let mut endpoint_map = self.endpoint_map.write().unwrap();
-        endpoint_map.insert(key, endpoint);
+    fn add_endpoint(&mut self, key: String, endpoint: BrokerSender) -> &mut Self {
+        {
+            let mut endpoint_map = self.endpoint_map.write().unwrap();
+            endpoint_map.insert(key, endpoint);
+        }
+        self
     }
     pub fn get_endpoints(&self) -> HashMap<String, BrokerSender> {
         self.endpoint_map.read().unwrap().clone()
@@ -854,6 +861,11 @@ impl EndpointBrokerState {
                 return Ok(sender);
             }
             return Err(HandleBrokerageError::BrokerNotFound);
+        } else if rule.rule_type() == RuleType::Provided {
+            if let Some(sender) = self.get_sender("thunder") {
+                return Ok(sender);
+            }
+            return Err(HandleBrokerageError::BrokerNotFound);
         }
         Err(HandleBrokerageError::BrokerNotFound)
     }
@@ -991,7 +1003,6 @@ impl EndpointBrokerState {
                 Err(e)
             }
         }
-        //false
     }
 
     pub fn handle_broker_response(&self, data: JsonRpcApiResponse) {
@@ -2648,12 +2659,36 @@ mod endpoint_broker {
         }
     }
 
+    fn rule_engine() -> RuleEngine {
+        RuleEngine {
+            rules: crate::broker::rules_engine::RuleSet::default(),
+        }
+    }
     #[cfg(test)]
-    mod handle_brokerage {
+    mod dispatch_brokerage {
+        fn endpoint_broker_state_under_test(endpoints: Vec<String>) -> EndpointBrokerState {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut endpoint_broker = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+            for endpoint in endpoints {
+                let (tx, _) = mpsc::channel::<BrokerRequest>(10);
+                endpoint_broker.add_endpoint(endpoint, BrokerSender { sender: tx });
+            }
+
+            endpoint_broker
+        }
         use crate::{
             broker::{
                 endpoint_broker::{
-                    BrokerRequest, BrokerSender, EndpointBrokerState, HandleBrokerageError,
+                    BrokerCallback, BrokerRequest, BrokerSender, EndpointBrokerState,
+                    HandleBrokerageError,
                 },
                 rules_engine::{Rule, RuleEngine, RuleSet},
             },
@@ -2661,7 +2696,10 @@ mod endpoint_broker {
             state::{bootstrap_state::ChannelsState, metrics_state::MetricsState},
         };
         use ripple_sdk::{
-            api::gateway::rpc_gateway_api::RpcRequest,
+            api::{
+                firebolt::fb_capabilities::{FireboltPermission, FireboltPermissions},
+                gateway::rpc_gateway_api::RpcRequest,
+            },
             extn::extn_client_message::ExtnMessage,
             tokio::{
                 self,
@@ -2669,85 +2707,115 @@ mod endpoint_broker {
             },
             Mockable,
         };
-        #[tokio::test]
-        async fn test_basic() {
-            let (tx, _) = channel(2);
 
-            let client = RippleClient::new(ChannelsState::new());
-            let mut engine = RuleEngine {
-                rules: RuleSet::default(),
-            };
-            let r = Rule {
-                alias: "static".to_owned(),
-                transform: Default::default(),
-                endpoint: Some("thunder".to_string()),
-                filter: None,
-                event_handler: None,
-                sources: None,
-            };
-            engine.add_rule(r);
-            let mut under_test =
-                EndpointBrokerState::new(MetricsState::default(), tx, engine, client);
-            let (tx, _) = mpsc::channel::<BrokerRequest>(10);
-            under_test.add_endpoint("thunder".to_string(), BrokerSender { sender: tx });
-            let mut request = RpcRequest::mock();
-            request.method = "static".to_string();
-
-            let r = under_test.dispatch_brokerage(request, None, None, vec![], None, vec![]);
-            println!("------------------- result={:?}", r);
-            assert!(r.is_ok(), "Expected Ok but got: {:?}", r);
-        }
         #[tokio::test]
         async fn test_dispatch_brokerage_static_rule() {
-            let (broker_tx, _) = channel(2);
-            let client = RippleClient::new(ChannelsState::new());
-            let mut engine = RuleEngine {
-                rules: RuleSet::default(),
-            };
-            let rule = Rule {
-                alias: "static".to_owned(),
-                transform: Default::default(),
-                endpoint: None,
-                filter: None,
-                event_handler: None,
-                sources: None,
-            };
-            engine.add_rule(rule);
-            let mut under_test =
-                EndpointBrokerState::new(MetricsState::default(), broker_tx, engine, client);
+            let under_test = endpoint_broker_state_under_test(vec!["thunder".to_string()])
+                .add_rule(
+                    Rule::default()
+                        .with_alias("static".to_string())
+                        .with_endpoint("thunder".to_string())
+                        .to_owned(),
+                );
 
-            let mut request = RpcRequest::mock();
-            request.method = "static".to_string();
-            let (tx, _) = mpsc::channel(10);
-            under_test.add_endpoint("thunder".to_string(), BrokerSender { sender: tx });
-
-            let result = under_test.dispatch_brokerage(request, None, None, vec![], None, vec![]);
-            assert!(result.is_ok(), "Expected Ok but got: {:?}", result);
+            assert!(
+                under_test
+                    .dispatch_brokerage(
+                        RpcRequest::default().with_method("static".to_string()),
+                        None,
+                        None,
+                        vec![],
+                        None,
+                        vec![]
+                    )
+                    .is_ok(),
+                "expected Ok"
+            );
         }
 
         #[tokio::test]
         async fn test_dispatch_brokerage_provided_rule() {
+            let (bs, _) = channel(2);
+            let mut under_test = endpoint_broker_state_under_test(vec![]).add_rule(
+                Rule::default()
+                    .with_alias("provided".to_string())
+                    .to_owned(),
+            );
+            let mut under_test =
+                under_test.add_endpoint("thunder".to_string(), BrokerSender { sender: bs });
+
+            assert!(
+                under_test
+                    .dispatch_brokerage(
+                        RpcRequest::default().with_method("provided".to_string()),
+                        None,
+                        None,
+                        vec![],
+                        None,
+                        vec![]
+                    )
+                    .is_ok(),
+                "expected Ok but got Err"
+            );
+            assert!(
+                under_test
+                    .dispatch_brokerage(
+                        RpcRequest::default().with_method("provided".to_string()),
+                        Some(ExtnMessage::default()),
+                        None,
+                        vec![],
+                        None,
+                        vec![]
+                    )
+                    .is_ok(),
+                "expected Ok but got Err"
+            );
             let (tx, _) = channel(2);
-            let client = RippleClient::new(ChannelsState::new());
-            let mut engine = RuleEngine {
-                rules: RuleSet::default(),
-            };
-            let rule = Rule {
-                alias: "provided".to_owned(),
-                transform: Default::default(),
-                endpoint: None,
-                filter: None,
-                event_handler: None,
-                sources: None,
-            };
-            engine.add_rule(rule);
-            let under_test = EndpointBrokerState::new(MetricsState::default(), tx, engine, client);
-
-            let mut request = RpcRequest::mock();
-            request.method = "provided".to_string();
-
-            let result = under_test.dispatch_brokerage(request, None, None, vec![], None, vec![]);
-            assert!(result.is_err(), "Expected Err but got: {:?}", result);
+            assert!(
+                under_test
+                    .dispatch_brokerage(
+                        RpcRequest::default().with_method("provided".to_string()),
+                        Some(ExtnMessage::default()),
+                        Some(BrokerCallback { sender: tx.clone() }),
+                        vec![],
+                        None,
+                        vec![]
+                    )
+                    .is_ok(),
+                "expected Ok but got Err"
+            );
+            assert!(
+                under_test
+                    .dispatch_brokerage(
+                        RpcRequest::default().with_method("provided".to_string()),
+                        Some(ExtnMessage::default()),
+                        Some(BrokerCallback { sender: tx.clone() }),
+                        FireboltPermission::from_vec_string(
+                            vec!["account:session".to_string()],
+                            true
+                        ),
+                        None,
+                        vec![]
+                    )
+                    .is_ok(),
+                "expected Ok but got Err"
+            );
+            assert!(
+                under_test
+                    .dispatch_brokerage(
+                        RpcRequest::default().with_method("provided".to_string()),
+                        Some(ExtnMessage::default()),
+                        Some(BrokerCallback { sender: tx.clone() }),
+                        FireboltPermission::from_vec_string(
+                            vec!["account:session".to_string()],
+                            true
+                        ),
+                        None,
+                        vec![]
+                    )
+                    .is_ok(),
+                "expected Ok but got Err"
+            );
         }
 
         #[tokio::test]
