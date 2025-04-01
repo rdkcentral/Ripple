@@ -1894,7 +1894,7 @@ mod tests {
         assert_eq!(other_endpoints.len(), 2);
         assert!(other_endpoints.contains_key("endpoint1"));
         assert!(other_endpoints.contains_key("endpoint2"));
-        assert_ne!(other_endpoints.contains_key("endpoint7"), true);
+        assert!(!other_endpoints.contains_key("endpoint7"));
     }
 
     #[cfg(test)]
@@ -2084,7 +2084,6 @@ mod tests {
                     protocol: RuleEndpointProtocol::Http,
                     jsonrpc: true,
                     url: "http://google.com".to_string(),
-                    ..Default::default()
                 },
                 state.reconnect_tx.clone(),
             );
@@ -2203,8 +2202,7 @@ mod tests {
                 RuleEndpoint {
                     protocol: RuleEndpointProtocol::Extn,
                     jsonrpc: true,
-                    url: "http://example.com".to_string(),
-                    ..Default::default()
+                    url: "http://google.com".to_string(),
                 },
                 state.reconnect_tx.clone(),
             );
