@@ -2631,7 +2631,7 @@ mod endpoint_broker {
             );
             match f {
                 BrokerResponse::JsonRpc(json_rpc_api_response) => {
-                    assert!(json_rpc_api_response.result.is_some())
+                    assert!(json_rpc_api_response.error.is_some())
                 }
                 BrokerResponse::ApiMessage(api_message) => panic!("invalid response"),
                 BrokerResponse::Endpoint(json_rpc_api_response) => panic!("invalid response"),
