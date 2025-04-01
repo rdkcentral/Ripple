@@ -83,12 +83,15 @@ pub struct BrokerCleaner {
 }
 
 impl BrokerCleaner {
-    async fn cleanup_session(&self, appid: &str) {
+    async fn cleanup_session(&self, appid: &str) -> Result<String, RippleError> {
         if let Some(cleaner) = self.cleaner.clone() {
             if let Err(e) = cleaner.send(appid.to_owned()).await {
-                error!("Couldnt cleanup {} {:?}", appid, e)
+                error!("Couldnt cleanup {} {:?}", appid, e);
+                return Err(RippleError::SendFailure);
             }
+            return Ok(appid.to_owned());
         }
+        Err(RippleError::NotAvailable)
     }
 }
 
@@ -265,7 +268,7 @@ impl Default for BrokerCallback {
     }
 }
 
-static ATOMIC_ID: AtomicU64 = AtomicU64::new(0);
+pub(crate) static ATOMIC_ID: AtomicU64 = AtomicU64::new(0);
 
 impl BrokerCallback {
     pub async fn send_json_rpc_api_response(&self, response: JsonRpcApiResponse) {
@@ -614,7 +617,7 @@ impl EndpointBrokerState {
         )
     }
 
-    fn update_request(
+    pub fn update_request(
         &self,
         rpc_request: &RpcRequest,
         rule: &Rule,
@@ -1004,8 +1007,12 @@ impl EndpointBrokerState {
     // Method to cleanup all subscription on App termination
     pub async fn cleanup_for_app(&self, app_id: &str) {
         let cleaners = { self.cleaner_list.read().unwrap().clone() };
+
         for cleaner in cleaners {
-            cleaner.cleanup_session(app_id).await
+            /*
+            for now, just eat the error - the return type was mainly added to prepate for future refactoring/testability
+            */
+            let _ = cleaner.cleanup_session(app_id).await;
         }
     }
 }
@@ -2974,6 +2981,30 @@ mod endpoint_broker {
                     telemetry_response_listeners.len()
                 );
             }
+        }
+    }
+    #[cfg(test)]
+    mod cleaner {
+        use ripple_sdk::tokio::{self, sync::mpsc};
+
+        use crate::broker::endpoint_broker::BrokerCleaner;
+
+        #[tokio::test]
+        async fn test_cleanup_session_with_cleaner() {
+            let (tx, mut rx) = mpsc::channel(1);
+            let cleaner = BrokerCleaner { cleaner: Some(tx) };
+
+            assert!(cleaner.cleanup_session("test_app").await.is_ok());
+            let received = rx.recv().await;
+            assert_eq!(received, Some("test_app".to_string()));
+        }
+
+        #[tokio::test]
+        async fn test_cleanup_session_without_cleaner() {
+            let cleaner = BrokerCleaner { cleaner: None };
+
+            // Should not panic or send anything
+            assert!(cleaner.cleanup_session("test_app").await.is_err());
         }
     }
 }
