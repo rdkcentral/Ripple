@@ -56,7 +56,7 @@ pub extern crate ripple_sdk;
 
 #[cfg(test)]
 pub mod tests {
-    #[cfg(feature = "contract_tests")]
+    #[cfg(feature = "websocket_contract_tests")]
     pub mod contracts {
         pub mod contract_utils;
         pub mod thunder_controller_pacts;

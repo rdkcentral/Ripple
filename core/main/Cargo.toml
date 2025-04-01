@@ -32,7 +32,16 @@ path = "src/main.rs"
 local_dev = []
 sysd = ["sd-notify"]
 pre_prod = []
-contract_tests = []
+http_contract_tests = [
+]
+
+websocket_contract_tests = [    
+]
+
+contract_tests = [
+    "http_contract_tests",
+    "websocket_contract_tests",
+]
 tdk=[]
 [dependencies]
 base64.workspace = true

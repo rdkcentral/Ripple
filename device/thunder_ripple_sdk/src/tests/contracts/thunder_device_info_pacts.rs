@@ -35,7 +35,7 @@ use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_info_mac_address() {
     // Define Pact request and response - Start
     let mut pact_builder_async = get_pact_builder_async_obj().await;
@@ -85,7 +85,7 @@ async fn test_device_get_info_mac_address() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_model() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -140,7 +140,7 @@ async fn test_device_get_model() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_interfaces_wifi() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -197,7 +197,7 @@ async fn test_device_get_interfaces_wifi() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_interfaces_ethernet() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -254,7 +254,7 @@ async fn test_device_get_interfaces_ethernet() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_audio() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -300,7 +300,7 @@ async fn test_device_get_audio() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_hdcp_supported() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -345,7 +345,7 @@ async fn test_device_get_hdcp_supported() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_hdcp_status() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -396,7 +396,7 @@ async fn test_device_get_hdcp_status() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_hdr() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -437,7 +437,7 @@ async fn test_device_get_hdr() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_screen_resolution_without_port() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -480,7 +480,7 @@ async fn test_device_get_screen_resolution_without_port() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_make() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -517,7 +517,7 @@ async fn test_device_get_make() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_video_resolution() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
     pact_builder_async
@@ -571,7 +571,7 @@ async fn test_device_get_video_resolution() {
 }
 
 // #[tokio::test(flavor = "multi_thread")]
-// #[cfg_attr(not(feature = "contract_tests"), ignore)]
+// #[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 // async fn test_device_get_system_memory() {
 //     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -622,7 +622,7 @@ async fn test_device_get_video_resolution() {
 // }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_timezone() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -670,7 +670,7 @@ async fn test_device_get_timezone() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_available_timezone() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -731,7 +731,7 @@ async fn test_device_get_available_timezone() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_voice_guidance_enabled() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -776,7 +776,7 @@ async fn test_device_get_voice_guidance_enabled() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_voice_guidance_speed() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -844,7 +844,7 @@ async fn test_device_get_voice_guidance_speed() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_set_timezone() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -894,7 +894,7 @@ async fn test_device_set_timezone() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_set_voice_guidance() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -942,7 +942,7 @@ async fn test_device_set_voice_guidance() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_set_voice_guidance_speed() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
@@ -990,7 +990,7 @@ async fn test_device_set_voice_guidance_speed() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[cfg_attr(not(feature = "contract_tests"), ignore)]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_internet() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 

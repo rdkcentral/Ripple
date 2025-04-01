@@ -61,7 +61,7 @@ use super::{
 };
 
 #[cfg(any(test, feature = "mock"))]
-use crate::utils::mock_utils::get_mock_response;
+use crate::utils::mock_utils::get_next_mock_response;
 
 /// Defines the SDK Client implementation of the Inter Extension communication.
 /// # Overview
@@ -741,6 +741,7 @@ impl ExtnClient {
         &mut self,
         payload: impl ExtnPayloadProvider,
         timeout_in_msecs: u64,
+        ctx_id: Option<String>,
     ) -> Result<T, RippleError> {
         #[cfg(all(not(feature = "mock"), not(test)))]
         {
@@ -765,21 +766,24 @@ impl ExtnClient {
         // if mock is enabled for testing
         #[cfg(any(test, feature = "mock"))]
         {
-            // Get the mock response
-            if let Some(response) = get_mock_response("request_with_timeout") {
-                match response {
-                    Ok(message) => {
-                        if let Some(payload) = message.payload.extract::<T>() {
-                            Ok(payload)
-                        } else {
-                            Err(RippleError::ParseError)
+            // Get the mock response using the ctx_id
+            if let Some(context) = &ctx_id {
+                if let Some(response) = get_next_mock_response(context) {
+                    match response {
+                        Ok(message) => {
+                            if let Some(payload) = message.payload.extract::<T>() {
+                                return Ok(payload);
+                            } else {
+                                return Err(RippleError::ParseError);
+                            }
                         }
+                        Err(e) => return Err(e),
                     }
-                    Err(e) => Err(e),
                 }
-            } else {
-                Err(RippleError::TimeoutError)
             }
+
+            // If no mock response found or no test_context provided
+            Err(RippleError::TimeoutError)
         }
     }
 
@@ -797,6 +801,7 @@ impl ExtnClient {
         &mut self,
         payload: impl ExtnPayloadProvider,
         timeout_in_msecs: u64,
+        ctx_id: Option<String>,
     ) -> Result<T, RippleError> {
         #[cfg(all(not(feature = "mock"), not(test)))]
         {
@@ -821,21 +826,24 @@ impl ExtnClient {
         // if mock is enabled for testing
         #[cfg(any(test, feature = "mock"))]
         {
-            // Get the mock response
-            if let Some(response) = get_mock_response("request_with_timeout_main") {
-                match response {
-                    Ok(message) => {
-                        if let Some(payload) = message.payload.extract::<T>() {
-                            Ok(payload)
-                        } else {
-                            Err(RippleError::ParseError)
+            // Get the mock response using the ctx_id
+            if let Some(context) = &ctx_id {
+                if let Some(response) = get_next_mock_response(context) {
+                    match response {
+                        Ok(message) => {
+                            if let Some(payload) = message.payload.extract::<T>() {
+                                return Ok(payload);
+                            } else {
+                                return Err(RippleError::ParseError);
+                            }
                         }
+                        Err(e) => return Err(e),
                     }
-                    Err(e) => Err(e),
                 }
-            } else {
-                Err(RippleError::TimeoutError)
             }
+
+            // If no mock response found or no test_context provided
+            Err(RippleError::TimeoutError)
         }
     }
 
@@ -1025,7 +1033,7 @@ pub mod tests {
         },
         utils::{
             logger::init_logger,
-            mock_utils::{get_mock_extn_client, set_mock_response, MockEvent, MockRequest},
+            mock_utils::{get_mock_extn_client, queue_mock_response, MockEvent, MockRequest},
         },
     };
     use async_channel::unbounded;
@@ -1096,10 +1104,12 @@ pub mod tests {
             callback: None,
             ts: Some(Utc::now().timestamp_millis()),
         };
-        set_mock_response("request_with_timeout".to_string(), Ok(msg.clone()));
+        let id = Uuid::new_v4().to_string();
+        queue_mock_response(&id, Ok(msg.clone()));
         let result: Result<ExtnResponse, RippleError> = client
-            .request_with_timeout(AccountSessionRequest::Get, 5000)
+            .request_with_timeout(AccountSessionRequest::Get, 5000, Some(id))
             .await;
+        println!("result: {:?}", result);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExtnResponse::String("success".to_string()));
     }
@@ -1116,9 +1126,10 @@ pub mod tests {
             callback: None,
             ts: Some(Utc::now().timestamp_millis()),
         };
-        set_mock_response("request_with_timeout_main".to_string(), Ok(msg.clone()));
+        let id = Uuid::new_v4().to_string();
+        queue_mock_response(&id, Ok(msg.clone()));
         let result: Result<ExtnResponse, RippleError> = client
-            .request_with_timeout_main(AccountSessionRequest::Get, 5000)
+            .request_with_timeout_main(AccountSessionRequest::Get, 5000, Some(id))
             .await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), ExtnResponse::String("success".to_string()));
