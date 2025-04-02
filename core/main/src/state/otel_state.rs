@@ -31,14 +31,14 @@ include!(concat!(env!("OUT_DIR"), "/version.rs"));
 const API_STATS_MAP_SIZE_WARNING: usize = 10;
 
 #[derive(Debug, Clone, Default)]
-pub struct OtelState {
+pub struct OpMetricState {
     pub start_time: DateTime<Utc>,
     operational_telemetry_listeners: Arc<RwLock<HashSet<String>>>,
     api_stats_map: Arc<RwLock<HashMap<String, ApiStats>>>,
     device_session_id: Arc<RwLock<Option<String>>>,
 }
 
-impl OtelState {
+impl OpMetricState {
     pub fn get_device_session_id(&self) -> String {
         self.device_session_id.read().unwrap().clone().unwrap()
     }

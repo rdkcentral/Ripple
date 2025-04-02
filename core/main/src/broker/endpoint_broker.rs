@@ -49,7 +49,7 @@ use crate::{
     broker::broker_utils::BrokerUtils,
     firebolt::firebolt_gateway::{FireboltGatewayCommand, JsonRpcError},
     service::extn::ripple_client::RippleClient,
-    state::{otel_state::OtelState, platform_state::PlatformState, session_state::Session},
+    state::{otel_state::OpMetricState, platform_state::PlatformState, session_state::Session},
     utils::router_utils::{
         add_telemetry_status_code, capture_stage, get_rpc_header, return_extn_response,
     },
@@ -372,7 +372,7 @@ pub struct EndpointBrokerState {
     cleaner_list: Arc<RwLock<Vec<BrokerCleaner>>>,
     reconnect_tx: Sender<BrokerConnectRequest>,
     provider_broker_state: ProvideBrokerState,
-    metrics_state: OtelState,
+    metrics_state: OpMetricState,
 }
 impl Default for EndpointBrokerState {
     fn default() -> Self {
@@ -385,14 +385,14 @@ impl Default for EndpointBrokerState {
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx: mpsc::channel(2).0,
             provider_broker_state: ProvideBrokerState::default(),
-            metrics_state: OtelState::default(),
+            metrics_state: OpMetricState::default(),
         }
     }
 }
 
 impl EndpointBrokerState {
     pub fn new(
-        metrics_state: OtelState,
+        metrics_state: OpMetricState,
         tx: Sender<BrokerOutput>,
         rule_engine: RuleEngine,
         ripple_client: RippleClient,
@@ -1611,7 +1611,7 @@ mod tests {
                 endpoint_broker::tests::RippleClient,
                 rules_engine::{Rule, RuleEngine, RuleSet, RuleTransform},
             },
-            state::{bootstrap_state::ChannelsState, otel_state::OtelState},
+            state::{bootstrap_state::ChannelsState, otel_state::OpMetricState},
         };
 
         use super::EndpointBrokerState;
@@ -1621,7 +1621,7 @@ mod tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let state = EndpointBrokerState::new(
-                OtelState::default(),
+                OpMetricState::default(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
