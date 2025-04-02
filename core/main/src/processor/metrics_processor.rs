@@ -75,12 +75,12 @@ impl ExtnRequestProcessor for OpMetricsProcessor {
     ) -> bool {
         let requestor = msg.requestor.to_string();
         match extracted_message {
-            OperationalMetricRequest::Subscribe => {
-                state.metrics.operational_telemetry_listener(&requestor, true)
-            }
-            OperationalMetricRequest::UnSubscribe => {
-                state.metrics.operational_telemetry_listener(&requestor, false)
-            }
+            OperationalMetricRequest::Subscribe => state
+                .metrics
+                .operational_telemetry_listener(&requestor, true),
+            OperationalMetricRequest::UnSubscribe => state
+                .metrics
+                .operational_telemetry_listener(&requestor, false),
         }
         Self::ack(state.get_client().get_extn_client(), msg)
             .await

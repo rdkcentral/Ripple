@@ -538,7 +538,10 @@ async fn send_json_rpc_error(
                 request.clone().ctx.request_id,
             );
 
-            if let Some(api_stats) = platform_state.metrics.get_api_stats(&request.ctx.request_id) {
+            if let Some(api_stats) = platform_state
+                .metrics
+                .get_api_stats(&request.ctx.request_id)
+            {
                 api_message.stats = Some(ApiStats {
                     api: request.method.clone(),
                     stats_ref: get_rpc_header_with_status(request, status_code),

@@ -36,13 +36,8 @@ use tokio::sync::{
 
 use crate::{
     api::{
-        context::{
-            ActivationStatus, RippleContext, RippleContextUpdateRequest, RippleContextUpdateType,
-        },
-        device::{
-            device_info_request::DeviceInfoRequest,
-            device_request::{InternetConnectionStatus, TimeZone},
-        },
+        context::{ActivationStatus, RippleContext, RippleContextUpdateRequest},
+        device::device_request::{InternetConnectionStatus, TimeZone},
         manifest::extn_manifest::ExtnSymbol,
     },
     extn::{
@@ -357,15 +352,6 @@ impl ExtnClient {
         let current_cap = self.sender.get_cap();
         if !current_cap.is_main() {
             error!("Updating context is not allowed outside main");
-            return;
-        }
-        if let RippleContextUpdateRequest::RefreshContext(refresh_context) = &request {
-            if let Some(RippleContextUpdateType::InternetConnectionChanged) = refresh_context {
-                let resp = self.request_transient(DeviceInfoRequest::InternetConnectionStatus);
-                if let Err(_err) = resp {
-                    error!("Error in starting internet monitoring");
-                }
-            }
             return;
         }
         // Main's Extn client will receive Context events and if it results in changing any of its

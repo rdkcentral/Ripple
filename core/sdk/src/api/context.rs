@@ -175,10 +175,6 @@ impl RippleContext {
                 self.update_type = Some(RippleContextUpdateType::TimeZoneChanged);
                 true
             }
-            RippleContextUpdateRequest::RefreshContext(_context) => {
-                false
-                // This is not an update request so need not to honour it
-            }
             RippleContextUpdateRequest::UpdateFeatures(features) => {
                 let mut changed = false;
                 for feature in features {
@@ -274,7 +270,6 @@ pub enum RippleContextUpdateRequest {
     PowerState(SystemPowerState),
     TimeZone(TimeZone),
     UpdateFeatures(Vec<FeatureUpdate>),
-    RefreshContext(Option<RippleContextUpdateType>),
 }
 
 impl RippleContextUpdateRequest {
