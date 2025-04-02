@@ -2429,4 +2429,125 @@ mod tests {
             assert!(!handled);
         }
     }
+
+    #[cfg(test)]
+    mod build_thunder_endpoint_tests {
+        use super::*;
+
+        #[tokio::test]
+        async fn test_build_thunder_endpoint_success() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet {
+                        endpoints: {
+                            let mut map = HashMap::new();
+                            map.insert(
+                                "thunder".to_string(),
+                                RuleEndpoint {
+                                    protocol: RuleEndpointProtocol::Thunder,
+                                    url: "http://thunder-endpoint".to_string(),
+                                    ..Default::default()
+                                },
+                            );
+                            map
+                        },
+                        ..Default::default()
+                    },
+                },
+                client,
+            );
+
+            state.build_thunder_endpoint();
+
+            let endpoints = state.get_endpoints();
+            assert!(endpoints.contains_key("thunder"));
+        }
+
+        #[tokio::test]
+        async fn test_build_thunder_endpoint_no_endpoint() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet::default(),
+                },
+                client,
+            );
+
+            state.build_thunder_endpoint();
+
+            let endpoints = state.get_endpoints();
+            assert!(!endpoints.contains_key("thunder"));
+        }
+    }
+
+    #[cfg(test)]
+    mod build_other_endpoints_tests {
+        use super::*;
+        use ripple_sdk::tokio;
+        use ripple_tdk::utils::test_utils::Mockable;
+
+        #[tokio::test]
+        async fn test_build_other_endpoints() {
+            let (tx, _) = channel(2);
+            let client = RippleClient::new(ChannelsState::new());
+            let mut state = EndpointBrokerState::new(
+                MetricsState::default(),
+                tx,
+                RuleEngine {
+                    rules: RuleSet {
+                        rules: HashMap::new(),
+                        endpoints: {
+                            let mut endpoints = HashMap::new();
+                            endpoints.insert(
+                                "http_endpoint".to_string(),
+                                RuleEndpoint {
+                                    protocol: RuleEndpointProtocol::Http,
+                                    url: "http://google.com".to_string(),
+                                    ..Default::default()
+                                },
+                            );
+                            endpoints.insert(
+                                "websocket_endpoint".to_string(),
+                                RuleEndpoint {
+                                    protocol: RuleEndpointProtocol::Websocket,
+                                    url: "ws://google.com".to_string(),
+                                    ..Default::default()
+                                },
+                            );
+                            endpoints.insert(
+                                "thunder_endpoint".to_string(),
+                                RuleEndpoint {
+                                    protocol: RuleEndpointProtocol::Thunder,
+                                    url: "thunder://google.com".to_string(),
+                                    ..Default::default()
+                                },
+                            );
+                            endpoints
+                        },
+                    },
+                },
+                client,
+            );
+            let platform_state = PlatformState::mock();
+            let session = Some(AccountSession::default());
+
+            state.build_other_endpoints(platform_state.clone(), session.clone());
+
+            let endpoints = state.get_endpoints();
+
+            // Ensure HTTP and WebSocket endpoints are built
+            assert!(endpoints.contains_key("http_endpoint"));
+            assert!(endpoints.contains_key("websocket_endpoint"));
+
+            // Ensure Thunder endpoint is skipped
+            assert!(!endpoints.contains_key("thunder_endpoint"));
+        }
+    }
 }
