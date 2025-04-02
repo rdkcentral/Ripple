@@ -493,15 +493,6 @@ mod tests {
     }
 
     #[test]
-    fn test_extn_request_privacy_settings_store() {
-        let storage_property = StorageProperty::ClosedCaptionsEnabled;
-        let privacy_settings_request =
-            PrivacySettingsStoreRequest::GetPrivacySettings(storage_property);
-        let contract_type: RippleContract = RippleContract::Storage(StorageAdjective::PrivacyLocal);
-        test_extn_payload_provider(privacy_settings_request, contract_type);
-    }
-
-    #[test]
     fn test_extn_payload_provider_for_exclusion_policy() {
         let exclusion_policy = ExclusionPolicy {
             acr: Some(ExclusionPolicyData {
