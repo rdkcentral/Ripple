@@ -31,6 +31,7 @@ use super::{
         load_extn_step::LoadExtensionsStep, load_session_step::LoadDistributorValuesStep,
         start_extn_channel_step::StartExtnChannelsStep,
     },
+    logging_bootstrap_step::LoggingBootstrapStep,
     setup_extn_client_step::SetupExtnClientStep,
     start_app_manager_step::StartAppManagerStep,
     start_communication_broker::{StartCommunicationBroker, StartOtherBrokers},
@@ -62,6 +63,7 @@ use super::{
 ///
 pub async fn boot(state: BootstrapState) -> RippleResponse {
     let bootstrap = Bootstrap::new(state);
+    execute_step(LoggingBootstrapStep, &bootstrap).await?;
     execute_step(StartCommunicationBroker, &bootstrap).await?;
     execute_step(SetupExtnClientStep, &bootstrap).await?;
     execute_step(LoadExtensionMetadataStep, &bootstrap).await?;
