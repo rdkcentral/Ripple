@@ -69,7 +69,7 @@ impl InternalServer for InternalImpl {
     }
 
     fn set_telemetry_session_id(&self, _ctx: CallContext, session_id: String) -> RpcResult<()> {
-        self.state.otel.update_session_id(Some(session_id));
+        self.state.metrics.update_session_id(Some(session_id));
         Ok(())
     }
 

@@ -288,7 +288,7 @@ impl FireboltWs {
                 match send_result {
                     Ok(_) => {
                         platform_state
-                            .otel
+                            .metrics
                             .update_api_stage(&api_message.request_id, "response");
 
                         LogSignal::new(
@@ -300,7 +300,7 @@ impl FireboltWs {
                         .with_diagnostic_context_item("result", &api_message.jsonrpc_msg.clone())
                         .emit_debug();
                         if let Some(stats) =
-                            platform_state.otel.get_api_stats(&api_message.request_id)
+                            platform_state.metrics.get_api_stats(&api_message.request_id)
                         {
                             info!(
                                 "Sending Firebolt response: {:?},{}",
@@ -313,7 +313,7 @@ impl FireboltWs {
                                 stats.stats.get_stage_durations()
                             );
                             platform_state
-                                .otel
+                                .metrics
                                 .remove_api_stats(&api_message.request_id);
                         }
 

@@ -183,15 +183,15 @@ async fn resolve_route(
             1
         };
 
-        capture_stage(&platform_state.otel, &req, "routing");
+        capture_stage(&platform_state.metrics, &req, "routing");
 
-        platform_state.otel.update_api_stats_ref(
+        platform_state.metrics.update_api_stats_ref(
             &request_id,
             add_telemetry_status_code(&rpc_header, status_code.to_string().as_str()),
         );
 
         let mut msg = ApiMessage::new(protocol, r, request_id.clone());
-        if let Some(api_stats) = platform_state.otel.get_api_stats(&request_id) {
+        if let Some(api_stats) = platform_state.metrics.get_api_stats(&request_id) {
             msg.stats = Some(api_stats);
         }
 

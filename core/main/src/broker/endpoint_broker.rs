@@ -1227,7 +1227,7 @@ impl BrokerOutputForwarder {
                                 }
                             }
 
-                            platform_state.otel.update_api_stats_ref(
+                            platform_state.metrics.update_api_stats_ref(
                                 &rpc_request.ctx.request_id,
                                 add_telemetry_status_code(
                                     &tm_str,
@@ -1236,14 +1236,14 @@ impl BrokerOutputForwarder {
                             );
 
                             if let Some(api_stats) = platform_state
-                                .otel
+                                .metrics
                                 .get_api_stats(&rpc_request.ctx.request_id)
                             {
                                 message.stats = Some(api_stats);
 
                                 if rpc_request.ctx.app_id.eq_ignore_ascii_case("internal") {
                                     platform_state
-                                        .otel
+                                        .metrics
                                         .remove_api_stats(&rpc_request.ctx.request_id);
                                 }
                             }

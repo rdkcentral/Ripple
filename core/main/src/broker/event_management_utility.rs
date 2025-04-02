@@ -90,7 +90,7 @@ impl EventManagementUtility {
         };
 
         platform_state
-            .otel
+            .metrics
             .add_api_stats(&ctx.request_id, "advertising.policy");
 
         let resp = platform_state

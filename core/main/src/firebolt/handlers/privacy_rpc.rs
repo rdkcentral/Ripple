@@ -89,7 +89,7 @@ impl AllowAppContentAdTargetingSettings {
         new_ctx.protocol = ApiProtocol::Extn;
 
         platform_state
-            .otel
+            .metrics
             .add_api_stats(&ctx.request_id, "localization.countryCode");
 
         let rpc_request = RpcRequest {

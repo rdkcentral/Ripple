@@ -373,7 +373,7 @@ impl DeviceServer for DeviceImpl {
 
         let mut platform_state = self.state.clone();
         platform_state
-            .otel
+            .metrics
             .add_api_stats(&_ctx.request_id, "account.setServiceAccountId");
 
         let success = rpc_request_setter(

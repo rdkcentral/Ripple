@@ -66,7 +66,7 @@ impl AccountServer for AccountImpl {
 
         let mut platform_state = self.platform_state.clone();
         platform_state
-            .otel
+            .metrics
             .add_api_stats(&_ctx.request_id, "account.setServiceAccessToken");
 
         let success = rpc_request_setter(
