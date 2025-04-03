@@ -70,9 +70,7 @@ use serde_json::{json, Value};
 use crate::{
     broker::broker_utils::BrokerUtils,
     service::{
-        apps::{
-            app_events::AppEvents, pending_session_event_processor::PendingSessionEventProcessor,
-        },
+        apps::app_events::AppEvents,
         extn::ripple_client::RippleClient,
         telemetry_builder::TelemetryBuilder,
         user_grants::{GrantHandler, GrantPolicyEnforcer, GrantState},
@@ -399,13 +397,6 @@ impl DelegatedLauncherHandler {
     }
 
     pub async fn start(&mut self) {
-        self.platform_state
-            .get_client()
-            .get_extn_client()
-            .add_event_processor(PendingSessionEventProcessor::new(
-                self.platform_state.clone(),
-            ));
-
         while let Some(data) = self.app_mgr_req_rx.recv().await {
             // App request
             debug!("DelegatedLauncherHandler: App request: data={:?}", data);

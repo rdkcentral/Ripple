@@ -195,11 +195,6 @@ impl PlatformState {
         self.extn_manifest.required_contracts.contains(&contract)
     }
 
-    pub fn supports_app_catalog(&self) -> bool {
-        let contract = RippleContract::AppCatalog.as_clear_string();
-        self.extn_manifest.required_contracts.contains(&contract)
-    }
-
     pub fn supports_rfc(&self) -> bool {
         let contract = RippleContract::RemoteFeatureControl.as_clear_string();
         self.extn_manifest.required_contracts.contains(&contract)

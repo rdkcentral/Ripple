@@ -65,7 +65,6 @@
         "device_persistence",
         "remote_accessory",
         "secure_storage",
-        "advertising",
         "privacy_settings",
         "session_token"
     ],

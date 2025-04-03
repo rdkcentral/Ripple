@@ -40,7 +40,6 @@ use ripple_sdk::{
 };
 
 use crate::{
-    general_advertising_processor::DistributorAdvertisingProcessor,
     general_distributor_token_processor::DistributorTokenProcessor,
     general_paltform_token_processor::PlatformTokenProcessor,
     general_permission_processor::DistributorPermissionProcessor,
@@ -59,7 +58,6 @@ fn init_library() -> CExtnMetadata {
             RippleContract::Permissions,
             RippleContract::Session(SessionAdjective::Account),
             RippleContract::Storage(StorageAdjective::Secure),
-            RippleContract::Advertising,
             RippleContract::Storage(StorageAdjective::PrivacyCloud),
             RippleContract::Session(SessionAdjective::Root),
             RippleContract::Session(SessionAdjective::Device),
@@ -102,7 +100,6 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
 
             client.add_request_processor(DistributorPermissionProcessor::new(client.clone()));
             client.add_request_processor(DistributorSecureStorageProcessor::new(client.clone()));
-            client.add_request_processor(DistributorAdvertisingProcessor::new(client.clone()));
             client.add_request_processor(GeneralTokenProcessor::new(client.clone()));
             client.add_request_processor(DistributorTokenProcessor::new(client.clone()));
             client.add_request_processor(PlatformTokenProcessor::new(client.clone()));

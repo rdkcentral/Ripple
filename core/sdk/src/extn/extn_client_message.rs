@@ -29,13 +29,11 @@ use println as error;
 
 use crate::{
     api::{
-        app_catalog::{AppCatalogRequest, AppMetadata, AppsUpdate},
         apps::AppEventRequest,
         caps::CapsRequest,
         config::{Config, ConfigResponse},
         context::{RippleContext, RippleContextUpdateRequest},
         device::{
-            device_apps::InstalledApp,
             device_events::DeviceEventRequest,
             device_peristence::StorageData,
             device_request::{DeviceRequest, NetworkResponse, TimeZone, VoiceGuidanceState},
@@ -48,7 +46,6 @@ use crate::{
             distributor_usergrants::UserGrantsCloudStoreRequest,
         },
         firebolt::{
-            fb_advertising::{AdvertisingRequest, AdvertisingResponse},
             fb_authentication::TokenResult,
             fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
             fb_lifecycle_management::LifecycleManagementRequest,
@@ -299,7 +296,6 @@ pub enum ExtnRequest {
     AccountSession(AccountSessionRequest),
     SessionToken(SessionTokenRequest),
     SecureStorage(SecureStorageRequest),
-    Advertising(AdvertisingRequest),
     PrivacySettings(PrivacyCloudRequest),
     StorageManager(StorageManagerRequest),
     Settings(SettingsRequest),
@@ -311,7 +307,6 @@ pub enum ExtnRequest {
     PlatformToken(PlatformTokenRequest),
     DistributorToken(DistributorTokenRequest),
     Context(RippleContextUpdateRequest),
-    AppCatalog(AppCatalogRequest),
 }
 
 impl ExtnPayloadProvider for ExtnRequest {
@@ -355,10 +350,7 @@ pub enum ExtnResponse {
     DefaultApp(AppLibraryEntry),
     Settings(HashMap<String, SettingValue>),
     BoolMap(HashMap<String, bool>),
-    Advertising(AdvertisingResponse),
     SecureStorage(SecureStorageResponse),
-    AppCatalog(Vec<AppMetadata>),
-    InstalledApps(Vec<InstalledApp>),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {
@@ -390,7 +382,6 @@ pub enum ExtnEvent {
     Context(RippleContext),
     VoiceGuidanceState(VoiceGuidanceState),
     TimeZone(TimeZone),
-    AppsUpdate(AppsUpdate),
 }
 
 impl ExtnPayloadProvider for ExtnEvent {

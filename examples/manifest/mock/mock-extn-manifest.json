@@ -24,8 +24,7 @@
                         "voice_guidance.device_events",
                         
                         "audio.device_events",
-                        "remote_feature_control",
-                        "apps"
+                        "remote_feature_control"
                     ]
                 }
             ]
@@ -90,7 +89,6 @@
         "device_persistence",
         "remote_accessory",
         "secure_storage",
-        "advertising",
         "privacy_settings",
         "session_token",
         "account.session"

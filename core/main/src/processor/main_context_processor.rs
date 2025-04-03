@@ -38,10 +38,7 @@ use ripple_sdk::{
     tokio::sync::{mpsc::Receiver as MReceiver, mpsc::Sender as MSender},
 };
 
-use crate::{
-    service::apps::apps_updater::AppsUpdater,
-    state::{cap::cap_state::CapState, platform_state::PlatformState},
-};
+use crate::state::{cap::cap_state::CapState, platform_state::PlatformState};
 
 #[derive(Debug, Clone)]
 pub struct ContextState {
@@ -121,10 +118,6 @@ impl MainContextProcessor {
         let update_token = Self::is_update_token(state);
         if !update_token && !Self::check_account_session_token(state).await {
             error!("Account session still not available");
-        } else if state.supports_app_catalog() {
-            state
-                .get_client()
-                .add_event_processor(AppsUpdater::init(state).await);
         }
     }
 

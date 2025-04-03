@@ -16,7 +16,6 @@
 //
 
 mod distributor_general_ffi;
-mod general_advertising_processor;
 mod general_distributor_token_processor;
 mod general_paltform_token_processor;
 mod general_permission_processor;
