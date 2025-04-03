@@ -353,7 +353,7 @@ impl From<CallContext> for BrokerContext {
 impl BrokerSender {
     // Method to send the request to the underlying broker for handling.
     pub async fn send(&self, request: BrokerRequest) -> RippleResponse {
-        if let Err(e) = self.sender.send(request).await {
+        if let Err(e) = self.sender.try_send(request) {
             error!("Error sending to broker {:?}", e);
             Err(RippleError::SendFailure)
         } else {

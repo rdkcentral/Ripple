@@ -165,7 +165,7 @@ impl WorkflowBroker {
         Ok(composed)
     }
     pub fn start(callback: BrokerCallback, endpoint_broker: EndpointBrokerState) -> BrokerSender {
-        let (tx, mut rx) = mpsc::channel::<BrokerRequest>(10);
+        let (tx, mut rx) = mpsc::channel::<BrokerRequest>(32);
         /*
         This is a "meta rule": a rule that composes other rules.
         */

@@ -42,7 +42,7 @@ impl ExtnBroker {
         callback: BrokerCallback,
         _endpoint_broker: EndpointBrokerState,
     ) -> BrokerSender {
-        let (tx, mut rx) = mpsc::channel::<BrokerRequest>(10);
+        let (tx, mut rx) = mpsc::channel::<BrokerRequest>(32);
 
         tokio::spawn(async move {
             while let Some(broker_request) = rx.recv().await {
