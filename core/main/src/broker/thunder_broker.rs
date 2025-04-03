@@ -937,7 +937,7 @@ mod tests {
     async fn test_thunderbroker_get_cleaner() {
         let (tx, mut _rx) = mpsc::channel(1);
         let (sender, _rec) = mpsc::channel(1);
-        let send_data = vec![WSMockData::get(json!({"key":"value"}).to_string())];
+        let send_data = vec![WSMockData::get(json!({"key":"value"}).to_string(), None)];
 
         let thndr_broker = get_thunderbroker(tx, send_data, sender, false).await;
         assert!(thndr_broker.get_cleaner().cleaner.is_some());
@@ -947,7 +947,7 @@ mod tests {
     async fn test_thunderbroker_handle_jsonrpc_response() {
         let (tx, mut _rx) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);
-        let send_data = vec![WSMockData::get(json!({"key":"value"}).to_string())];
+        let send_data = vec![WSMockData::get(json!({"key":"value"}).to_string(), None)];
 
         let _thndr_broker = get_thunderbroker(tx, send_data, sender.clone(), false).await;
 
