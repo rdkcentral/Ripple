@@ -16,9 +16,12 @@
 //
 
 use crate::{
-    broker::broker_utils::BrokerUtils, firebolt::rpc::RippleRPCProvider,
-    processor::storage::storage_manager::StorageManager, state::platform_state::PlatformState,
-    utils::rpc_utils::rpc_add_event_listener,
+    broker::broker_utils::BrokerUtils,
+    firebolt::rpc::RippleRPCProvider,
+    processor::storage::storage_manager::StorageManager,
+    service::apps::app_events::{AppEventDecorationError, AppEventDecorator},
+    state::platform_state::PlatformState,
+    utils::rpc_utils::{rpc_add_event_listener, rpc_add_event_listener_with_decorator},
 };
 
 use jsonrpsee::{
@@ -29,7 +32,9 @@ use jsonrpsee::{
 
 use ripple_sdk::api::{
     device::{
-        device_accessibility_data::{FONT_EDGE_LIST, FONT_FAMILY_LIST},
+        device_accessibility_data::{
+            ClosedCaptionStyle, ClosedCaptionsSettings, FONT_EDGE_LIST, FONT_FAMILY_LIST,
+        },
         device_peristence::SetPropertyOpt,
     },
     firebolt::{
@@ -43,14 +48,41 @@ use ripple_sdk::api::{
         EVENT_CLOSED_CAPTIONS_FONT_COLOR, EVENT_CLOSED_CAPTIONS_FONT_EDGE,
         EVENT_CLOSED_CAPTIONS_FONT_EDGE_COLOR, EVENT_CLOSED_CAPTIONS_FONT_FAMILY,
         EVENT_CLOSED_CAPTIONS_FONT_OPACITY, EVENT_CLOSED_CAPTIONS_FONT_SIZE,
-        EVENT_CLOSED_CAPTIONS_TEXT_ALIGN, EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL,
-        EVENT_CLOSED_CAPTIONS_WINDOW_COLOR, EVENT_CLOSED_CAPTIONS_WINDOW_OPACITY,
+        EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED, EVENT_CLOSED_CAPTIONS_TEXT_ALIGN,
+        EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL, EVENT_CLOSED_CAPTIONS_WINDOW_COLOR,
+        EVENT_CLOSED_CAPTIONS_WINDOW_OPACITY,
     },
 };
 use serde_json::Value;
 
+#[derive(Clone)]
+struct CCEventDecorator {}
+
+#[async_trait]
+impl AppEventDecorator for CCEventDecorator {
+    async fn decorate(
+        &self,
+        ps: &PlatformState,
+        _ctx: &CallContext,
+        _event_name: &str,
+        _val_in: &Value,
+    ) -> Result<Value, AppEventDecorationError> {
+        let settings = ClosedcaptionsImpl::get_cc_settings(ps).await?;
+        Ok(serde_json::to_value(settings).unwrap_or_default())
+    }
+
+    fn dec_clone(&self) -> Box<dyn AppEventDecorator + Send + Sync> {
+        Box::new(self.clone())
+    }
+}
 #[rpc(server)]
 pub trait Closedcaptions {
+    #[method(name = "accessibility.onClosedCaptionsSettingsChanged")]
+    async fn on_closed_captions_settings_changed(
+        &self,
+        _ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
     #[method(name = "closedcaptions.fontFamily")]
     async fn font_family(&self, _ctx: CallContext) -> RpcResult<Option<String>>;
     #[method(name = "closedcaptions.setFontFamily")]
@@ -250,6 +282,34 @@ pub struct ClosedcaptionsImpl {
 }
 
 impl ClosedcaptionsImpl {
+    pub async fn get_cc_settings(ps: &PlatformState) -> RpcResult<ClosedCaptionsSettings> {
+        use ClosedcaptionsImpl as CI;
+        use SP::*;
+        let enabled = ClosedcaptionsImpl::cc_enabled(ps).await?;
+        let styles: ClosedCaptionStyle = ClosedCaptionStyle {
+            font_family: CI::get_string(ps, ClosedCaptionsFontFamily).await?,
+            font_size: CI::get_number_as_f32(ps, ClosedCaptionsFontSize).await?,
+            font_color: CI::get_string(ps, ClosedCaptionsFontColor).await?,
+            font_edge: CI::get_string(ps, ClosedCaptionsFontEdge).await?,
+            font_edge_color: CI::get_string(ps, ClosedCaptionsFontEdgeColor).await?,
+            font_opacity: CI::get_number_as_u32(ps, ClosedCaptionsFontOpacity).await?,
+            background_color: CI::get_string(ps, ClosedCaptionsBackgroundColor).await?,
+            background_opacity: CI::get_number_as_u32(ps, ClosedCaptionsBackgroundOpacity).await?,
+            window_color: CI::get_string(ps, ClosedCaptionsWindowColor).await?,
+            window_opacity: CI::get_number_as_u32(ps, ClosedCaptionsWindowOpacity).await?,
+            text_align: CI::get_string(ps, ClosedCaptionsTextAlign).await?,
+            text_align_vertical: CI::get_string(ps, ClosedCaptionsTextAlignVertical).await?,
+        };
+        let preferred_languages = StorageManager::get_vec_string(ps, SP::CCPreferredLanguages)
+            .await
+            .unwrap_or(Vec::new());
+        Ok(ClosedCaptionsSettings {
+            enabled,
+            styles,
+            preferred_languages,
+        })
+    }
+
     pub async fn get_string(ps: &PlatformState, property: SP) -> RpcResult<Option<String>> {
         match StorageManager::get_string(ps, property).await {
             Ok(val) => Ok(Some(val)),
@@ -366,6 +426,21 @@ impl ClosedcaptionsImpl {
 
 #[async_trait]
 impl ClosedcaptionsServer for ClosedcaptionsImpl {
+    async fn on_closed_captions_settings_changed(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        rpc_add_event_listener_with_decorator(
+            &self.state,
+            ctx,
+            request,
+            EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED,
+            Some(Box::new(CCEventDecorator {})),
+        )
+        .await
+    }
+
     async fn font_family(&self, _ctx: CallContext) -> RpcResult<Option<String>> {
         ClosedcaptionsImpl::get_string(&self.state, SP::ClosedCaptionsFontFamily).await
     }
