@@ -22,7 +22,9 @@ use std::{
 };
 
 use crate::{
-    service::{apps::app_events::AppEvents, user_grants::GrantState},
+    service::{
+        apps::app_events::AppEvents, telemetry_builder::TelemetryBuilder, user_grants::GrantState,
+    },
     state::platform_state::PlatformState,
 };
 use ripple_sdk::{api::firebolt::fb_capabilities::RolePermission, serde_json};
@@ -193,6 +195,11 @@ impl CapState {
                     }
                 }
             }
+            TelemetryBuilder::send_fb_event(
+                ps,
+                &event_name,
+                serde_json::to_value(&cap).unwrap_or_default(),
+            );
         }
     }
 

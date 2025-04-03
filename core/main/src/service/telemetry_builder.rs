@@ -23,7 +23,7 @@ use ripple_sdk::{
                 SystemErrorParams, Tag, Timer, TimerType,
             },
             fb_telemetry::{
-                AppLoadStart, AppLoadStop, FireboltInteraction, InternalInitialize,
+                AppLoadStart, AppLoadStop, FireboltEvent, FireboltInteraction, InternalInitialize,
                 TelemetryAppError, TelemetryPayload, TelemetrySignIn, TelemetrySignOut,
                 TelemetrySystemError,
             },
@@ -218,6 +218,18 @@ impl TelemetryBuilder {
             }),
         ) {
             error!("send_telemetry={:?}", e)
+        }
+    }
+
+    pub fn send_fb_event(ps: &PlatformState, event: &str, result: Value) {
+        if let Err(e) = Self::send_telemetry(
+            ps,
+            TelemetryPayload::FireboltEvent(FireboltEvent {
+                event_name: event.into(),
+                result,
+            }),
+        ) {
+            error!("send_fb_event: e={:?}", e)
         }
     }
 
