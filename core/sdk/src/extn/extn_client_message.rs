@@ -49,7 +49,6 @@ use crate::{
             distributor_usergrants::UserGrantsCloudStoreRequest,
         },
         firebolt::{
-            fb_advertising::{AdvertisingRequest, AdvertisingResponse},
             fb_authentication::TokenResult,
             fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
             fb_lifecycle_management::LifecycleManagementRequest,
@@ -303,7 +302,6 @@ pub enum ExtnRequest {
     AccountSession(AccountSessionRequest),
     SessionToken(SessionTokenRequest),
     SecureStorage(SecureStorageRequest),
-    Advertising(AdvertisingRequest),
     PrivacySettings(PrivacyCloudRequest),
     BehavioralMetric(BehavioralMetricRequest),
     StorageManager(StorageManagerRequest),
@@ -363,7 +361,6 @@ pub enum ExtnResponse {
     DefaultApp(AppLibraryEntry),
     Settings(HashMap<String, SettingValue>),
     BoolMap(HashMap<String, bool>),
-    Advertising(AdvertisingResponse),
     SecureStorage(SecureStorageResponse),
 }
 

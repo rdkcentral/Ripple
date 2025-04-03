@@ -18,18 +18,7 @@
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt};
 
-use crate::{
-    api::session::AccountSession,
-    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
-    framework::ripple_contract::RippleContract,
-};
-
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub enum AdvertisingRequest {
-    GetAdIdObject(AdIdRequestParams),
-    ResetAdIdentifier(AccountSession),
-    GetAdConfig(AdConfigRequestParams),
-}
+use crate::api::session::AccountSession;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AdIdRequestParams {
@@ -67,31 +56,6 @@ pub struct AdConfigResponse {
     pub ifa_value: String,
 }
 
-impl ExtnPayloadProvider for AdvertisingRequest {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::Advertising(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<AdvertisingRequest> {
-        if let ExtnPayload::Request(ExtnRequest::Advertising(r)) = payload {
-            return Some(r);
-        }
-
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::Advertising
-    }
-}
-
-#[derive(Serialize, PartialEq, Deserialize, Debug, Clone)]
-pub enum AdvertisingResponse {
-    None,
-    AdIdObject(AdIdResponse),
-    AdConfig(AdConfigResponse),
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[cfg_attr(feature = "mock", derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
@@ -111,24 +75,6 @@ pub struct AdvertisingFrameworkConfig {
     pub device_ad_attributes: String,
     pub coppa: u32,
     pub authentication_entity: String,
-}
-
-impl ExtnPayloadProvider for AdvertisingResponse {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Response(ExtnResponse::Advertising(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        if let ExtnPayload::Response(ExtnResponse::Advertising(v)) = payload {
-            return Some(v);
-        }
-
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::Advertising
-    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -184,7 +130,6 @@ impl Default for GetAdConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::test_utils::test_extn_payload_provider;
     use rstest::rstest;
 
     #[rstest]
@@ -206,39 +151,5 @@ mod tests {
             },
         };
         assert_eq!(default_config, expected_config);
-    }
-
-    #[test]
-    fn test_extn_payload_provider_for_advertising_request() {
-        let ad_id_request_params = AdIdRequestParams {
-            privacy_data: HashMap::new(),
-            app_id: String::from("test_app"),
-            dist_session: AccountSession {
-                id: String::from("test_id"),
-                token: String::from("test_token"),
-                account_id: String::from("test_account_id"),
-                device_id: String::from("test_device_id"),
-            },
-            scope: HashMap::new(),
-        };
-
-        let advertising_request = AdvertisingRequest::GetAdIdObject(ad_id_request_params);
-
-        let contract_type: RippleContract = RippleContract::Advertising;
-        test_extn_payload_provider(advertising_request, contract_type);
-    }
-
-    #[test]
-    fn test_extn_payload_provider_for_advertising_response() {
-        let ad_id_response = AdIdResponse {
-            ifa: String::from("test_ifa"),
-            ifa_type: String::from("test_ifa_type"),
-            lmt: String::from("test_lmt"),
-        };
-
-        let advertising_response = AdvertisingResponse::AdIdObject(ad_id_response);
-
-        let contract_type: RippleContract = RippleContract::Advertising;
-        test_extn_payload_provider(advertising_response, contract_type);
     }
 }
