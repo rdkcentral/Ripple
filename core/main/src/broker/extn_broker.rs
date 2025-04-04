@@ -16,7 +16,7 @@
 //
 use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerRequest, BrokerSender,
-    EndpointBroker, EndpointBrokerState,
+    EndpointBroker, EndpointBrokerState, BROKER_CHANNEL_BUFFER_SIZE,
 };
 use crate::state::platform_state::PlatformState;
 use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiError;
@@ -42,7 +42,7 @@ impl ExtnBroker {
         callback: BrokerCallback,
         _endpoint_broker: EndpointBrokerState,
     ) -> BrokerSender {
-        let (tx, mut rx) = mpsc::channel::<BrokerRequest>(10);
+        let (tx, mut rx) = mpsc::channel::<BrokerRequest>(BROKER_CHANNEL_BUFFER_SIZE);
 
         tokio::spawn(async move {
             while let Some(broker_request) = rx.recv().await {

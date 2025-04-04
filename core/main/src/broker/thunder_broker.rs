@@ -18,6 +18,7 @@ use super::{
     endpoint_broker::{
         BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutput, BrokerRequest,
         BrokerSender, BrokerSubMap, EndpointBroker, EndpointBrokerState,
+        BROKER_CHANNEL_BUFFER_SIZE,
     },
     thunder::thunder_plugins_status_mgr::StatusManager,
     thunder::user_data_migrator::UserDataMigrator,
@@ -191,7 +192,7 @@ impl ThunderBroker {
 
     fn start(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
         let endpoint = request.endpoint.clone();
-        let (broker_request_tx, mut broker_request_rx) = mpsc::channel(10);
+        let (broker_request_tx, mut broker_request_rx) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
         let (c_tx, mut c_tr) = mpsc::channel(2);
         let broker_sender = BrokerSender {
             sender: broker_request_tx,

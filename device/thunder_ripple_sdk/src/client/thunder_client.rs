@@ -819,9 +819,9 @@ impl ThunderClientBuilder {
             )
             .await
         } else {
-            let (resp_tx, resp_rx) = mpsc::channel(10);
+            let (resp_tx, resp_rx) = mpsc::channel(32);
             let callback = AsyncCallback { sender: resp_tx };
-            let (broker_tx, broker_rx) = mpsc::channel(10);
+            let (broker_tx, broker_rx) = mpsc::channel(32);
             let broker_sender = AsyncSender { sender: broker_tx };
             let client = ThunderAsyncClient::new(callback, broker_sender);
 
