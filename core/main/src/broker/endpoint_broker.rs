@@ -1838,7 +1838,6 @@ mod tests {
             },
             client,
         );
-
         // Add endpoints to the state
         let (sender1, _) = channel(2);
         let broker_sender1 = BrokerSender { sender: sender1 };
