@@ -26,8 +26,7 @@
                         "audio.device_events",
                         "system_power_state.device_events",
                         "time_zone.device_events",
-                        "remote_feature_control",
-                        "apps"
+                        "remote_feature_control"
                     ]
                 }
             ]
