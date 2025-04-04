@@ -52,7 +52,7 @@ impl ChannelsState {
         let (gateway_tx, gateway_tr) = mpsc::channel(32);
         let (app_req_tx, app_req_tr) = mpsc::channel(32);
         let (ctx, ctr) = unbounded();
-        let (broker_tx, broker_rx) = mpsc::channel(10);
+        let (broker_tx, broker_rx) = mpsc::channel(32);
 
         ChannelsState {
             gateway_channel: TransientChannel::new(gateway_tx, gateway_tr),
