@@ -14,10 +14,4 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-
-use crate::utils::error::RippleError;
-
-pub mod bootstrap;
-pub mod file_store;
-pub mod ripple_contract;
-pub type RippleResponse = Result<(), RippleError>;
+pub mod device;
