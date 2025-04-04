@@ -28,8 +28,8 @@ use ripple_sdk::{
         device::{
             device_events::{DeviceEvent, DeviceEventCallback},
             device_request::{
-                AudioProfile, InternetConnectionStatus, NetworkResponse, PowerState,
-                SystemPowerState, VoiceGuidanceState,
+                AudioProfile, InternetConnectionStatus, NetworkResponse, SystemPowerState,
+                VoiceGuidanceState,
             },
         },
     },
@@ -90,22 +90,6 @@ impl ThunderEventMessage {
                         return Some(ThunderEventMessage::ActiveInput(v));
                     }
                 }
-                DeviceEvent::SystemPowerStateChanged => {
-                    if let Some(v) = value["powerState"].as_str() {
-                        if let Ok(power_state) = PowerState::from_str(v) {
-                            if let Some(v) = value["currentPowerState"].as_str() {
-                                if let Ok(current_power_state) = PowerState::from_str(v) {
-                                    return Some(ThunderEventMessage::PowerState(
-                                        SystemPowerState {
-                                            power_state,
-                                            current_power_state,
-                                        },
-                                    ));
-                                }
-                            }
-                        }
-                    }
-                }
                 DeviceEvent::VoiceGuidanceEnabledChanged => {
                     if let Ok(v) = serde_json::from_value(value.clone()) {
                         return Some(ThunderEventMessage::VoiceGuidance(v));
@@ -115,18 +99,6 @@ impl ThunderEventMessage {
                     return Some(ThunderEventMessage::Audio(get_audio_profile_from_value(
                         value.clone(),
                     )))
-                }
-                DeviceEvent::InternetConnectionStatusChanged => {
-                    if let Some(status) = value.get("status") {
-                        if let Ok(internet_status) = serde_json::from_value(status.clone()) {
-                            return Some(ThunderEventMessage::Internet(internet_status));
-                        }
-                    }
-                }
-                DeviceEvent::TimeZoneChanged => {
-                    if let Ok(v) = serde_json::from_value(value.clone()) {
-                        return Some(ThunderEventMessage::TimeZone(v));
-                    }
                 }
             }
         } else {

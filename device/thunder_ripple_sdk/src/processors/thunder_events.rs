@@ -40,8 +40,7 @@ use crate::{
 };
 
 use super::events::thunder_event_handlers::{
-    AudioChangedEvent, HDCPEventHandler, InternetEventHandler, SystemPowerStateChangeEventHandler,
-    TimezoneChangedEventHandler, VoiceGuidanceEnabledChangedEventHandler,
+    AudioChangedEvent, HDCPEventHandler, VoiceGuidanceEnabledChangedEventHandler,
 };
 
 #[derive(Debug)]
@@ -78,10 +77,7 @@ impl ExtnStreamProcessor for ThunderOpenEventsProcessor {
         Some(vec![
             RippleContract::DeviceEvents(EventAdjective::Input),
             RippleContract::DeviceEvents(EventAdjective::VoiceGuidance),
-            RippleContract::DeviceEvents(EventAdjective::Internet),
             RippleContract::DeviceEvents(EventAdjective::Audio),
-            RippleContract::DeviceEvents(EventAdjective::SystemPowerState),
-            RippleContract::DeviceEvents(EventAdjective::TimeZone),
         ])
     }
 }
@@ -112,25 +108,10 @@ impl ExtnRequestProcessor for ThunderOpenEventsProcessor {
                 id.clone(),
                 HDCPEventHandler::provide(id, callback_type),
             )),
-            DeviceEvent::SystemPowerStateChanged => Some(state.handle_listener(
-                listen,
-                id.clone(),
-                SystemPowerStateChangeEventHandler::provide(id, callback_type),
-            )),
             DeviceEvent::VoiceGuidanceEnabledChanged => Some(state.handle_listener(
                 listen,
                 id.clone(),
                 VoiceGuidanceEnabledChangedEventHandler::provide(id, callback_type),
-            )),
-            DeviceEvent::InternetConnectionStatusChanged => Some(state.handle_listener(
-                listen,
-                id.clone(),
-                InternetEventHandler::provide(id, callback_type),
-            )),
-            DeviceEvent::TimeZoneChanged => Some(state.handle_listener(
-                listen,
-                id.clone(),
-                TimezoneChangedEventHandler::provide(id, callback_type),
             )),
         } {
             v.await;

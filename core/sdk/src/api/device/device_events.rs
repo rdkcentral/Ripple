@@ -29,13 +29,10 @@ pub trait DeviceEventProvider {
 }
 
 pub const HDCP_CHANGED_EVENT: &str = "device.onHdcpChanged";
-pub const INTERNET_CHANGED_EVENT: &str = "device.onInternetStatusChange";
 pub const AUDIO_CHANGED_EVENT: &str = "device.onAudioChanged";
 pub const VOICE_GUIDANCE_SETTINGS_CHANGED: &str = "accessibility.onVoiceGuidanceSettingsChanged";
 pub const VOICE_GUIDANCE_ENABLED_CHANGED: &str = "voiceguidance.onEnabledChanged";
 pub const VOICE_GUIDANCE_SPEED_CHANGED: &str = "voiceguidance.onSpeedChanged";
-pub const POWER_STATE_CHANGED: &str = "device.onPowerStateChanged";
-pub const TIME_ZONE_CHANGED: &str = "localization.onTimeZoneChanged";
 
 // Is this from the device to thunder event handler???
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -43,9 +40,6 @@ pub enum DeviceEvent {
     InputChanged,
     VoiceGuidanceEnabledChanged,
     AudioChanged,
-    SystemPowerStateChanged,
-    InternetConnectionStatusChanged,
-    TimeZoneChanged,
 }
 
 impl FromStr for DeviceEvent {
@@ -56,9 +50,6 @@ impl FromStr for DeviceEvent {
             "device.onHdcpChanged" => Ok(Self::InputChanged),
             "voiceguidance.onEnabledChanged" => Ok(Self::VoiceGuidanceEnabledChanged),
             "device.onAudioChanged" => Ok(Self::AudioChanged),
-            "device.onPowerStateChanged" => Ok(Self::SystemPowerStateChanged),
-            "device.onInternetStatusChange" => Ok(Self::InternetConnectionStatusChanged),
-            "localization.onTimeZoneChanged" => Ok(Self::TimeZoneChanged),
             _ => Err(()),
         }
     }
@@ -105,13 +96,6 @@ impl ExtnPayloadProvider for DeviceEventRequest {
                 RippleContract::DeviceEvents(EventAdjective::VoiceGuidance)
             }
             DeviceEvent::AudioChanged => RippleContract::DeviceEvents(EventAdjective::Audio),
-            DeviceEvent::SystemPowerStateChanged => {
-                RippleContract::DeviceEvents(EventAdjective::SystemPowerState)
-            }
-            DeviceEvent::InternetConnectionStatusChanged => {
-                RippleContract::DeviceEvents(EventAdjective::Internet)
-            }
-            DeviceEvent::TimeZoneChanged => RippleContract::DeviceEvents(EventAdjective::TimeZone),
         }
     }
 
@@ -128,7 +112,6 @@ mod tests {
 
     #[rstest(input, expected,
             case("device.onHdcpChanged", Ok(DeviceEvent::InputChanged)),
-            case("localization.onTimeZoneChanged", Ok(DeviceEvent::TimeZoneChanged)),
             case("invalid_event", Err(())),
         )]
     fn test_from_str(input: &str, expected: Result<DeviceEvent, ()>) {

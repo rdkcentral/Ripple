@@ -26,9 +26,8 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{
-    device::device_request::{AccountToken, InternetConnectionStatus, SystemPowerState, TimeZone},
-    firebolt::fb_metrics::MetricsContext,
+use super::device::device_request::{
+    AccountToken, InternetConnectionStatus, SystemPowerState, TimeZone,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -64,7 +63,6 @@ pub struct RippleContext {
     pub time_zone: Option<TimeZone>,
     pub update_type: Option<RippleContextUpdateType>,
     pub features: Vec<String>,
-    pub metrics_context: Option<MetricsContext>,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -75,7 +73,6 @@ pub enum RippleContextUpdateType {
     PowerStateChanged,
     TimeZoneChanged,
     FeaturesChanged,
-    MetricsContextChanged,
 }
 
 impl RippleContext {
@@ -86,7 +83,6 @@ impl RippleContext {
         time_zone: Option<TimeZone>,
         update_type: Option<RippleContextUpdateType>,
         features: Vec<String>,
-        metrics_context: Option<MetricsContext>,
     ) -> RippleContext {
         RippleContext {
             activation_status,
@@ -95,12 +91,34 @@ impl RippleContext {
             time_zone,
             update_type,
             features,
-            metrics_context,
         }
     }
 
     pub fn is_ripple_context(msg: &ExtnPayload) -> Option<Self> {
         RippleContext::get_from_payload(msg.clone())
+    }
+
+    pub fn update_with_context(&mut self, context: &RippleContext) {
+        if let Some(update_type) = context.update_type.clone() {
+            match update_type {
+                RippleContextUpdateType::ActivationStatusChanged
+                | RippleContextUpdateType::TokenChanged => {
+                    self.activation_status = context.activation_status.clone()
+                }
+                RippleContextUpdateType::InternetConnectionChanged => {
+                    self.internet_connectivity = context.internet_connectivity.clone()
+                }
+                RippleContextUpdateType::FeaturesChanged => {
+                    self.features = context.features.clone()
+                }
+                RippleContextUpdateType::PowerStateChanged => {
+                    self.system_power_state = context.system_power_state.clone()
+                }
+                RippleContextUpdateType::TimeZoneChanged => {
+                    self.time_zone = context.time_zone.clone()
+                }
+            }
+        }
     }
 
     pub fn update(&mut self, request: RippleContextUpdateRequest) -> bool {
@@ -157,10 +175,6 @@ impl RippleContext {
                 self.update_type = Some(RippleContextUpdateType::TimeZoneChanged);
                 true
             }
-            RippleContextUpdateRequest::RefreshContext(_context) => {
-                false
-                // This is not an update request so need not to honour it
-            }
             RippleContextUpdateRequest::UpdateFeatures(features) => {
                 let mut changed = false;
                 for feature in features {
@@ -185,16 +199,6 @@ impl RippleContext {
                 }
                 changed
             }
-            RippleContextUpdateRequest::MetricsContext(context) => {
-                if let Some(metrics_context) = self.metrics_context.as_ref() {
-                    if metrics_context == &context {
-                        return false;
-                    }
-                }
-                self.metrics_context = Some(context);
-                self.update_type = Some(RippleContextUpdateType::MetricsContextChanged);
-                true
-            }
         }
     }
 
@@ -203,7 +207,6 @@ impl RippleContext {
         self.internet_connectivity = context.internet_connectivity;
         self.time_zone = context.time_zone;
         self.features = context.features;
-        self.metrics_context = context.metrics_context;
     }
 
     pub fn get_event_message(&self) -> ExtnMessage {
@@ -267,8 +270,6 @@ pub enum RippleContextUpdateRequest {
     PowerState(SystemPowerState),
     TimeZone(TimeZone),
     UpdateFeatures(Vec<FeatureUpdate>),
-    MetricsContext(MetricsContext),
-    RefreshContext(Option<RippleContextUpdateType>),
 }
 
 impl RippleContextUpdateRequest {
@@ -310,7 +311,6 @@ mod tests {
         assert_eq!(context.system_power_state, None);
         assert_eq!(context.time_zone, None);
         assert_eq!(context.features, Vec::<String>::default());
-        assert_eq!(context.metrics_context, None);
     }
 
     #[test]
@@ -337,7 +337,6 @@ mod tests {
             }),
             update_type: None,
             features: Vec::default(),
-            metrics_context: Some(MetricsContext::default()),
         };
 
         let context2 = RippleContext {
@@ -350,7 +349,6 @@ mod tests {
             }),
             update_type: None,
             features: Vec::default(),
-            metrics_context: Some(MetricsContext::default()),
         };
 
         assert_eq!(
@@ -381,7 +379,6 @@ mod tests {
             }),
             update_type: None,
             features: Vec::default(),
-            metrics_context: Some(MetricsContext::default()),
         };
 
         let contract_type: RippleContract = RippleContract::RippleContext;
@@ -399,7 +396,6 @@ mod tests {
             None,
             None,
             vec![some_other_feature.clone()],
-            None,
         );
         let changed = ripple_context.update(RippleContextUpdateRequest::UpdateFeatures(vec![
             FeatureUpdate::new(name.clone(), true),
@@ -420,7 +416,6 @@ mod tests {
             None,
             None,
             vec![some_other_feature.clone()],
-            None,
         );
         ripple_context.update(RippleContextUpdateRequest::UpdateFeatures(vec![
             FeatureUpdate::new(name.clone(), true),
@@ -444,7 +439,6 @@ mod tests {
             None,
             None,
             vec![some_other_feature.clone()],
-            None,
         );
         let changed = ripple_context.update(RippleContextUpdateRequest::UpdateFeatures(vec![
             FeatureUpdate::new(name.clone(), false),
@@ -465,7 +459,6 @@ mod tests {
             None,
             None,
             vec![some_other_feature.clone()],
-            None,
         );
         ripple_context.update(RippleContextUpdateRequest::UpdateFeatures(vec![
             FeatureUpdate::new(name.clone(), true),
