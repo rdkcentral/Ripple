@@ -346,4 +346,42 @@ pub mod tests {
         let foo = foo.await;
         assert!(foo.is_ok());
     }
+
+    #[tokio::test]
+    pub async fn test_log_error_and_send_broker_failure_response() {
+        use super::*;
+
+        let (tx, mut rx) = mpsc::channel::<BrokerOutput>(10);
+        let callback = BrokerCallback { sender: tx };
+
+        let mut rpc_request = RpcRequest::mock();
+        rpc_request.ctx.call_id = 147;
+
+        let broker_request = BrokerRequest {
+            rpc: rpc_request,
+            rule: Rule {
+                alias: "test_rule".to_string(),
+                ..Default::default()
+            },
+            subscription_processed: None,
+            workflow_callback: Some(callback.clone()),
+            telemetry_response_listeners: vec![],
+        };
+
+        let error = JsonRpcApiError::default()
+            .with_code(-32001)
+            .with_message("Test error message".to_string())
+            .with_id(147);
+
+        WorkflowBroker::log_error_and_send_broker_failure_response(
+            broker_request.clone(),
+            &callback,
+            error.clone(),
+        );
+
+        // Verify that the error was logged and sent
+        if let Some(BrokerOutput { data, .. }) = rx.recv().await {
+            assert!(data.is_error());
+        }
+    }
 }
