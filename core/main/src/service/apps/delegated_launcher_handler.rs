@@ -569,7 +569,7 @@ impl DelegatedLauncherHandler {
                 None => None,
             };
             let params = serde_json::to_value(AppLifecycleStateChange {
-                context: app_id.into(),
+                app_id: app_id.to_owned(),
                 new_state: to_state.unwrap(),
                 previous_state: from_state,
             })

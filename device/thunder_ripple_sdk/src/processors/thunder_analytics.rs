@@ -15,7 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use ripple_sdk::{api::firebolt::fb_metrics::BehavioralMetricsEvent, serde_json};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::{
     client::{
@@ -26,6 +27,22 @@ use crate::{
     },
     thunder_state::ThunderState,
 };
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct BehavioralMetricsEvent {
+    pub event_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub event_version: Option<String>,
+    pub event_source: String,
+    pub event_source_version: String,
+    pub cet_list: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub epoch_timestamp: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uptime_timestamp: Option<u64>,
+    pub event_payload: Value,
+}
 
 pub async fn send_to_analytics_plugin(
     thunder_state: ThunderState,
