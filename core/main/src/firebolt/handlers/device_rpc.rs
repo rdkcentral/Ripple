@@ -40,15 +40,12 @@ use ripple_sdk::{
             device_request::{AudioProfile, DeviceVersionResponse, HdcpProfile},
         },
         firebolt::fb_general::{ListenRequest, ListenerResponse},
-        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
-        session::ProvisionRequest,
+        gateway::rpc_gateway_api::CallContext,
         storage_property::{EVENT_DEVICE_DEVICE_NAME_CHANGED, EVENT_DEVICE_NAME_CHANGED},
     },
-    extn::extn_client_message::{ExtnMessage, ExtnResponse},
+    extn::extn_client_message::ExtnResponse,
     log::error,
-    utils::error::RippleError,
 };
-use serde_json::json;
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
@@ -93,12 +90,6 @@ pub trait Device {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
-    #[method(name = "device.provision")]
-    async fn provision(
-        &self,
-        ctx: CallContext,
-        provision_request: ProvisionRequest,
-    ) -> RpcResult<()>;
     #[method(name = "device.distributor")]
     async fn distributor(&self, ctx: CallContext) -> RpcResult<String>;
 
@@ -354,76 +345,6 @@ impl DeviceServer for DeviceImpl {
         })
     }
 
-    async fn provision(
-        &self,
-        mut _ctx: CallContext,
-        provision_request: ProvisionRequest,
-    ) -> RpcResult<()> {
-        // clear the cached distributor session
-        self.state
-            .session_state
-            .update_account_session(provision_request.clone());
-
-        if provision_request.distributor_id.is_none() {
-            return Err(rpc_err(
-                "set_provision: session.distributor_id is not set, cannot set provisioning",
-            ));
-        };
-        _ctx.protocol = ApiProtocol::Extn;
-
-        let mut platform_state = self.state.clone();
-        platform_state
-            .metrics
-            .add_api_stats(&_ctx.request_id, "account.setServiceAccountId");
-
-        let success = rpc_request_setter(
-            self.state
-                .get_client()
-                .get_extn_client()
-                .main_internal_request(RpcRequest {
-                    ctx: _ctx.clone(),
-                    method: "account.setServiceAccountId".into(),
-                    params_json: RpcRequest::prepend_ctx(
-                        Some(json!({"serviceAccountId": provision_request.account_id})),
-                        &_ctx,
-                    ),
-                })
-                .await,
-        ) && rpc_request_setter(
-            self.state
-                .get_client()
-                .get_extn_client()
-                .main_internal_request(RpcRequest {
-                    ctx: _ctx.clone(),
-                    method: "account.setXDeviceId".into(),
-                    params_json: RpcRequest::prepend_ctx(
-                        Some(json!({"xDeviceId": provision_request.device_id})),
-                        &_ctx,
-                    ),
-                })
-                .await,
-        ) && rpc_request_setter(
-            self.state
-                .get_client()
-                .get_extn_client()
-                .main_internal_request(RpcRequest {
-                    ctx: _ctx.clone(),
-                    method: "account.setPartnerId".into(),
-                    params_json: RpcRequest::prepend_ctx(
-                        Some(json!({"partnerId": provision_request.distributor_id })),
-                        &_ctx,
-                    ),
-                })
-                .await,
-        );
-
-        if success {
-            Ok(())
-        } else {
-            Err(rpc_err("Provision Status error response TBD"))
-        }
-    }
-
     async fn distributor(&self, _ctx: CallContext) -> RpcResult<String> {
         if let Some(session) = self.state.session_state.get_account_session() {
             Ok(session.id)
@@ -433,21 +354,6 @@ impl DeviceServer for DeviceImpl {
             )))
         }
     }
-}
-
-fn rpc_request_setter(response: Result<ExtnMessage, RippleError>) -> bool {
-    if response.clone().is_ok() {
-        if let Ok(res) = response {
-            if let Some(ExtnResponse::Value(v)) = res.payload.extract::<ExtnResponse>() {
-                if v.is_boolean() {
-                    if let Some(b) = v.as_bool() {
-                        return b;
-                    }
-                }
-            }
-        }
-    }
-    false
 }
 
 pub struct DeviceRPCProvider;
