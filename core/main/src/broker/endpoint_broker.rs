@@ -86,6 +86,9 @@ impl BrokerCleaner {
     }
 }
 
+// Default Broker mpsc channel buffer size
+pub const BROKER_CHANNEL_BUFFER_SIZE: usize = 32;
+
 #[derive(Clone, Debug, Default)]
 pub struct BrokerRequest {
     pub rpc: RpcRequest,
@@ -353,7 +356,7 @@ impl From<CallContext> for BrokerContext {
 impl BrokerSender {
     // Method to send the request to the underlying broker for handling.
     pub async fn send(&self, request: BrokerRequest) -> RippleResponse {
-        if let Err(e) = self.sender.send(request).await {
+        if let Err(e) = self.sender.try_send(request) {
             error!("Error sending to broker {:?}", e);
             Err(RippleError::SendFailure)
         } else {
