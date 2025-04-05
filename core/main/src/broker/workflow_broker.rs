@@ -91,47 +91,6 @@ async fn subbroker_call(
     }
 }
 
-async fn subbroker_call_new(
-    endpoint_broker: EndpointBrokerState,
-    rpc_request: RpcRequest,
-    source: JsonDataSource,
-) -> Result<serde_json::Value, SubBrokerErr> {
-    let (brokered_tx, mut brokered_rx) = mpsc::channel::<BrokerOutput>(10);
-    endpoint_broker.handle_brokerage(
-        rpc_request,
-        None,
-        Some(BrokerCallback {
-            sender: brokered_tx,
-        }),
-        Vec::new(),
-        None,
-        vec![],
-    );
-
-    match brokered_rx.recv().await {
-        Some(msg) => {
-            if msg.is_error() {
-                Err(SubBrokerErr::RpcError(RippleError::BrokerError(
-                    msg.get_error_string(),
-                )))
-            } else {
-                Ok(json!({make_name_json_safe(
-                    &source
-                        .clone()
-                        .namespace
-                        .unwrap_or(source.method.to_string()),
-                ): msg.data.result.unwrap_or(json!({}))}))
-            }
-        }
-        None => {
-            error!("Failed to receive message");
-            Err(SubBrokerErr::RpcError(RippleError::BrokerError(
-                "Failed to receive message".to_string(),
-            )))
-        }
-    }
-}
-
 impl WorkflowBroker {
     pub fn create_the_futures(
         sources: Vec<JsonDataSource>,
@@ -142,6 +101,18 @@ impl WorkflowBroker {
 
         for source in sources.clone() {
             trace!("Source {:?}", source.clone());
+            LogSignal::new(
+                "workflow_broker".into(),
+                "Workflow task".into(),
+                rpc_request.ctx.clone(),
+            )
+            .with_diagnostic_context_item("source", &format!("{:?}", source))
+            .with_diagnostic_context_item("method", &format!("{:?}", source.method))
+            .with_diagnostic_context_item(
+                "params",
+                &format!("{:?}", source.params.clone().unwrap_or_default()),
+            )
+            .emit_debug();
 
             let mut rpc_request = rpc_request.clone();
             rpc_request.method = source.method.clone();
@@ -181,7 +152,7 @@ impl WorkflowBroker {
             // Serialize the merged parameters back into params_json
             rpc_request.params_json = serde_json::to_string(&existing_params).unwrap();
             //let t = subbroker_call(endpoint_broker.clone(), rpc_request, source).boxed(); // source is still usable here
-            let f = subbroker_call_new(endpoint_broker.clone(), rpc_request, source).boxed();
+            let f = subbroker_call(endpoint_broker.clone(), rpc_request, source).boxed();
             futures.push(f);
         }
         futures
@@ -199,6 +170,12 @@ impl WorkflowBroker {
         /*
         workflow steps are currently all or nothing/sudden death: if one step fails, the whole workflow fails
         */
+        LogSignal::new(
+            "workflow_broker".into(),
+            "run_workflow".into(),
+            broker_request.rpc.ctx.clone(),
+        )
+        .emit_debug();
 
         // Define your batch size here
         let batch_size = 10;
