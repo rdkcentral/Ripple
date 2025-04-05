@@ -32,9 +32,9 @@ pub type SubBrokerResult = Result<JsonRpcApiResponse, SubBrokerErr>;
 impl From<HandleBrokerageError> for SubBrokerErr {
     fn from(e: HandleBrokerageError) -> Self {
         match e {
-            HandleBrokerageError::BrokerNotFound => {
-                SubBrokerErr::RpcError(RippleError::BrokerError("Broker not found".to_string()))
-            }
+            HandleBrokerageError::BrokerNotFound(name) => SubBrokerErr::RpcError(
+                RippleError::BrokerError(format!("Broker not found: {}", name)),
+            ),
             HandleBrokerageError::RuleNotFound(method) => SubBrokerErr::RpcError(
                 RippleError::BrokerError(format!("Rule not found for {}", method)),
             ),
@@ -97,7 +97,7 @@ async fn subbroker_call_new(
     source: JsonDataSource,
 ) -> Result<serde_json::Value, SubBrokerErr> {
     let (brokered_tx, mut brokered_rx) = mpsc::channel::<BrokerOutput>(10);
-    endpoint_broker.dispatch_brokerage(
+    endpoint_broker.handle_brokerage(
         rpc_request,
         None,
         Some(BrokerCallback {
@@ -106,7 +106,7 @@ async fn subbroker_call_new(
         Vec::new(),
         None,
         vec![],
-    )?;
+    );
 
     match brokered_rx.recv().await {
         Some(msg) => {

@@ -28,7 +28,10 @@ use ripple_sdk::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
 use std::{fs, path::Path};
+
+use super::endpoint_broker::BrokerEndpoint;
 
 #[derive(Debug, Deserialize, Default, Clone)]
 pub struct RuleSet {
@@ -112,13 +115,18 @@ pub struct Rule {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sources: Option<Vec<JsonDataSource>>,
 }
+impl std::fmt::Display for Rule {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Rule {{ alias: {} }}", self.alias)
+    }
+}
 /*
 war on dots
 */
 #[derive(PartialEq)]
 pub enum RuleType {
     Static,
-    Provided,
+    Provider,
     Endpoint,
 }
 impl Rule {
@@ -127,12 +135,14 @@ impl Rule {
         self
     }
     pub fn rule_type(&self) -> RuleType {
-        if self.alias == *"static" {
-            return RuleType::Static;
-        } else if self.alias.eq_ignore_ascii_case("provided") {
-            return RuleType::Provided;
+        match self.alias.trim().to_ascii_lowercase().as_str() {
+            "static" => RuleType::Static,
+            "provided" => RuleType::Provider,
+            /*
+            maps to a sender that can be used to send a message to the endpoint, for instance: Thunder
+            */
+            _ => RuleType::Endpoint,
         }
-        RuleType::Endpoint
     }
     pub fn with_alias(&mut self, alias: String) -> &mut Self {
         self.alias = alias;
