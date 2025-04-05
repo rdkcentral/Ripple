@@ -335,7 +335,7 @@ impl OpenRpcState {
         self.openrpc_validator.read().unwrap().clone()
     }
 
-    fn is_provider_enabled(&self, method: &str) -> bool {
+    pub fn is_provider_enabled(&self, method: &str) -> bool {
         let method_lower_case = method.to_lowercase();
         self.provider_registrations
             .iter()
