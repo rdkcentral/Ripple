@@ -265,6 +265,10 @@ impl ThunderBroker {
                         match broker_c.check_and_generate_plugin_activation_request(&request) {
                             Ok(requests) => {
                                 if !requests.is_empty() {
+                                    LogSignal::new("thunder_broker".to_string(),"sending message to thunder".to_string(), request.rpc.ctx.clone())
+                                    .with_diagnostic_context_item("updated_request", &format!("{:?}", requests))
+                                    .emit_debug();
+
                                     let mut ws_tx = ws_tx_wrap.lock().await;
                                     for r in requests {
                                         let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
