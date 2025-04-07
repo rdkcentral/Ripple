@@ -19,7 +19,6 @@ use ripple_sdk::api::{
     gateway::rpc_gateway_api::RpcRequest, manifest::extn_manifest::ExtnManifest,
 };
 
-use ripple_sdk::serde_yaml::with;
 use ripple_sdk::{
     chrono::Utc,
     log::{debug, error, info, trace, warn},
@@ -30,8 +29,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use std::{fs, path::Path};
-
-use super::endpoint_broker::BrokerEndpoint;
 
 #[derive(Debug, Deserialize, Default, Clone)]
 pub struct RuleSet {

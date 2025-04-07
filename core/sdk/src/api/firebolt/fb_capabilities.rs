@@ -131,18 +131,15 @@ impl FireboltCap {
     }
 }
 
-#[derive(Eq, Debug, Copy, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Eq, Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum CapabilityRole {
+    #[default]
     Use,
     Manage,
     Provide,
 }
-impl Default for CapabilityRole {
-    fn default() -> Self {
-        CapabilityRole::Use
-    }
-}
+
 impl CapabilityRole {
     pub fn as_string(&self) -> &'static str {
         match self {
