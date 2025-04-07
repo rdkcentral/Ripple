@@ -22,3 +22,4 @@ pub mod exclusory;
 pub mod extn_manifest;
 pub mod persistent_store;
 pub mod remote_feature;
+pub mod cascaded_extn_manifest;
