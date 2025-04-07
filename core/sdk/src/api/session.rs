@@ -58,8 +58,6 @@ pub struct ProvisionRequest {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AccountSessionRequest {
     Get,
-    Provision(ProvisionRequest),
-    SetAccessToken(AccountSessionTokenRequest),
     GetAccessToken,
     Subscribe,
 }
@@ -368,19 +366,6 @@ mod tests {
 
         let serialized = serde_json::to_string(&request).unwrap();
         let deserialized: ProvisionRequest = serde_json::from_str(&serialized).unwrap();
-
-        assert_eq!(request, deserialized);
-    }
-
-    #[test]
-    fn test_account_session_request_serialization() {
-        let request = AccountSessionRequest::SetAccessToken(AccountSessionTokenRequest {
-            token: String::from("test_token"),
-            expires_in: 3600,
-        });
-
-        let serialized = serde_json::to_string(&request).unwrap();
-        let deserialized: AccountSessionRequest = serde_json::from_str(&serialized).unwrap();
 
         assert_eq!(request, deserialized);
     }
