@@ -481,8 +481,23 @@ pub struct RpcRequest {
     pub ctx: CallContext,
 }
 impl RpcRequest {
-    pub fn internal(method: &str) -> Self {
-        let ctx = CallContext::internal(method);
+    pub fn internal(method: &str, on_behalf_of: Option<CallContext>) -> Self {
+        // This is particularly useful when we need to make an internal/intermediate call
+        // on behalf of an app, e.g. for subscriptions.
+        let ctx = match on_behalf_of {
+            Some(ctx) => CallContext::new(
+                ctx.session_id,
+                ctx.request_id,
+                ctx.app_id,
+                ctx.call_id,
+                ApiProtocol::Extn,
+                method.to_owned(),
+                ctx.cid,
+                ctx.gateway_secure,
+            ),
+            None => CallContext::internal(method),
+        };
+
         RpcRequest {
             params_json: Self::prepend_ctx(None, &ctx),
             ctx,
@@ -651,9 +666,30 @@ impl RpcRequest {
             None,
             false,
         );
-        let request = serde_json::to_value(JsonRpcApiRequest::new(method.clone(), params)).unwrap();
         RpcRequest {
-            params_json: Self::prepend_ctx(Some(request), &ctx),
+            params_json: Self::prepend_ctx(params, &ctx),
+            ctx,
+            method,
+        }
+    }
+
+    pub fn get_new_internal_with_appid(
+        method: String,
+        params: Option<Value>,
+        ref_ctx: &CallContext,
+    ) -> Self {
+        let ctx = CallContext::new(
+            Uuid::new_v4().to_string(),
+            Uuid::new_v4().to_string(),
+            ref_ctx.app_id.clone(),
+            1,
+            crate::api::gateway::rpc_gateway_api::ApiProtocol::Extn,
+            method.clone(),
+            None,
+            false,
+        );
+        RpcRequest {
+            params_json: Self::prepend_ctx(params, &ctx),
             ctx,
             method,
         }

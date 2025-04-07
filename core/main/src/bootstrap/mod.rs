@@ -17,6 +17,7 @@
 
 pub mod boot;
 pub mod extn;
+pub mod logging_bootstrap_step;
 pub mod manifest;
 pub mod setup_extn_client_step;
 pub mod start_app_manager_step;

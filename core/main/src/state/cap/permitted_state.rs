@@ -24,8 +24,6 @@ use std::{
 use ripple_sdk::{
     api::{
         config::FEATURE_CLOUD_PERMISSIONS,
-        device::device_apps::AppsRequest,
-        //config::Config,
         distributor::distributor_permissions::{PermissionRequest, PermissionResponse},
         firebolt::{
             fb_capabilities::{
@@ -35,7 +33,6 @@ use ripple_sdk::{
         },
         manifest::device_manifest::DeviceManifest,
     },
-    extn::extn_client_message::{ExtnPayload, ExtnResponse},
     framework::{file_store::FileStore, RippleResponse},
     log::{debug, error, info},
     tokio,
@@ -205,31 +202,9 @@ impl PermissionHandler {
         }
     }
 
-    pub async fn device_fetch_and_store(state: &PlatformState, app_id: &str) -> RippleResponse {
-        let mut client = state.get_client().get_extn_client();
-        let resp = client
-            .request(AppsRequest::GetFireboltPermissions(app_id.to_string()))
-            .await?;
-
-        let mut permissions = match resp.payload {
-            ExtnPayload::Response(response) => match response {
-                ExtnResponse::Permission(perms) => perms,
-                ExtnResponse::Error(e) => {
-                    error!("device_fetch_and_store: e={:?}", e);
-                    return Err(e);
-                }
-                _ => {
-                    error!("device_fetch_and_store: Unexpected response");
-                    return Err(RippleError::ExtnError);
-                }
-            },
-            _ => {
-                error!("device_fetch_and_store: Unexpected payload");
-                return Err(RippleError::ExtnError);
-            }
-        };
-
-        Self::process_permissions(state, app_id, &mut permissions)
+    pub async fn device_fetch_and_store(_state: &PlatformState, _app_id: &str) -> RippleResponse {
+        error!("device_fetch_and_store: Not supported");
+        Err(RippleError::NotAvailable)
     }
 
     fn process_permissions(

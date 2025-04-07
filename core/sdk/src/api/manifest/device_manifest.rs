@@ -34,12 +34,14 @@ use crate::{
     utils::error::RippleError,
 };
 
-use super::{apps::AppManifest, exclusory::ExclusoryImpl, remote_feature::FeatureFlag};
+use super::{apps::AppManifest, exclusory::ExclusoryImpl};
 pub const PARTNER_EXCLUSION_REFRESH_TIMEOUT: u32 = 12 * 60 * 60; // 12 hours
 pub const METRICS_LOGGING_PERCENTAGE_DEFAULT: u32 = 10;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct RippleConfiguration {
+    #[serde(default = "log_signal_default_level")]
+    pub log_signal_log_level: String,
     #[serde(default = "ws_configuration_default")]
     pub ws_configuration: WsConfiguration,
     #[serde(default = "ws_configuration_internal_default")]
@@ -78,6 +80,9 @@ fn metrics_logging_percentage_default() -> u32 {
     METRICS_LOGGING_PERCENTAGE_DEFAULT
 }
 
+pub fn log_signal_default_level() -> String {
+    "OFF".to_string()
+}
 #[derive(Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CapabilityConfiguration {
@@ -541,8 +546,6 @@ pub struct RippleFeatures {
     pub intent_validation: IntentValidation,
     #[serde(default = "default_cloud_permissions")]
     pub cloud_permissions: bool,
-    #[serde(default)]
-    pub catalog_uninstalls_enabled: FeatureFlag,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -576,7 +579,6 @@ impl Default for RippleFeatures {
             privacy_settings_storage_type: default_privacy_settings_storage_type(),
             intent_validation: default_intent_validation(),
             cloud_permissions: default_cloud_permissions(),
-            catalog_uninstalls_enabled: Default::default(),
         }
     }
 }
@@ -674,6 +676,7 @@ impl Default for RippleConfiguration {
             partner_exclusion_refresh_timeout: partner_exclusion_refresh_timeout_default(),
             metrics_logging_percentage: metrics_logging_percentage_default(),
             internet_monitoring_configuration: Default::default(),
+            log_signal_log_level: log_signal_default_level(),
         }
     }
 }
@@ -806,6 +809,7 @@ pub(crate) mod tests {
         fn mock() -> DeviceManifest {
             DeviceManifest {
                 configuration: RippleConfiguration {
+                    log_signal_log_level: log_signal_default_level(),
                     ws_configuration: WsConfiguration {
                         enabled: true,
                         gateway: "127.0.0.1:3473".to_string(),
@@ -884,10 +888,6 @@ pub(crate) mod tests {
                         privacy_settings_storage_type: PrivacySettingsStorageType::Local,
                         intent_validation: IntentValidation::Fail,
                         cloud_permissions: true,
-                        catalog_uninstalls_enabled: FeatureFlag {
-                            default: false,
-                            remote_key: None,
-                        },
                     },
                     internal_app_id: Some("test".to_string()),
                     saved_dir: "/opt/persistent/ripple".to_string(),
@@ -1048,10 +1048,6 @@ pub(crate) mod tests {
                 privacy_settings_storage_type: PrivacySettingsStorageType::Local,
                 intent_validation: IntentValidation::Fail,
                 cloud_permissions: true,
-                catalog_uninstalls_enabled: FeatureFlag {
-                    default: false,
-                    remote_key: None,
-                },
             }
         );
     }

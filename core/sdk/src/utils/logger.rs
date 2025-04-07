@@ -15,9 +15,15 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::collections::HashMap;
+use std::sync::RwLock;
 use std::{str::FromStr, sync::atomic::AtomicU32};
 
 pub static LOG_COUNTER: AtomicU32 = AtomicU32::new(1);
+
+lazy_static::lazy_static! {
+    pub static ref MODULE_LOG_LEVELS: RwLock<HashMap<String, log::LevelFilter>> = RwLock::new(HashMap::new());
+}
 
 pub fn init_logger(name: String) -> Result<(), fern::InitError> {
     let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".into());
@@ -57,11 +63,26 @@ pub fn init_logger(name: String) -> Result<(), fern::InitError> {
     Ok(())
 }
 
-pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern::InitError> {
+pub fn init_and_configure_logger(
+    version: &str,
+    name: String,
+    additional_modules: Option<Vec<(String, log::LevelFilter)>>,
+) -> Result<(), fern::InitError> {
     let log_string: String = std::env::var("RUST_LOG").unwrap_or_else(|_| "debug".into());
     println!("log level {}", log_string);
     let _version_string = version.to_string();
     let filter = log::LevelFilter::from_str(&log_string).unwrap_or(log::LevelFilter::Info);
+    let (extracted_module_name, extracted_level_filter) = additional_modules
+        .and_then(|modules| modules.into_iter().last())
+        .unwrap_or(("no_module".to_string(), log::LevelFilter::Off));
+    MODULE_LOG_LEVELS
+        .write()
+        .unwrap()
+        .insert(extracted_module_name.clone(), extracted_level_filter);
+    println!(
+        "additional module: {}, Level filter : {}",
+        extracted_module_name, extracted_level_filter
+    );
     fern::Dispatch::new()
         .format(move |out, message, record| {
             let _v = LOG_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -109,6 +130,7 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
             }
         })
         .level(filter)
+        .level_for(extracted_module_name, extracted_level_filter)
         //log filter applied here, making the log level to OFF for the below mentioned crates
         .level_for("h2", log::LevelFilter::Off)
         .level_for("hyper", log::LevelFilter::Off)
@@ -123,5 +145,6 @@ pub fn init_and_configure_logger(version: &str, name: String) -> Result<(), fern
         .level_for("tracing", log::LevelFilter::Off)
         .chain(std::io::stdout())
         .apply()?;
+
     Ok(())
 }

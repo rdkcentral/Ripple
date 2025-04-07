@@ -265,7 +265,7 @@ mod tests {
     async fn connect_non_json_rpc_websocket() {
         let (tx, mut tr) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);
-        let send_data = vec![WSMockData::get(json!({"key":"value"}).to_string())];
+        let send_data = vec![WSMockData::get(json!({"key":"value"}).to_string(), None)];
 
         let broker = setup_broker(tx, send_data, sender, false).await;
         // Use Broker to connect to it
@@ -306,6 +306,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn connect_non_json_rpc_websocket_test_invalid_response() {
+        let (tx, mut _tr) = mpsc::channel(1);
+        let (sender, mut rec) = mpsc::channel(1);
+        let send_data = vec![WSMockData::get(
+            "invalid json rpc response".to_string(),
+            None,
+        )];
+
+        let broker = setup_broker(tx, send_data, sender, false).await;
+        // Use Broker to connect to it
+        let request = BrokerRequest {
+            rpc: RpcRequest::get_new_internal("some_method".to_owned(), None),
+            rule: Rule {
+                alias: "".to_owned(),
+                transform: RuleTransform::default(),
+                endpoint: None,
+                filter: None,
+                event_handler: None,
+                sources: None,
+            },
+            workflow_callback: None,
+            subscription_processed: None,
+            telemetry_response_listeners: vec![],
+        };
+
+        broker.sender.send(request).await.unwrap();
+
+        // See if broker output gets the value
+
+        let v = tokio::time::timeout(Duration::from_secs(2), rec.recv()).await;
+        assert!(v.is_err());
+    }
+
+    #[tokio::test]
     async fn cleanup_non_json_rpc_websocket() {
         let (tx, mut tr) = mpsc::channel(1);
         let (sender, _) = mpsc::channel(1);
@@ -333,5 +367,124 @@ mod tests {
         broker.cleaner.cleaner.unwrap().send(id).await.unwrap();
         // See if ws is closed
         assert!(tr.recv().await.unwrap())
+    }
+
+    async fn setup_ws_notitification_broker(
+        tx: mpsc::Sender<bool>,
+        send_data: Vec<WSMockData>,
+        callback: BrokerCallback,
+        on_close: bool,
+    ) -> mpsc::Sender<String> {
+        // setup mock websocket server
+        let port = MockWebsocket::start(send_data, Vec::new(), tx, on_close).await;
+
+        let endpoint = RuleEndpoint {
+            url: format!("ws://127.0.0.1:{}", port),
+            protocol: crate::broker::rules_engine::RuleEndpointProtocol::Websocket,
+            jsonrpc: false,
+        };
+
+        let request = BrokerRequest {
+            rpc: RpcRequest::get_new_internal("some_method".to_owned(), None),
+            rule: Rule {
+                alias: "".to_owned(),
+                transform: RuleTransform::default(),
+                endpoint: None,
+                filter: None,
+                event_handler: None,
+                sources: None,
+            },
+            workflow_callback: None,
+            subscription_processed: None,
+            telemetry_response_listeners: vec![],
+        };
+        WSNotificationBroker::start(request, callback, endpoint.get_url().clone())
+    }
+
+    #[tokio::test]
+    async fn ws_notification_broker_start_validate_handling_response() {
+        let (tx, mut tr) = mpsc::channel(1);
+        let (sender, mut rec) = mpsc::channel(1);
+        let callback = BrokerCallback { sender };
+        let send_data = vec![WSMockData::get(json!({"key":"value"}).to_string(), None)];
+
+        let broker = setup_ws_notitification_broker(tx, send_data, callback, false).await;
+        broker.send("test".to_owned()).await.unwrap();
+
+        let v = tokio::time::timeout(Duration::from_secs(2), rec.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(v
+            .data
+            .result
+            .unwrap()
+            .get("key")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .eq("value"));
+        assert!(tr.recv().await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn ws_notification_broker_start_validate_handling_invalid_json_rpc_response() {
+        let (tx, mut _tr) = mpsc::channel(1);
+        let (sender, mut rec) = mpsc::channel(1);
+        let callback = BrokerCallback { sender };
+        let send_data = vec![WSMockData::get(
+            "invalid json rpc response".to_string(),
+            None,
+        )];
+
+        let broker = setup_ws_notitification_broker(tx, send_data, callback, false).await;
+        broker.send("test".to_owned()).await.unwrap();
+        let v = tokio::time::timeout(Duration::from_secs(2), rec.recv()).await;
+        assert!(v.is_err());
+    }
+
+    #[tokio::test]
+    async fn ws_notification_broker_start_connection_timeout() {
+        let (tx, mut _tr) = mpsc::channel(1);
+        let (sender, mut rec) = mpsc::channel(1);
+        let callback = BrokerCallback { sender };
+        let send_data = vec![WSMockData::get(
+            json!({"key":"value"}).to_string(),
+            Some(1000000000),
+        )];
+        let _broker = setup_ws_notitification_broker(tx, send_data, callback, false).await;
+        let v = tokio::time::timeout(Duration::from_secs(2), rec.recv()).await;
+        assert!(v.is_err());
+    }
+
+    #[tokio::test]
+    async fn ws_notification_broker_start_test_connection_error() {
+        let (sender, mut rec) = mpsc::channel(1);
+        let callback = BrokerCallback { sender };
+
+        let request = BrokerRequest {
+            rpc: RpcRequest::get_new_internal("some_method".to_owned(), None),
+            rule: Rule {
+                alias: "".to_owned(),
+                transform: RuleTransform::default(),
+                endpoint: None,
+                filter: None,
+                event_handler: None,
+                sources: None,
+            },
+            workflow_callback: None,
+            subscription_processed: None,
+            telemetry_response_listeners: vec![],
+        };
+        let port: u32 = 34743;
+        let endpoint = RuleEndpoint {
+            url: format!("ws://127.0.0.1:{}", port),
+            protocol: crate::broker::rules_engine::RuleEndpointProtocol::Websocket,
+            jsonrpc: false,
+        };
+        let sender = WSNotificationBroker::start(request, callback, endpoint.get_url().clone());
+        sender.send("test".to_owned()).await.unwrap();
+        let v = tokio::time::timeout(Duration::from_secs(2), rec.recv()).await;
+        assert!(v.is_err());
     }
 }

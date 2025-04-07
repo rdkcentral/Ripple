@@ -1534,7 +1534,7 @@ impl BrokerOutputForwarder {
     async fn handle_event(
         platform_state: PlatformState,
         method: String,
-        _broker_request: BrokerRequest,
+        broker_request: BrokerRequest,
         rpc_request: RpcRequest,
         mut response: JsonRpcApiResponse,
     ) {
@@ -1546,7 +1546,7 @@ impl BrokerOutputForwarder {
         // FIXME: As we transition to full RPCv2 support we need to be able to post-process the results from an event
         // handler as defined by Rule::event_handler, however as currently implemented event_handler logic short-circuits
         // rule transform logic. Need to refactor to support this, disabing below for now.
-
+        // ==============================================================================================================
         // if let Ok(Value::String(res)) =
         //     BrokerUtils::process_internal_main_request(&mut platform_state_c, method.as_str(), None)
         //         .await
@@ -1573,9 +1573,24 @@ impl BrokerOutputForwarder {
         // } else {
         //     error!("handle_event: error processing internal main request");
         // }
-        if let Ok(res) =
-            BrokerUtils::process_internal_main_request(&mut platform_state_c, method.as_str(), None)
-                .await
+
+        let params = if let Some(request) = broker_request.rule.transform.request {
+            if let Ok(map) = serde_json::from_str::<serde_json::Map<String, Value>>(&request) {
+                Some(Value::Object(map))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        // ==============================================================================================================
+
+        if let Ok(res) = BrokerUtils::process_internal_main_request(
+            &mut platform_state_c,
+            method.as_str(),
+            params,
+        )
+        .await
         {
             response.result = Some(res.clone());
         }
@@ -1613,12 +1628,12 @@ impl BrokerOutputForwarder {
             None
         };
         let parse_result = serde_json::from_slice::<Value>(data);
-        error!("parse result {:?}", parse_result);
+        debug!("parse result {:?}", parse_result);
         if parse_result.is_err() {
             return Err(RippleError::ParseError);
         }
         let result = Some(parse_result.unwrap());
-        error!("result {:?}", result);
+        debug!("result {:?}", result);
         // build JsonRpcApiResponse
         let data = JsonRpcApiResponse {
             jsonrpc: "2.0".to_owned(),
