@@ -165,13 +165,13 @@ mod tests {
         let extn_client = ExtnClient::mock();
         let request = RippleContextUpdateRequest::MetricsContext(get_mock_metrics_context());
         extn_client.context_update(request);
-        let timer = start_service_metrics_timer(&extn_client, "timer_1".into());
+        let timer = start_service_metrics_timer(&extn_client, "package_manager_get_list".into());
         assert!(timer.is_some(), "Timer should not be None");
 
         let timer = timer.unwrap();
         assert_eq!(
             timer.name,
-            "timer_1".to_string(),
+            "package_manager_get_list".to_string(),
             "Timer name does not match"
         );
         assert_eq!(timer.timer_type, TimerType::Remote);

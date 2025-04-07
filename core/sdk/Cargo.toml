@@ -21,7 +21,6 @@ edition = "2021"
 repository = "https://github.com/rdkcentral/Ripple"
 
 [features]
-local_dev = []
 default = []
 rpc = ["jsonrpsee"]
 tdk = []

@@ -26,7 +26,8 @@
                         "audio.device_events",
                         "system_power_state.device_events",
                         "time_zone.device_events",
-                        "remote_feature_control"
+                        "remote_feature_control",
+                        "apps"
                     ]
                 }
             ]
@@ -95,6 +96,7 @@
         "device_persistence",
         "remote_accessory",
         "secure_storage",
+        "advertising",
         "privacy_settings",
         "session_token",
         "metrics",

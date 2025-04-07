@@ -49,7 +49,7 @@ use ripple_sdk::{
 static START_PARTNER_EXCLUSION_SYNC_THREAD: Once = Once::new();
 
 use crate::{
-    service::data_governance::DataGovernance,
+    service::{apps::apps_updater::AppsUpdater, data_governance::DataGovernance},
     state::{cap::cap_state::CapState, metrics_state::MetricsState, platform_state::PlatformState},
 };
 
@@ -176,51 +176,60 @@ impl MainContextProcessor {
         let update_token = Self::is_update_token(state);
         if !update_token && !Self::check_account_session_token(state).await {
             error!("Account session still not available");
-        } else if state.supports_cloud_sync() {
-            debug!("Cloud Sync  configured as a required contract so starting.");
-            if state
-                .get_device_manifest()
-                .configuration
-                .features
-                .privacy_settings_storage_type
-                == PrivacySettingsStorageType::Sync
-            {
-                debug!("Privacy settings storage type is set as sync so starting cloud monitor");
-                if let Some(account_session) = state.session_state.get_account_session() {
-                    debug!("Successfully got account session");
-                    if !update_token {
-                        let sync_response = state
-                            .get_client()
-                            .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
-                                SyncAndMonitorModule::Privacy,
-                                account_session.clone(),
-                            ))
-                            .await;
-                        debug!("Received Sync response for privacy: {:?}", sync_response);
-                        let sync_response = state
-                            .get_client()
-                            .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
-                                SyncAndMonitorModule::UserGrants,
-                                account_session.clone(),
-                            ))
-                            .await;
-                        debug!(
-                            "Received Sync response for user grants: {:?}",
-                            sync_response
-                        );
-                    } else {
-                        debug!("cap already available so just updating the token alone");
-                        let update_token_response = state
-                            .get_client()
-                            .send_extn_request(SyncAndMonitorRequest::UpdateDistributorToken(
-                                account_session.token.clone(),
-                            ))
-                            .await;
-                        debug!("Cap token:account is already in available state. just updating Token res: {:?}", update_token_response);
+        } else {
+            if state.supports_cloud_sync() {
+                debug!("Cloud Sync  configured as a required contract so starting.");
+                if state
+                    .get_device_manifest()
+                    .configuration
+                    .features
+                    .privacy_settings_storage_type
+                    == PrivacySettingsStorageType::Sync
+                {
+                    debug!(
+                        "Privacy settings storage type is set as sync so starting cloud monitor"
+                    );
+                    if let Some(account_session) = state.session_state.get_account_session() {
+                        debug!("Successfully got account session");
+                        if !update_token {
+                            let sync_response = state
+                                .get_client()
+                                .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
+                                    SyncAndMonitorModule::Privacy,
+                                    account_session.clone(),
+                                ))
+                                .await;
+                            debug!("Received Sync response for privacy: {:?}", sync_response);
+                            let sync_response = state
+                                .get_client()
+                                .send_extn_request(SyncAndMonitorRequest::SyncAndMonitor(
+                                    SyncAndMonitorModule::UserGrants,
+                                    account_session.clone(),
+                                ))
+                                .await;
+                            debug!(
+                                "Received Sync response for user grants: {:?}",
+                                sync_response
+                            );
+                        } else {
+                            debug!("cap already available so just updating the token alone");
+                            let update_token_response = state
+                                .get_client()
+                                .send_extn_request(SyncAndMonitorRequest::UpdateDistributorToken(
+                                    account_session.token.clone(),
+                                ))
+                                .await;
+                            debug!("Cap token:account is already in available state. just updating Token res: {:?}", update_token_response);
+                        }
+                        //sync up partner exclusion data and setup polling thread for refreshing it.
+                        Self::sync_partner_exclusions(state).await;
                     }
-                    //sync up partner exclusion data and setup polling thread for refreshing it.
-                    Self::sync_partner_exclusions(state).await;
                 }
+            }
+            if state.supports_app_catalog() {
+                state
+                    .get_client()
+                    .add_event_processor(AppsUpdater::init(state).await);
             }
         }
     }

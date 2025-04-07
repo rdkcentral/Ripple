@@ -46,8 +46,6 @@ use ripple_sdk::{
 
 #[rpc(server)]
 pub trait Capability {
-    #[method(name = "ripple.isPermitted")]
-    async fn get_capability_permit(&self, ctx: CallContext, role: RoleInfo) -> RpcResult<bool>;
     #[method(name = "capabilities.supported")]
     async fn supported(&self, ctx: CallContext, cap: CapRPCRequest) -> RpcResult<bool>;
     #[method(name = "capabilities.available")]
@@ -116,10 +114,6 @@ impl CapabilityImpl {
 
 #[async_trait]
 impl CapabilityServer for CapabilityImpl {
-    async fn get_capability_permit(&self, ctx: CallContext, role: RoleInfo) -> RpcResult<bool> {
-        is_permitted(&self.state.clone(), &ctx, &role).await
-    }
-
     async fn supported(&self, _ctx: CallContext, cap: CapRPCRequest) -> RpcResult<bool> {
         Ok(self
             .state

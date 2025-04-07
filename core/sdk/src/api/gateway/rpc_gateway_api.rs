@@ -654,30 +654,9 @@ impl RpcRequest {
             None,
             false,
         );
+        let request = serde_json::to_value(JsonRpcApiRequest::new(method.clone(), params)).unwrap();
         RpcRequest {
-            params_json: Self::prepend_ctx(params, &ctx),
-            ctx,
-            method,
-        }
-    }
-
-    pub fn get_new_internal_with_appid(
-        method: String,
-        params: Option<Value>,
-        ref_ctx: &CallContext,
-    ) -> Self {
-        let ctx = CallContext::new(
-            Uuid::new_v4().to_string(),
-            Uuid::new_v4().to_string(),
-            ref_ctx.app_id.clone(),
-            1,
-            crate::api::gateway::rpc_gateway_api::ApiProtocol::Extn,
-            method.clone(),
-            None,
-            false,
-        );
-        RpcRequest {
-            params_json: Self::prepend_ctx(params, &ctx),
+            params_json: Self::prepend_ctx(Some(request), &ctx),
             ctx,
             method,
         }

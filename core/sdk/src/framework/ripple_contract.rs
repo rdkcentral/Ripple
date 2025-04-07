@@ -88,6 +88,8 @@ pub enum RippleContract {
     DeviceEvents(EventAdjective),
     /// Contract for controlling Voice guidance typically offered by the Device Channel or the browser.
     VoiceGuidance,
+    /// Distributor Contract for handling Advertising requirements.
+    Advertising,
     /// Contract focussed on Aggregating the App Behavior metrics before sending to the Distributor ingestors.
     BehaviorMetrics,
     /// Contract focussed on getting more real time media playback events like Pause, Play, Seek useful for
@@ -119,6 +121,8 @@ pub enum RippleContract {
     Session(SessionAdjective),
     RippleContext,
     ExtnProvider(ExtnProviderAdjective),
+    AppCatalog,
+    Apps,
     // Runtime ability for a given distributor to turn off a certian feature
     RemoteFeatureControl,
     Analytics,

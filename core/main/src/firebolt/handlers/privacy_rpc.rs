@@ -318,16 +318,6 @@ pub trait Privacy {
     ) -> RpcResult<ListenerResponse>;
     #[method(name = "privacy.settings")]
     async fn get_settings(&self, ctx: CallContext) -> RpcResult<PrivacySettings>;
-
-    #[method(name = "ripple.getAllowAppContentAdTargettingSettings")]
-    async fn get_targetad_settings(
-        &self,
-        ctx: CallContext,
-        scope_option: Option<ScopeOption>,
-    ) -> RpcResult<HashMap<String, String>>;
-
-    #[method(name = "ripple.getAllowAppContentAdTargetting")]
-    async fn get_content_ad_targeting(&self) -> RpcResult<bool>;
 }
 
 pub async fn get_allow_app_content_ad_targeting_settings(
@@ -1104,24 +1094,6 @@ impl PrivacyServer for PrivacyImpl {
                 }
             }
         }
-    }
-
-    async fn get_targetad_settings(
-        &self,
-        ctx: CallContext,
-        scope_option: Option<ScopeOption>,
-    ) -> RpcResult<HashMap<String, String>> {
-        Ok(get_allow_app_content_ad_targeting_settings(
-            &mut self.state.clone(),
-            scope_option.as_ref(),
-            &ctx.app_id,
-            &ctx,
-        )
-        .await)
-    }
-
-    async fn get_content_ad_targeting(&self) -> RpcResult<bool> {
-        Ok(PrivacyImpl::get_allow_app_content_ad_targeting(&self.state).await)
     }
 }
 
