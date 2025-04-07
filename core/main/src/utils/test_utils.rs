@@ -117,8 +117,8 @@ pub struct WSMockData {
 }
 
 impl WSMockData {
-    pub fn get(data: String) -> Self {
-        Self { data, delay: None }
+    pub fn get(data: String, delay: Option<u64>) -> Self {
+        Self { data, delay }
     }
 }
 
