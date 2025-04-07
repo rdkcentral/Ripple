@@ -47,44 +47,44 @@ pub struct DefaultStorageProperties;
 
 impl DefaultStorageProperties {
     pub fn get_bool(
-        state: &DefaultValues,
+        value: &DefaultValues,
         namespace: &String,
         key: &'static str,
     ) -> Result<bool, DefaultStoragePropertiesError> {
         trace!("get_bool: namespace={}, key={}", namespace, key);
         if namespace.eq(NAMESPACE_CLOSED_CAPTIONS) {
             match key {
-                KEY_ENABLED => Ok(state.captions.enabled),
+                KEY_ENABLED => Ok(value.captions.enabled),
                 _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
                     key.to_owned(),
                 )),
             }
         } else if namespace.eq(NAMESPACE_PRIVACY) {
             match key {
-                KEY_ALLOW_ACR_COLLECTION => Ok(state.allow_acr_collection),
-                KEY_ALLOW_APP_CONTENT_AD_TARGETING => Ok(state.allow_app_content_ad_targeting),
-                KEY_ALLOW_BUSINESS_ANALYTICS => Ok(state.allow_business_analytics),
-                KEY_ALLOW_CAMERA_ANALYTICS => Ok(state.allow_camera_analytics),
-                KEY_ALLOW_PERSONALIZATION => Ok(state.allow_personalization),
+                KEY_ALLOW_ACR_COLLECTION => Ok(value.allow_acr_collection),
+                KEY_ALLOW_APP_CONTENT_AD_TARGETING => Ok(value.allow_app_content_ad_targeting),
+                KEY_ALLOW_BUSINESS_ANALYTICS => Ok(value.allow_business_analytics),
+                KEY_ALLOW_CAMERA_ANALYTICS => Ok(value.allow_camera_analytics),
+                KEY_ALLOW_PERSONALIZATION => Ok(value.allow_personalization),
                 KEY_ALLOW_PRIMARY_BROWSE_AD_TARGETING => {
-                    Ok(state.allow_primary_browse_ad_targeting)
+                    Ok(value.allow_primary_browse_ad_targeting)
                 }
                 KEY_ALLOW_PRIMARY_CONTENT_AD_TARGETING => {
-                    Ok(state.allow_primary_content_ad_targeting)
+                    Ok(value.allow_primary_content_ad_targeting)
                 }
-                KEY_ALLOW_PRODUCT_ANALYTICS => Ok(state.allow_product_analytics),
-                KEY_ALLOW_REMOTE_DIAGNOSTICS => Ok(state.allow_remote_diagnostics),
-                KEY_ALLOW_RESUME_POINTS => Ok(state.allow_resume_points),
-                KEY_ALLOW_UNENTITLED_PERSONALIZATION => Ok(state.allow_unentitled_personalization),
-                KEY_ALLOW_UNENTITLED_RESUME_POINTS => Ok(state.allow_unentitled_resume_points),
-                KEY_ALLOW_WATCH_HISTORY => Ok(state.allow_watch_history),
+                KEY_ALLOW_PRODUCT_ANALYTICS => Ok(value.allow_product_analytics),
+                KEY_ALLOW_REMOTE_DIAGNOSTICS => Ok(value.allow_remote_diagnostics),
+                KEY_ALLOW_RESUME_POINTS => Ok(value.allow_resume_points),
+                KEY_ALLOW_UNENTITLED_PERSONALIZATION => Ok(value.allow_unentitled_personalization),
+                KEY_ALLOW_UNENTITLED_RESUME_POINTS => Ok(value.allow_unentitled_resume_points),
+                KEY_ALLOW_WATCH_HISTORY => Ok(value.allow_watch_history),
                 _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
                     key.to_owned(),
                 )),
             }
         } else if namespace.eq(NAMESPACE_AUDIO_DESCRIPTION) {
             match key {
-                KEY_AUDIO_DESCRIPTION_ENABLED => Ok(state.accessibility_audio_description_settings),
+                KEY_AUDIO_DESCRIPTION_ENABLED => Ok(value.accessibility_audio_description_settings),
                 _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
                     key.to_owned(),
                 )),
@@ -97,13 +97,13 @@ impl DefaultStorageProperties {
     }
 
     pub fn get_string(
-        state: &DefaultValues,
+        value: &DefaultValues,
         namespace: &String,
         key: &'static str,
     ) -> Result<String, DefaultStoragePropertiesError> {
         trace!("get_string: namespace={}, key={}", namespace, key);
         if namespace.eq(NAMESPACE_CLOSED_CAPTIONS) {
-            let captions = state.clone().captions;
+            let captions = value.clone().captions;
             let not_found = DefaultStoragePropertiesError::NotFound(key.to_owned());
             match key {
                 KEY_FONT_FAMILY => match captions.font_family {
@@ -144,14 +144,14 @@ impl DefaultStorageProperties {
             }
         } else if namespace.eq(NAMESPACE_DEVICE_NAME) {
             match key {
-                KEY_NAME => Ok(state.clone().name),
+                KEY_NAME => Ok(value.clone().name),
                 _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
                     key.to_owned(),
                 )),
             }
         } else if namespace.eq(NAMESPACE_LOCALIZATION) {
             match key {
-                KEY_LOCALE => Ok(state.clone().locale),
+                KEY_LOCALE => Ok(value.clone().locale),
                 // Not used anywhere just yet
                 // KEY_ADDITIONAL_INFO => {
                 //     let a_info_map: HashMap<String, String> = state.clone().configuration.default_values.additional_info;
@@ -163,7 +163,7 @@ impl DefaultStorageProperties {
             }
         } else if namespace.eq(NAMESPACE_ADVERTISING) {
             match key {
-                KEY_SKIP_RESTRICTION => Ok(state.clone().skip_restriction),
+                KEY_SKIP_RESTRICTION => Ok(value.clone().skip_restriction),
                 _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
                     key.to_owned(),
                 )),
@@ -176,13 +176,13 @@ impl DefaultStorageProperties {
     }
 
     pub fn get_number_as_u32(
-        state: &DefaultValues,
+        value: &DefaultValues,
         namespace: &String,
         key: &'static str,
     ) -> Result<u32, DefaultStoragePropertiesError> {
         trace!("get_number_as_u32: namespace={}, key={}", namespace, key);
         if namespace.eq(NAMESPACE_CLOSED_CAPTIONS) {
-            let captions = state.clone().captions;
+            let captions = value.clone().captions;
             let not_found = DefaultStoragePropertiesError::NotFound(key.to_owned());
             match key {
                 KEY_FONT_OPACITY => match captions.font_opacity {
@@ -209,13 +209,13 @@ impl DefaultStorageProperties {
     }
 
     pub fn get_number_as_f32(
-        state: &DefaultValues,
+        value: &DefaultValues,
         namespace: &String,
         key: &'static str,
     ) -> Result<f32, DefaultStoragePropertiesError> {
         trace!("get_number_as_f32: namespace={}, key={}", namespace, key);
         if namespace.eq(NAMESPACE_CLOSED_CAPTIONS) {
-            let captions = state.clone().captions;
+            let captions = value.clone().captions;
             let not_found = DefaultStoragePropertiesError::NotFound(key.to_owned());
             match key {
                 KEY_FONT_SIZE => match captions.font_size {
