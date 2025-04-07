@@ -23,3 +23,7 @@ pub mod extn_manifest;
 pub mod persistent_store;
 pub mod remote_feature;
 pub mod cascaded_extn_manifest;
+
+pub trait MergeConfig<T> {
+    fn merge_config(&mut self, t: T);
+}
