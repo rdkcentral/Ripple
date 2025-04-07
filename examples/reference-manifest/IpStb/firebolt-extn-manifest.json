@@ -87,7 +87,6 @@
         "local.storage",
         "remote_accessory",
         "secure.storage",
-        "advertising",
         "privacy_settings",
         "metrics",
         "account.session",
