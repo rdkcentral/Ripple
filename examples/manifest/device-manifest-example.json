@@ -73,6 +73,7 @@
       "xrn:firebolt:capability:token:account",
       "xrn:firebolt:capability:approve:content",
       "xrn:firebolt:capability:approve:purchase",
+      "xrn:firebolt:capability:content:protection",      
       "xrn:firebolt:capability:device:distributor",
       "xrn:firebolt:capability:device:id",
       "xrn:firebolt:capability:device:info",

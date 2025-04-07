@@ -177,8 +177,4 @@ impl SessionState {
     pub fn clear_pending_session(&self, app_id: &String) {
         self.pending_sessions.write().unwrap().remove(app_id);
     }
-
-    pub fn get_pending_session_info(&self, app_id: &String) -> Option<Option<PendingSessionInfo>> {
-        self.pending_sessions.read().unwrap().get(app_id).cloned()
-    }
 }

@@ -328,7 +328,10 @@ impl<'de> Deserialize<'de> for FireboltPermission {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[cfg_attr(feature = "contract_tests", derive(Serialize))]
+#[cfg_attr(
+    any(feature = "http_contract_tests", feature = "websocket_contract_tests"),
+    derive(Serialize)
+)]
 pub struct FireboltPermissions {
     pub capabilities: Vec<FireboltPermission>,
 }

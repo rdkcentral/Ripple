@@ -14,15 +14,4 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-
-pub mod device_accessibility_data;
-pub mod device_accessory;
-pub mod device_browser;
-pub mod device_events;
-pub mod device_info_request;
-pub mod device_peristence;
-pub mod device_request;
-pub mod device_user_grants_data;
-pub mod device_wifi;
-pub mod device_window_manager;
-pub mod entertainment_data;
+pub mod device;
