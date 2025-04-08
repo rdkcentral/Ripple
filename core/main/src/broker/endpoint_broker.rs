@@ -1037,12 +1037,9 @@ impl BrokerOutputForwarder {
                             .emit_debug();
 
                             if is_event {
-                                // <pca>
-                                //if let Some(method) = broker_request.rule.event_handler.clone() {
                                 if let Some(event_handler) =
                                     broker_request.rule.event_handler.clone()
                                 {
-                                    // </pca>
                                     let platform_state_c = platform_state.clone();
                                     let rpc_request_c = rpc_request.clone();
                                     let response_c = response.clone();
@@ -1050,10 +1047,7 @@ impl BrokerOutputForwarder {
 
                                     tokio::spawn(Self::handle_event(
                                         platform_state_c,
-                                        // <pca>
-                                        //method,
                                         event_handler,
-                                        // </pca>
                                         broker_request_c,
                                         rpc_request_c,
                                         response_c,
@@ -1300,12 +1294,8 @@ impl BrokerOutputForwarder {
 
     async fn handle_event(
         platform_state: PlatformState,
-        // <pca>
-        //method: String,
-        //broker_request: BrokerRequest,
         event_handler: EventHandler,
         _broker_request: BrokerRequest,
-        // </pca>
         rpc_request: RpcRequest,
         mut response: JsonRpcApiResponse,
     ) {
@@ -1345,16 +1335,6 @@ impl BrokerOutputForwarder {
         //     error!("handle_event: error processing internal main request");
         // }
 
-        // <pca>
-        // let params = if let Some(request) = broker_request.rule.transform.request {
-        //     if let Ok(map) = serde_json::from_str::<serde_json::Map<String, Value>>(&request) {
-        //         Some(Value::Object(map))
-        //     } else {
-        //         None
-        //     }
-        // } else {
-        //     None
-        // };
         let params = if let Some(request) = event_handler.params {
             if let Ok(map) = serde_json::from_str::<serde_json::Map<String, Value>>(&request) {
                 Some(Value::Object(map))
@@ -1364,14 +1344,11 @@ impl BrokerOutputForwarder {
         } else {
             None
         };
-        // </pca>
         // ==============================================================================================================
+
         if let Ok(res) = BrokerUtils::process_internal_main_request(
             &mut platform_state_c,
-            // <pca>
-            //method.as_str(),
             event_handler.method.as_str(),
-            // </pca>
             params,
         )
         .await
