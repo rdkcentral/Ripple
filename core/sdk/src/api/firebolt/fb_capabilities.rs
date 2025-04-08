@@ -32,6 +32,11 @@ pub enum FireboltCap {
     Short(String),
     Full(String),
 }
+impl Default for FireboltCap {
+    fn default() -> Self {
+        FireboltCap::Short("short_default".to_string())
+    }
+}
 
 impl FireboltCap {
     pub fn short<S>(s: S) -> FireboltCap
@@ -126,9 +131,10 @@ impl FireboltCap {
     }
 }
 
-#[derive(Eq, Debug, Copy, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Eq, Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum CapabilityRole {
+    #[default]
     Use,
     Manage,
     Provide,
@@ -154,7 +160,7 @@ impl Hash for CapabilityRole {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct FireboltPermission {
     pub cap: FireboltCap,
     pub role: CapabilityRole,
@@ -332,8 +338,19 @@ impl<'de> Deserialize<'de> for FireboltPermission {
     any(feature = "http_contract_tests", feature = "websocket_contract_tests"),
     derive(Serialize)
 )]
+#[derive(Default)]
 pub struct FireboltPermissions {
     pub capabilities: Vec<FireboltPermission>,
+}
+impl FireboltPermissions {
+    pub fn add_capability(&mut self, cap: FireboltPermission) -> &mut Self {
+        self.capabilities.push(cap);
+        self
+    }
+    pub fn add_capabilities(&mut self, caps: Vec<FireboltPermission>) -> &mut Self {
+        self.capabilities.extend(caps);
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

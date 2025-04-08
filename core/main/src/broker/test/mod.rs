@@ -14,5 +14,4 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-#[cfg(test)]
 pub mod mock_thunder_lite_server;
