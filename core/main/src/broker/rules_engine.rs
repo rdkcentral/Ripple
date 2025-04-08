@@ -345,31 +345,8 @@ impl RuleEngine {
             _ => Err(RuleRetrievalError::TooManyWildcardMatches),
         }
     }
-    pub fn get_rule(&self, rpc_request: &RpcRequest) -> Option<Rule> {
-        let method = rpc_request.method.to_lowercase();
-        if let Some(mut rule) = self.rules.rules.get(&method).cloned() {
-            rule.transform.apply_context(rpc_request);
-            return Some(rule);
-        } else {
-            for (key, value) in &self.rules.rules {
-                if key.ends_with(".*") && method.starts_with(&key[..key.len() - 2]) {
-                    let mut rule = value.clone();
-                    rule.transform.apply_context(rpc_request);
-                    return Some(rule);
-                }
-            }
-            trace!(
-                "Rule not available for {}, hence falling back to extension handler",
-                rpc_request.method
-            );
-        }
-        None
-    }
 
-    pub fn get_rule_new(
-        &self,
-        rpc_request: &RpcRequest,
-    ) -> Result<RuleRetrieved, RuleRetrievalError> {
+    pub fn get_rule(&self, rpc_request: &RpcRequest) -> Result<RuleRetrieved, RuleRetrievalError> {
         let method = rpc_request.method.to_lowercase();
         /*
         match directly from method name
@@ -384,14 +361,6 @@ impl RuleEngine {
              * match, for example api.v1.* as rule name and api.v1.get as method name
              */
             Self::find_wildcard_rule(&self.rules.rules, &method)
-            // for (key, value) in &self.rules.rules {
-            //     if key.ends_with(".*") && method.starts_with(&key[..key.len() - 2]) {
-            //         let mut rule = value.clone();
-            //         return Ok(RuleRetrieved::WildcardMatch(
-            //             rule.apply_context(rpc_request),
-            //         ));
-            //     }
-            // }
         }
     }
 
@@ -652,7 +621,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = rule_engine.get_rule_new(&rpc_request);
+        let result = rule_engine.get_rule(&rpc_request);
         match result {
             Ok(RuleRetrieved::ExactMatch(retrieved_rule)) => {
                 assert_eq!(retrieved_rule.alias, rule.alias);
@@ -682,7 +651,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = rule_engine.get_rule_new(&rpc_request);
+        let result = rule_engine.get_rule(&rpc_request);
         match result {
             Ok(RuleRetrieved::WildcardMatch(retrieved_rule)) => {
                 assert_eq!(retrieved_rule.alias, rule.alias);
@@ -706,7 +675,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = rule_engine.get_rule_new(&rpc_request);
+        let result = rule_engine.get_rule(&rpc_request);
         assert!(matches!(
             result,
             Err(RuleRetrievalError::RuleNotFoundAsWildcard)
@@ -733,7 +702,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = rule_engine.get_rule_new(&rpc_request);
+        let result = rule_engine.get_rule(&rpc_request);
         assert!(matches!(
             result,
             Err(RuleRetrievalError::TooManyWildcardMatches)

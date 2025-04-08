@@ -24,6 +24,7 @@ use ripple_sdk::{
     api::{
         firebolt::fb_capabilities::FireboltPermission,
         gateway::rpc_gateway_api::{ApiMessage, ApiProtocol, RpcRequest},
+        observability::log_signal::LogSignal,
     },
     log::{debug, error},
     tokio,
@@ -113,31 +114,24 @@ impl ProvideBrokerState {
     }
 
     pub fn send_to_provider(request: BrokerRequest, id: u64, session: Session) {
-        // let method = request.clone().rpc.ctx.method;
-        // let r = if let Some(p) = request.rpc.get_params() {
-        //     json!({
-        //         "jsonrpc": "2.0",
-        //         "id": id,
-        //         "method": method,
-        //         "params": p
-        //     })
-        // } else {
-        //     json!({
-        //         "jsonrpc": "2.0",
-        //         "id": id,
-        //         "method": request.rpc.ctx.method
-        //     })
-        // };
-        // let message = ApiMessage::new(
-        //     ApiProtocol::JsonRpc,
-        //     serde_json::to_string(&r).unwrap(),
-        //     "".into(),
-        // );
         tokio::spawn(async move {
+            LogSignal::new(
+                "provider_broker_state".into(),
+                "sending to provider".into(),
+                request.clone(),
+            )
+            .emit_debug();
             if let Err(e) = session
                 .send_json_rpc(Self::format_provider_message(&request.rpc, id))
                 .await
             {
+                LogSignal::new(
+                    "provider_broker_state".into(),
+                    "error sending to provider".into(),
+                    request.clone(),
+                )
+                .with_diagnostic_context_item("err", &format!("{:?}", e))
+                .emit_debug();
                 error!("Couldnt send Provider request {:?}", e)
             }
         });

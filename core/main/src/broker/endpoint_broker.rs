@@ -846,7 +846,7 @@ impl EndpointBrokerState {
         &self,
         rpc_request: &RpcRequest,
     ) -> Result<RuleRetrieved, RuleRetrievalError> {
-        self.rule_engine.get_rule_new(rpc_request)
+        self.rule_engine.get_rule(rpc_request)
     }
     /// Main handler method whcih checks for brokerage and then sends the request for
     /// asynchronous processing
@@ -1083,7 +1083,7 @@ impl EndpointBrokerState {
     }
 
     pub fn get_rule(&self, rpc_request: &RpcRequest) -> Result<RuleRetrieved, RuleRetrievalError> {
-        self.rule_engine.get_rule_new(rpc_request)
+        self.rule_engine.get_rule(rpc_request)
     }
 
     // Method to cleanup all subscription on App termination
