@@ -60,7 +60,9 @@ use super::{
     extn_broker::ExtnBroker,
     http_broker::HttpBroker,
     provider_broker_state::{ProvideBrokerState, ProviderResult},
-    rules_engine::{jq_compile, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine},
+    rules_engine::{
+        jq_compile, EventHandler, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine,
+    },
     thunder_broker::ThunderBroker,
     websocket_broker::WebsocketBroker,
     workflow_broker::WorkflowBroker,
@@ -1035,7 +1037,12 @@ impl BrokerOutputForwarder {
                             .emit_debug();
 
                             if is_event {
-                                if let Some(method) = broker_request.rule.event_handler.clone() {
+                                // <pca>
+                                //if let Some(method) = broker_request.rule.event_handler.clone() {
+                                if let Some(event_handler) =
+                                    broker_request.rule.event_handler.clone()
+                                {
+                                    // </pca>
                                     let platform_state_c = platform_state.clone();
                                     let rpc_request_c = rpc_request.clone();
                                     let response_c = response.clone();
@@ -1043,7 +1050,10 @@ impl BrokerOutputForwarder {
 
                                     tokio::spawn(Self::handle_event(
                                         platform_state_c,
-                                        method,
+                                        // <pca>
+                                        //method,
+                                        event_handler,
+                                        // </pca>
                                         broker_request_c,
                                         rpc_request_c,
                                         response_c,
@@ -1290,8 +1300,12 @@ impl BrokerOutputForwarder {
 
     async fn handle_event(
         platform_state: PlatformState,
-        method: String,
-        broker_request: BrokerRequest,
+        // <pca>
+        //method: String,
+        //broker_request: BrokerRequest,
+        event_handler: EventHandler,
+        _broker_request: BrokerRequest,
+        // </pca>
         rpc_request: RpcRequest,
         mut response: JsonRpcApiResponse,
     ) {
@@ -1331,7 +1345,17 @@ impl BrokerOutputForwarder {
         //     error!("handle_event: error processing internal main request");
         // }
 
-        let params = if let Some(request) = broker_request.rule.transform.request {
+        // <pca>
+        // let params = if let Some(request) = broker_request.rule.transform.request {
+        //     if let Ok(map) = serde_json::from_str::<serde_json::Map<String, Value>>(&request) {
+        //         Some(Value::Object(map))
+        //     } else {
+        //         None
+        //     }
+        // } else {
+        //     None
+        // };
+        let params = if let Some(request) = event_handler.params {
             if let Ok(map) = serde_json::from_str::<serde_json::Map<String, Value>>(&request) {
                 Some(Value::Object(map))
             } else {
@@ -1340,11 +1364,14 @@ impl BrokerOutputForwarder {
         } else {
             None
         };
+        // </pca>
         // ==============================================================================================================
-
         if let Ok(res) = BrokerUtils::process_internal_main_request(
             &mut platform_state_c,
-            method.as_str(),
+            // <pca>
+            //method.as_str(),
+            event_handler.method.as_str(),
+            // </pca>
             params,
         )
         .await
