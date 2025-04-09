@@ -516,8 +516,11 @@ impl DelegatedLauncherHandler {
             };
 
             if let Some(id) = app_id {
-                self.report_app_state_transition(&id, &method, resp.clone())
-                    .await;
+                let mut ps_c = self.platform_state.clone();
+                let resp_c = resp.clone();
+                tokio::spawn(async move {
+                    Self::report_app_state_transition(&mut ps_c, &id, &method, resp_c).await;
+                });
             }
 
             if let Err(e) = resp {
@@ -531,28 +534,44 @@ impl DelegatedLauncherHandler {
     }
 
     async fn report_app_state_transition(
-        &mut self,
+        platform_state: &mut PlatformState,
         app_id: &str,
         method: &AppMethod,
         app_manager_response: Result<AppManagerResponse, AppError>,
     ) {
-        if self
-            .platform_state
+        if let AppMethod::BrowserSession(_) = method {
+            if platform_state
+                .endpoint_state
+                .has_rule("ripple.reportSessionUpdate")
+            {
+                if let Ok(AppManagerResponse::Session(a)) = app_manager_response {
+                    let params = serde_json::to_value(a).unwrap();
+                    if BrokerUtils::process_internal_main_request(
+                        platform_state,
+                        "ripple.reportSessionUpdate",
+                        Some(params),
+                    )
+                    .await
+                    .is_err()
+                    {
+                        error!("Error reporting lifecycle state")
+                    }
+                }
+            }
+        }
+
+        if platform_state
             .endpoint_state
             .has_rule("ripple.reportLifecycleStateChange")
         {
-            let previous_state = self
-                .platform_state
-                .app_manager_state
-                .get_internal_state(app_id);
+            let previous_state = platform_state.app_manager_state.get_internal_state(app_id);
 
             /*
             Do not forward internal errors from the launch handler as AppErrors. Only forward third-party application error messages as AppErrors.
             TBD: Collaborate with the SIFT team to obtain the appropriate SIFT code for sharing error messages from the AppLauncher.
             */
 
-            let inactive = self
-                .platform_state
+            let inactive = platform_state
                 .app_manager_state
                 .get(app_id)
                 .map_or(false, |app| app.initial_session.launch.inactive);
@@ -574,8 +593,9 @@ impl DelegatedLauncherHandler {
                 previous_state: from_state,
             })
             .unwrap();
+            println!("Sending to eos");
             if BrokerUtils::process_for_app_main_request(
-                &mut self.platform_state.clone(),
+                platform_state,
                 "ripple.reportLifecycleStateChange",
                 Some(params),
                 app_id,
@@ -587,29 +607,7 @@ impl DelegatedLauncherHandler {
             }
         }
 
-        if let AppMethod::BrowserSession(_) = method {
-            if self
-                .platform_state
-                .endpoint_state
-                .has_rule("ripple.reportSessionUpdate")
-            {
-                if let Ok(AppManagerResponse::Session(a)) = app_manager_response {
-                    let params = serde_json::to_value(a).unwrap();
-                    if BrokerUtils::process_internal_main_request(
-                        &mut self.platform_state.clone(),
-                        "ripple.reportSessionUpdate",
-                        Some(params),
-                    )
-                    .await
-                    .is_err()
-                    {
-                        error!("Error reporting lifecycle state")
-                    }
-                }
-            }
-        }
-
-        self.platform_state
+        platform_state
             .app_manager_state
             .set_internal_state(app_id, method.clone());
     }

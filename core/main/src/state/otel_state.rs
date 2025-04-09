@@ -40,7 +40,11 @@ pub struct OpMetricState {
 
 impl OpMetricState {
     pub fn get_device_session_id(&self) -> String {
-        self.device_session_id.read().unwrap().clone().unwrap()
+        self.device_session_id
+            .read()
+            .unwrap()
+            .clone()
+            .unwrap_or(String::default())
     }
 
     pub fn operational_telemetry_listener(&self, target: &str, listen: bool) {
