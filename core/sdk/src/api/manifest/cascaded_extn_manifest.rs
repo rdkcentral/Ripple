@@ -65,10 +65,7 @@ impl MergeConfig<CascadedExtnManifest> for ExtnManifest {
         }
         if let Some(cas_rpc_aliases) = cascaded.rpc_aliases {
             for (key, values) in cas_rpc_aliases {
-                self.rpc_aliases
-                    .entry(key)
-                    .or_default()
-                    .extend(values);
+                self.rpc_aliases.entry(key).or_default().extend(values);
             }
         }
         if let Some(cas_rpc_overrides) = cascaded.rpc_overrides {
