@@ -44,7 +44,7 @@ impl OpMetricState {
             .read()
             .unwrap()
             .clone()
-            .unwrap_or(String::default())
+            .unwrap_or_default()
     }
 
     pub fn operational_telemetry_listener(&self, target: &str, listen: bool) {
