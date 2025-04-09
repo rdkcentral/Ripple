@@ -31,7 +31,7 @@ use crate::{
     bootstrap::manifest::{
         apps::LoadAppLibraryStep, device::LoadDeviceManifestStep, extn::LoadExtnManifestStep,
     },
-    broker::endpoint_broker::BrokerOutput,
+    broker::endpoint_broker::{BrokerOutput, BROKER_CHANNEL_BUFFER_SIZE},
     firebolt::firebolt_gateway::FireboltGatewayCommand,
     service::extn::ripple_client::RippleClient,
 };
@@ -53,7 +53,7 @@ impl ChannelsState {
         let (gateway_tx, gateway_tr) = mpsc::channel(32);
         let (app_req_tx, app_req_tr) = mpsc::channel(32);
         let (ctx, ctr) = unbounded();
-        let (broker_tx, broker_rx) = mpsc::channel(10);
+        let (broker_tx, broker_rx) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
 
         ChannelsState {
             gateway_channel: TransientChannel::new(gateway_tx, gateway_tr),
