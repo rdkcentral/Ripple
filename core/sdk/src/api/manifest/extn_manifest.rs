@@ -102,7 +102,7 @@ pub struct ExtnSymbol {
 }
 
 impl ExtnSymbol {
-    pub fn get_launcher_capability(&self) -> Option<ExtnId> {
+    fn get_launcher_capability(&self) -> Option<ExtnId> {
         if let Ok(cap) = ExtnId::try_from(self.id.clone()) {
             if cap.is_launcher_channel() {
                 return Some(cap);
@@ -111,7 +111,7 @@ impl ExtnSymbol {
         None
     }
 
-    pub fn get_distributor_capability(&self) -> Option<ExtnId> {
+    fn get_distributor_capability(&self) -> Option<ExtnId> {
         if let Ok(cap) = ExtnId::try_from(self.id.clone()) {
             if cap.is_distributor_channel() {
                 return Some(cap);

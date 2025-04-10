@@ -22,7 +22,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::{fs, path::Path};
 
-use crate::{extn::extn_id::ExtnId, utils::error::RippleError};
+use crate::utils::error::RippleError;
 
 /// Contains the default path for the manifest
 /// file extension type based on platform
@@ -108,50 +108,6 @@ impl CascadedExtnManifest {
                 Err(RippleError::InvalidInput)
             }
         }
-    }
-
-    pub fn get_launcher_capability(&self) -> Option<ExtnId> {
-        for extn in self.extns.clone().unwrap() {
-            for symbol in extn.symbols {
-                if let Some(cap) = symbol.get_launcher_capability() {
-                    return Some(cap);
-                }
-            }
-        }
-
-        None
-    }
-
-    pub fn get_distributor_capability(&self) -> Option<ExtnId> {
-        for extn in self.extns.clone().unwrap() {
-            for symbol in extn.symbols {
-                if let Some(cap) = symbol.get_distributor_capability() {
-                    return Some(cap);
-                }
-            }
-        }
-
-        None
-    }
-
-    pub fn get_extn_permissions(&self) -> HashMap<String, Vec<String>> {
-        let mut map = HashMap::new();
-        self.extns.clone().unwrap().into_iter().for_each(|x| {
-            x.symbols.into_iter().for_each(|y| {
-                if let Ok(cap) = ExtnId::try_from(y.id) {
-                    map.insert(cap.to_string(), y.uses);
-                }
-            })
-        });
-        map
-    }
-
-    pub fn get_timeout(&self) -> u64 {
-        self.timeout.unwrap_or(10000)
-    }
-
-    pub fn has_rpc_override_method(&self, method: &str) -> Option<String> {
-        self.rpc_overrides.clone().unwrap().get(method).cloned()
     }
 }
 
