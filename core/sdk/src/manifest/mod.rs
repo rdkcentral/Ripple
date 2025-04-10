@@ -15,3 +15,5 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 pub mod device;
+pub mod extn;
+pub mod ripple_manifest_loader;

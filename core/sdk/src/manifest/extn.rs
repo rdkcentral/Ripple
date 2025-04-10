@@ -15,9 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use ripple_sdk::{
-    api::manifest::extn_manifest::ExtnManifest, log::info, utils::error::RippleError,
-};
+use crate::{api::manifest::extn_manifest::ExtnManifest, log::info, utils::error::RippleError};
 
 pub struct LoadExtnManifestStep;
 

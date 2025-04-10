@@ -31,17 +31,18 @@ impl LoadDeviceManifestStep {
     }
 
     pub fn read_env_variable() {
-        let country_env = std::env::var("COUNTRY").unwrap_or_else(|_| "eu".to_string()); // Default to "US"
+        let country_env = std::env::var("COUNTRY").unwrap_or_else(|_| "eu".to_string()); // Default to "eu"
         println!("COUNTRY environment variable set to : {}", country_env);
 
-        //   let device_type_env = std::env::var("DEVICE_TYPE").unwrap_or_else(|_| "TV".to_string());
-        //  println!("DEVICE_TYPE environment variable set to : {}", device_type_env);
-        match std::env::var("DEVICE_TYPE") {
-            Ok(device_type) => {
-                println!("DEVICE_TYPE environment variable set to: {}", device_type);
+        match std::env::var("DEVICE_PLATFORM") {
+            Ok(device_platform) => {
+                println!(
+                    "DEVICE_PLATFORM environment variable set to: {}",
+                    device_platform
+                );
             }
             Err(_) => {
-                println!("DEVICE_TYPE environment variable is not set.");
+                println!("DEVICE_PLATFORM environment variable is not set.");
             }
         }
     }
