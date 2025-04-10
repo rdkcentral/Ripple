@@ -19,13 +19,9 @@ use std::collections::HashMap;
 
 use ripple_sdk::api::{
     apps::{AppEvent, AppEventRequest},
-    context::RippleContextUpdateRequest,
     device::{
         device_accessibility_data::VoiceGuidanceSettings,
-        device_events::{
-            INTERNET_CHANGED_EVENT, TIME_ZONE_CHANGED, VOICE_GUIDANCE_SETTINGS_CHANGED,
-        },
-        device_request::{InternetConnectionStatus, TimeZone, VoiceGuidanceState},
+        device_events::VOICE_GUIDANCE_SETTINGS_CHANGED, device_request::VoiceGuidanceState,
     },
 };
 use ripple_sdk::serde_json;
@@ -35,11 +31,10 @@ use crate::{
     events::thunder_event_processor::{
         ThunderEventHandler, ThunderEventHandlerProvider, ThunderEventMessage,
     },
-    processors::thunder_device_info::CachedState,
     ripple_sdk::{
         api::device::{
-            device_events::{DeviceEventCallback, HDCP_CHANGED_EVENT, POWER_STATE_CHANGED},
-            device_request::{AudioProfile, HdcpProfile, SystemPowerState},
+            device_events::{DeviceEventCallback, HDCP_CHANGED_EVENT},
+            device_request::{AudioProfile, HdcpProfile},
         },
         extn::extn_client_message::ExtnEvent,
         log::debug,
@@ -113,127 +108,6 @@ impl ThunderEventHandlerProvider for HDCPEventHandler {
 
     fn module() -> String {
         ThunderPlugin::DisplaySettings.callsign_string()
-    }
-}
-
-// -----------------------
-// Internet Changed
-
-pub struct InternetEventHandler;
-
-impl InternetEventHandler {
-    pub fn handle(
-        state: ThunderState,
-        value: ThunderEventMessage,
-        _callback_type: DeviceEventCallback,
-    ) {
-        if let ThunderEventMessage::Internet(v) = value {
-            ThunderEventHandler::callback_context_update(
-                state,
-                RippleContextUpdateRequest::InternetStatus(v),
-            )
-        }
-    }
-
-    pub fn is_valid(message: ThunderEventMessage) -> bool {
-        if let ThunderEventMessage::Internet(_) = message {
-            return true;
-        }
-        false
-    }
-}
-
-impl ThunderEventHandlerProvider for InternetEventHandler {
-    type EVENT = InternetConnectionStatus;
-    fn provide(id: String, callback_type: DeviceEventCallback) -> ThunderEventHandler {
-        ThunderEventHandler {
-            request: Self::get_device_request(),
-            handle: Self::handle,
-            is_valid: Self::is_valid,
-            listeners: vec![id],
-            id: Self::get_mapped_event(),
-            callback_type,
-        }
-    }
-
-    // This is the thunder event name
-    fn event_name() -> String {
-        "onInternetStatusChange".into()
-    }
-
-    // This is the event at the application level
-    fn get_mapped_event() -> String {
-        INTERNET_CHANGED_EVENT.into()
-    }
-
-    fn module() -> String {
-        ThunderPlugin::Network.callsign_string()
-    }
-    fn get_extn_event(
-        _r: Self::EVENT,
-        _callback_type: DeviceEventCallback,
-    ) -> Result<ExtnEvent, RippleError> {
-        Err(RippleError::InvalidOutput)
-    }
-}
-
-// -----------------------
-// SystemPower Changed
-
-pub struct SystemPowerStateChangeEventHandler;
-
-impl SystemPowerStateChangeEventHandler {
-    pub fn handle(
-        state: ThunderState,
-        value: ThunderEventMessage,
-        _callback_type: DeviceEventCallback,
-    ) {
-        if let ThunderEventMessage::PowerState(p) = value {
-            ThunderEventHandler::callback_context_update(
-                state,
-                RippleContextUpdateRequest::PowerState(p),
-            )
-        }
-    }
-
-    pub fn is_valid(value: ThunderEventMessage) -> bool {
-        if let ThunderEventMessage::PowerState(_) = value {
-            return true;
-        }
-        false
-    }
-}
-
-impl ThunderEventHandlerProvider for SystemPowerStateChangeEventHandler {
-    type EVENT = SystemPowerState;
-    fn provide(id: String, callback_type: DeviceEventCallback) -> ThunderEventHandler {
-        ThunderEventHandler {
-            request: Self::get_device_request(),
-            handle: Self::handle,
-            is_valid: Self::is_valid,
-            listeners: vec![id],
-            id: Self::get_mapped_event(),
-            callback_type,
-        }
-    }
-
-    fn event_name() -> String {
-        "onSystemPowerStateChanged".into()
-    }
-
-    fn get_mapped_event() -> String {
-        POWER_STATE_CHANGED.into()
-    }
-
-    fn module() -> String {
-        ThunderPlugin::System.callsign_string()
-    }
-
-    fn get_extn_event(
-        _r: Self::EVENT,
-        _callback_type: DeviceEventCallback,
-    ) -> Result<ExtnEvent, RippleError> {
-        Err(RippleError::InvalidOutput)
     }
 }
 
@@ -376,86 +250,5 @@ impl ThunderEventHandlerProvider for AudioChangedEvent {
 
     fn module() -> String {
         ThunderPlugin::DisplaySettings.callsign_string()
-    }
-}
-
-pub struct TimezoneChangedEventHandler;
-
-impl TimezoneChangedEventHandler {
-    pub fn handle(
-        state: ThunderState,
-        value: ThunderEventMessage,
-        _callback_type: DeviceEventCallback,
-    ) {
-        if let ThunderEventMessage::TimeZone(_v) = value {
-            let cached_state = CachedState::new(state.clone());
-            tokio::spawn(async move {
-                if let Some(tz) =
-                    ThunderDeviceInfoRequestProcessor::get_timezone_and_offset(&cached_state).await
-                {
-                    let event = ExtnEvent::AppEvent(AppEventRequest::Emit(AppEvent {
-                        event_name: TIME_ZONE_CHANGED.to_string(),
-                        result: serde_json::to_value(tz.clone().time_zone).unwrap(),
-                        context: None,
-                        app_id: None,
-                    }));
-
-                    ThunderEventHandler::callback_device_event(
-                        state.clone(),
-                        TIME_ZONE_CHANGED.to_string(),
-                        event,
-                    );
-
-                    ThunderEventHandler::callback_context_update(
-                        state,
-                        RippleContextUpdateRequest::TimeZone(tz),
-                    );
-                }
-            });
-        }
-    }
-
-    pub fn is_valid(value: ThunderEventMessage) -> bool {
-        if let ThunderEventMessage::TimeZone(_) = value {
-            return true;
-        }
-        false
-    }
-}
-
-impl ThunderEventHandlerProvider for TimezoneChangedEventHandler {
-    type EVENT = TimeZone;
-    fn provide(id: String, callback_type: DeviceEventCallback) -> ThunderEventHandler {
-        ThunderEventHandler {
-            request: Self::get_device_request(),
-            handle: Self::handle,
-            is_valid: Self::is_valid,
-            listeners: vec![id],
-            id: Self::get_mapped_event(),
-            callback_type,
-        }
-    }
-
-    fn event_name() -> String {
-        "onTimeZoneDSTChanged".into()
-    }
-
-    fn get_mapped_event() -> String {
-        TIME_ZONE_CHANGED.into()
-    }
-
-    fn module() -> String {
-        ThunderPlugin::System.callsign_string()
-    }
-
-    fn get_id(&self) -> String {
-        Self::get_mapped_event()
-    }
-
-    fn get_extn_event(
-        _r: Self::EVENT,
-        _callback_type: DeviceEventCallback,
-    ) -> Result<ExtnEvent, RippleError> {
-        Err(RippleError::InvalidOutput)
     }
 }

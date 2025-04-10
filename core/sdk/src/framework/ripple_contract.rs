@@ -41,12 +41,7 @@ pub enum RippleContract {
     /// Used by Main application to provide internal contracts for Extensions
     #[default]
     Internal,
-    /// Provided by the distributor useful for adding Governance implementation for handling
-    /// privacy information and other sensitive data.
-    Governance,
-    /// Provided by the distributor to discover content, apps, history and recommendations.
-    /// Used by [crate::api::distributor::distributor_discovery::DiscoveryRequest]
-    Discovery,
+
     /// Provided by the platform to handle launching and managing applications.
     /// Used by [crate::api::firebolt::fb_lifecycle_management::LifecycleManagementEventRequest]
     Launcher,
@@ -88,26 +83,12 @@ pub enum RippleContract {
     DeviceEvents(EventAdjective),
     /// Contract for controlling Voice guidance typically offered by the Device Channel or the browser.
     VoiceGuidance,
-    /// Contract focussed on Aggregating the App Behavior metrics before sending to the Distributor ingestors.
-    BehaviorMetrics,
-    /// Contract focussed on getting more real time media playback events like Pause, Play, Seek useful for
-    /// features like Continue Watching
-    MediaEvents,
     /// Contract which controls User Privacy Settings will become an Adjective in near future
     PrivacySettings,
-    /// Contract used for tracking Sign in / Sign Out across apps so Distributor can provide better discovery
-    /// of the signed in Application.
-    AccountLink,
     /// Contract to allow Extensions to  get and set Settings.
     Settings,
-    /// Used for synchronization enforcement between cloud and local data
-    CloudSync,
     /// Extensions can use this contract to get more information on the firebolt capabilities  
     Caps,
-    /// Distributors can add their encoding algorithms to account and device id for security.
-    Encoder,
-    /// Contract for Main to forward behavior and operational metrics to processors
-    Metrics,
     /// Contract for Extensions to recieve Telemetry events from Main
     OperationalMetricListener,
     Observability,
@@ -335,21 +316,8 @@ mod tests {
     }
 
     #[test]
-    fn test_as_clear_string() {
-        assert_eq!(
-            RippleContract::AccountLink.as_clear_string(),
-            "account_link".to_owned()
-        );
-        assert_eq!(
-            RippleContract::Session(crate::api::session::SessionAdjective::Account)
-                .as_clear_string(),
-            "account.session".to_owned()
-        )
-    }
-
-    #[test]
     fn test_from_manifest() {
-        assert!(RippleContract::from_manifest("account_link").is_some());
+        assert!(RippleContract::from_manifest("permissions").is_some());
         assert!(RippleContract::from_manifest("account.session").is_some());
     }
 }

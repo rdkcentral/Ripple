@@ -14,20 +14,32 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-
+#[allow(dead_code, unused_imports)]
 use crate::ripple_sdk::{serde_json::json, tokio};
+#[allow(dead_code, unused_imports)]
 use crate::tests::contracts::contract_utils::*;
+#[allow(dead_code, unused_imports)]
 use crate::tests::contracts::thunder_persistent_store_pacts::chrono::Utc;
+#[allow(dead_code, unused_imports)]
 use crate::{get_pact_with_params, send_thunder_call_message};
+#[allow(dead_code, unused_imports)]
 use pact_consumer::mock_server::StartMockServerAsync;
+#[allow(dead_code, unused_imports)]
 use pact_consumer::prelude::*;
+#[allow(dead_code, unused_imports)]
 use ripple_sdk::chrono;
+#[allow(dead_code, unused_imports)]
 use rstest::rstest;
+#[allow(dead_code, unused_imports)]
 use std::collections::HashMap;
 
+#[allow(dead_code, unused_imports)]
 use futures_util::{SinkExt, StreamExt};
+#[allow(dead_code, unused_imports)]
 use tokio::time::{timeout, Duration};
+#[allow(dead_code, unused_imports)]
 use tokio_tungstenite::connect_async;
+#[allow(dead_code, unused_imports)]
 use tokio_tungstenite::tungstenite::protocol::Message;
 
 #[rstest(with_scope, case(true), case(false))]

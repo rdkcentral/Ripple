@@ -49,7 +49,7 @@ use crate::{
     broker::broker_utils::BrokerUtils,
     firebolt::firebolt_gateway::{FireboltGatewayCommand, JsonRpcError},
     service::extn::ripple_client::RippleClient,
-    state::{metrics_state::MetricsState, platform_state::PlatformState, session_state::Session},
+    state::{otel_state::OpMetricState, platform_state::PlatformState, session_state::Session},
     utils::router_utils::{
         add_telemetry_status_code, capture_stage, get_rpc_header, return_extn_response,
     },
@@ -372,7 +372,7 @@ pub struct EndpointBrokerState {
     cleaner_list: Arc<RwLock<Vec<BrokerCleaner>>>,
     reconnect_tx: Sender<BrokerConnectRequest>,
     provider_broker_state: ProvideBrokerState,
-    metrics_state: MetricsState,
+    metrics_state: OpMetricState,
 }
 impl Default for EndpointBrokerState {
     fn default() -> Self {
@@ -385,14 +385,14 @@ impl Default for EndpointBrokerState {
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx: mpsc::channel(2).0,
             provider_broker_state: ProvideBrokerState::default(),
-            metrics_state: MetricsState::default(),
+            metrics_state: OpMetricState::default(),
         }
     }
 }
 
 impl EndpointBrokerState {
     pub fn new(
-        metrics_state: MetricsState,
+        metrics_state: OpMetricState,
         tx: Sender<BrokerOutput>,
         rule_engine: RuleEngine,
         ripple_client: RippleClient,
@@ -841,6 +841,10 @@ impl EndpointBrokerState {
         if let Err(e) = self.callback.sender.try_send(BrokerOutput { data }) {
             error!("Cannot forward broker response {:?}", e)
         }
+    }
+
+    pub fn has_rule(&self, method: &str) -> bool {
+        self.rule_engine.has_rule(method)
     }
 
     pub fn get_rule(&self, rpc_request: &RpcRequest) -> Option<Rule> {
@@ -1607,7 +1611,7 @@ mod tests {
                 endpoint_broker::tests::RippleClient,
                 rules_engine::{Rule, RuleEngine, RuleSet, RuleTransform},
             },
-            state::{bootstrap_state::ChannelsState, metrics_state::MetricsState},
+            state::{bootstrap_state::ChannelsState, otel_state::OpMetricState},
         };
 
         use super::EndpointBrokerState;
@@ -1617,7 +1621,7 @@ mod tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let state = EndpointBrokerState::new(
-                MetricsState::default(),
+                OpMetricState::default(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),

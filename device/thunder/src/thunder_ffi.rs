@@ -49,7 +49,6 @@ fn init_library() -> CExtnMetadata {
             RippleContract::DeviceEvents(EventAdjective::Input),
             RippleContract::DeviceEvents(EventAdjective::VoiceGuidance),
             RippleContract::DeviceEvents(EventAdjective::Audio),
-            RippleContract::DeviceEvents(EventAdjective::SystemPowerState),
             RippleContract::Storage(StorageAdjective::Local),
             RippleContract::RemoteAccessory,
             RippleContract::Wifi,

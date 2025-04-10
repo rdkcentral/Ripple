@@ -22,10 +22,8 @@
                         "local.storage",
                         "input.device_events",
                         "voice_guidance.device_events",
-                        "internet.device_events",
+                        
                         "audio.device_events",
-                        "system_power_state.device_events",
-                        "time_zone.device_events",
                         "remote_feature_control"
                     ]
                 }
@@ -45,11 +43,7 @@
                         "secure.storage",
                         "advertising",
                         "privacy_cloud.storage",
-                        "metrics",
                         "session.token",
-                        "discovery",
-                        "media_events",
-                        "behavior_metrics",
                         "root.session",
                         "device.session"
                     ]
@@ -97,9 +91,6 @@
         "secure_storage",
         "privacy_settings",
         "session_token",
-        "metrics",
-        "discovery",
-        "media_events",
         "account.session"
     ],
     "rpc_aliases": {
