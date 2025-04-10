@@ -186,3 +186,99 @@ pub fn default_providers() -> Vec<String> {
     ];
     value.iter().map(|x| x.to_string()).collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::api::manifest::extn_manifest::tests::Mockable as mock_extn_manifests;
+
+    use super::*;
+    use ripple_sdk::Mockable;
+
+    impl Mockable for CascadedExtnManifest {
+        fn mock() -> Self {
+            let (_, manifest) = CascadedExtnManifest::load_from_content(
+                include_str!("mock_manifests/cascaded-extn-manifest-example.json").to_string(),
+            )
+            .unwrap();
+            manifest
+        }
+    }
+
+    #[test]
+    fn test_get_merge_config_timeout() {
+        let mut default_manifest = ExtnManifest::mock();
+        let cascaded_manifest = CascadedExtnManifest::mock();
+        default_manifest.merge_config(cascaded_manifest);
+        let timeout = default_manifest.get_timeout();
+        assert_eq!(timeout, 10000);
+    }
+
+    #[test]
+    fn test_get_merge_config_default_path() {
+        let mut default_manifest = ExtnManifest::mock();
+        let cascaded_manifest = CascadedExtnManifest::mock();
+        default_manifest.merge_config(cascaded_manifest);
+        assert_eq!(default_manifest.default_path, "/tmp");
+    }
+
+    #[test]
+    fn test_get_merge_config_default_extension() {
+        let mut default_manifest = ExtnManifest::mock();
+        let cascaded_manifest = CascadedExtnManifest::mock();
+        default_manifest.merge_config(cascaded_manifest);
+        assert_eq!(default_manifest.default_extension, "json");
+    }
+
+    #[test]
+    fn test_get_merge_config_required_contracts() {
+        let mut default_manifest = ExtnManifest::mock();
+        // Modify the mock CascadedExtnManifest to include "make"
+        let cascaded_manifest = CascadedExtnManifest::mock();
+        default_manifest.merge_config(cascaded_manifest);
+        let contains_mock_val_a = default_manifest
+            .required_contracts
+            .contains(&"mock_val_a".to_string());
+        assert!(
+            contains_mock_val_a,
+            "Expected 'mock_val_a' to be present in required_contracts"
+        );
+    }
+
+    #[test]
+    fn test_get_merge_config_extn_manifest_entry() {
+        let mut default_manifest = ExtnManifest::mock();
+        let cascaded_manifest = CascadedExtnManifest::mock();
+        default_manifest.merge_config(cascaded_manifest);
+        // Check if an extension with path "libsocket" is present
+        let libsocket_present = default_manifest
+            .extns
+            .iter()
+            .any(|extn| extn.path == "libsocket");
+        assert!(
+            libsocket_present,
+            "Expected an extension with path 'libsocket'"
+        );
+    }
+
+    #[test]
+    fn test_get_merge_config_extn_symbol() {
+        let mut default_manifest = ExtnManifest::mock();
+        let cascaded_manifest = CascadedExtnManifest::mock();
+        default_manifest.merge_config(cascaded_manifest);
+        // Check if an extension with path "libsocket" is present
+        if let Some(libsocket_extn) = default_manifest
+            .extns
+            .iter()
+            .find(|extn| extn.path == "libsocket")
+        {
+            let symbol_id_present = libsocket_extn
+                .symbols
+                .iter()
+                .any(|sym| sym.id == "ripple:channel:device:socket");
+            assert!(
+                symbol_id_present,
+                "Expected symbol 'ripple:channel:device:socket' in 'libsocket'"
+            );
+        }
+    }
+}

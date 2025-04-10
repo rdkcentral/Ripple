@@ -211,7 +211,7 @@ impl ExtnManifest {
     }
 }
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use crate::extn::extn_id::{ExtnClassId, ExtnType};
 
     use super::*;
