@@ -18,7 +18,7 @@ use ripple_sdk::{
     api::gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
     extn::extn_client_message::{ExtnMessage, ExtnResponse},
     log::{error, trace},
-    serde_json::{self, Result as SResult}
+    serde_json::{self, Result as SResult},
 };
 
 use crate::state::otel_state::OpMetricState;
