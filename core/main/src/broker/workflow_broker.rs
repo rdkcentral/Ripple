@@ -164,6 +164,7 @@ impl WorkflowBroker {
         trace!("Composed {:?}", composed.result);
         Ok(composed)
     }
+
     pub fn start(callback: BrokerCallback, endpoint_broker: EndpointBrokerState) -> BrokerSender {
         let (tx, mut rx) = mpsc::channel::<BrokerRequest>(10);
         /*
@@ -436,6 +437,85 @@ pub mod tests {
         assert!(result.is_err());
         if let Err(SubBrokerErr::RpcError(err)) = result {
             assert_eq!(err.to_string(), "BrokerError Failed to receive message");
+        }
+    }
+
+    #[tokio::test]
+    pub async fn test_start_successful_workflow() {
+        use super::*;
+
+        let (tx, mut rx) = mpsc::channel::<BrokerOutput>(10);
+        let callback = BrokerCallback { sender: tx };
+
+        let endpoint_broker = endppoint_broker_state();
+        let broker_sender = WorkflowBroker::start(callback.clone(), endpoint_broker.clone());
+
+        let mut rpc_request = RpcRequest::mock();
+        rpc_request.method = "test.method".to_string();
+
+        let broker_request = BrokerRequest {
+            rpc: rpc_request,
+            rule: Rule {
+                alias: "test_rule".to_string(),
+                ..Default::default()
+            },
+            subscription_processed: None,
+            workflow_callback: Some(callback.clone()),
+            telemetry_response_listeners: vec![],
+        };
+
+        // Send a broker request
+        broker_sender.sender.send(broker_request).await.unwrap();
+
+        // Verify that a successful response is received
+        if let Some(BrokerOutput { data, .. }) = rx.recv().await {
+            assert!(!data.is_error());
+        }
+    }
+
+    #[tokio::test]
+    pub async fn test_start_workflow_with_jsonrpc_error() {
+        use super::*;
+
+        let (tx, mut rx) = mpsc::channel::<BrokerOutput>(10);
+        let callback = BrokerCallback { sender: tx };
+
+        let endpoint_broker = endppoint_broker_state();
+        let broker_sender = WorkflowBroker::start(callback.clone(), endpoint_broker.clone());
+
+        let mut rpc_request = RpcRequest::mock();
+        rpc_request.method = "test.method".to_string();
+
+        let broker_request = BrokerRequest {
+            rpc: rpc_request,
+            rule: Rule {
+                alias: "test_rule".to_string(),
+                ..Default::default()
+            },
+            subscription_processed: None,
+            workflow_callback: Some(callback.clone()),
+            telemetry_response_listeners: vec![],
+        };
+
+        broker_sender.sender.send(broker_request).await.unwrap();
+
+        let response = JsonRpcApiResponse {
+            jsonrpc: "2.0".to_owned(),
+            id: Some(147),
+            error: Some(json!("SubBrokerErr::JsonRpcApiError")),
+            result: None,
+            method: None,
+            params: None,
+        };
+
+        let broker_output = BrokerOutput {
+            data: response.into(),
+        };
+
+        callback.sender.send(broker_output).await.unwrap();
+        // Verify that a JSON-RPC error response is received
+        if let Some(BrokerOutput { data, .. }) = rx.recv().await {
+            assert!(data.is_error());
         }
     }
 }
