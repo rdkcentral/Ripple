@@ -401,6 +401,8 @@ pub mod tests {
         assert!(!broker.get_sender().sender.is_closed());
 
         // invoke BrokerCleaner()
-        let _cleaner = broker.get_cleaner();
+        let cleaner = broker.get_cleaner();
+
+        assert!(cleaner.cleaner.is_none());
     }
 }
