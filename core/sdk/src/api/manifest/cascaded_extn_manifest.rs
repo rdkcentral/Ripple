@@ -61,7 +61,7 @@ impl MergeConfig<CascadedExtnManifest> for ExtnManifest {
             self.extns.extend(cas_extens);
         }
         if let Some(cas_required_contracts) = cascaded.required_contracts {
-            self.extn_sdks.extend(cas_required_contracts);
+            self.required_contracts.extend(cas_required_contracts);
         }
         if let Some(cas_rpc_aliases) = cascaded.rpc_aliases {
             for (key, values) in cas_rpc_aliases {
