@@ -18,8 +18,7 @@ use ripple_sdk::{
     api::gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
     extn::extn_client_message::{ExtnMessage, ExtnResponse},
     log::{error, trace},
-    serde_json::{self, Result as SResult},
-    utils::error::RippleError,
+    serde_json::{self, Result as SResult}
 };
 
 use crate::state::otel_state::OpMetricState;
@@ -41,7 +40,8 @@ pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage) {
         } else if let Some(error) = resp.error {
             error
         } else {
-            serde_json::to_value(RippleError::InvalidOutput).unwrap()
+            // Most of handler calls return Null resulting in None
+            serde_json::Value::Null
         };
 
         let return_value = ExtnResponse::Value(response_value);
