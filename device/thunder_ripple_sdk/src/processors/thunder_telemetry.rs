@@ -96,6 +96,7 @@ fn get_event_name(event: &TelemetryPayload) -> &'static str {
         TelemetryPayload::SignOut(_) => "app_sign_out_split",
         TelemetryPayload::InternalInitialize(_) => "app_internal_initialize_split",
         TelemetryPayload::FireboltInteraction(_) => "app_firebolt_split",
+        TelemetryPayload::FireboltEvent(_) => "app_firebolt_event_split",
     }
 }
 
@@ -154,6 +155,10 @@ impl ExtnEventProcessor for ThunderTelemetryProcessor {
         _msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> Option<bool> {
+        if let TelemetryPayload::FireboltEvent(_) = extracted_message {
+            return None;
+        }
+
         if let Ok(data) = render_event_data(&extracted_message) {
             info!("Sending telemetry event: {}", data);
             state

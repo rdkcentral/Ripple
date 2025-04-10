@@ -33,7 +33,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::state::platform_state::PlatformState;
+use crate::{service::telemetry_builder::TelemetryBuilder, state::platform_state::PlatformState};
 
 #[derive(Debug)]
 pub struct AppEventDecorationError {}
@@ -384,6 +384,8 @@ impl AppEvents {
                 AppEvents::send_event(&i, result).await;
             }
         }
+
+        TelemetryBuilder::send_fb_event(state, event_name, result.clone());
     }
 
     pub async fn emit_to_app(
@@ -405,6 +407,8 @@ impl AppEvents {
                 error!("could not generate event for '{}'", event_name);
             }
         }
+
+        TelemetryBuilder::send_fb_event(state, event_name, result.clone());
     }
 
     pub fn is_app_registered_for_event(
