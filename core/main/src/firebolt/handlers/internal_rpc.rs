@@ -23,7 +23,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::CallContext,
     },
     async_trait::async_trait,
-    log::error,
+    log::{debug, error},
     tokio::sync::oneshot,
 };
 
@@ -74,6 +74,7 @@ impl InternalServer for InternalImpl {
     }
 
     async fn send_app_event(&self, _ctx: CallContext, event: AppEvent) -> RpcResult<()> {
+        debug!("Sending App event {:?}", &event);
         AppEvents::emit_with_context(&self.state, &event.event_name, &event.result, event.context)
             .await;
         Ok(())
@@ -81,11 +82,12 @@ impl InternalServer for InternalImpl {
 
     async fn register_app_event(
         &self,
-        ctx: CallContext,
+        _ctx: CallContext,
         request: ListenRequestWithEvent,
     ) -> RpcResult<()> {
+        debug!("registering App event {:?}", &request);
         let event = request.event.clone();
-        AppEvents::add_listener(&self.state, event, ctx, request.request);
+        AppEvents::add_listener(&self.state, event, request.context.clone(), request.request);
         Ok(())
     }
 

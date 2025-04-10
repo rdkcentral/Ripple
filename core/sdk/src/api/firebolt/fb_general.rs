@@ -17,6 +17,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::api::gateway::rpc_gateway_api::CallContext;
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct ListenRequest {
     pub listen: bool,
@@ -26,6 +28,7 @@ pub struct ListenRequest {
 pub struct ListenRequestWithEvent {
     pub event: String,
     pub request: ListenRequest,
+    pub context: CallContext,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
