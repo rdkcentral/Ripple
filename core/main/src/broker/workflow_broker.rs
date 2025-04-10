@@ -405,4 +405,37 @@ pub mod tests {
 
         assert!(cleaner.cleaner.is_none());
     }
+
+    #[tokio::test]
+    pub async fn test_subbroker_call_error() {
+        use super::*;
+
+        let (tx, mut rx) = mpsc::channel::<BrokerOutput>(10);
+        let _callback = BrokerCallback { sender: tx };
+
+        let mut rpc_request = RpcRequest::mock();
+        rpc_request.method = "test.method".to_string();
+
+        let source = JsonDataSource {
+            method: "test.method".to_string(),
+            namespace: Some("test_namespace".to_string()),
+            ..Default::default()
+        };
+
+        let endpoint_broker = endppoint_broker_state();
+
+        tokio::spawn(async move {
+            if let Some(BrokerOutput { data, .. }) = rx.recv().await {
+                // Handle the received message or log an error
+                error!("Received message: {:?}", data);
+            }
+        });
+
+        let result = subbroker_call(endpoint_broker, rpc_request, source).await;
+
+        assert!(result.is_err());
+        if let Err(SubBrokerErr::RpcError(err)) = result {
+            assert_eq!(err.to_string(), "BrokerError Failed to receive message");
+        }
+    }
 }
