@@ -508,9 +508,7 @@ pub mod tests {
             params: None,
         };
 
-        let broker_output = BrokerOutput {
-            data: response.into(),
-        };
+        let broker_output = BrokerOutput { data: response };
 
         callback.sender.send(broker_output).await.unwrap();
         // Verify that a JSON-RPC error response is received
