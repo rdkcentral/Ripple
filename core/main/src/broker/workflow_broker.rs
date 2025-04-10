@@ -384,4 +384,23 @@ pub mod tests {
             assert!(data.is_error());
         }
     }
+
+    #[tokio::test]
+    pub async fn test_get_broker() {
+        use super::*;
+
+        let (tx, _) = mpsc::channel::<BrokerOutput>(10);
+        let callback = BrokerCallback { sender: tx };
+
+        let mut broker_state = endppoint_broker_state();
+        let request = BrokerConnectRequest::default();
+
+        let broker = WorkflowBroker::get_broker(None, request, callback.clone(), &mut broker_state);
+
+        // Verify that the broker sender is initialized
+        assert!(!broker.get_sender().sender.is_closed());
+
+        // invoke BrokerCleaner()
+        let _cleaner = broker.get_cleaner();
+    }
 }
