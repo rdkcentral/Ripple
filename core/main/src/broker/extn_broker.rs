@@ -265,7 +265,7 @@ mod tests {
     pub async fn test_start_successful_response() {
         use super::*;
 
-        let (tx, rx) = mpsc::channel::<BrokerOutput>(10);
+        let (tx, _rx) = mpsc::channel::<BrokerOutput>(10);
         let callback = BrokerCallback { sender: tx };
 
         let mut rpc_request = RpcRequest::mock();
