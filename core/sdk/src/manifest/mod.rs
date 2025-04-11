@@ -16,4 +16,3 @@
 //
 pub mod device;
 pub mod extn;
-pub mod ripple_manifest_loader;

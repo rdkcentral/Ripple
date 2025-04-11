@@ -18,12 +18,12 @@
 use std::time::Instant;
 
 use ripple_sdk::{
-    api::apps::AppRequest,
+    api::{apps::AppRequest, manifest::ripple_manifest_loader::RippleManifestLoader},
     async_channel::{unbounded, Receiver as CReceiver, Sender as CSender},
     extn::ffi::ffi_message::CExtnMessage,
     framework::bootstrap::TransientChannel,
     log::{info, warn},
-    manifest::{device::LoadDeviceManifestStep, ripple_manifest_loader::RippleManifestLoader},
+    manifest::device::LoadDeviceManifestStep,
     tokio::sync::mpsc::{self, Receiver, Sender},
     utils::error::RippleError,
 };
