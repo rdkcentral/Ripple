@@ -62,6 +62,7 @@ use super::{
     provider_broker_state::{ProvideBrokerState, ProviderResult},
     rules_engine::{
         jq_compile, EventHandler, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine,
+        RuleTransformType,
     },
     thunder_broker::ThunderBroker,
     websocket_broker::WebsocketBroker,
@@ -1295,7 +1296,10 @@ impl BrokerOutputForwarder {
     async fn handle_event(
         platform_state: PlatformState,
         event_handler: EventHandler,
-        _broker_request: BrokerRequest,
+        // <pca>
+        //_broker_request: BrokerRequest,
+        broker_request: BrokerRequest,
+        // </pca>
         rpc_request: RpcRequest,
         mut response: JsonRpcApiResponse,
     ) {
@@ -1346,15 +1350,45 @@ impl BrokerOutputForwarder {
         };
         // ==============================================================================================================
 
-        if let Ok(res) = BrokerUtils::process_internal_main_request(
+        // <pca>
+        // if let Ok(res) = BrokerUtils::process_internal_main_request(
+        //     &mut platform_state_c,
+        //     event_handler.method.as_str(),
+        //     params,
+        // )
+        // .await
+        // {
+        //     response.result = Some(res.clone());
+        // }
+        if let Ok(event_handler_reposnse) = BrokerUtils::process_internal_main_request(
             &mut platform_state_c,
             event_handler.method.as_str(),
             params,
         )
         .await
         {
-            response.result = Some(res.clone());
+            println!(
+                "*** _DEBUG: event_handler_reposnse={:?}",
+                event_handler_reposnse
+            );
+
+            if let Some(event_filter) = broker_request.rule.transform.get_transform_data(
+                super::rules_engine::RuleTransformType::Event(
+                    rpc_request.ctx.context.contains(&RPC_V2.into()),
+                ),
+            ) {
+                apply_rule_for_event(
+                    &broker_request,
+                    &event_handler_reposnse,
+                    &rpc_request,
+                    &event_filter,
+                    &mut response,
+                );
+            } else {
+                response.result = Some(event_handler_reposnse);
+            }
         }
+        // </pca>
 
         response.id = Some(request_id);
 
