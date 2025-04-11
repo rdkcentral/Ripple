@@ -18,7 +18,7 @@
 use std::time::Instant;
 
 use ripple_sdk::{
-    api::apps::AppRequest,
+    api::{apps::AppRequest, manifest::ripple_manifest_loader::RippleManifestLoader},
     async_channel::{unbounded, Receiver as CReceiver, Sender as CSender},
     extn::ffi::ffi_message::CExtnMessage,
     framework::bootstrap::TransientChannel,
@@ -29,10 +29,8 @@ use ripple_sdk::{
 };
 
 use crate::{
-    bootstrap::manifest::{apps::LoadAppLibraryStep, extn::LoadExtnManifestStep},
-    broker::endpoint_broker::BrokerOutput,
-    firebolt::firebolt_gateway::FireboltGatewayCommand,
-    service::extn::ripple_client::RippleClient,
+    bootstrap::manifest::apps::LoadAppLibraryStep, broker::endpoint_broker::BrokerOutput,
+    firebolt::firebolt_gateway::FireboltGatewayCommand, service::extn::ripple_client::RippleClient,
 };
 
 use super::{extn_state::ExtnState, platform_state::PlatformState};
@@ -118,10 +116,12 @@ impl BootstrapState {
     pub fn build() -> Result<BootstrapState, RippleError> {
         let channels_state = ChannelsState::new();
         let client = RippleClient::new(channels_state.clone());
-        let device_manifest = LoadDeviceManifestStep::get_manifest();
+        let Ok((extn_manifest, device_manifest)) = RippleManifestLoader::initialize() else {
+            eprintln!("Error initializing manifests");
+            return Err(RippleError::BootstrapError);
+        };
         LoadDeviceManifestStep::read_env_variable();
         let app_manifest_result = LoadAppLibraryStep::load_app_library();
-        let extn_manifest = LoadExtnManifestStep::get_manifest();
         let extn_state = ExtnState::new(channels_state.clone(), extn_manifest.clone());
         let platform_state = PlatformState::new(
             extn_manifest,
