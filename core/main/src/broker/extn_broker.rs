@@ -235,7 +235,7 @@ mod tests {
             &mut broker_state,
         );
 
-        assert!(broker.get_sender().sender.is_closed() == false);
+        assert!(!broker.get_sender().sender.is_closed());
     }
 
     #[tokio::test]
