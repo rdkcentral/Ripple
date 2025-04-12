@@ -56,7 +56,9 @@ pub struct RippleManifestLoader {
 impl RippleManifestLoader {
     pub fn initialize() -> Result<(ExtnManifest, DeviceManifest), RippleError> {
         let cascaded_config = std::env::var("CASCADED_CONFIGURATION").is_ok();
-        let base_path = "/etc/ripple/rdke".to_string();
+        let base_path =
+            "/etc/ripple/rdke"
+                .to_string();
         let country_code = std::env::var("COUNTRY").unwrap_or_else(|_| "eu".to_string());
         let device_type = std::env::var("DEVICE_PLATFORM").ok();
 
@@ -146,7 +148,7 @@ impl RippleConfigLoader {
         }
     */
     fn load_manifest<M: for<'de> Deserialize<'de>>(&self, path: &str) -> Result<M, RippleError> {
-        let path_owned = path.to_string(); // Create an owned String
+        let path_owned = path.to_string();
         std::fs::read_to_string(&path_owned)
             .map_err(move |_| RippleError::MissingInput)
             .and_then(move |content| {
@@ -155,6 +157,7 @@ impl RippleConfigLoader {
             .inspect(move |_| info!("Loaded manifest from: {}", path_owned))
             .inspect_err(move |e| warn!("{}", e))
     }
+
     fn load_and_merge_manifests<
         T: MergeConfig<C> + Default + Serialize + for<'de> Deserialize<'de>,
         C: for<'de> Deserialize<'de>,
@@ -265,16 +268,7 @@ impl RippleConfigLoader {
         manifest_type: &str,
     ) -> M {
         println!("Loading cascaded {} manifest", manifest_type.to_lowercase());
-        let mut paths = self.get_manifest_paths(is_extn);
-        let default_path_ref = if is_extn {
-            &self.manifest_config.default.extn
-        } else {
-            &self.manifest_config.default.device
-        };
-        let default_path = self.resolve_path(default_path_ref);
-        if !default_path.is_empty() && !paths.contains(&default_path) {
-            paths.insert(0, default_path);
-        }
+        let paths = self.get_manifest_paths(is_extn);
         self.load_and_merge_manifests::<M, C>(&paths, manifest_type)
     }
 
@@ -282,8 +276,7 @@ impl RippleConfigLoader {
         if self.cascaded_config {
             self.load_cascaded_manifest::<ExtnManifest, CascadedExtnManifest>(true, "Extension")
         } else {
-            println!("Loading default extn manifest (non-cascaded)");
-            LoadExtnManifestStep::get_manifest()
+            panic!("get_extn_manifest called in non-cascaded mode after initialization");
         }
     }
 
@@ -291,8 +284,7 @@ impl RippleConfigLoader {
         if self.cascaded_config {
             self.load_cascaded_manifest::<DeviceManifest, CascadedDeviceManifest>(false, "Device")
         } else {
-            println!("Loading default device manifest (non-cascaded)");
-            LoadDeviceManifestStep::get_manifest()
+            panic!("get_device_manifest called in non-cascaded mode after initialization");
         }
     }
 }
