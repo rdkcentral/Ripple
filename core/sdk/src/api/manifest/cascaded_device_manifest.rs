@@ -614,7 +614,9 @@ impl MergeConfig<CascadedDefaultValues> for DefaultValues {
             self.allow_resume_points = cas_allow_resume_points
         }
 
-        if let Some(cas_allow_unentitled_personalization) = cascaded.allow_unentitled_personalization {
+        if let Some(cas_allow_unentitled_personalization) =
+            cascaded.allow_unentitled_personalization
+        {
             self.allow_unentitled_personalization = cas_allow_unentitled_personalization;
         }
         if let Some(cas_allow_unentitled_resume_points) = cascaded.allow_unentitled_resume_points {
@@ -632,16 +634,21 @@ impl MergeConfig<CascadedDefaultValues> for DefaultValues {
         if let Some(cas_lifecycle_transition_validate) = cascaded.lifecycle_transition_validate {
             self.lifecycle_transition_validate = cas_lifecycle_transition_validate;
         }
-        if let Some(cas_media_progress_as_watched_events) = cascaded.media_progress_as_watched_events {
+        if let Some(cas_media_progress_as_watched_events) =
+            cascaded.media_progress_as_watched_events
+        {
             self.media_progress_as_watched_events = cas_media_progress_as_watched_events;
         }
-        if let Some(cas_accessibility_audio_description_settings) = cascaded.accessibility_audio_description_settings {
-            self.accessibility_audio_description_settings = cas_accessibility_audio_description_settings;
+        if let Some(cas_accessibility_audio_description_settings) =
+            cascaded.accessibility_audio_description_settings
+        {
+            self.accessibility_audio_description_settings =
+                cas_accessibility_audio_description_settings;
         }
         if let Some(cas_role_based_support) = cascaded.role_based_support {
             self.role_based_support = cas_role_based_support;
         }
-        
+
         if let Some(cas_country_postal_code) = cascaded.country_postal_code {
             self.country_postal_code.extend(cas_country_postal_code);
         }
@@ -744,10 +751,6 @@ impl MergeConfig<CascadedRippleFeatures> for RippleFeatures {
         }
         if let Some(cas_cloud_permission) = cascaded.cloud_permissions {
             self.cloud_permissions = cas_cloud_permission
-        }
-        if let Some(cas_catalog_uninstalls_enabled) = cascaded.catalog_uninstalls_enabled {
-            self.catalog_uninstalls_enabled
-                .merge_config(cas_catalog_uninstalls_enabled);
         }
     }
 }

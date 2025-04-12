@@ -17,6 +17,7 @@
 
 pub mod app_library;
 pub mod apps;
+pub mod cascaded_device_manifest;
 pub mod cascaded_extn_manifest;
 pub mod device_manifest;
 pub mod exclusory;

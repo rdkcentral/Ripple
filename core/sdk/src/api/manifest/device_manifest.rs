@@ -38,7 +38,7 @@ use super::{apps::AppManifest, exclusory::ExclusoryImpl};
 pub const PARTNER_EXCLUSION_REFRESH_TIMEOUT: u32 = 12 * 60 * 60; // 12 hours
 pub const METRICS_LOGGING_PERCENTAGE_DEFAULT: u32 = 10;
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RippleConfiguration {
     #[serde(default = "log_signal_default_level")]
     pub log_signal_log_level: String,
@@ -83,7 +83,7 @@ fn metrics_logging_percentage_default() -> u32 {
 pub fn log_signal_default_level() -> String {
     "OFF".to_string()
 }
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CapabilityConfiguration {
     pub supported: Vec<String>,
@@ -94,7 +94,7 @@ pub struct CapabilityConfiguration {
     pub dependencies: HashMap<FireboltPermission, Vec<FireboltPermission>>,
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct LifecycleConfiguration {
@@ -141,7 +141,7 @@ impl LifecycleConfiguration {
 }
 /// Device manifest contains all the specifications required for coniguration of a Ripple application.
 /// Device manifest file should be compliant to the Openrpc schema specified in <https://github.com/rdkcentral/firebolt-configuration>
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct DeviceManifest {
     pub configuration: RippleConfiguration,
     pub capabilities: CapabilityConfiguration,
@@ -150,7 +150,7 @@ pub struct DeviceManifest {
     pub applications: ApplicationsConfiguration,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct DistributionConfiguration {
     pub library: String,
@@ -164,7 +164,7 @@ impl Default for DistributionConfiguration {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct ApplicationDefaultsConfiguration {
     #[serde(rename = "xrn:firebolt:application-type:main")]
@@ -193,7 +193,7 @@ impl ApplicationDefaultsConfiguration {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct ApplicationsConfiguration {
     #[serde(default)]
@@ -203,7 +203,7 @@ pub struct ApplicationsConfiguration {
     pub distributor_app_aliases: HashMap<String, String>,
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct WsConfiguration {
     pub enabled: bool,
     pub gateway: String,
@@ -559,7 +559,7 @@ fn default_saved_dir() -> String {
     String::from("/opt/persistent/ripple")
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DataGovernanceConfig {
     pub policies: Vec<DataGovernancePolicy>,
 }
@@ -603,7 +603,7 @@ pub fn default_drop_on_all_tags() -> bool {
     true
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DataGovernancePolicy {
     pub data_type: DataEventType,
     pub setting_tags: Vec<DataGovernanceSettingTag>,
@@ -625,7 +625,7 @@ impl DataGovernancePolicy {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DataGovernanceSettingTag {
     pub setting: StorageProperty,
     #[serde(default = "default_enforcement_value")]
@@ -643,7 +643,7 @@ impl DataGovernanceSettingTag {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct InternetMonitoringConfiguration {
     pub default_monitoring_interval_seconds: u32,
 }
