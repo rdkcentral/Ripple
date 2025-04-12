@@ -14,31 +14,37 @@ use crate::{
     manifest::{device::LoadDeviceManifestStep, extn::LoadExtnManifestStep},
     utils::error::RippleError,
 };
+
 #[derive(Clone, Debug, Deserialize, Default)]
 pub struct RippleManifestConfig {
     default: DefaultManifestConfig,
     tags: Option<HashMap<String, ManifestEntry>>,
     build: Option<BuildConfig>,
 }
+
 #[derive(Clone, Debug, Deserialize, Default)]
 struct DefaultManifestConfig {
     device: String,
     extn: String,
     tag: Option<String>,
 }
+
 #[derive(Clone, Debug, Deserialize, Default)]
 struct ManifestEntry {
     manifest: Option<String>,
     extn: Option<String>,
 }
+
 #[derive(Clone, Debug, Deserialize, Default)]
 struct BuildConfig {
     country: Option<HashMap<String, CountryConfig>>,
 }
+
 #[derive(Clone, Debug, Deserialize, Default)]
 struct CountryConfig {
     tags: Option<Vec<String>>,
 }
+
 pub struct RippleManifestLoader {
     cascaded_config: bool,
     manifest_config: Option<RippleManifestConfig>,
@@ -50,9 +56,7 @@ pub struct RippleManifestLoader {
 impl RippleManifestLoader {
     pub fn initialize() -> Result<(ExtnManifest, DeviceManifest), RippleError> {
         let cascaded_config = std::env::var("CASCADED_CONFIGURATION").is_ok();
-        let base_path =
-            "/Users/pkumbh631/RDKE_Single_build/combined_chnages/eos-ripple/firebolt-devices/rdke"
-                .to_string();
+        let base_path = "/etc/ripple/rdke".to_string();
         let country_code = std::env::var("COUNTRY").unwrap_or_else(|_| "eu".to_string());
         let device_type = std::env::var("DEVICE_PLATFORM").ok();
 
@@ -234,7 +238,7 @@ impl RippleConfigLoader {
                     }
                 }
                 if let Some(dt) = &device_type {
-                    let combined_tag = format!("{}-{}", tag, dt); // Changed to use hyphen
+                    let combined_tag = format!("{}-{}", tag, dt);
                     if let Some(entry) = tags.get(&combined_tag) {
                         if let Some(path) = match manifest_key {
                             "extn" => entry.extn.as_deref(),
