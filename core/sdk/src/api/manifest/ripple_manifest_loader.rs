@@ -8,10 +8,8 @@ use serde::Serialize;
 use crate::{
     api::manifest::{
         cascaded_device_manifest::CascadedDeviceManifest,
-        cascaded_extn_manifest::CascadedExtnManifest,
-        device_manifest::DeviceManifest,
-        extn_manifest::ExtnManifest,
-        MergeConfig,
+        cascaded_extn_manifest::CascadedExtnManifest, device_manifest::DeviceManifest,
+        extn_manifest::ExtnManifest, MergeConfig,
     },
     manifest::{device::LoadDeviceManifestStep, extn::LoadExtnManifestStep},
     utils::error::RippleError,
@@ -52,7 +50,9 @@ pub struct RippleManifestLoader {
 impl RippleManifestLoader {
     pub fn initialize() -> Result<(ExtnManifest, DeviceManifest), RippleError> {
         let cascaded_config = std::env::var("CASCADED_CONFIGURATION").is_ok();
-        let base_path = "/Users/pkumbh631/RDKE_Single_build/combined_chnages/eos-ripple/firebolt-devices/rdke".to_string();
+        let base_path =
+            "/Users/pkumbh631/RDKE_Single_build/combined_chnages/eos-ripple/firebolt-devices/rdke"
+                .to_string();
         let country_code = std::env::var("COUNTRY").unwrap_or_else(|_| "eu".to_string());
         let device_type = std::env::var("DEVICE_PLATFORM").ok();
 
@@ -60,7 +60,7 @@ impl RippleManifestLoader {
             Path::new(&base_path)
                 .join("ripple.config.json")
                 .to_str()
-                .and_then(|s| Self::load_ripple_config(s))
+                .and_then(Self::load_ripple_config)
         } else {
             None
         };
@@ -118,31 +118,35 @@ pub struct RippleConfigLoader {
 }
 
 impl RippleConfigLoader {
-    
     fn resolve_path(&self, path: &str) -> String {
         if !path.is_empty() && path.starts_with("/") {
-            Path::new(&self.base_path).join(&path[1..]).to_string_lossy().into_owned()
+            Path::new(&self.base_path)
+                .join(&path[1..])
+                .to_string_lossy()
+                .into_owned()
         } else {
-            Path::new(&self.base_path).join(path).to_string_lossy().into_owned()
+            Path::new(&self.base_path)
+                .join(path)
+                .to_string_lossy()
+                .into_owned()
         }
     }
 
-    /* 
-    fn load_manifest<M: for<'de> Deserialize<'de>>(&self, path: &str) -> Result<M, RippleError> {
-        let path_owned = path.to_string();
-        match M::load(path_owned) {
-            Ok((_, manifest)) => Ok(manifest),
-            Err(e) => Err(e),
+    /*
+        fn load_manifest<M: for<'de> Deserialize<'de>>(&self, path: &str) -> Result<M, RippleError> {
+            let path_owned = path.to_string();
+            match M::load(path_owned) {
+                Ok((_, manifest)) => Ok(manifest),
+                Err(e) => Err(e),
+            }
         }
-    }
-*/
+    */
     fn load_manifest<M: for<'de> Deserialize<'de>>(&self, path: &str) -> Result<M, RippleError> {
         let path_owned = path.to_string(); // Create an owned String
         std::fs::read_to_string(&path_owned)
             .map_err(move |_| RippleError::MissingInput)
             .and_then(move |content| {
-                serde_json::from_str::<M>(&content)
-                    .map_err(move |_| RippleError::InvalidInput)
+                serde_json::from_str::<M>(&content).map_err(move |_| RippleError::InvalidInput)
             })
             .inspect(move |_| info!("Loaded manifest from: {}", path_owned))
             .inspect_err(move |e| warn!("{}", e))
@@ -174,7 +178,8 @@ impl RippleConfigLoader {
             println!("Merged {} Manifest:\n{}", manifest_type, json_string);
         } else {
             eprintln!(
-                "Error serializing merged {} manifest to JSON for printing", manifest_type
+                "Error serializing merged {} manifest to JSON for printing",
+                manifest_type
             );
         }
         merged_manifest
@@ -199,17 +204,22 @@ impl RippleConfigLoader {
         }
 
         let mut tags_to_process = Vec::new();
+        let mut country_match_found = false; // Flag to track if a country match occurred
         if let Some(build) = build_config {
             if let Some(country_map) = &build.country {
                 if let Some(country_config) = country_map.get(country_code) {
                     if let Some(tags) = &country_config.tags {
                         tags_to_process.extend(tags.iter().map(|s| s.as_str()));
+                        country_match_found = true; // Set the flag to true HERE
                     }
                 }
             }
         }
-        if let Some(tag) = default_tag {
-            tags_to_process.push(tag);
+        // Only process default tag if no country-specific tags were found
+        if !country_match_found {
+            if let Some(tag) = default_tag {
+                tags_to_process.push(tag);
+            }
         }
 
         for tag in tags_to_process.iter() {
