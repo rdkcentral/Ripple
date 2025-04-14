@@ -76,10 +76,6 @@ impl ContextAsJson for CallContext {
             "cid".to_string(),
             serde_json::Value::String(self.cid.clone().unwrap_or_default()),
         );
-        map.insert(
-            "gateway_secure".to_string(),
-            serde_json::Value::Bool(self.gateway_secure),
-        );
         serde_json::Value::Object(map)
     }
 }
