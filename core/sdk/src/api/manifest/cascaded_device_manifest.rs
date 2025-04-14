@@ -15,22 +15,30 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+    path::Path,
+};
 
-use crate::api::{
-    device::device_user_grants_data::{
-        AutoApplyPolicy, GrantExclusionFilter, GrantPolicies, GrantPolicy, GrantPrivacySetting,
-        GrantRequirements, GrantStep,
+use crate::{
+    api::{
+        device::device_user_grants_data::{
+            AutoApplyPolicy, EvaluateAt, GrantExclusionFilter, GrantLifespan, GrantPolicies,
+            GrantPolicy, GrantPrivacySetting, GrantRequirements, GrantScope, GrantStep,
+            PolicyPersistenceType,
+        },
+        distributor::distributor_privacy::DataEventType,
+        firebolt::fb_capabilities::FireboltPermission,
+        storage_property::StorageProperty,
     },
-    distributor::distributor_privacy::DataEventType,
-    firebolt::fb_capabilities::FireboltPermission,
-    storage_property::StorageProperty,
+    utils::error::RippleError,
 };
 
 use super::{
-    apps::AppManifest,
     device_manifest::{
         ApplicationDefaultsConfiguration, ApplicationsConfiguration, CapabilityConfiguration,
         CaptionStyle, DataGovernanceConfig, DataGovernancePolicy, DataGovernanceSettingTag,
@@ -43,8 +51,6 @@ use super::{
     MergeConfig,
 };
 
-/// Device manifest contains all the specifications required for coniguration of a Ripple application.
-/// Device manifest file should be compliant to the Openrpc schema specified in <https://github.com/rdkcentral/firebolt-configuration>
 #[derive(Deserialize, Debug, Clone)]
 pub struct CascadedDeviceManifest {
     pub configuration: Option<CascadedRippleConfiguration>,
@@ -66,6 +72,31 @@ impl MergeConfig<CascadedDeviceManifest> for DeviceManifest {
         }
         if let Some(cas_applications) = cascaded.applications {
             self.applications.merge_config(cas_applications);
+        }
+    }
+}
+
+impl CascadedDeviceManifest {
+    pub fn load(path: String) -> Result<(String, CascadedDeviceManifest), RippleError> {
+        info!("Trying to load device manifest from path={}", path);
+        if let Some(p) = Path::new(&path).to_str() {
+            if let Ok(contents) = fs::read_to_string(p) {
+                return Self::load_from_content(contents);
+            }
+        }
+        info!("No device manifest found in {}", path);
+        Err(RippleError::MissingInput)
+    }
+
+    pub fn load_from_content(
+        contents: String,
+    ) -> Result<(String, CascadedDeviceManifest), RippleError> {
+        match serde_json::from_str::<CascadedDeviceManifest>(&contents) {
+            Ok(manifest) => Ok((contents, manifest)),
+            Err(err) => {
+                warn!("{:?} could not load device manifest", err);
+                Err(RippleError::InvalidInput)
+            }
         }
     }
 }
@@ -155,6 +186,181 @@ impl MergeConfig<CascadedRippleConfiguration> for RippleConfiguration {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CascadedDefaultValues {
+    pub country_code: Option<String>,
+    pub language: Option<String>,
+    pub locale: Option<String>,
+    pub name: Option<String>,
+    pub captions: Option<CaptionStyle>,
+    pub additional_info: Option<HashMap<String, String>>,
+    pub voice: Option<VoiceGuidance>,
+    pub allow_acr_collection: Option<bool>,
+    pub allow_app_content_ad_targeting: Option<bool>,
+    pub allow_business_analytics: Option<bool>,
+    pub allow_camera_analytics: Option<bool>,
+    pub allow_personalization: Option<bool>,
+    pub allow_primary_browse_ad_targeting: Option<bool>,
+    pub allow_primary_content_ad_targeting: Option<bool>,
+    pub allow_product_analytics: Option<bool>,
+    pub allow_remote_diagnostics: Option<bool>,
+    pub allow_resume_points: Option<bool>,
+    pub allow_unentitled_personalization: Option<bool>,
+    pub allow_unentitled_resume_points: Option<bool>,
+    pub allow_watch_history: Option<bool>,
+    pub skip_restriction: Option<String>,
+    pub video_dimensions: Option<Vec<i32>>,
+    pub lifecycle_transition_validate: Option<bool>,
+    pub media_progress_as_watched_events: Option<bool>,
+    pub accessibility_audio_description_settings: Option<bool>,
+    pub role_based_support: Option<bool>,
+    pub country_postal_code: Option<HashMap<String, String>>,
+    pub countries_using_us_privacy: Option<Vec<String>>,
+}
+
+impl MergeConfig<CascadedDefaultValues> for DefaultValues {
+    fn merge_config(&mut self, cascaded: CascadedDefaultValues) {
+        if let Some(cas_contry_code) = cascaded.country_code {
+            self.country_code = cas_contry_code
+        }
+        if let Some(cas_language) = cascaded.language {
+            self.language = cas_language
+        }
+        if let Some(cas_locale) = cascaded.locale {
+            self.locale = cas_locale
+        }
+        if let Some(cas_name) = cascaded.name {
+            self.name = cas_name
+        }
+        if let Some(cas_captions) = cascaded.captions {
+            self.captions = cas_captions
+        }
+        if let Some(cas_additional_info) = cascaded.additional_info {
+            self.additional_info.extend(cas_additional_info);
+        }
+        if let Some(cas_voice) = cascaded.voice {
+            self.voice = cas_voice
+        }
+        if let Some(cas_allow_acr_collection) = cascaded.allow_acr_collection {
+            self.allow_acr_collection = cas_allow_acr_collection
+        }
+        if let Some(cas_allow_app_ad_targetting) = cascaded.allow_app_content_ad_targeting {
+            self.allow_app_content_ad_targeting = cas_allow_app_ad_targetting
+        }
+        if let Some(cas_allow_business_analytics) = cascaded.allow_business_analytics {
+            self.allow_business_analytics = cas_allow_business_analytics
+        }
+        if let Some(cas_allow_camera_analytics) = cascaded.allow_camera_analytics {
+            self.allow_camera_analytics = cas_allow_camera_analytics
+        }
+        if let Some(cas_allow_personalization) = cascaded.allow_personalization {
+            self.allow_personalization = cas_allow_personalization
+        }
+        if let Some(cas_allow_primary_browse_ad_targeting) =
+            cascaded.allow_primary_browse_ad_targeting
+        {
+            self.allow_primary_browse_ad_targeting = cas_allow_primary_browse_ad_targeting
+        }
+        if let Some(cas_allow_primary_content_ad_targeting) =
+            cascaded.allow_primary_content_ad_targeting
+        {
+            self.allow_primary_content_ad_targeting = cas_allow_primary_content_ad_targeting
+        }
+        if let Some(cas_allow_product_analytics) = cascaded.allow_product_analytics {
+            self.allow_product_analytics = cas_allow_product_analytics
+        }
+        if let Some(cas_allow_remote_diagnostics) = cascaded.allow_remote_diagnostics {
+            self.allow_remote_diagnostics = cas_allow_remote_diagnostics
+        }
+        if let Some(cas_allow_resume_points) = cascaded.allow_resume_points {
+            self.allow_resume_points = cas_allow_resume_points
+        }
+
+        if let Some(cas_allow_unentitled_personalization) =
+            cascaded.allow_unentitled_personalization
+        {
+            self.allow_unentitled_personalization = cas_allow_unentitled_personalization;
+        }
+        if let Some(cas_allow_unentitled_resume_points) = cascaded.allow_unentitled_resume_points {
+            self.allow_unentitled_resume_points = cas_allow_unentitled_resume_points;
+        }
+        if let Some(cas_allow_watch_history) = cascaded.allow_watch_history {
+            self.allow_watch_history = cas_allow_watch_history;
+        }
+        if let Some(cas_skip_restriction) = cascaded.skip_restriction {
+            self.skip_restriction = cas_skip_restriction;
+        }
+        if let Some(cas_video_dimentions) = cascaded.video_dimensions {
+            self.video_dimensions.extend(cas_video_dimentions);
+        }
+        if let Some(cas_lifecycle_transition_validate) = cascaded.lifecycle_transition_validate {
+            self.lifecycle_transition_validate = cas_lifecycle_transition_validate;
+        }
+        if let Some(cas_media_progress_as_watched_events) =
+            cascaded.media_progress_as_watched_events
+        {
+            self.media_progress_as_watched_events = cas_media_progress_as_watched_events;
+        }
+        if let Some(cas_accessibility_audio_description_settings) =
+            cascaded.accessibility_audio_description_settings
+        {
+            self.accessibility_audio_description_settings =
+                cas_accessibility_audio_description_settings;
+        }
+        if let Some(cas_role_based_support) = cascaded.role_based_support {
+            self.role_based_support = cas_role_based_support;
+        }
+
+        if let Some(cas_country_postal_code) = cascaded.country_postal_code {
+            self.country_postal_code.extend(cas_country_postal_code);
+        }
+        if let Some(cas_countries_using_us_privacy) = cascaded.countries_using_us_privacy {
+            self.countries_using_us_privacy
+                .extend(cas_countries_using_us_privacy);
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
+pub struct CascadedRippleFeatures {
+    pub privacy_settings_storage_type: Option<PrivacySettingsStorageType>,
+    pub intent_validation: Option<IntentValidation>,
+    pub cloud_permissions: Option<bool>,
+}
+
+impl MergeConfig<CascadedRippleFeatures> for RippleFeatures {
+    fn merge_config(&mut self, cascaded: CascadedRippleFeatures) {
+        if let Some(cas_privacy_settings_storage_type) = cascaded.privacy_settings_storage_type {
+            self.privacy_settings_storage_type = cas_privacy_settings_storage_type
+        }
+        if let Some(cas_intent_validation) = cascaded.intent_validation {
+            self.intent_validation = cas_intent_validation
+        }
+        if let Some(cas_cloud_permission) = cascaded.cloud_permissions {
+            self.cloud_permissions = cas_cloud_permission
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[cfg_attr(test, derive(PartialEq))]
+pub struct CascadedFeatureFlag {
+    pub default: Option<bool>,
+    pub remote_key: Option<String>,
+}
+
+impl MergeConfig<CascadedFeatureFlag> for FeatureFlag {
+    fn merge_config(&mut self, cascaded: CascadedFeatureFlag) {
+        if let Some(cas_default) = cascaded.default {
+            self.default = cas_default
+        }
+        if let Some(cas_remote_key) = cascaded.remote_key {
+            self.remote_key = Some(cas_remote_key)
+        }
+    }
+}
+
 #[derive(Deserialize, Debug, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadedCapabilityConfiguration {
@@ -166,24 +372,33 @@ pub struct CascadedCapabilityConfiguration {
 
 impl MergeConfig<CascadedCapabilityConfiguration> for CapabilityConfiguration {
     fn merge_config(&mut self, cascaded: CascadedCapabilityConfiguration) {
-        // Merge supported capabilities (append and deduplicate if other is Some)
         if let Some(cas_supported) = cascaded.supported {
             self.supported.extend(cas_supported);
             self.supported.sort();
             self.supported.dedup();
         }
 
-        // Merge grant policies
-        if let Some(_cas_grant_policies) = cascaded.grant_policies {
-            // TODO:
+        if let Some(other_grant_policies) = cascaded.grant_policies {
+            if let Some(self_grant_policies) = &mut self.grant_policies {
+                for (key, other_policies) in other_grant_policies {
+                    // Check if the key exists in self's grant policies
+                    if let Some(existing_policies) = self_grant_policies.get_mut(&key) {
+                        existing_policies.merge_config(other_policies);
+                    } else {
+                        // TODO
+                        // If the key doesn't exist in self, insert a new GrantPolicies
+                    }
+                }
+            } else {
+                // TODO
+                // If self.grant_policies is None, simply assign from other
+            }
         }
 
-        // Merge grant exclusion filters (append if other is Some)
         if let Some(other_filters) = cascaded.grant_exclusion_filters {
             self.grant_exclusion_filters.extend(other_filters);
         }
 
-        // Merge dependencies
         if let Some(cas_dependencies) = cascaded.dependencies {
             for (key, other_dependencies) in cas_dependencies {
                 self.dependencies
@@ -195,27 +410,130 @@ impl MergeConfig<CascadedCapabilityConfiguration> for CapabilityConfiguration {
     }
 }
 
-//TODO: need to impl GrantPolicy
-
 #[derive(Deserialize, Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct CascadedGrantPolicies {
     #[serde(rename = "use")]
-    pub use_: Option<GrantPolicy>,
-    pub manage: Option<GrantPolicy>,
-    pub provide: Option<GrantPolicy>,
+    pub use_: Option<CascadedGrantPolicy>,
+    pub manage: Option<CascadedGrantPolicy>,
+    pub provide: Option<CascadedGrantPolicy>,
 }
 
 impl MergeConfig<CascadedGrantPolicies> for GrantPolicies {
-    fn merge_config(&mut self, cascaded: CascadedGrantPolicies) {
-        if let Some(cas_use) = cascaded.use_ {
-            self.use_ = Some(cas_use)
+    fn merge_config(&mut self, other: CascadedGrantPolicies) {
+        if let Some(cascaded_use_policy) = other.use_ {
+            if let Some(existing_use_policy) = &mut self.use_ {
+                existing_use_policy.merge_config(cascaded_use_policy);
+            } else {
+                self.use_ = Some(GrantPolicy::default());
+                self.use_
+                    .as_mut()
+                    .unwrap()
+                    .merge_config(cascaded_use_policy);
+            }
         }
-        if let Some(cas_manage) = cascaded.manage {
-            self.manage = Some(cas_manage)
+
+        if let Some(cascaded_manage_policy) = other.manage {
+            if let Some(existing_manage_policy) = &mut self.manage {
+                existing_manage_policy.merge_config(cascaded_manage_policy);
+            } else {
+                self.manage = Some(GrantPolicy::default());
+                self.manage
+                    .as_mut()
+                    .unwrap()
+                    .merge_config(cascaded_manage_policy);
+            }
         }
-        if let Some(cas_provide) = cascaded.provide {
-            self.provide = Some(cas_provide)
+
+        if let Some(cascaded_provide_policy) = other.provide {
+            if let Some(existing_provide_policy) = &mut self.provide {
+                existing_provide_policy.merge_config(cascaded_provide_policy);
+            } else {
+                self.provide = Some(GrantPolicy::default());
+                self.provide
+                    .as_mut()
+                    .unwrap()
+                    .merge_config(cascaded_provide_policy);
+            }
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[cfg_attr(test, derive(PartialEq))]
+#[serde(rename_all = "camelCase")]
+pub struct CascadedGrantPolicy {
+    pub evaluate_at: Option<Vec<EvaluateAt>>,
+    pub options: Option<Vec<CascadedGrantRequirements>>,
+    pub scope: Option<GrantScope>,
+    pub lifespan: Option<GrantLifespan>,
+    pub overridable: Option<bool>,
+    pub lifespan_ttl: Option<u64>,
+    pub privacy_setting: Option<CascadedGrantPrivacySetting>,
+    pub persistence: Option<PolicyPersistenceType>,
+}
+
+impl MergeConfig<CascadedGrantPolicy> for GrantPolicy {
+    fn merge_config(&mut self, other: CascadedGrantPolicy) {
+        if let Some(evaluate_at) = other.evaluate_at {
+            self.evaluate_at.extend(evaluate_at);
+            self.evaluate_at.dedup();
+        }
+        if let Some(other_options) = other.options {
+            for cascaded_requirements in other_options {
+                // Try to find a matching existing requirements (you might need a more specific key)
+                if let Some(existing_requirements) = self.options.iter_mut().find(|req| {
+                    req.steps.iter().any(|step| {
+                        cascaded_requirements.steps.as_ref().map_or(false, |cs| {
+                            cs.iter()
+                                .any(|cs_step| cs_step.capability == Some(step.capability.clone()))
+                        })
+                    })
+                }) {
+                    existing_requirements.merge_config(cascaded_requirements);
+                } else {
+                    let new_requirements = GrantRequirements {
+                        steps: cascaded_requirements
+                            .steps
+                            .unwrap_or_default()
+                            .into_iter()
+                            .filter_map(|cs| {
+                                cs.capability.map(|cap| GrantStep {
+                                    capability: cap,
+                                    configuration: Some(cs.configuration.unwrap_or_default()),
+                                })
+                            })
+                            .collect(),
+                    };
+                    self.options.push(new_requirements);
+                }
+            }
+        }
+        if let Some(scope) = other.scope {
+            self.scope = scope;
+        }
+        if let Some(lifespan) = other.lifespan {
+            self.lifespan = lifespan;
+        }
+        if let Some(overridable) = other.overridable {
+            self.overridable = overridable;
+        }
+        if let Some(lifespan_ttl) = other.lifespan_ttl {
+            self.lifespan_ttl = Some(lifespan_ttl);
+        }
+        if let Some(cascaded_privacy_setting) = other.privacy_setting {
+            if let Some(existing_privacy_setting) = &mut self.privacy_setting {
+                existing_privacy_setting.merge_config(cascaded_privacy_setting);
+            } else {
+                self.privacy_setting = Some(GrantPrivacySetting {
+                    property: cascaded_privacy_setting.property.unwrap(),
+                    auto_apply_policy: cascaded_privacy_setting.auto_apply_policy.unwrap(),
+                    update_property: cascaded_privacy_setting.update_property.unwrap(),
+                });
+            }
+        }
+        if let Some(persistence) = other.persistence {
+            self.persistence = persistence;
         }
     }
 }
@@ -241,63 +559,6 @@ impl MergeConfig<CascadedGrantExclusionFilter> for GrantExclusionFilter {
         }
     }
 }
-
-// #[derive(Deserialize, Debug, Clone)]
-// #[cfg_attr(test, derive(PartialEq))]
-// #[serde(rename_all = "camelCase")]
-// pub struct CascadedGrantPolicy {
-//     pub evaluate_at: Option<Vec<EvaluateAt>>,
-//     pub options: Option<Vec<CascadedGrantRequirements>>,
-//     pub scope: Option<GrantScope>,
-//     pub lifespan: Option<GrantLifespan>,
-//     pub overridable: Option<bool>,
-//     pub lifespan_ttl: Option<u64>,
-//     pub privacy_setting: Option<CascadedGrantPrivacySetting>,
-//     pub persistence: Option<PolicyPersistenceType>,
-// }
-
-// impl MergeConfig<CascadedGrantPolicy> for GrantPolicy {
-//     fn merge_config(&mut self, other: CascadedGrantPolicy) {
-//         if let Some(evaluate_at) = other.evaluate_at {
-//             self.evaluate_at.extend(evaluate_at);
-//             self.evaluate_at.dedup();
-//         }
-//         if let Some(other_options) = other.options {
-//             for cascaded_requirements in other_options {
-//                 // Try to find a matching existing requirements (you might need a more specific key)
-//                 if let Some(existing_requirements) = self.options.iter_mut().find(|req| req.steps.iter().any(|step| cascaded_requirements.steps.as_ref().map_or(false, |cs| cs.iter().any(|cs_step| cs_step.capability == Some(step.capability.clone()))))) {
-//                     existing_requirements.merge_config(cascaded_requirements);
-//                 } else {
-//                     let new_requirements = GrantRequirements {
-//                         steps: cascaded_requirements.steps.unwrap_or_default().into_iter().filter_map(|cs| cs.capability.map(|cap| GrantStep {
-//                             capability: cap,
-//                             configuration: Some(cs.configuration.unwrap_or_default()),
-//                         })).collect(),
-//                     };
-//                     self.options.push(new_requirements);
-//                 }
-//             }
-//         }
-//         if let Some(scope) = other.scope {
-//             self.scope = scope;
-//         }
-//         if let Some(lifespan) = other.lifespan {
-//             self.lifespan = lifespan;
-//         }
-//         if let Some(overridable) = other.overridable {
-//             self.overridable = overridable;
-//         }
-//         if let Some(lifespan_ttl) = other.lifespan_ttl {
-//             self.lifespan_ttl = Some(lifespan_ttl);
-//         }
-//         if let Some(privacy_setting) = other.privacy_setting {
-//             todo!()
-//         }
-//         if let Some(persistence) = other.persistence {
-//             self.persistence = persistence;
-//         }
-//     }
-// }
 
 #[derive(Deserialize, Debug, Clone, Default)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -467,198 +728,6 @@ impl MergeConfig<CascadedApplicationDefaultsConfiguration> for ApplicationDefaul
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct RetentionPolicy {
-    pub max_retained: u64,
-    pub min_available_mem_kb: u64,
-    pub always_retained: Vec<String>,
-    // TODO: max_retained and always_retained are related in that max_retained can be no
-    // smaller than always_retained.len(). Unit tests to validate. If we move forward
-    // with supporting minimal available memory we should also consider implmenting a
-    // memory monitor instead of only checking memory as apps are loaded.
-}
-
-pub const DEFAULT_RETENTION_POLICY: RetentionPolicy = RetentionPolicy {
-    max_retained: 0,
-    min_available_mem_kb: 0,
-    always_retained: Vec::new(),
-};
-
-#[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct LifecyclePolicy {
-    pub app_ready_timeout_ms: u64,
-    pub app_finished_timeout_ms: u64,
-}
-
-pub const DEFAULT_LIFECYCLE_POLICY: LifecyclePolicy = LifecyclePolicy {
-    app_ready_timeout_ms: 30000,
-    app_finished_timeout_ms: 2000,
-};
-
-pub const DEFAULT_RENTENTION_POLICY_MAX_RETAINED: u64 = 5;
-pub const DEFAULT_RENTENTION_POLICY_MIN_AVAILABLE_MEM_KB: u64 = 1024;
-
-#[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct AppsDistributionConfiguration {
-    pub platform: String,
-    pub tenant: String,
-    // TODO: Next iteration have this for each app
-    pub default_id_salt: Option<IdSalt>,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct AppLibraryEntry {
-    pub app_id: String,
-    pub manifest: AppManifestLoad,
-    pub boot_state: BootState,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-#[serde(rename_all = "lowercase")]
-pub enum AppManifestLoad {
-    Remote(String),
-    Local(String),
-    Embedded(AppManifest),
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct CascadedDefaultValues {
-    pub country_code: Option<String>,
-    pub language: Option<String>,
-    pub locale: Option<String>,
-    pub name: Option<String>,
-    pub captions: Option<CaptionStyle>,
-    pub additional_info: Option<HashMap<String, String>>,
-    pub voice: Option<VoiceGuidance>,
-    pub allow_acr_collection: Option<bool>,
-    pub allow_app_content_ad_targeting: Option<bool>,
-    pub allow_business_analytics: Option<bool>,
-    pub allow_camera_analytics: Option<bool>,
-    pub allow_personalization: Option<bool>,
-    pub allow_primary_browse_ad_targeting: Option<bool>,
-    pub allow_primary_content_ad_targeting: Option<bool>,
-    pub allow_product_analytics: Option<bool>,
-    pub allow_remote_diagnostics: Option<bool>,
-    pub allow_resume_points: Option<bool>,
-    pub allow_unentitled_personalization: Option<bool>,
-    pub allow_unentitled_resume_points: Option<bool>,
-    pub allow_watch_history: Option<bool>,
-    pub skip_restriction: Option<String>,
-    pub video_dimensions: Option<Vec<i32>>,
-    pub lifecycle_transition_validate: Option<bool>,
-    pub media_progress_as_watched_events: Option<bool>,
-    pub accessibility_audio_description_settings: Option<bool>,
-    pub role_based_support: Option<bool>,
-    pub country_postal_code: Option<HashMap<String, String>>,
-    pub countries_using_us_privacy: Option<Vec<String>>,
-}
-
-impl MergeConfig<CascadedDefaultValues> for DefaultValues {
-    fn merge_config(&mut self, cascaded: CascadedDefaultValues) {
-        if let Some(cas_contry_code) = cascaded.country_code {
-            self.country_code = cas_contry_code
-        }
-        if let Some(cas_language) = cascaded.language {
-            self.language = cas_language
-        }
-        if let Some(cas_locale) = cascaded.locale {
-            self.locale = cas_locale
-        }
-        if let Some(cas_name) = cascaded.name {
-            self.name = cas_name
-        }
-        if let Some(cas_captions) = cascaded.captions {
-            self.captions = cas_captions
-        }
-        if let Some(cas_additional_info) = cascaded.additional_info {
-            self.additional_info.extend(cas_additional_info);
-        }
-        if let Some(cas_voice) = cascaded.voice {
-            self.voice = cas_voice
-        }
-        if let Some(cas_allow_acr_collection) = cascaded.allow_acr_collection {
-            self.allow_acr_collection = cas_allow_acr_collection
-        }
-        if let Some(cas_allow_app_ad_targetting) = cascaded.allow_app_content_ad_targeting {
-            self.allow_app_content_ad_targeting = cas_allow_app_ad_targetting
-        }
-        if let Some(cas_allow_business_analytics) = cascaded.allow_business_analytics {
-            self.allow_business_analytics = cas_allow_business_analytics
-        }
-        if let Some(cas_allow_camera_analytics) = cascaded.allow_camera_analytics {
-            self.allow_camera_analytics = cas_allow_camera_analytics
-        }
-        if let Some(cas_allow_personalization) = cascaded.allow_personalization {
-            self.allow_personalization = cas_allow_personalization
-        }
-        if let Some(cas_allow_primary_browse_ad_targeting) =
-            cascaded.allow_primary_browse_ad_targeting
-        {
-            self.allow_primary_browse_ad_targeting = cas_allow_primary_browse_ad_targeting
-        }
-        if let Some(cas_allow_primary_content_ad_targeting) =
-            cascaded.allow_primary_content_ad_targeting
-        {
-            self.allow_primary_content_ad_targeting = cas_allow_primary_content_ad_targeting
-        }
-        if let Some(cas_allow_product_analytics) = cascaded.allow_product_analytics {
-            self.allow_product_analytics = cas_allow_product_analytics
-        }
-        if let Some(cas_allow_remote_diagnostics) = cascaded.allow_remote_diagnostics {
-            self.allow_remote_diagnostics = cas_allow_remote_diagnostics
-        }
-        if let Some(cas_allow_resume_points) = cascaded.allow_resume_points {
-            self.allow_resume_points = cas_allow_resume_points
-        }
-
-        if let Some(cas_allow_unentitled_personalization) =
-            cascaded.allow_unentitled_personalization
-        {
-            self.allow_unentitled_personalization = cas_allow_unentitled_personalization;
-        }
-        if let Some(cas_allow_unentitled_resume_points) = cascaded.allow_unentitled_resume_points {
-            self.allow_unentitled_resume_points = cas_allow_unentitled_resume_points;
-        }
-        if let Some(cas_allow_watch_history) = cascaded.allow_watch_history {
-            self.allow_watch_history = cas_allow_watch_history;
-        }
-        if let Some(cas_skip_restriction) = cascaded.skip_restriction {
-            self.skip_restriction = cas_skip_restriction;
-        }
-        if let Some(cas_video_dimentions) = cascaded.video_dimensions {
-            self.video_dimensions.extend(cas_video_dimentions);
-        }
-        if let Some(cas_lifecycle_transition_validate) = cascaded.lifecycle_transition_validate {
-            self.lifecycle_transition_validate = cas_lifecycle_transition_validate;
-        }
-        if let Some(cas_media_progress_as_watched_events) =
-            cascaded.media_progress_as_watched_events
-        {
-            self.media_progress_as_watched_events = cas_media_progress_as_watched_events;
-        }
-        if let Some(cas_accessibility_audio_description_settings) =
-            cascaded.accessibility_audio_description_settings
-        {
-            self.accessibility_audio_description_settings =
-                cas_accessibility_audio_description_settings;
-        }
-        if let Some(cas_role_based_support) = cascaded.role_based_support {
-            self.role_based_support = cas_role_based_support;
-        }
-
-        if let Some(cas_country_postal_code) = cascaded.country_postal_code {
-            self.country_postal_code.extend(cas_country_postal_code);
-        }
-        if let Some(cas_countries_using_us_privacy) = cascaded.countries_using_us_privacy {
-            self.countries_using_us_privacy
-                .extend(cas_countries_using_us_privacy);
-        }
-    }
-}
-
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct CascadedExclusoryImpl {
     pub resolve_only: Option<Vec<String>>,
@@ -701,74 +770,6 @@ impl MergeConfig<CascadedAppAuthorizationRules> for AppAuthorizationRules {
             for (key, values) in other_rules {
                 self.app_ignore_rules.entry(key).or_default().extend(values);
             }
-        }
-    }
-}
-
-#[derive(Deserialize, Debug, Clone, Default)]
-#[cfg_attr(test, derive(PartialEq))]
-pub struct SettingsDefaults {
-    pub postal_code: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum BootState {
-    Inactive,
-    Foreground,
-    Unloaded,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "lowercase")]
-pub enum AppLauncherMode {
-    External,
-    Internal,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct CloudService {
-    pub url: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(test, derive(PartialEq))]
-pub struct CascadedRippleFeatures {
-    pub privacy_settings_storage_type: Option<PrivacySettingsStorageType>,
-    pub intent_validation: Option<IntentValidation>,
-    pub cloud_permissions: Option<bool>,
-    pub catalog_uninstalls_enabled: Option<CascadedFeatureFlag>,
-}
-
-impl MergeConfig<CascadedRippleFeatures> for RippleFeatures {
-    fn merge_config(&mut self, cascaded: CascadedRippleFeatures) {
-        if let Some(cas_privacy_settings_storage_type) = cascaded.privacy_settings_storage_type {
-            self.privacy_settings_storage_type = cas_privacy_settings_storage_type
-        }
-        if let Some(cas_intent_validation) = cascaded.intent_validation {
-            self.intent_validation = cas_intent_validation
-        }
-        if let Some(cas_cloud_permission) = cascaded.cloud_permissions {
-            self.cloud_permissions = cas_cloud_permission
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-#[cfg_attr(test, derive(PartialEq))]
-pub struct CascadedFeatureFlag {
-    pub default: Option<bool>,
-    pub remote_key: Option<String>,
-}
-
-impl MergeConfig<CascadedFeatureFlag> for FeatureFlag {
-    fn merge_config(&mut self, cascaded: CascadedFeatureFlag) {
-        if let Some(cas_default) = cascaded.default {
-            self.default = cas_default
-        }
-        if let Some(cas_remote_key) = cascaded.remote_key {
-            self.remote_key = Some(cas_remote_key)
         }
     }
 }
@@ -895,5 +896,363 @@ impl MergeConfig<CascadedDataGovernanceSettingTag> for DataGovernanceSettingTag 
         if let Some(cas_tags) = cascaded.tags {
             self.tags.extend(cas_tags);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::api::{
+        firebolt::fb_capabilities::{CapabilityRole, FireboltCap},
+        manifest::device_manifest::tests::Mockable as mock_device_manifests,
+    };
+
+    use super::*;
+    use ripple_sdk::Mockable;
+
+    impl Mockable for CascadedDeviceManifest {
+        fn mock() -> Self {
+            let (_, manifest) = CascadedDeviceManifest::load_from_content(
+                include_str!("mock_manifests/cascaded-device-manifest-example.json").to_string(),
+            )
+            .unwrap();
+            manifest
+        }
+    }
+
+    #[test]
+    fn test_get_internal_app_id() {
+        let mut manifest = DeviceManifest::mock();
+        let cascaded_manifest = CascadedDeviceManifest::mock();
+        manifest.merge_config(cascaded_manifest);
+        let internal_app_id = manifest.get_internal_app_id();
+        assert_eq!(internal_app_id, Some("mock_app".to_string()));
+    }
+
+    #[test]
+    fn test_get_form_factor() {
+        let mut manifest = DeviceManifest::mock();
+        let cascaded_manifest = CascadedDeviceManifest::mock();
+        manifest.merge_config(cascaded_manifest);
+        let form_factor = manifest.get_form_factor();
+        assert_eq!(form_factor, "tv".to_string());
+    }
+
+    #[test]
+    fn test_get_app_library_path() {
+        let mut manifest = DeviceManifest::mock();
+        let cascaded_manifest = CascadedDeviceManifest::mock();
+        manifest.merge_config(cascaded_manifest);
+        let app_library_path = manifest.get_app_library_path();
+        assert_eq!(app_library_path, "/opt/apps/app_list.json".to_string());
+    }
+
+    #[test]
+    fn test_get_lifecycle_policy() {
+        let mut manifest = DeviceManifest::mock();
+        let cascaded_manifest = CascadedDeviceManifest::mock();
+        manifest.merge_config(cascaded_manifest);
+        let lifecycle_policy = manifest.get_lifecycle_policy();
+
+        assert_eq!(lifecycle_policy.app_ready_timeout_ms, 15000);
+        assert_eq!(lifecycle_policy.app_finished_timeout_ms, 5000);
+    }
+
+    #[test]
+    fn test_get_retention_policy() {
+        let mut manifest = DeviceManifest::mock();
+        let cascaded_manifest = CascadedDeviceManifest::mock();
+        manifest.merge_config(cascaded_manifest);
+        let retention_policy = manifest.get_retention_policy();
+
+        assert_eq!(retention_policy.max_retained, 5);
+        assert_eq!(retention_policy.min_available_mem_kb, 1024);
+        assert_eq!(
+            retention_policy.always_retained,
+            vec!["launcher".to_string(), "settings".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_get_supported_caps_use_role_based_support_false() {
+        let mut manifest = DeviceManifest::mock();
+        let cascaded_manifest = CascadedDeviceManifest::mock();
+        manifest.merge_config(cascaded_manifest);
+        let supported_perms = manifest.get_supported_caps();
+        assert!(supported_perms.contains(&FireboltPermission {
+            cap: FireboltCap::Full("login".to_owned()),
+            role: CapabilityRole::Manage
+        }));
+        assert!(supported_perms.contains(&FireboltPermission {
+            cap: FireboltCap::Full("launch".to_owned()),
+            role: CapabilityRole::Manage
+        }));
+        assert!(supported_perms.contains(&FireboltPermission {
+            cap: FireboltCap::Full("playback".to_owned()),
+            role: CapabilityRole::Use
+        }));
+        assert!(supported_perms.contains(&FireboltPermission {
+            cap: FireboltCap::Full("test".to_owned()),
+            role: CapabilityRole::Provide
+        }));
+    }
+
+    #[test]
+    fn test_get_caps_requiring_grant() {
+        let mut manifest = DeviceManifest::mock();
+        let cascaded_manifest = CascadedDeviceManifest::mock();
+        manifest.merge_config(cascaded_manifest);
+        let caps_requiring_grant = manifest.get_caps_requiring_grant();
+        assert_eq!(caps_requiring_grant, Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_get_grant_policies() {
+        let mut manifest = DeviceManifest::mock();
+        let cascaded_manifest = CascadedDeviceManifest::mock();
+        manifest.merge_config(cascaded_manifest);
+        let grant_policies = manifest.get_grant_policies();
+
+        assert_eq!(grant_policies, None);
+    }
+
+    #[test]
+    fn test_get_grant_exclusion_filters() {
+        let mut manifest = DeviceManifest::mock();
+        let cascaded_manifest = CascadedDeviceManifest::mock();
+        manifest.merge_config(cascaded_manifest);
+        let grant_exclusion_filters = manifest.get_grant_exclusion_filters();
+
+        assert_eq!(
+            grant_exclusion_filters,
+            vec![GrantExclusionFilter {
+                id: Some("test-id".to_string()),
+                capability: Some("test-cap".to_string()),
+                catalog: Some("test-catalog".to_string()),
+            }]
+        );
+    }
+
+    #[test]
+    fn test_merged_config_capabilities_grant_policies_multiple_policies_default_is_none() {
+        let mut manifest = DeviceManifest::mock();
+        let cascaded_manifest = CascadedDeviceManifest::mock();
+        manifest.merge_config(cascaded_manifest);
+
+        // if default device manifest entry is none we are skipping the mergeconfig
+        if let Some(grant_policies) = manifest.capabilities.grant_policies {
+            assert!(grant_policies.contains_key("xrn:firebolt:capability:device:id"));
+            assert!(grant_policies.contains_key("xrn:firebolt:capability:device:mock"));
+        } else {
+            assert_eq!(manifest.capabilities.grant_policies, None);
+        }
+    }
+
+    // #feature not implelemeted.
+
+    // #[test]
+    // fn test_merged_config_capabilities_grant_policies_multiple_policies() {
+    //     let mut manifest = DeviceManifest::mock();
+
+    //     let capability_config = CapabilityConfiguration {
+    //         supported: vec!["example_capability".to_string()],
+    //         grant_policies: Some({
+    //             let mut map = HashMap::new();
+    //             map.insert(
+    //                 "xrn:firebolt:capability:example".to_string(),
+    //                 GrantPolicies {
+    //                     use_: None,
+    //                     manage: None,
+    //                     provide: None,
+    //                 },
+    //             );
+    //             map
+    //         }),
+    //         grant_exclusion_filters: Vec::new(), // Use the default value
+    //         dependencies: HashMap::new(),       // Use the default value
+    //     };
+
+    //     manifest.capabilities = capability_config.clone();
+    //     let cascaded_manifest = CascadedDeviceManifest::mock();
+
+    //     manifest.merge_config(cascaded_manifest);
+
+    //     assert_eq!(
+    //         manifest.capabilities.grant_policies,
+    //         None
+    //     );
+
+    // }
+
+    #[test]
+    fn test_get_distributor_experience_id() {
+        let mut manifest = DeviceManifest::mock();
+        let cascaded_manifest = CascadedDeviceManifest::mock();
+        manifest.merge_config(cascaded_manifest);
+        let distributor_experience_id = manifest.get_distributor_experience_id();
+        assert_eq!(distributor_experience_id, "9999".to_string());
+    }
+
+    #[test]
+    fn test_get_features() {
+        let mut manifest = DeviceManifest::mock();
+        let cascaded_manifest = CascadedDeviceManifest::mock();
+        manifest.merge_config(cascaded_manifest);
+        let features = manifest.get_features();
+
+        assert_eq!(
+            features,
+            RippleFeatures {
+                privacy_settings_storage_type: PrivacySettingsStorageType::Local,
+                intent_validation: IntentValidation::Fail,
+                cloud_permissions: true,
+            }
+        );
+    }
+
+    #[test]
+    fn test_get_model_friendly_names() {
+        let mut manifest = DeviceManifest::mock();
+        let cascaded_manifest = CascadedDeviceManifest::mock();
+        manifest.merge_config(cascaded_manifest);
+        let model_friendly_names = manifest.get_model_friendly_names();
+
+        let mut expected_model_friendly_names = HashMap::new();
+        expected_model_friendly_names.insert("SMART TV".to_string(), "RDK TV".to_string());
+        assert!(!contains_same_set(
+            &model_friendly_names,
+            &expected_model_friendly_names
+        ));
+    }
+
+    #[test]
+    fn test_get_lifecycle_configuration() {
+        let mut manifest = DeviceManifest::mock();
+        let cascaded_manifest = CascadedDeviceManifest::mock();
+        manifest.merge_config(cascaded_manifest);
+        let lifecycle_configuration = manifest.get_lifecycle_configuration();
+        let prioritized = vec!["launcher".to_string(), "settings".to_string()];
+        assert_eq!(
+            lifecycle_configuration,
+            LifecycleConfiguration {
+                app_ready_timeout_ms: 15000,
+                app_finished_timeout_ms: 5000,
+                max_loaded_apps: 5,
+                min_available_memory_kb: 1024,
+                prioritized,
+                emit_app_init_events_enabled: false,
+                emit_navigate_on_activate: false
+            }
+        );
+    }
+
+    #[test]
+    fn test_get_applications_configuration() {
+        let mut manifest = DeviceManifest::mock();
+        let cascaded_manifest = CascadedDeviceManifest::mock();
+        manifest.merge_config(cascaded_manifest);
+        let applications_configuration = manifest.get_applications_configuration();
+
+        assert_eq!(
+            applications_configuration,
+            ApplicationsConfiguration {
+                distribution: DistributionConfiguration {
+                    library: "/opt/apps/app_list.json".to_string(),
+                },
+                defaults: ApplicationDefaultsConfiguration {
+                    main: "main".to_string(),
+                    settings: "defaults".to_string(),
+                    player: None,
+                },
+                distributor_app_aliases: HashMap::new(),
+            }
+        );
+    }
+
+    #[test]
+    fn check_default_features() {
+        if let Ok(v) = serde_json::from_str::<RippleFeatures>("{}") {
+            assert!(matches!(v.intent_validation, IntentValidation::FailOpen));
+            assert!(matches!(
+                v.privacy_settings_storage_type,
+                PrivacySettingsStorageType::Local
+            ));
+        }
+
+        if let Ok(v) =
+            serde_json::from_str::<RippleFeatures>("{\"privacy_settings_storage_type\": \"sync\"}")
+        {
+            assert!(matches!(v.intent_validation, IntentValidation::FailOpen));
+            assert!(matches!(
+                v.privacy_settings_storage_type,
+                PrivacySettingsStorageType::Sync
+            ));
+        }
+
+        if let Ok(v) = serde_json::from_str::<RippleFeatures>("{\"intent_validation\": \"fail\"}") {
+            assert!(matches!(v.intent_validation, IntentValidation::Fail));
+            assert!(matches!(
+                v.privacy_settings_storage_type,
+                PrivacySettingsStorageType::Local
+            ));
+        }
+    }
+
+    #[test]
+    fn test_media_progress_as_watched_events() {
+        let mut manifest = DeviceManifest::mock();
+        let cascaded_manifest = CascadedDeviceManifest::mock();
+        manifest.merge_config(cascaded_manifest);
+        assert!(
+            manifest
+                .configuration
+                .default_values
+                .media_progress_as_watched_events
+        );
+    }
+
+    #[test]
+    fn test_lifecycle_transition_validate() {
+        let mut manifest = DeviceManifest::mock();
+        let cascaded_manifest = CascadedDeviceManifest::mock();
+        manifest.merge_config(cascaded_manifest);
+        assert!(
+            manifest
+                .configuration
+                .default_values
+                .lifecycle_transition_validate
+        );
+    }
+
+    #[test]
+    fn test_accessibility_audio_desc_settings_default_value() {
+        let mut manifest = DeviceManifest::mock();
+        let cascaded_manifest = CascadedDeviceManifest::mock();
+        manifest.merge_config(cascaded_manifest);
+        assert!(
+            !manifest
+                .configuration
+                .default_values
+                .accessibility_audio_description_settings
+        );
+    }
+
+    /// Checks if two HashMaps contain the exact same set of key-value pairs.
+    /// The order of elements does not matter.
+    fn contains_same_set(map1: &HashMap<String, String>, map2: &HashMap<String, String>) -> bool {
+        if map1.len() != map2.len() {
+            return false;
+        }
+
+        for (key, value) in map1.iter() {
+            if let Some(v2) = map2.get(key) {
+                if value != v2 {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+
+        true
     }
 }
