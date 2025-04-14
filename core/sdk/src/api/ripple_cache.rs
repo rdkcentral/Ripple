@@ -16,11 +16,13 @@
 //
 use std::sync::{Arc, RwLock};
 
+use log::debug;
+
 use crate::api::{
     distributor::distributor_privacy::PrivacySettingsData, storage_property::StorageProperty,
 };
 
-use super::storage_manager::IStorageOperator;
+use super::{distributor::distributor_privacy::PrivacySettings, storage_manager::IStorageOperator};
 
 #[derive(Debug, Clone, Default)]
 pub struct RippleCache {
@@ -53,11 +55,21 @@ impl RippleCache {
     ) {
         {
             // update the privacy setting property in cache
+            debug!(
+                "Updating cache for storage property privacy setting {:?} and value {}",
+                property, value
+            );
             {
                 let mut cache = self.privacy_settings_cache.write().unwrap();
                 property.set_privacy_setting_value(&mut cache, value);
             }
             state.on_privacy_updated(self.clone());
         }
+    }
+
+    pub fn update_all_privacy_cache(&self, data: &PrivacySettings) {
+        debug!("Updating all privacy cache {:?}", data);
+        let mut cache = self.privacy_settings_cache.write().unwrap();
+        cache.update(data);
     }
 }
