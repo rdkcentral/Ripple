@@ -62,7 +62,6 @@ use super::{
     provider_broker_state::{ProvideBrokerState, ProviderResult},
     rules_engine::{
         jq_compile, EventHandler, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine,
-        RuleTransformType,
     },
     thunder_broker::ThunderBroker,
     websocket_broker::WebsocketBroker,
@@ -1296,10 +1295,7 @@ impl BrokerOutputForwarder {
     async fn handle_event(
         platform_state: PlatformState,
         event_handler: EventHandler,
-        // <pca>
-        //_broker_request: BrokerRequest,
         broker_request: BrokerRequest,
-        // </pca>
         rpc_request: RpcRequest,
         mut response: JsonRpcApiResponse,
     ) {
@@ -1307,37 +1303,6 @@ impl BrokerOutputForwarder {
         let request_id = rpc_request.ctx.call_id;
         let protocol = rpc_request.ctx.protocol.clone();
         let mut platform_state_c = platform_state.clone();
-
-        // FIXME: As we transition to full RPCv2 support we need to be able to post-process the results from an event
-        // handler as defined by Rule::event_handler, however as currently implemented event_handler logic short-circuits
-        // rule transform logic. Need to refactor to support this, disabing below for now.
-        // ==============================================================================================================
-        // if let Ok(Value::String(res)) =
-        //     BrokerUtils::process_internal_main_request(&mut platform_state_c, method.as_str(), None)
-        //         .await
-        // {
-        //     let mut filter = res.clone();
-        //     if let Some(transform_data) = broker_request.rule.transform.get_transform_data(
-        //         super::rules_engine::RuleTransformType::Event(
-        //             rpc_request.ctx.context.contains(&RPC_V2.into()),
-        //         ),
-        //     ) {
-        //         filter = transform_data
-        //             .replace("$event_handler_response", format!("\"{}\"", res).as_str());
-        //     }
-
-        //     let response_result_value = serde_json::to_value(filter.clone()).unwrap();
-
-        //     apply_rule_for_event(
-        //         &broker_request,
-        //         &response_result_value,
-        //         &rpc_request,
-        //         &filter,
-        //         &mut response,
-        //     );
-        // } else {
-        //     error!("handle_event: error processing internal main request");
-        // }
 
         let params = if let Some(request) = event_handler.params {
             if let Ok(map) = serde_json::from_str::<serde_json::Map<String, Value>>(&request) {
@@ -1348,50 +1313,42 @@ impl BrokerOutputForwarder {
         } else {
             None
         };
-        // ==============================================================================================================
 
-        // <pca>
-        // if let Ok(res) = BrokerUtils::process_internal_main_request(
-        //     &mut platform_state_c,
-        //     event_handler.method.as_str(),
-        //     params,
-        // )
-        // .await
-        // {
-        //     response.result = Some(res.clone());
-        // }
-        if let Ok(event_handler_reposnse) = BrokerUtils::process_internal_main_request(
+        if let Ok(event_handler_response) = BrokerUtils::process_internal_main_request(
             &mut platform_state_c,
             event_handler.method.as_str(),
             params,
         )
         .await
         {
-            println!(
-                "*** _DEBUG: event_handler_reposnse={:?}",
-                event_handler_reposnse
-            );
+            if let Ok(event_handler_response_string) =
+                serde_json::to_string(&event_handler_response)
+            {
+                if let Some(mut event_filter) = broker_request.rule.transform.get_transform_data(
+                    super::rules_engine::RuleTransformType::Event(
+                        rpc_request.ctx.context.contains(&RPC_V2.into()),
+                    ),
+                ) {
+                    event_filter = event_filter
+                        .replace("$event_handler_response", &event_handler_response_string);
 
-            if let Some(event_filter) = broker_request.rule.transform.get_transform_data(
-                super::rules_engine::RuleTransformType::Event(
-                    rpc_request.ctx.context.contains(&RPC_V2.into()),
-                ),
-            ) {
-                apply_rule_for_event(
-                    &broker_request,
-                    &event_handler_reposnse,
-                    &rpc_request,
-                    &event_filter,
-                    &mut response,
-                );
+                    apply_rule_for_event(
+                        &broker_request,
+                        &event_handler_response,
+                        &rpc_request,
+                        &event_filter,
+                        &mut response,
+                    );
+                } else {
+                    response.result = Some(event_handler_response);
+                }
             } else {
-                response.result = Some(event_handler_reposnse);
+                error!("handle_event: Could not deserialize event handler response");
+                response.result = Some(event_handler_response);
             }
         }
-        // </pca>
 
         response.id = Some(request_id);
-
         response.update_event_message(&rpc_request);
 
         let message = ApiMessage::new(

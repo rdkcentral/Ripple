@@ -51,7 +51,6 @@ impl Bootstep<BootstrapState> for StartExtnChannelsStep {
         "StartExtnChannelsStep".into()
     }
     async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
-        println!("*** _DEBUG: StartExtnChannelsStep: Mark 1");
         let mut extn_ids = Vec::new();
         {
             let mut device_channels = state.extn_state.device_channels.write().unwrap();
@@ -64,7 +63,6 @@ impl Bootstep<BootstrapState> for StartExtnChannelsStep {
                 }
             }
         }
-        println!("*** _DEBUG: StartExtnChannelsStep: Mark 2");
 
         {
             let mut deferred_channels = state.extn_state.deferred_channels.write().unwrap();
@@ -77,17 +75,13 @@ impl Bootstep<BootstrapState> for StartExtnChannelsStep {
                 }
             }
         }
-        println!("*** _DEBUG: StartExtnChannelsStep: Mark 3");
         for extn_id in extn_ids {
-            println!("*** _DEBUG: StartExtnChannelsStep: extn_id={}", extn_id);
             let (tx, mut tr) = mpsc::channel(1);
             if !state
                 .extn_state
                 .add_extn_status_listener(extn_id.clone(), tx)
             {
-                println!("*** _DEBUG: StartExtnChannelsStep: Mark A");
                 while let Some(v) = tr.recv().await {
-                    println!("*** _DEBUG: StartExtnChannelsStep: v={:?}", v);
                     match v {
                         ExtnStatus::Ready => break,
                         // When Extension is in this state means it has minimal success criteria for continuing
@@ -103,7 +97,6 @@ impl Bootstep<BootstrapState> for StartExtnChannelsStep {
                 }
             }
         }
-        println!("*** _DEBUG: StartExtnChannelsStep: Mark 5");
 
         Ok(())
     }

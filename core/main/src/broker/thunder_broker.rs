@@ -717,7 +717,7 @@ mod tests {
         params: Option<Value>,
         transform: Option<RuleTransform>,
         event_filter: Option<String>,
-        event_handler_fn: Option<String>,
+        event_handler: Option<EventHandler>,
     ) -> BrokerRequest {
         let mut broker_request = create_mock_broker_request(
             method,
@@ -725,7 +725,7 @@ mod tests {
             params,
             transform,
             event_filter,
-            event_handler_fn,
+            event_handler,
         );
         broker_request.rpc.ctx.call_id = call_id;
         broker_request
@@ -786,7 +786,7 @@ mod tests {
                 transform: transform.unwrap_or_default(),
                 endpoint: None,
                 filter: event_filter,
-                event_handler: event_handler,
+                event_handler,
                 sources: None,
             },
             subscription_processed: None,
