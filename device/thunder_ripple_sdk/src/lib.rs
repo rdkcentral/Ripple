@@ -54,7 +54,7 @@ pub mod utils;
 pub mod thunder_state;
 pub extern crate ripple_sdk;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "mock"))]
 pub mod tests {
     #[cfg(feature = "websocket_contract_tests")]
     pub mod contracts {

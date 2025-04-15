@@ -303,11 +303,6 @@ impl FireboltGateway {
             .metrics
             .add_api_stats(&request_c.ctx.request_id, &request_c.method);
 
-        let metrics_timer = TelemetryBuilder::start_firebolt_metrics_timer(
-            &platform_state.get_client().get_extn_client(),
-            request_c.method.clone(),
-            request_c.ctx.app_id.clone(),
-        );
         let fail_open = matches!(
             platform_state
                 .get_device_manifest()
@@ -322,13 +317,6 @@ impl FireboltGateway {
             capture_stage(&platform_state.metrics, &request_c, "context_ready");
             // Validate incoming request parameters.
             if let Err(error_string) = validate_request(open_rpc_state, &request_c, fail_open) {
-                TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
-                    &platform_state.clone(),
-                    metrics_timer,
-                    format!("{}", JSON_RPC_STANDARD_ERROR_INVALID_PARAMS),
-                )
-                .await;
-
                 let json_rpc_error = JsonRpcError {
                     code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
                     message: error_string,
@@ -418,13 +406,8 @@ impl FireboltGateway {
                                     .emit_debug();
 
                                     // if the websocket disconnects before the session is recieved this leads to an error
-                                    RpcRouter::route(
-                                        platform_state.clone(),
-                                        request_c,
-                                        session,
-                                        metrics_timer.clone(),
-                                    )
-                                    .await;
+                                    RpcRouter::route(platform_state.clone(), request_c, session)
+                                        .await;
                                 } else {
                                     error!("session is missing request is not forwarded for request {:?}", request_c.ctx);
                                 }
@@ -435,12 +418,6 @@ impl FireboltGateway {
                 Err(e) => {
                     let deny_reason = e.reason;
                     // log firebolt response message in RDKTelemetry 1.0 friendly format
-                    TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
-                        &platform_state.clone(),
-                        metrics_timer,
-                        format!("{}", deny_reason.get_observability_error_code()),
-                    )
-                    .await;
 
                     error!(
                         "Failed gateway present error {:?} {:?}",
