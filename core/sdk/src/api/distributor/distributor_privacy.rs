@@ -85,6 +85,60 @@ impl PrivacySettings {
             allow_watch_history: false,
         }
     }
+
+    pub fn update_privacy_setting(&mut self, setting: PrivacySetting, value: bool) {
+        match setting {
+            PrivacySetting::Acr => self.allow_acr_collection = value,
+            PrivacySetting::AppContentAdTargeting => self.allow_app_content_ad_targeting = value,
+            PrivacySetting::BusinessAnalytics => self.allow_business_analytics = value,
+            PrivacySetting::CameraAnalytics => self.allow_camera_analytics = value,
+            PrivacySetting::ContinueWatching => self.allow_resume_points = value,
+            PrivacySetting::Personalization => self.allow_personalization = value,
+            PrivacySetting::PrimaryBrowseAdTargeting => {
+                self.allow_primary_browse_ad_targeting = value
+            }
+            PrivacySetting::PrimaryContentAdTargeting => {
+                self.allow_primary_content_ad_targeting = value
+            }
+            PrivacySetting::ProductAnalytics => self.allow_product_analytics = value,
+            PrivacySetting::RemoteDiagnostics => self.allow_remote_diagnostics = value,
+            PrivacySetting::UnentitledContinueWatching => {
+                self.allow_unentitled_resume_points = value
+            }
+            PrivacySetting::UnentitledPersonalization => {
+                self.allow_unentitled_personalization = value
+            }
+            PrivacySetting::WatchHistory => self.allow_watch_history = value,
+            _ => {}
+        }
+    }
+
+    pub fn update(&mut self, data: PrivacySettings) {
+        self.allow_acr_collection = data.allow_acr_collection;
+        self.allow_resume_points = data.allow_resume_points;
+
+        self.allow_app_content_ad_targeting = data.allow_app_content_ad_targeting;
+
+        self.allow_business_analytics = data.allow_business_analytics;
+
+        self.allow_camera_analytics = data.allow_camera_analytics;
+
+        self.allow_personalization = data.allow_personalization;
+
+        self.allow_primary_browse_ad_targeting = data.allow_primary_browse_ad_targeting;
+
+        self.allow_primary_content_ad_targeting = data.allow_primary_content_ad_targeting;
+
+        self.allow_product_analytics = data.allow_product_analytics;
+
+        self.allow_remote_diagnostics = data.allow_remote_diagnostics;
+
+        self.allow_unentitled_personalization = data.allow_unentitled_personalization;
+
+        self.allow_unentitled_resume_points = data.allow_unentitled_resume_points;
+
+        self.allow_watch_history = data.allow_watch_history;
+    }
 }
 
 impl Default for PrivacySettings {
@@ -115,6 +169,24 @@ pub struct PrivacySettingsData {
     pub allow_unentitled_personalization: Option<bool>,
     pub allow_unentitled_resume_points: Option<bool>,
     pub allow_watch_history: Option<bool>,
+}
+
+impl PrivacySettingsData {
+    pub fn update(&mut self, data: &PrivacySettings) {
+        self.allow_acr_collection = Some(data.allow_acr_collection);
+        self.allow_resume_points = Some(data.allow_resume_points);
+        self.allow_app_content_ad_targeting = Some(data.allow_app_content_ad_targeting);
+        self.allow_business_analytics = Some(data.allow_business_analytics);
+        self.allow_camera_analytics = Some(data.allow_camera_analytics);
+        self.allow_personalization = Some(data.allow_personalization);
+        self.allow_primary_browse_ad_targeting = Some(data.allow_primary_browse_ad_targeting);
+        self.allow_primary_content_ad_targeting = Some(data.allow_primary_content_ad_targeting);
+        self.allow_product_analytics = Some(data.allow_product_analytics);
+        self.allow_remote_diagnostics = Some(data.allow_remote_diagnostics);
+        self.allow_unentitled_personalization = Some(data.allow_unentitled_personalization);
+        self.allow_unentitled_resume_points = Some(data.allow_unentitled_resume_points);
+        self.allow_watch_history = Some(data.allow_watch_history);
+    }
 }
 
 impl From<PrivacySettings> for PrivacySettingsData {
@@ -334,7 +406,6 @@ pub enum PrivacyResponse {
     None,
     Bool(bool),
     Settings(PrivacySettings),
-    Exclusions(ExclusionPolicy),
     Grants(UserGrants),
 }
 

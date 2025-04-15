@@ -297,6 +297,17 @@ impl PermissionHandler {
         state: &PlatformState,
         app_id: &String,
     ) -> Result<(), RippleError> {
+        // Needs permissions
+        if let Some(ex) = state.get_device_manifest().configuration.exclusory {
+            if ex
+                .app_authorization_rules
+                .app_ignore_rules
+                .contains_key(app_id.to_lowercase().as_str())
+            {
+                return Ok(());
+            }
+        }
+
         // This call should hit the server and fetch permissions for the app.
         // Local cache will be updated with the fetched permissions
         let has_stored = state

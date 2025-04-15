@@ -28,7 +28,7 @@ use std::collections::HashMap;
 
 use super::device_request::{
     AudioProfile, DeviceRequest, HDCPStatus, HdcpProfile, HdrProfile, InternetConnectionStatus,
-    OnInternetConnectedRequest, PowerState, TimeZone,
+    PowerState, TimeZone,
 };
 
 pub const DEVICE_INFO_AUTHORIZED: &str = "device_info_authorized";
@@ -45,18 +45,12 @@ pub enum DeviceInfoRequest {
     HdcpStatus,
     Audio,
     AvailableMemory,
-    OnInternetConnected(OnInternetConnectedRequest),
     InternetConnectionStatus,
     VoiceGuidanceEnabled,
     SetVoiceGuidanceEnabled(bool),
     VoiceGuidanceSpeed,
     SetVoiceGuidanceSpeed(f32),
-    GetTimezoneWithOffset,
-    FullCapabilities(Vec<String>),
     PowerState,
-    SerialNumber,
-    StartMonitoringInternetChanges(u32),
-    StopMonitoringInternetChanges,
     PlatformBuildInfo,
 }
 
@@ -106,6 +100,15 @@ pub struct FirmwareInfo {
     pub version: FireboltSemanticVersion,
 }
 
+impl From<FireboltSemanticVersion> for FirmwareInfo {
+    fn from(version: FireboltSemanticVersion) -> Self {
+        FirmwareInfo {
+            name: "rdk".into(),
+            version,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum DeviceResponse {
     CustomError(String),
@@ -113,7 +116,6 @@ pub enum DeviceResponse {
     HdcpSupportResponse(HashMap<HdcpProfile, bool>),
     HdcpStatusResponse(HDCPStatus),
     FirmwareInfo(FirmwareInfo),
-    FullCapabilities(DeviceCapabilities),
     InternetConnectionStatus(InternetConnectionStatus),
     PowerState(PowerState),
     TimeZone(TimeZone),

@@ -21,11 +21,15 @@ pub mod apps;
 pub mod caps;
 pub mod config;
 pub mod context;
+pub mod default_storage_properties;
 pub mod device;
 pub mod manifest;
+pub mod ripple_cache;
 pub mod session;
 pub mod settings;
 pub mod status_update;
+pub mod storage_manager;
+pub mod storage_manager_utils;
 pub mod storage_property;
 pub mod usergrant_entry;
 pub mod wifi;
@@ -36,13 +40,9 @@ pub mod gateway {
 }
 
 pub mod distributor {
-    pub mod distributor_discovery;
-    pub mod distributor_encoder;
     pub mod distributor_permissions;
     pub mod distributor_platform;
     pub mod distributor_privacy;
-    pub mod distributor_request;
-    pub mod distributor_sync;
     pub mod distributor_token;
     pub mod distributor_usergrants;
 }
@@ -69,7 +69,6 @@ pub mod firebolt {
 }
 
 pub mod observability {
-    pub mod analytics;
     pub mod log_signal;
     pub mod metrics_util;
     pub mod operational_metrics;
