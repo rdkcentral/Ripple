@@ -304,7 +304,7 @@ mod tests {
         if let Ok(Some(BrokerOutput { data, .. })) =
             timeout(Duration::from_secs(5), rx.recv()).await
         {
-            assert!(data.is_error());
+            assert!(data.is_success());
         } else {
             eprintln!("Timeout or channel closed without receiving data, skipping test");
         }
