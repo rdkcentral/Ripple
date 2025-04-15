@@ -18,10 +18,7 @@
 use ripple_sdk::{
     api::{
         firebolt::{
-            fb_metrics::{
-                get_metrics_tags, ErrorParams, InteractionType, InternalInitializeParams,
-                SystemErrorParams, Tag, Timer, TimerType,
-            },
+            fb_metrics::{ErrorParams, InternalInitializeParams, SystemErrorParams},
             fb_telemetry::{
                 AppLoadStart, AppLoadStop, FireboltEvent, FireboltInteraction, InternalInitialize,
                 TelemetryAppError, TelemetryPayload, TelemetrySignIn, TelemetrySignOut,
@@ -31,7 +28,6 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::{ApiMessage, CallContext, RpcRequest},
     },
     chrono::{DateTime, Utc},
-    extn::client::extn_client::ExtnClient,
     framework::RippleResponse,
     log::{error, trace},
 };
@@ -55,7 +51,7 @@ impl TelemetryBuilder {
                 app_id,
                 app_version,
                 start_time: start_time.unwrap_or_default().timestamp_millis(),
-                ripple_session_id: ps.metrics.get_context().device_session_id,
+                ripple_session_id: ps.metrics.get_device_session_id(),
                 ripple_version: ps
                     .version
                     .clone()
@@ -74,7 +70,7 @@ impl TelemetryBuilder {
                 app_id,
                 stop_time: Utc::now().timestamp_millis(),
                 app_session_id: None,
-                ripple_session_id: ps.metrics.get_context().device_session_id,
+                ripple_session_id: ps.metrics.get_device_session_id(),
                 success,
             }),
         ) {
@@ -86,12 +82,12 @@ impl TelemetryBuilder {
         ps: &PlatformState,
         mut t: TelemetryPayload,
     ) -> RippleResponse {
-        let session_id = ps.metrics.get_context().device_session_id;
+        let session_id = ps.metrics.get_device_session_id();
         t.update_session_id(session_id);
         Self::send_telemetry(ps, t)
     }
 
-    fn send_telemetry(ps: &PlatformState, t: TelemetryPayload) -> RippleResponse {
+    pub fn send_telemetry(ps: &PlatformState, t: TelemetryPayload) -> RippleResponse {
         trace!("send_telemetry: t={:?}", t);
 
         let listeners = ps.metrics.get_listeners();
@@ -122,7 +118,7 @@ impl TelemetryBuilder {
 
     pub fn send_error(ps: &PlatformState, app_id: String, error_params: ErrorParams) {
         let mut app_error: TelemetryAppError = error_params.into();
-        app_error.ripple_session_id = ps.metrics.get_context().device_session_id;
+        app_error.ripple_session_id = ps.metrics.get_device_session_id();
         app_error.app_id = app_id;
 
         if let Err(e) = Self::send_telemetry(ps, TelemetryPayload::AppError(app_error)) {
@@ -132,7 +128,7 @@ impl TelemetryBuilder {
 
     pub fn send_system_error(ps: &PlatformState, error_params: SystemErrorParams) {
         let mut system_error: TelemetrySystemError = error_params.into();
-        system_error.ripple_session_id = ps.metrics.get_context().device_session_id;
+        system_error.ripple_session_id = ps.metrics.get_device_session_id();
 
         if let Err(e) = Self::send_telemetry(ps, TelemetryPayload::SystemError(system_error)) {
             error!("send_telemetry={:?}", e)
@@ -144,7 +140,7 @@ impl TelemetryBuilder {
             ps,
             TelemetryPayload::SignIn(TelemetrySignIn {
                 app_id: ctx.app_id.to_owned(),
-                ripple_session_id: ps.metrics.get_context().device_session_id,
+                ripple_session_id: ps.metrics.get_device_session_id(),
                 app_session_id: Some(ctx.session_id.to_owned()),
             }),
         ) {
@@ -157,7 +153,7 @@ impl TelemetryBuilder {
             ps,
             TelemetryPayload::SignOut(TelemetrySignOut {
                 app_id: ctx.app_id.to_owned(),
-                ripple_session_id: ps.metrics.get_context().device_session_id,
+                ripple_session_id: ps.metrics.get_device_session_id(),
                 app_session_id: Some(ctx.session_id.to_owned()),
             }),
         ) {
@@ -174,7 +170,7 @@ impl TelemetryBuilder {
             ps,
             TelemetryPayload::InternalInitialize(InternalInitialize {
                 app_id: ctx.app_id.to_owned(),
-                ripple_session_id: ps.metrics.get_context().device_session_id,
+                ripple_session_id: ps.metrics.get_device_session_id(),
                 app_session_id: Some(ctx.session_id.to_owned()),
                 semantic_version: params.version.to_string(),
             }),
@@ -208,7 +204,7 @@ impl TelemetryBuilder {
             ps,
             TelemetryPayload::FireboltInteraction(FireboltInteraction {
                 app_id: ctx.app_id.to_owned(),
-                ripple_session_id: ps.metrics.get_context().device_session_id,
+                ripple_session_id: ps.metrics.get_device_session_id(),
                 app_session_id: Some(ctx.session_id),
                 tt,
                 method,
@@ -230,47 +226,6 @@ impl TelemetryBuilder {
             }),
         ) {
             error!("send_fb_event: e={:?}", e)
-        }
-    }
-
-    pub fn start_firebolt_metrics_timer(
-        extn_client: &ExtnClient,
-        name: String,
-        app_id: String,
-    ) -> Option<Timer> {
-        let metrics_tags = get_metrics_tags(extn_client, InteractionType::Firebolt, Some(app_id))?;
-
-        trace!("start_firebolt_metrics_timer: {}: {:?}", name, metrics_tags);
-
-        Some(Timer::start(
-            name,
-            Some(metrics_tags),
-            Some(TimerType::Local),
-        ))
-    }
-
-    pub async fn stop_and_send_firebolt_metrics_timer(
-        ps: &PlatformState,
-        timer: Option<Timer>,
-        status: String,
-    ) {
-        if let Some(mut timer) = timer {
-            timer.stop();
-            timer.insert_tag(Tag::Status.key(), status);
-            if let Err(e) = &ps
-                .get_client()
-                .send_extn_request(
-                    ripple_sdk::api::firebolt::fb_telemetry::OperationalMetricRequest::Timer(
-                        timer.clone(),
-                    ),
-                )
-                .await
-            {
-                error!(
-                    "stop_and_send_firebolt_metrics_timer: send_telemetry={:?}",
-                    e
-                )
-            }
         }
     }
 }
