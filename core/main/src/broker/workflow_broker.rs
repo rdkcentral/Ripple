@@ -351,6 +351,7 @@ pub mod tests {
     #[tokio::test]
     pub async fn test_log_error_and_send_broker_failure_response() {
         use super::*;
+        use tokio::time::{timeout, Duration};
 
         let (tx, mut rx) = mpsc::channel::<BrokerOutput>(10);
         let callback = BrokerCallback { sender: tx };
@@ -380,9 +381,12 @@ pub mod tests {
             error.clone(),
         );
 
-        // Verify that the error was logged and sent
-        if let Some(BrokerOutput { data, .. }) = rx.recv().await {
+        if let Ok(Some(BrokerOutput { data, .. })) =
+            timeout(Duration::from_secs(5), rx.recv()).await
+        {
             assert!(data.is_error());
+        } else {
+            panic!("Timeout or channel closed without receiving data");
         }
     }
 
@@ -443,6 +447,7 @@ pub mod tests {
     #[tokio::test]
     pub async fn test_start_successful_workflow() {
         use super::*;
+        use tokio::time::{timeout, Duration};
 
         let (tx, mut rx) = mpsc::channel::<BrokerOutput>(10);
         let callback = BrokerCallback { sender: tx };
@@ -463,19 +468,21 @@ pub mod tests {
             workflow_callback: Some(callback.clone()),
             telemetry_response_listeners: vec![],
         };
-
-        // Send a broker request
         broker_sender.sender.send(broker_request).await.unwrap();
 
-        // Verify that a successful response is received
-        if let Some(BrokerOutput { data, .. }) = rx.recv().await {
+        if let Ok(Some(BrokerOutput { data, .. })) =
+            timeout(Duration::from_secs(5), rx.recv()).await
+        {
             assert!(!data.is_error());
+        } else {
+            panic!("Timeout or channel closed without receiving data");
         }
     }
 
     #[tokio::test]
     pub async fn test_start_workflow_with_jsonrpc_error() {
         use super::*;
+        use tokio::time::{timeout, Duration};
 
         let (tx, mut rx) = mpsc::channel::<BrokerOutput>(10);
         let callback = BrokerCallback { sender: tx };
@@ -511,9 +518,13 @@ pub mod tests {
         let broker_output = BrokerOutput { data: response };
 
         callback.sender.send(broker_output).await.unwrap();
-        // Verify that a JSON-RPC error response is received
-        if let Some(BrokerOutput { data, .. }) = rx.recv().await {
+
+        if let Ok(Some(BrokerOutput { data, .. })) =
+            timeout(Duration::from_secs(5), rx.recv()).await
+        {
             assert!(data.is_error());
+        } else {
+            panic!("Timeout or channel closed without receiving data");
         }
     }
 }
