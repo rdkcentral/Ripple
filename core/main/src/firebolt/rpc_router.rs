@@ -29,7 +29,6 @@ use jsonrpsee::{
 };
 use ripple_sdk::{
     api::{
-        firebolt::fb_metrics::Timer,
         gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
         observability::log_signal::LogSignal,
     },
@@ -203,12 +202,7 @@ async fn resolve_route(
 }
 
 impl RpcRouter {
-    pub async fn route(
-        mut state: PlatformState,
-        mut req: RpcRequest,
-        session: Session,
-        timer: Option<Timer>,
-    ) {
+    pub async fn route(mut state: PlatformState, mut req: RpcRequest, session: Session) {
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
 
@@ -219,20 +213,6 @@ impl RpcRouter {
         tokio::spawn(async move {
             let start = Utc::now().timestamp_millis();
             let resp = resolve_route(&mut state, methods, resources, req.clone()).await;
-
-            let status = match resp.clone() {
-                Ok(msg) => {
-                    if msg.is_error() {
-                        msg.jsonrpc_msg
-                    } else {
-                        "0".into()
-                    }
-                }
-                Err(e) => format!("{}", e),
-            };
-
-            TelemetryBuilder::stop_and_send_firebolt_metrics_timer(&state, timer, status).await;
-
             if let Ok(msg) = resp {
                 let now = Utc::now().timestamp_millis();
                 let success = !msg.is_error();

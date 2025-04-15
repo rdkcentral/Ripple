@@ -35,6 +35,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use jsonrpsee::core::server::rpc_module::Methods;
+use log::info;
 
 #[derive(Debug, Clone)]
 pub struct RPCRequestState {
@@ -54,6 +55,9 @@ impl RPCRequestProcessor {
     pub fn new(client: ExtnClient, methods: Methods, extn_id: ExtnId) -> RPCRequestProcessor {
         let router_state = RouterState::new();
         router_state.update_methods(methods.clone());
+        for method in methods.method_names() {
+            info!("Adding RPC method {}", method);
+        }
 
         RPCRequestProcessor {
             state: RPCRequestState {

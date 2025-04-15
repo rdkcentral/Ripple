@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-pub mod account_link_processor;
 pub mod app_events_processor;
 pub mod authorized_info_processor;
 pub mod config_processor;

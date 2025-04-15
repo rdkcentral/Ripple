@@ -40,10 +40,7 @@ use ripple_sdk::{
 };
 
 use crate::{
-    general_discovery_processor::DistributorDiscoveryProcessor,
     general_distributor_token_processor::DistributorTokenProcessor,
-    general_media_events_processor::DistributorMediaEventProcessor,
-    general_metrics_processor::DistributorMetricsProcessor,
     general_paltform_token_processor::PlatformTokenProcessor,
     general_permission_processor::DistributorPermissionProcessor,
     general_privacy_processor::DistributorPrivacyProcessor,
@@ -63,10 +60,7 @@ fn init_library() -> CExtnMetadata {
             RippleContract::Storage(StorageAdjective::Secure),
             RippleContract::Storage(StorageAdjective::PrivacyCloud),
             RippleContract::Session(SessionAdjective::Root),
-            RippleContract::BehaviorMetrics,
             RippleContract::Session(SessionAdjective::Device),
-            RippleContract::Discovery,
-            RippleContract::MediaEvents,
             RippleContract::Session(SessionAdjective::Distributor),
             RippleContract::Session(SessionAdjective::Platform),
         ]),
@@ -106,10 +100,7 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
 
             client.add_request_processor(DistributorPermissionProcessor::new(client.clone()));
             client.add_request_processor(DistributorSecureStorageProcessor::new(client.clone()));
-            client.add_request_processor(DistributorMetricsProcessor::new(client.clone()));
             client.add_request_processor(GeneralTokenProcessor::new(client.clone()));
-            client.add_request_processor(DistributorDiscoveryProcessor::new(client.clone()));
-            client.add_request_processor(DistributorMediaEventProcessor::new(client.clone()));
             client.add_request_processor(DistributorTokenProcessor::new(client.clone()));
             client.add_request_processor(PlatformTokenProcessor::new(client.clone()));
 

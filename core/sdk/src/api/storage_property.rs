@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::{ContractAdjective, RippleContract},
+    utils::error::RippleError,
 };
 
 use super::{
@@ -444,6 +445,28 @@ pub enum StorageProperty {
     SkipRestriction,
     AudioDescriptionEnabled,
     CCPreferredLanguages,
+}
+
+impl TryFrom<PrivacySetting> for StorageProperty {
+    type Error = RippleError;
+    fn try_from(value: PrivacySetting) -> Result<Self, RippleError> {
+        match value {
+            PrivacySetting::Acr => Ok(Self::AllowAcrCollection),
+            PrivacySetting::AppContentAdTargeting => Ok(Self::AllowAppContentAdTargeting),
+            PrivacySetting::BusinessAnalytics => Ok(Self::AllowBusinessAnalytics),
+            PrivacySetting::CameraAnalytics => Ok(Self::AllowCameraAnalytics),
+            PrivacySetting::ContinueWatching => Ok(Self::AllowResumePoints),
+            PrivacySetting::Personalization => Ok(Self::AllowPersonalization),
+            PrivacySetting::PrimaryBrowseAdTargeting => Ok(Self::AllowPrimaryBrowseAdTargeting),
+            PrivacySetting::PrimaryContentAdTargeting => Ok(Self::AllowPrimaryContentAdTargeting),
+            PrivacySetting::ProductAnalytics => Ok(Self::AllowProductAnalytics),
+            PrivacySetting::RemoteDiagnostics => Ok(Self::AllowRemoteDiagnostics),
+            PrivacySetting::UnentitledContinueWatching => Ok(Self::AllowUnentitledResumePoints),
+            PrivacySetting::UnentitledPersonalization => Ok(Self::AllowUnentitledPersonalization),
+            PrivacySetting::WatchHistory => Ok(Self::AllowWatchHistory),
+            _ => Err(RippleError::InvalidInput),
+        }
+    }
 }
 
 impl StorageProperty {

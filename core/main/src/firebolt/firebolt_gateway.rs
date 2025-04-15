@@ -34,7 +34,7 @@ use ripple_sdk::{
     extn::extn_client_message::ExtnMessage,
     log::{debug, error, info, trace, warn},
     serde_json::{self, Value},
-    tokio::{self, sync::mpsc::Sender},
+    tokio::{self, runtime::Handle, sync::mpsc::Sender},
 };
 use serde::{Deserialize, Serialize};
 
@@ -112,7 +112,16 @@ impl FireboltGateway {
             .channels_state
             .get_gateway_receiver()
             .expect("Gateway receiver to be available");
+        let handle = Handle::current().metrics();
+
         while let Some(cmd) = firebolt_gateway_rx.recv().await {
+            info!(
+                "Current gateway capacity {} {} {}",
+                firebolt_gateway_rx.capacity(),
+                handle.global_queue_depth(),
+                handle.num_alive_tasks()
+            );
+
             use FireboltGatewayCommand::*;
 
             match cmd {
@@ -208,7 +217,10 @@ impl FireboltGateway {
                         );
                     }
                 }
-                Err(e) => error!("handle_broker_callback: e={:?}", e),
+                Err(e) => error!(
+                    "handle_broker_callback: e={:?} request_id={} method={} app_id={}",
+                    e, rpc_request.ctx.request_id, rpc_request.ctx.method, rpc_request.ctx.app_id
+                ),
             }
         });
 
@@ -291,11 +303,6 @@ impl FireboltGateway {
             .metrics
             .add_api_stats(&request_c.ctx.request_id, &request_c.method);
 
-        let metrics_timer = TelemetryBuilder::start_firebolt_metrics_timer(
-            &platform_state.get_client().get_extn_client(),
-            request_c.method.clone(),
-            request_c.ctx.app_id.clone(),
-        );
         let fail_open = matches!(
             platform_state
                 .get_device_manifest()
@@ -310,13 +317,6 @@ impl FireboltGateway {
             capture_stage(&platform_state.metrics, &request_c, "context_ready");
             // Validate incoming request parameters.
             if let Err(error_string) = validate_request(open_rpc_state, &request_c, fail_open) {
-                TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
-                    &platform_state.clone(),
-                    metrics_timer,
-                    format!("{}", JSON_RPC_STANDARD_ERROR_INVALID_PARAMS),
-                )
-                .await;
-
                 let json_rpc_error = JsonRpcError {
                     code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
                     message: error_string,
@@ -406,13 +406,8 @@ impl FireboltGateway {
                                     .emit_debug();
 
                                     // if the websocket disconnects before the session is recieved this leads to an error
-                                    RpcRouter::route(
-                                        platform_state.clone(),
-                                        request_c,
-                                        session,
-                                        metrics_timer.clone(),
-                                    )
-                                    .await;
+                                    RpcRouter::route(platform_state.clone(), request_c, session)
+                                        .await;
                                 } else {
                                     error!("session is missing request is not forwarded for request {:?}", request_c.ctx);
                                 }
@@ -423,12 +418,6 @@ impl FireboltGateway {
                 Err(e) => {
                     let deny_reason = e.reason;
                     // log firebolt response message in RDKTelemetry 1.0 friendly format
-                    TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
-                        &platform_state.clone(),
-                        metrics_timer,
-                        format!("{}", deny_reason.get_observability_error_code()),
-                    )
-                    .await;
 
                     error!(
                         "Failed gateway present error {:?} {:?}",
