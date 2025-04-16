@@ -52,6 +52,7 @@ contract_tests = [
     "websocket_contract_tests",
 ]
 local_dev=[]
+mock=[]
 
 [dependencies]
 tokio-tungstenite = { workspace = true, features = ["native-tls"] }
