@@ -232,6 +232,7 @@ pub enum PowerState {
     DeepSleep,
     LightSleep,
     On,
+    Unknown,
 }
 impl FromStr for PowerState {
     type Err = ();
@@ -242,7 +243,7 @@ impl FromStr for PowerState {
             "DEEP_SLEEP" => Ok(PowerState::DeepSleep),
             "LIGHT_SLEEP" => Ok(PowerState::LightSleep),
             "ON" => Ok(PowerState::On),
-            _ => Err(()),
+            _ => Ok(PowerState::Unknown),
         }
     }
 }
