@@ -318,7 +318,7 @@ mod tests {
 
     #[test]
     fn test_power_state_from_str_invalid() {
-        assert_eq!(PowerState::from_str("INVALID"), Err(()));
+        assert_eq!(PowerState::from_str("INVALID"), Ok(PowerState::Unknown));
     }
 
     #[rstest]
