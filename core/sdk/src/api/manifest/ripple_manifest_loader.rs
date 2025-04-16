@@ -74,7 +74,7 @@ impl RippleManifestLoader {
             .ok()
             .and_then(|s| s.parse::<bool>().ok())
             .unwrap_or(false);
-        println!("CASCADED_CONFIGURATION {}", cascaded_config);
+        info!("CASCADED_CONFIGURATION {}", cascaded_config);
         let base_path = Self::try_load_base_path();
         let country_code = std::env::var("COUNTRY").unwrap_or_else(|_| "eu".to_string());
         let device_type = std::env::var("DEVICE_PLATFORM").ok();
@@ -96,14 +96,12 @@ impl RippleManifestLoader {
         };
 
         if !cascaded_config {
-            println!("cascaded configuration is set to false");
             Ok((
                 LoadExtnManifestStep::get_manifest(),
                 LoadDeviceManifestStep::get_manifest(),
             ))
         } else {
             let config_loader = loader.get_config_loader();
-            println!("cascaded configuration is set to true");
             Ok((
                 config_loader.get_extn_manifest(),
                 config_loader.get_device_manifest(),
@@ -136,11 +134,11 @@ impl RippleManifestLoader {
 
     fn load_ripple_config(path: &str) -> Option<RippleManifestConfig> {
         std::fs::read_to_string(path)
-            .map_err(|e| eprintln!("Error reading config from {}: {}", path, e))
+            .map_err(|e| error!("Error reading config from {}: {}", path, e))
             .ok()
             .and_then(|content| {
                 serde_json::from_str::<RippleManifestConfig>(&content)
-                    .map_err(|e| eprintln!("Error deserializing config from {}: {}", path, e))
+                    .map_err(|e| error!("Error deserializing config from {}: {}", path, e))
                     .ok()
             })
     }
@@ -188,20 +186,20 @@ impl RippleConfigLoader {
 
         // Load the default manifest first
         if let Some(default_path_str) = &default_path {
-            println!(
+            info!(
                 "Loading default extension manifest from: {}",
                 default_path_str
             );
             match ExtnManifest::load(default_path_str.clone()) {
                 Ok((_, manifest)) => merged_manifest = manifest,
-                Err(e) => eprintln!("Error loading default extension manifest: {}", e),
+                Err(e) => error!("Error loading default extension manifest: {}", e),
             }
         } else {
-            println!("No default extension manifest path provided.");
+            info!("No default extension manifest path provided.");
         }
 
         // Merge other manifests
-        println!("Merging other extension manifests...");
+        info!("Merging other extension manifests...");
         for path in paths {
             if let Some(default_path_str) = &default_path {
                 if path == default_path_str {
@@ -209,17 +207,17 @@ impl RippleConfigLoader {
                 }
             }
 
-            println!("Attempting to merge extension manifest from: {}", path);
+            info!("Attempting to merge extension manifest from: {}", path);
             match CascadedExtnManifest::load(path.clone()) {
                 Ok((_, cas_manifest)) => {
-                    println!(
+                    info!(
                         "Successfully loaded and merging extension manifest from: {}",
                         path
                     );
                     merged_manifest.merge_config(cas_manifest);
                 }
                 Err(e) => {
-                    eprintln!(
+                    error!(
                         "Error loading or merging extension manifest from {}: {:?}",
                         path, e
                     );
@@ -228,9 +226,9 @@ impl RippleConfigLoader {
         }
 
         if let Ok(json_string) = serde_json::to_string_pretty(&merged_manifest) {
-            println!("Merged Extension Manifest:\n{}", json_string);
+            info!("Merged Extension Manifest:\n{}", json_string);
         } else {
-            eprintln!("Error serializing merged extension manifest to JSON for printing",);
+            error!("Error serializing merged extension manifest to JSON for printing",);
         }
 
         merged_manifest
@@ -245,13 +243,13 @@ impl RippleConfigLoader {
 
         // Load the default manifest first
         if let Some(default_path_str) = &default_path {
-            println!("Loading default device manifest from: {}", default_path_str);
+            info!("Loading default device manifest from: {}", default_path_str);
             match DeviceManifest::load(default_path_str.clone()) {
                 Ok((_, manifest)) => merged_manifest = manifest,
-                Err(e) => eprintln!("Error loading default device manifest: {}", e),
+                Err(e) => error!("Error loading default device manifest: {}", e),
             }
         } else {
-            println!("No default device manifest path provided.");
+            info!("No default device manifest path provided.");
         }
 
         // Merge other manifests
@@ -264,14 +262,14 @@ impl RippleConfigLoader {
 
             match CascadedDeviceManifest::load(path.clone()) {
                 Ok((_, cas_manifest)) => {
-                    println!(
+                    info!(
                         "Successfully loaded and merging device manifest from: {}",
                         path
                     );
                     merged_manifest.merge_config(cas_manifest);
                 }
                 Err(e) => {
-                    eprintln!(
+                    error!(
                         "Error loading or merging device manifest from {}: {:?}",
                         path, e
                     );
@@ -280,9 +278,9 @@ impl RippleConfigLoader {
         }
 
         if let Ok(json_string) = serde_json::to_string_pretty(&merged_manifest) {
-            println!("Merged Device Manifest:\n{}", json_string);
+            info!("Merged Device Manifest:\n{}", json_string);
         } else {
-            eprintln!("Error serializing merged device manifest to JSON for printing",);
+            error!("Error serializing merged device manifest to JSON for printing",);
         }
 
         merged_manifest
@@ -359,13 +357,13 @@ impl RippleConfigLoader {
     }
 
     fn load_cascaded_extn_manifest(&self) -> ExtnManifest {
-        println!("Loading cascaded extension manifest");
+        info!("Loading cascaded extension manifest");
         let (default_path, paths) = self.get_manifest_paths(true);
         self.load_and_merge_extn_manifests(&paths, default_path)
     }
 
     fn load_cascaded_device_manifest(&self) -> DeviceManifest {
-        println!("Loading cascaded device manifest");
+        info!("Loading cascaded device manifest");
         let (default_path, paths) = self.get_manifest_paths(false);
         self.load_and_merge_device_manifests(&paths, default_path)
     }
@@ -416,7 +414,7 @@ mod tests {
         env::set_var("COUNTRY", "us");
         env::set_var("DEVICE_PLATFORM", "tv");
         env::set_var("RIPPLE_BASE_PATH", "../../../firebolt-devices/rdke");
-        println!("Current working directory: {:?}", std::env::current_dir());
+        info!("Current working directory: {:?}", std::env::current_dir());
         env::set_var("EXTN_MANIFEST", "../../../mock/extn.json");
         env::set_var("DEVICE_MANIFEST", "../../../mock/manifest.json");
         let result = RippleManifestLoader::initialize();
