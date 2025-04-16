@@ -22,7 +22,7 @@ use ripple_sdk::{
     async_channel::{unbounded, Receiver as CReceiver, Sender as CSender},
     extn::ffi::ffi_message::CExtnMessage,
     framework::bootstrap::TransientChannel,
-    log::{info, warn},
+    log::{error, info, warn},
     manifest::device::LoadDeviceManifestStep,
     tokio::sync::mpsc::{self, Receiver, Sender},
     utils::error::RippleError,
@@ -117,7 +117,7 @@ impl BootstrapState {
         let channels_state = ChannelsState::new();
         let client = RippleClient::new(channels_state.clone());
         let Ok((extn_manifest, device_manifest)) = RippleManifestLoader::initialize() else {
-            eprintln!("Error initializing manifests");
+            error!("Error initializing manifests");
             return Err(RippleError::BootstrapError);
         };
         LoadDeviceManifestStep::read_env_variable();
