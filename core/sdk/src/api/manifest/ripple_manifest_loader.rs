@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use log::info;
+use log::{error, info};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
