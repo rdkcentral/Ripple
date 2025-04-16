@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-use std::path::Path;
 use log::info;
 use serde::Deserialize;
+use std::collections::HashMap;
+use std::path::Path;
 
 use crate::{
     api::manifest::{
@@ -53,7 +53,9 @@ pub struct RippleManifestLoader {
 
 impl RippleManifestLoader {
     pub fn initialize() -> Result<(ExtnManifest, DeviceManifest), RippleError> {
-        let cascaded_config = std::env::var("CASCADED_CONFIGURATION").map(|_| true).unwrap_or(false);
+        let cascaded_config = std::env::var("CASCADED_CONFIGURATION")
+            .map(|_| true)
+            .unwrap_or(false);
         println!("CASCADED_CONFIGURATION {}", cascaded_config);
         let base_path = Self::try_load_base_path();
         let country_code = std::env::var("COUNTRY").unwrap_or_else(|_| "eu".to_string());
@@ -168,7 +170,10 @@ impl RippleConfigLoader {
 
         // Load the default manifest first
         if let Some(default_path_str) = &default_path {
-            println!("Loading default extension manifest from: {}", default_path_str);
+            println!(
+                "Loading default extension manifest from: {}",
+                default_path_str
+            );
             match ExtnManifest::load(default_path_str.clone()) {
                 Ok((_, manifest)) => merged_manifest = manifest,
                 Err(e) => eprintln!("Error loading default extension manifest: {}", e),
@@ -189,11 +194,17 @@ impl RippleConfigLoader {
             println!("Attempting to merge extension manifest from: {}", path);
             match CascadedExtnManifest::load(path.clone()) {
                 Ok((_, cas_manifest)) => {
-                    println!("Successfully loaded and merging extension manifest from: {}", path);
+                    println!(
+                        "Successfully loaded and merging extension manifest from: {}",
+                        path
+                    );
                     merged_manifest.merge_config(cas_manifest);
                 }
                 Err(e) => {
-                    eprintln!("Error loading or merging extension manifest from {}: {:?}", path, e);
+                    eprintln!(
+                        "Error loading or merging extension manifest from {}: {:?}",
+                        path, e
+                    );
                 }
             }
         }
@@ -235,11 +246,17 @@ impl RippleConfigLoader {
 
             match CascadedDeviceManifest::load(path.clone()) {
                 Ok((_, cas_manifest)) => {
-                    println!("Successfully loaded and merging device manifest from: {}", path);
+                    println!(
+                        "Successfully loaded and merging device manifest from: {}",
+                        path
+                    );
                     merged_manifest.merge_config(cas_manifest);
                 }
                 Err(e) => {
-                    eprintln!("Error loading or merging device manifest from {}: {:?}", path, e);
+                    eprintln!(
+                        "Error loading or merging device manifest from {}: {:?}",
+                        path, e
+                    );
                 }
             }
         }
@@ -264,7 +281,7 @@ impl RippleConfigLoader {
 
         let default_path_resolved = if !default_path.is_empty() {
             Some(self.resolve_path(default_path))
-        }else {
+        } else {
             None
         };
 
@@ -326,19 +343,13 @@ impl RippleConfigLoader {
     fn load_cascaded_extn_manifest(&self) -> ExtnManifest {
         println!("Loading cascaded extension manifest");
         let (default_path, paths) = self.get_manifest_paths(true);
-           self.load_and_merge_extn_manifests(
-            &paths,
-            default_path,
-        )
+        self.load_and_merge_extn_manifests(&paths, default_path)
     }
 
     fn load_cascaded_device_manifest(&self) -> DeviceManifest {
         println!("Loading cascaded device manifest");
         let (default_path, paths) = self.get_manifest_paths(false);
-        self.load_and_merge_device_manifests(
-            &paths,
-            default_path,
-        )
+        self.load_and_merge_device_manifests(&paths, default_path)
     }
 
     pub fn get_extn_manifest(&self) -> ExtnManifest {
@@ -362,8 +373,6 @@ impl RippleConfigLoader {
 mod tests {
     use super::*;
     use std::env;
-    use std::fs;
-    use std::path::Path;
 
     use crate::api::manifest::ripple_manifest_loader::RippleManifestLoader;
 
