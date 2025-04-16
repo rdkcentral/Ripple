@@ -249,10 +249,8 @@ impl RuleEngine {
         }
     }
 
-    pub fn has_rule(&self, request: &RpcRequest) -> bool {
-        self.rules
-            .rules
-            .contains_key(&request.ctx.method.to_lowercase())
+    pub fn has_rule(&self, request: &str) -> bool {
+        self.rules.rules.contains_key(&request.to_lowercase())
     }
 
     pub fn get_rule(&self, rpc_request: &RpcRequest) -> Option<Rule> {

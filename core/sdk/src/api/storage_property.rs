@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
     framework::ripple_contract::{ContractAdjective, RippleContract},
+    utils::error::RippleError,
 };
 
 use super::{
@@ -76,7 +77,6 @@ pub const KEY_PREFERRED_AUDIO_LANGUAGES: &str = "preferredAudioLanguages";
 
 pub const EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED: &str =
     "accessibility.onClosedCaptionsSettingsChanged";
-pub const EVENT_CLOSED_CAPTIONS_ENABLED: &str = "closedcaptions.onEnabledChanged";
 pub const EVENT_CLOSED_CAPTIONS_FONT_FAMILY: &str = "closedcaptions.onFontFamilyChanged";
 pub const EVENT_CLOSED_CAPTIONS_FONT_SIZE: &str = "closedcaptions.onFontSizeChanged";
 pub const EVENT_CLOSED_CAPTIONS_FONT_COLOR: &str = "closedcaptions.onFontColorChanged";
@@ -126,15 +126,6 @@ pub const EVENT_CC_PREFERRED_LANGUAGES: &str = "ClosedCaptions.onPreferredLangua
 pub const EVENT_AUDIO_DESCRIPTION_SETTINGS_CHANGED: &str =
     "Accessibility.onAudioDescriptionSettingsChanged";
 pub const EVENT_TIMEZONE_CHANGED: &str = "localization.onTimeZoneChanged";
-
-const PROPERTY_DATA_CLOSED_CAPTIONS_ENABLED: PropertyData = PropertyData {
-    key: KEY_ENABLED,
-    namespace: NAMESPACE_CLOSED_CAPTIONS,
-    event_names: Some(&[
-        EVENT_CLOSED_CAPTIONS_ENABLED,
-        EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED,
-    ]),
-};
 
 const PROPERTY_DATA_CLOSED_CAPTIONS_FONT_FAMILY: PropertyData = PropertyData {
     key: KEY_FONT_FAMILY,
@@ -409,7 +400,6 @@ pub struct PropertyData {
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum StorageProperty {
-    ClosedCaptionsEnabled,
     ClosedCaptionsFontFamily,
     ClosedCaptionsFontSize,
     ClosedCaptionsFontColor,
@@ -446,10 +436,31 @@ pub enum StorageProperty {
     CCPreferredLanguages,
 }
 
+impl TryFrom<PrivacySetting> for StorageProperty {
+    type Error = RippleError;
+    fn try_from(value: PrivacySetting) -> Result<Self, RippleError> {
+        match value {
+            PrivacySetting::Acr => Ok(Self::AllowAcrCollection),
+            PrivacySetting::AppContentAdTargeting => Ok(Self::AllowAppContentAdTargeting),
+            PrivacySetting::BusinessAnalytics => Ok(Self::AllowBusinessAnalytics),
+            PrivacySetting::CameraAnalytics => Ok(Self::AllowCameraAnalytics),
+            PrivacySetting::ContinueWatching => Ok(Self::AllowResumePoints),
+            PrivacySetting::Personalization => Ok(Self::AllowPersonalization),
+            PrivacySetting::PrimaryBrowseAdTargeting => Ok(Self::AllowPrimaryBrowseAdTargeting),
+            PrivacySetting::PrimaryContentAdTargeting => Ok(Self::AllowPrimaryContentAdTargeting),
+            PrivacySetting::ProductAnalytics => Ok(Self::AllowProductAnalytics),
+            PrivacySetting::RemoteDiagnostics => Ok(Self::AllowRemoteDiagnostics),
+            PrivacySetting::UnentitledContinueWatching => Ok(Self::AllowUnentitledResumePoints),
+            PrivacySetting::UnentitledPersonalization => Ok(Self::AllowUnentitledPersonalization),
+            PrivacySetting::WatchHistory => Ok(Self::AllowWatchHistory),
+            _ => Err(RippleError::InvalidInput),
+        }
+    }
+}
+
 impl StorageProperty {
     pub fn as_data(&self) -> PropertyData {
         match self {
-            StorageProperty::ClosedCaptionsEnabled => PROPERTY_DATA_CLOSED_CAPTIONS_ENABLED,
             StorageProperty::ClosedCaptionsFontFamily => PROPERTY_DATA_CLOSED_CAPTIONS_FONT_FAMILY,
             StorageProperty::ClosedCaptionsFontSize => PROPERTY_DATA_CLOSED_CAPTIONS_FONT_SIZE,
             StorageProperty::ClosedCaptionsFontColor => PROPERTY_DATA_CLOSED_CAPTIONS_FONT_COLOR,
@@ -662,23 +673,6 @@ impl ContractAdjective for StorageAdjective {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::test_utils::test_extn_payload_provider;
-
-    #[test]
-    fn test_extn_request_storage_manager() {
-        let storage_request =
-            StorageManagerRequest::GetBool(StorageProperty::ClosedCaptionsEnabled, true);
-        let contract_type: RippleContract = RippleContract::Storage(StorageAdjective::Manager);
-
-        test_extn_payload_provider(storage_request, contract_type);
-    }
-    #[test]
-    fn test_storage_property_as_data() {
-        let property = StorageProperty::ClosedCaptionsEnabled;
-        let data = property.as_data();
-        assert_eq!(data.key, KEY_ENABLED);
-        assert_eq!(data.namespace, NAMESPACE_CLOSED_CAPTIONS);
-    }
 
     #[test]
     fn test_storage_property_as_privacy_setting() {
