@@ -71,7 +71,8 @@ pub struct RippleManifestLoader {
 impl RippleManifestLoader {
     pub fn initialize() -> Result<(ExtnManifest, DeviceManifest), RippleError> {
         let cascaded_config = std::env::var("CASCADED_CONFIGURATION")
-            .map(|_| true)
+            .ok()
+            .and_then(|s| s.parse::<bool>().ok())
             .unwrap_or(false);
         println!("CASCADED_CONFIGURATION {}", cascaded_config);
         let base_path = Self::try_load_base_path();
