@@ -70,14 +70,14 @@ pub struct RippleManifestLoader {
 
 impl RippleManifestLoader {
     pub fn initialize() -> Result<(ExtnManifest, DeviceManifest), RippleError> {
-        let cascaded_config = std::env::var("CASCADED_CONFIGURATION")
+        let cascaded_config = std::env::var("RIPPLE_CASCADED_CONFIGURATION")
             .ok()
             .and_then(|s| s.parse::<bool>().ok())
             .unwrap_or(false);
-        info!("CASCADED_CONFIGURATION {}", cascaded_config);
+        info!("RIPPLE_CASCADED_CONFIGURATION {}", cascaded_config);
         let base_path = Self::try_load_base_path();
-        let country_code = std::env::var("COUNTRY").unwrap_or_else(|_| "eu".to_string());
-        let device_type = std::env::var("DEVICE_PLATFORM").ok();
+        let country_code = std::env::var("RIPPLE_COUNTRY").unwrap_or_else(|_| "eu".to_string());
+        let device_type = std::env::var("RIPPLE_DEVICE_PLATFORM").ok();
         let manifest_config = if cascaded_config {
             Path::new(&base_path)
                 .join("ripple.config.json")
@@ -111,7 +111,7 @@ impl RippleManifestLoader {
 
     fn try_load_base_path() -> String {
         if cfg!(feature = "local_dev") {
-            if let Ok(path) = std::env::var("RIPPLE_BASE_PATH") {
+            if let Ok(path) = std::env::var("RIPPLE_CONFIG_BASE_PATH") {
                 info!("Loaded base path from env: {}", path);
                 return path;
             }
@@ -123,7 +123,7 @@ impl RippleManifestLoader {
                 }
             }
         } else if cfg!(test) {
-            if let Ok(path) = std::env::var("RIPPLE_BASE_PATH") {
+            if let Ok(path) = std::env::var("RIPPLE_CONFIG_BASE_PATH") {
                 info!("Loaded base path from env (test): {}", path);
                 return path;
             }
@@ -395,10 +395,10 @@ mod tests {
     #[test]
     fn test_initialize_with_cascaded_config() {
         // Set up environment variables
-        env::set_var("CASCADED_CONFIGURATION", "true");
-        env::set_var("COUNTRY", "us");
-        env::set_var("DEVICE_PLATFORM", "tv");
-        env::set_var("RIPPLE_BASE_PATH", "../../../firebolt-devices/rdke");
+        env::set_var("RIPPLE_CASCADED_CONFIGURATION", "true");
+        env::set_var("RIPPLE_COUNTRY", "us");
+        env::set_var("RIPPLE_DEVICE_PLATFORM", "tv");
+        env::set_var("RIPPLE_CONFIG_BASE_PATH", "../../../firebolt-devices/rdke");
         let result = RippleManifestLoader::initialize();
         assert!(result.is_ok(), "Failed to initialize RippleManifestLoader");
 
@@ -411,10 +411,9 @@ mod tests {
     #[test]
     fn test_initialize_with_cascaded_config_false() {
         // Set up environment variables
-        env::set_var("COUNTRY", "us");
-        env::set_var("DEVICE_PLATFORM", "tv");
-        env::set_var("RIPPLE_BASE_PATH", "../../../firebolt-devices/rdke");
-        info!("Current working directory: {:?}", std::env::current_dir());
+        env::set_var("RIPPLE_COUNTRY", "us");
+        env::set_var("RIPPLE_DEVICE_PLATFORM", "tv");
+        env::set_var("RIPPLE_CONFIG_BASE_PATH", "../../../firebolt-devices/rdke");
         env::set_var("EXTN_MANIFEST", "../../../mock/extn.json");
         env::set_var("DEVICE_MANIFEST", "../../../mock/manifest.json");
         let result = RippleManifestLoader::initialize();

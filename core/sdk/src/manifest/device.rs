@@ -29,18 +29,18 @@ impl LoadDeviceManifestStep {
     }
 
     pub fn read_env_variable() {
-        let country_env = std::env::var("COUNTRY").unwrap_or_else(|_| "eu".to_string()); // Default to "eu"
-        info!("COUNTRY environment variable set to : {}", country_env);
+        let country_env = std::env::var("RIPPLE_COUNTRY").unwrap_or_else(|_| "eu".to_string()); // Default to "eu"
+        info!("RIPPLE_COUNTRY environment variable set to : {}", country_env);
 
-        match std::env::var("DEVICE_PLATFORM") {
+        match std::env::var("RIPPLE_DEVICE_PLATFORM") {
             Ok(device_platform) => {
                 info!(
-                    "DEVICE_PLATFORM environment variable set to: {}",
+                    "RIPPLE_DEVICE_PLATFORM environment variable set to: {}",
                     device_platform
                 );
             }
             Err(_) => {
-                info!("DEVICE_PLATFORM environment variable is not set.");
+                info!("RIPPLE_DEVICE_PLATFORM environment variable is not set.");
             }
         }
     }
