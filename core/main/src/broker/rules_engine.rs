@@ -95,6 +95,13 @@ pub struct JsonDataSource {
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct EventHandler {
+    pub method: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub params: Option<String>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Rule {
     pub alias: String,
     // Not every rule needs transform
@@ -102,8 +109,8 @@ pub struct Rule {
     pub transform: RuleTransform,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filter: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub event_handler: Option<String>,
+    #[serde(default)]
+    pub event_handler: Option<EventHandler>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub endpoint: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
