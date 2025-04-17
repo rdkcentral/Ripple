@@ -41,14 +41,6 @@ pub struct CascadedExtnManifest {
     pub provider_registrations: Option<Vec<String>>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
-#[cfg_attr(test, derive(PartialEq))]
-pub struct ExtnResolutionEntry {
-    pub capability: String,
-    pub priority: Option<u64>,
-    pub exclusion: Option<bool>,
-}
-
 impl MergeConfig<CascadedExtnManifest> for ExtnManifest {
     fn merge_config(&mut self, cascaded: CascadedExtnManifest) {
         if let Some(cas_default_path) = cascaded.default_path {
@@ -109,38 +101,6 @@ impl CascadedExtnManifest {
             }
         }
     }
-}
-
-/// Some unit tests which use defaults are failing because we need default providers for unit testing
-impl Default for CascadedExtnManifest {
-    fn default() -> Self {
-        Self {
-            default_path: Some(String::default()),
-            default_extension: Some(String::default()),
-            extns: Some(Vec::new()),
-            required_contracts: Some(Vec::new()),
-            rpc_aliases: Some(HashMap::new()),
-            rpc_overrides: Some(HashMap::new()),
-            timeout: None,
-            rules_path: Some(Vec::new()),
-            extn_sdks: Some(Vec::new()),
-            provider_registrations: Some(default_providers()),
-        }
-    }
-}
-
-pub fn default_providers() -> Vec<String> {
-    let value = [
-        "AcknowledgeChallenge.",
-        "PinChallenge.",
-        "Discovery.userInterest",
-        "Discovery.onRequestUserInterest",
-        "Discovery.userInterestResponse",
-        "Content.requestUserInterest",
-        "Content.onUserInterest",
-        "IntegratedPlayer.",
-    ];
-    value.iter().map(|x| x.to_string()).collect()
 }
 
 #[cfg(test)]
