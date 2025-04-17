@@ -16,16 +16,23 @@
 //
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::{
-    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
+    api::gateway::rpc_gateway_api::{CallContext, RpcRequest},
+    extn::{
+        client::extn_client::ExtnClient,
+        extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
+    },
     framework::ripple_contract::RippleContract,
 };
 
 use super::fb_metrics::{
-    Counter, ErrorParams, ErrorType, FlatMapValue, Param, SystemErrorParams, Timer,
+    ErrorParams, ErrorType, FlatMapValue, InternalInitializeParams, Param, SystemErrorParams,
 };
+
+use log::error;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppLoadStart {
@@ -154,6 +161,12 @@ pub struct FireboltInteraction {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct FireboltEvent {
+    pub event_name: String,
+    pub result: Value,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum TelemetryPayload {
     AppLoadStart(AppLoadStart),
     AppLoadStop(AppLoadStop),
@@ -164,6 +177,7 @@ pub enum TelemetryPayload {
     SignOut(TelemetrySignOut),
     InternalInitialize(InternalInitialize),
     FireboltInteraction(FireboltInteraction), // External Service failures (service, error)
+    FireboltEvent(FireboltEvent),
 }
 
 impl TelemetryPayload {
@@ -178,6 +192,7 @@ impl TelemetryPayload {
             Self::SignOut(s) => s.ripple_session_id = session_id,
             Self::InternalInitialize(i) => i.ripple_session_id = session_id,
             Self::FireboltInteraction(f) => f.ripple_session_id = session_id,
+            Self::FireboltEvent(_) => {}
         }
     }
 }
@@ -203,8 +218,56 @@ impl ExtnPayloadProvider for TelemetryPayload {
 pub enum OperationalMetricRequest {
     Subscribe,
     UnSubscribe,
-    Counter(Counter),
-    Timer(Timer),
+}
+
+pub struct TelemetryUtil;
+
+impl TelemetryUtil {
+    pub fn send_telemetry(client: &ExtnClient, payload: TelemetryPayload) {
+        if let Err(e) = client.request_transient(RpcRequest::get_new_internal(
+            "ripple.sendTelemetry".to_owned(),
+            Some(serde_json::to_value(payload).unwrap()),
+        )) {
+            error!("Error sending telemetry {:?}", e);
+        }
+    }
+
+    pub fn update_telemetry_session_id(client: &ExtnClient, session_id: String) {
+        if let Err(e) = client.request_transient(RpcRequest::get_new_internal(
+            "ripple.setTelemetrySessionId".to_owned(),
+            Some(serde_json::to_value(session_id).unwrap()),
+        )) {
+            error!("Error sending telemetry {:?}", e);
+        }
+    }
+
+    pub fn send_initialize(
+        client: &ExtnClient,
+        ctx: &CallContext,
+        internal_initialize_params: &InternalInitializeParams,
+        ripple_session_id: String,
+    ) {
+        let payload = TelemetryPayload::InternalInitialize(InternalInitialize {
+            app_id: ctx.app_id.to_owned(),
+            ripple_session_id,
+            app_session_id: Some(ctx.session_id.to_owned()),
+            semantic_version: internal_initialize_params.version.to_string(),
+        });
+        Self::send_telemetry(client, payload);
+    }
+
+    pub fn send_error(
+        client: &ExtnClient,
+        app_id: &str,
+        error_params: ErrorParams,
+        ripple_session_id: String,
+    ) {
+        let mut app_error: TelemetryAppError = error_params.into();
+        app_error.ripple_session_id = ripple_session_id;
+        app_error.app_id = app_id.to_owned();
+        let payload = TelemetryPayload::AppError(app_error);
+        Self::send_telemetry(client, payload);
+    }
 }
 
 #[cfg(test)]

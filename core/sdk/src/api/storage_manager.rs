@@ -15,38 +15,31 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use jsonrpsee::core::RpcResult;
-use ripple_sdk::{
+use crate::{
     api::{
+        default_storage_properties::DefaultStorageProperties,
         device::device_peristence::{
-            DeleteStorageProperty, DevicePersistenceRequest, GetStorageProperty,
-            SetStorageProperty, StorageData,
+            DeleteStorageProperty, GetStorageProperty, SetStorageProperty, StorageData,
         },
         firebolt::fb_capabilities::CAPABILITY_NOT_AVAILABLE,
+        storage_manager_utils::{
+            storage_to_bool_rpc_result, storage_to_f32_rpc_result, storage_to_string_rpc_result,
+            storage_to_u32_rpc_result, storage_to_vec_string_rpc_result,
+        },
         storage_property::{StorageProperty, StoragePropertyData},
     },
     extn::extn_client_message::ExtnResponse,
+    framework::RippleResponse,
     log::trace,
     serde_json::{json, Value},
-    tokio,
     utils::{error::RippleError, rpc_utils::rpc_error_with_code},
     JsonRpcErrorType,
 };
+use async_trait::async_trait;
+use jsonrpsee::core::RpcResult;
 use std::collections::HashMap;
 
-use crate::{
-    processor::storage::storage_manager_utils::{
-        storage_to_bool_rpc_result, storage_to_f32_rpc_result, storage_to_string_rpc_result,
-        storage_to_u32_rpc_result,
-    },
-    service::apps::app_events::AppEvents,
-    state::platform_state::PlatformState,
-};
-
-use super::{
-    default_storage_properties::DefaultStorageProperties,
-    storage_manager_utils::storage_to_vec_string_rpc_result,
-};
+use super::{manifest::device_manifest::DefaultValues, ripple_cache::RippleCache};
 
 #[derive(Debug)]
 pub enum StorageManagerResponse<T> {
@@ -72,13 +65,27 @@ pub enum StorageManagerError {
     DataTypeMisMatch,
 }
 
+#[async_trait]
+pub trait IStorageOperator {
+    fn get_cache(&self) -> RippleCache;
+    fn get_default(&self) -> DefaultValues;
+    async fn persist(&self, request: SetStorageProperty) -> RippleResponse;
+    async fn pull(&self, request: GetStorageProperty) -> Result<ExtnResponse, RippleError>;
+    async fn delete(&self, request: DeleteStorageProperty) -> RippleResponse;
+    fn on_privacy_updated(&self, cache: RippleCache);
+    fn emit(&self, event_name: &str, result: &Value, context: Option<Value>);
+}
+
 #[derive(Clone)]
 pub struct StorageManager;
 
 impl StorageManager {
-    pub async fn get_bool(state: &PlatformState, property: StorageProperty) -> RpcResult<bool> {
+    pub async fn get_bool(
+        state: &impl IStorageOperator,
+        property: StorageProperty,
+    ) -> RpcResult<bool> {
         if let Some(val) = state
-            .ripple_cache
+            .get_cache()
             .get_cached_bool_storage_property(&property)
         {
             return Ok(val);
@@ -88,9 +95,11 @@ impl StorageManager {
             .await
         {
             Ok(StorageManagerResponse::Ok(value)) | Ok(StorageManagerResponse::NoChange(value)) => {
-                state
-                    .ripple_cache
-                    .update_cached_bool_storage_property(&property, value);
+                if property.is_a_privacy_setting_property() {
+                    state
+                        .get_cache()
+                        .update_cached_bool_storage_property(state, &property, value);
+                }
                 Ok(value)
             }
             Ok(StorageManagerResponse::Default(value)) => Ok(value),
@@ -99,7 +108,7 @@ impl StorageManager {
     }
 
     pub async fn set_bool(
-        state: &PlatformState,
+        state: &impl IStorageOperator,
         property: StorageProperty,
         value: bool,
         context: Option<Value>,
@@ -107,7 +116,7 @@ impl StorageManager {
         let data = property.as_data();
         trace!("Storage property: {:?} as data: {:?}", property, data);
         if let Some(val) = state
-            .ripple_cache
+            .get_cache()
             .get_cached_bool_storage_property(&property)
         {
             if val == value {
@@ -126,9 +135,11 @@ impl StorageManager {
         .await
         {
             Ok(StorageManagerResponse::Ok(_)) | Ok(StorageManagerResponse::NoChange(_)) => {
-                state
-                    .ripple_cache
-                    .update_cached_bool_storage_property(&property, value);
+                if property.is_a_privacy_setting_property() {
+                    state
+                        .get_cache()
+                        .update_cached_bool_storage_property(state, &property, value);
+                }
                 Ok(())
             }
             Ok(StorageManagerResponse::Default(_)) => Ok(()),
@@ -136,7 +147,10 @@ impl StorageManager {
         }
     }
 
-    pub async fn get_string(state: &PlatformState, property: StorageProperty) -> RpcResult<String> {
+    pub async fn get_string(
+        state: &impl IStorageOperator,
+        property: StorageProperty,
+    ) -> RpcResult<String> {
         let data = property.as_data();
         match StorageManager::get_string_from_namespace(
             state,
@@ -152,7 +166,7 @@ impl StorageManager {
     }
 
     pub async fn get_string_for_scope(
-        state: &PlatformState,
+        state: &impl IStorageOperator,
         data: &StoragePropertyData,
     ) -> RpcResult<String> {
         let namespace = data.namespace.clone();
@@ -165,7 +179,7 @@ impl StorageManager {
     }
 
     pub async fn get_map(
-        state: &PlatformState,
+        state: &impl IStorageOperator,
         property: StorageProperty,
     ) -> RpcResult<HashMap<String, Value>> {
         match StorageManager::get_string(state, property.clone()).await {
@@ -181,7 +195,7 @@ impl StorageManager {
     }
 
     pub async fn set_value_in_map(
-        state: &PlatformState,
+        state: &impl IStorageOperator,
         property: StorageProperty,
         key: String,
         value: String,
@@ -221,7 +235,7 @@ impl StorageManager {
     }
 
     pub async fn remove_value_in_map(
-        state: &PlatformState,
+        state: &impl IStorageOperator,
         property: StorageProperty,
         key: String,
     ) -> RpcResult<()> {
@@ -246,7 +260,7 @@ impl StorageManager {
     }
 
     pub async fn set_string(
-        state: &PlatformState,
+        state: &impl IStorageOperator,
         property: StorageProperty,
         value: String,
         context: Option<Value>,
@@ -271,7 +285,7 @@ impl StorageManager {
     }
 
     pub async fn set_string_for_scope(
-        state: &PlatformState,
+        state: &impl IStorageOperator,
         data: &StoragePropertyData,
         context: Option<Value>,
     ) -> RpcResult<()> {
@@ -300,7 +314,7 @@ impl StorageManager {
     }
 
     pub async fn get_number_as_u32(
-        state: &PlatformState,
+        state: &impl IStorageOperator,
         property: StorageProperty,
     ) -> RpcResult<u32> {
         let data = property.as_data();
@@ -317,7 +331,7 @@ impl StorageManager {
     }
 
     pub async fn get_number_as_f32(
-        state: &PlatformState,
+        state: &impl IStorageOperator,
         property: StorageProperty,
     ) -> RpcResult<f32> {
         let data = property.as_data();
@@ -333,7 +347,7 @@ impl StorageManager {
     }
 
     pub async fn set_number_as_f32(
-        state: &PlatformState,
+        state: &impl IStorageOperator,
         property: StorageProperty,
         value: f32,
         context: Option<Value>,
@@ -357,7 +371,7 @@ impl StorageManager {
     }
 
     pub async fn set_number_as_u32(
-        state: &PlatformState,
+        state: &impl IStorageOperator,
         property: StorageProperty,
         value: u32,
         context: Option<Value>,
@@ -384,7 +398,7 @@ impl StorageManager {
     Used internally or when a custom namespace is required
      */
     pub async fn get_bool_from_namespace(
-        state: &PlatformState,
+        state: &impl IStorageOperator,
         namespace: String,
         key: &'static str,
     ) -> Result<StorageManagerResponse<bool>, StorageManagerError> {
@@ -393,7 +407,9 @@ impl StorageManager {
         match storage_to_bool_rpc_result(resp) {
             Ok(value) => Ok(StorageManagerResponse::Ok(value)),
             Err(_) => {
-                if let Ok(value) = DefaultStorageProperties::get_bool(state, &namespace, key) {
+                if let Ok(value) =
+                    DefaultStorageProperties::get_bool(&state.get_default(), &namespace, key)
+                {
                     return Ok(StorageManagerResponse::Default(value));
                 }
                 Err(StorageManagerError::NotFound)
@@ -405,7 +421,7 @@ impl StorageManager {
     Used internally or when a custom namespace is required
      */
     pub async fn set_in_namespace(
-        state: &PlatformState,
+        state: &impl IStorageOperator,
         namespace: String,
         key: String,
         value: Value,
@@ -432,11 +448,7 @@ impl StorageManager {
             scope,
         };
 
-        match state
-            .get_client()
-            .send_extn_request(DevicePersistenceRequest::Set(ssp))
-            .await
-        {
+        match state.persist(ssp).await {
             Ok(_) => {
                 StorageManager::notify(state, value.clone(), event_names, context).await;
                 Ok(StorageManagerResponse::Ok(()))
@@ -449,7 +461,7 @@ impl StorageManager {
     Used internally or when a custom namespace is required
      */
     pub async fn get_string_from_namespace(
-        state: &PlatformState,
+        state: &impl IStorageOperator,
         namespace: String,
         key: &'static str,
         scope: Option<String>,
@@ -459,29 +471,8 @@ impl StorageManager {
         match storage_to_string_rpc_result(resp) {
             Ok(value) => Ok(StorageManagerResponse::Ok(value)),
             Err(_) => {
-                if let Ok(value) = DefaultStorageProperties::get_string(state, &namespace, key) {
-                    return Ok(StorageManagerResponse::Default(value));
-                }
-                Err(StorageManagerError::NotFound)
-            }
-        }
-    }
-
-    /*
-    Used internally or when a custom namespace is required
-     */
-    pub async fn get_number_as_u32_from_namespace(
-        state: &PlatformState,
-        namespace: String,
-        key: &'static str,
-    ) -> Result<StorageManagerResponse<u32>, StorageManagerError> {
-        trace!("get_string: namespace={}, key={}", namespace, key);
-        let resp = StorageManager::get(state, &namespace, &key.to_string(), None).await;
-        match storage_to_u32_rpc_result(resp) {
-            Ok(value) => Ok(StorageManagerResponse::Ok(value)),
-            Err(_) => {
                 if let Ok(value) =
-                    DefaultStorageProperties::get_number_as_u32(state, &namespace, key)
+                    DefaultStorageProperties::get_string(&state.get_default(), &namespace, key)
                 {
                     return Ok(StorageManagerResponse::Default(value));
                 }
@@ -493,8 +484,33 @@ impl StorageManager {
     /*
     Used internally or when a custom namespace is required
      */
+    pub async fn get_number_as_u32_from_namespace(
+        state: &impl IStorageOperator,
+        namespace: String,
+        key: &'static str,
+    ) -> Result<StorageManagerResponse<u32>, StorageManagerError> {
+        trace!("get_string: namespace={}, key={}", namespace, key);
+        let resp = StorageManager::get(state, &namespace, &key.to_string(), None).await;
+        match storage_to_u32_rpc_result(resp) {
+            Ok(value) => Ok(StorageManagerResponse::Ok(value)),
+            Err(_) => {
+                if let Ok(value) = DefaultStorageProperties::get_number_as_u32(
+                    &state.get_default(),
+                    &namespace,
+                    key,
+                ) {
+                    return Ok(StorageManagerResponse::Default(value));
+                }
+                Err(StorageManagerError::NotFound)
+            }
+        }
+    }
+
+    /*
+    Used internally or when a custom namespace is required
+     */
     pub async fn get_number_as_f32_from_namespace(
-        state: &PlatformState,
+        state: &impl IStorageOperator,
         namespace: String,
         key: &'static str,
     ) -> Result<StorageManagerResponse<f32>, StorageManagerError> {
@@ -507,7 +523,7 @@ impl StorageManager {
 
         storage_to_f32_rpc_result(resp).map_or_else(
             |_| {
-                DefaultStorageProperties::get_number_as_f32(state, &namespace, key)
+                DefaultStorageProperties::get_number_as_f32(&state.get_default(), &namespace, key)
                     .map_or(Err(StorageManagerError::NotFound), |val| {
                         Ok(StorageManagerResponse::Ok(val))
                     })
@@ -516,7 +532,10 @@ impl StorageManager {
         )
     }
 
-    pub async fn delete_key(state: &PlatformState, property: StorageProperty) -> RpcResult<()> {
+    pub async fn delete_key(
+        state: &impl IStorageOperator,
+        property: StorageProperty,
+    ) -> RpcResult<()> {
         let mut result = Ok(());
         let data = property.as_data();
 
@@ -548,7 +567,7 @@ impl StorageManager {
     }
 
     async fn get(
-        state: &PlatformState,
+        state: &impl IStorageOperator,
         namespace: &String,
         key: &String,
         scope: Option<String>,
@@ -559,49 +578,22 @@ impl StorageManager {
             key: key.clone(),
             scope,
         };
-        let result = state
-            .get_client()
-            .send_extn_request(DevicePersistenceRequest::Get(data))
-            .await;
-
-        match result {
-            Ok(msg) => {
-                if let Some(m) = msg.payload.extract() {
-                    Ok(m)
-                } else {
-                    Err(RippleError::ParseError)
-                }
-            }
-            Err(e) => Err(e),
-        }
+        state.pull(data).await
     }
 
     pub async fn delete(
-        state: &PlatformState,
+        state: &impl IStorageOperator,
         namespace: &String,
         key: &String,
         scope: Option<String>,
-    ) -> Result<ExtnResponse, RippleError> {
+    ) -> RippleResponse {
         trace!("delete: namespace={}, key={}", namespace, key);
         let data = DeleteStorageProperty {
             namespace: namespace.clone(),
             key: key.clone(),
             scope,
         };
-        let result = state
-            .get_client()
-            .send_extn_request(DevicePersistenceRequest::Delete(data))
-            .await;
-        match result {
-            Ok(msg) => {
-                if let Some(m) = msg.payload.extract() {
-                    Ok(m)
-                } else {
-                    Err(RippleError::ParseError)
-                }
-            }
-            Err(e) => Err(e),
-        }
+        state.delete(data).await
     }
 
     pub fn get_firebolt_error(property: &StorageProperty) -> JsonRpcErrorType {
@@ -620,7 +612,7 @@ impl StorageManager {
     }
 
     pub async fn set_vec_string(
-        state: &PlatformState,
+        state: &impl IStorageOperator,
         property: StorageProperty,
         value: Vec<String>,
         context: Option<Value>,
@@ -644,7 +636,7 @@ impl StorageManager {
     }
 
     pub async fn get_vec_string(
-        state: &PlatformState,
+        state: &impl IStorageOperator,
         property: StorageProperty,
     ) -> RpcResult<Vec<String>> {
         let data = property.as_data();
@@ -660,7 +652,7 @@ impl StorageManager {
     }
 
     async fn notify(
-        state: &PlatformState,
+        state: &impl IStorageOperator,
         value: Value,
         event_names: Option<&'static [&'static str]>,
         context: Option<Value>,
@@ -668,14 +660,10 @@ impl StorageManager {
         if let Some(events) = event_names {
             let val = value.clone();
             for event in events.iter() {
-                let state_for_event = state.clone();
                 let result = val.clone();
                 let ctx = context.clone();
                 let evt = String::from(*event);
-                tokio::spawn(async move {
-                    trace!("notify: Sending event {:?} ctx {:?}", evt, ctx);
-                    AppEvents::emit_with_context(&state_for_event, &evt, &result, ctx).await;
-                });
+                state.emit(&evt, &result, ctx);
             }
         }
     }

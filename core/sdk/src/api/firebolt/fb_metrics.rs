@@ -15,190 +15,28 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::{HashMap, HashSet};
-
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-
-use crate::{
-    api::{gateway::rpc_gateway_api::CallContext, session::AccountSession},
-    extn::{
-        client::extn_client::ExtnClient,
-        extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
-    },
-    framework::ripple_contract::RippleContract,
-};
-
-use super::fb_telemetry::{OperationalMetricRequest, TelemetryPayload};
-
+use std::collections::HashMap;
 //https://developer.comcast.com/firebolt/core/sdk/latest/api/metrics
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct BehavioralMetricContext {
-    pub app_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub app_version: Option<String>,
-    pub product_version: String,
-    pub partner_id: String,
-    pub app_session_id: String,
-    pub app_user_session_id: Option<String>,
-    pub durable_app_id: String,
-    pub governance_state: Option<AppDataGovernanceState>,
-}
-
-impl From<CallContext> for BehavioralMetricContext {
-    fn from(call_context: CallContext) -> Self {
-        BehavioralMetricContext {
-            app_id: call_context.app_id.clone(),
-            product_version: String::from("product.version.not.implemented"),
-            partner_id: String::from("partner.id.not.set"),
-            app_session_id: String::from("app_session_id.not.set"),
-            durable_app_id: call_context.app_id,
-            app_version: None,
-            app_user_session_id: None,
-            governance_state: None,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
-pub struct AppDataGovernanceState {
-    pub data_tags_to_apply: HashSet<String>,
-}
-impl AppDataGovernanceState {
-    pub fn new(tags: HashSet<String>) -> AppDataGovernanceState {
-        AppDataGovernanceState {
-            data_tags_to_apply: tags,
-        }
-    }
-}
-#[derive(Deserialize, Debug, Clone)]
-pub struct InternalInitializeParams {
-    #[serde(deserialize_with = "deserialize_version")]
-    pub version: Version,
-}
-
-#[derive(Deserialize, Debug, Clone, Serialize)]
-pub struct InternalInitializeResponse {
-    pub version: Version,
-}
-
-#[async_trait]
-pub trait MetricsContextProvider: core::fmt::Debug {
-    async fn provide_context(&mut self) -> Option<MetricsContext>;
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct Ready {
-    pub context: BehavioralMetricContext,
-    pub ttmu_ms: u32,
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum MediaPositionType {
-    None,
-    PercentageProgress(f32),
-    AbsolutePosition(i32),
-}
-impl MediaPositionType {
-    pub fn as_absolute(self) -> Option<i32> {
-        match self {
-            MediaPositionType::None => None,
-            MediaPositionType::PercentageProgress(_) => None,
-            MediaPositionType::AbsolutePosition(absolute) => Some(absolute),
-        }
-    }
-    pub fn as_percentage(self) -> Option<f32> {
-        match self {
-            MediaPositionType::None => None,
-            MediaPositionType::PercentageProgress(percentage) => Some(percentage),
-            MediaPositionType::AbsolutePosition(_) => None,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct SignIn {
-    pub context: BehavioralMetricContext,
-}
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct SignOut {
-    pub context: BehavioralMetricContext,
-}
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct StartContent {
-    pub context: BehavioralMetricContext,
-    pub entity_id: Option<String>,
-}
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct StopContent {
-    pub context: BehavioralMetricContext,
-    pub entity_id: Option<String>,
-}
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct Page {
-    pub context: BehavioralMetricContext,
-    pub page_id: String,
-}
-
-#[allow(non_camel_case_types)]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum ActionType {
-    user,
-    app,
-}
-#[allow(non_camel_case_types)]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum CategoryType {
-    user,
-    app,
-}
-
-#[derive(Debug, PartialEq, PartialOrd, Serialize, Deserialize, Clone)]
-#[serde(untagged)]
-pub enum FlatMapValue {
-    String(String),
-    Number(f64),
-    Boolean(bool),
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct Param {
-    pub name: String,
-    pub value: FlatMapValue,
-}
-
-// custom comparison function used only in unit tests
-#[cfg(test)]
-impl Param {
-    fn cmp(&self, other: &Param) -> std::cmp::Ordering {
-        self.name.cmp(&other.name)
-    }
-}
-
-pub fn hashmap_to_param_vec(the_map: Option<HashMap<String, FlatMapValue>>) -> Vec<Param> {
-    let mut result = Vec::new();
-
-    let params_map = match the_map {
-        Some(params_map) => params_map,
-        None => return Vec::new(),
-    };
-
-    for (key, value) in params_map {
-        result.push(Param { name: key, value });
-    }
-
-    result
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct Action {
-    pub context: BehavioralMetricContext,
-    pub category: CategoryType,
-    #[serde(rename = "type")]
-    pub _type: String,
-    pub parameters: Vec<Param>,
+pub enum AppLifecycleState {
+    #[serde(rename = "launching")]
+    Launching,
+    #[serde(rename = "foreground")]
+    Foreground,
+    #[serde(rename = "background")]
+    Background,
+    #[serde(rename = "inactive")]
+    Inactive,
+    #[serde(rename = "suspended")]
+    Suspended,
+    #[serde(rename = "not_running")]
+    NotRunning,
+    #[serde(rename = "initializing")]
+    Initializing,
+    #[serde(rename = "ready")]
+    Ready,
 }
 
 #[derive(Deserialize, Debug, Clone, Serialize)]
@@ -235,243 +73,51 @@ impl std::fmt::Display for Version {
     }
 }
 
-#[allow(non_camel_case_types)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum ErrorType {
-    network,
-    media,
-    restriction,
-    entitlement,
-    other,
+pub struct Param {
+    pub name: String,
+    pub value: FlatMapValue,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct MetricsError {
-    pub context: BehavioralMetricContext,
-    #[serde(alias = "type")]
-    pub error_type: ErrorType,
-    pub code: String,
-    pub description: String,
-    pub visible: bool,
-    pub parameters: Option<HashMap<String, FlatMapValue>>,
-    pub durable_app_id: String,
-    pub third_party_error: bool,
-}
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct MediaLoadStart {
-    pub context: BehavioralMetricContext,
-    pub entity_id: String,
-}
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct MediaPlay {
-    pub context: BehavioralMetricContext,
-    pub entity_id: String,
-}
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct MediaPlaying {
-    pub context: BehavioralMetricContext,
-    pub entity_id: String,
-}
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct MediaPause {
-    pub context: BehavioralMetricContext,
-    pub entity_id: String,
-}
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct MediaWaiting {
-    pub context: BehavioralMetricContext,
-    pub entity_id: String,
-}
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct MediaProgress {
-    pub context: BehavioralMetricContext,
-    pub entity_id: String,
-    pub progress: Option<MediaPositionType>,
-}
-impl From<&MediaProgress> for Option<i32> {
-    fn from(progress: &MediaProgress) -> Self {
-        match progress.progress.clone() {
-            Some(prog) => prog.as_absolute(),
-            None => None,
-        }
+// custom comparison function used only in unit tests
+#[cfg(test)]
+impl Param {
+    fn cmp(&self, other: &Param) -> std::cmp::Ordering {
+        self.name.cmp(&other.name)
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct MediaSeeking {
-    pub context: BehavioralMetricContext,
-    pub entity_id: String,
-    pub target: Option<MediaPositionType>,
-}
-impl From<&MediaSeeking> for Option<i32> {
-    fn from(progress: &MediaSeeking) -> Self {
-        match progress.target.clone() {
-            Some(prog) => prog.as_absolute(),
-            None => None,
-        }
+pub fn hashmap_to_param_vec(the_map: Option<HashMap<String, FlatMapValue>>) -> Vec<Param> {
+    let mut result = Vec::new();
+
+    let params_map = match the_map {
+        Some(params_map) => params_map,
+        None => return Vec::new(),
+    };
+
+    for (key, value) in params_map {
+        result.push(Param { name: key, value });
     }
+
+    result
 }
 
-impl From<&MediaSeeking> for Option<f32> {
-    fn from(progress: &MediaSeeking) -> Self {
-        match progress.target.clone() {
-            Some(prog) => prog.as_percentage(),
-            None => None,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct MediaSeeked {
-    pub context: BehavioralMetricContext,
-    pub entity_id: String,
-    pub position: Option<MediaPositionType>,
-}
-impl From<&MediaSeeked> for Option<i32> {
-    fn from(progress: &MediaSeeked) -> Self {
-        match progress.position.clone() {
-            Some(prog) => prog.as_absolute(),
-            None => None,
-        }
-    }
-}
-
-impl From<&MediaSeeked> for Option<f32> {
-    fn from(progress: &MediaSeeked) -> Self {
-        match progress.position.clone() {
-            Some(prog) => prog.as_percentage(),
-            None => None,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct MediaRateChanged {
-    pub context: BehavioralMetricContext,
-    pub entity_id: String,
-    pub rate: u32,
-}
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct MediaRenditionChanged {
-    pub context: BehavioralMetricContext,
-    pub entity_id: String,
-    pub bitrate: u32,
-    pub width: u32,
-    pub height: u32,
-    pub profile: Option<String>,
-}
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct MediaEnded {
-    pub context: BehavioralMetricContext,
-    pub entity_id: String,
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct RawBehaviorMetricRequest {
-    pub context: BehavioralMetricContext,
-    pub value: Value,
-}
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum AppLifecycleState {
-    #[serde(rename = "launching")]
-    Launching,
-    #[serde(rename = "foreground")]
-    Foreground,
-    #[serde(rename = "background")]
-    Background,
-    #[serde(rename = "inactive")]
-    Inactive,
-    #[serde(rename = "suspended")]
-    Suspended,
-    #[serde(rename = "not_running")]
-    NotRunning,
-    #[serde(rename = "initializing")]
-    Initializing,
-    #[serde(rename = "ready")]
-    Ready,
-}
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppLifecycleStateChange {
-    pub context: BehavioralMetricContext,
+    pub app_id: String,
     pub previous_state: Option<AppLifecycleState>,
     pub new_state: AppLifecycleState,
 }
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum BehavioralMetricPayload {
-    Ready(Ready),
-    SignIn(SignIn),
-    SignOut(SignOut),
-    StartContent(StartContent),
-    StopContent(StopContent),
-    Page(Page),
-    Action(Action),
-    Error(MetricsError),
-    MediaLoadStart(MediaLoadStart),
-    MediaPlay(MediaPlay),
-    MediaPlaying(MediaPlaying),
-    MediaPause(MediaPause),
-    MediaWaiting(MediaWaiting),
-    MediaProgress(MediaProgress),
-    MediaSeeking(MediaSeeking),
-    MediaSeeked(MediaSeeked),
-    MediaRateChanged(MediaRateChanged),
-    MediaRenditionChanged(MediaRenditionChanged),
-    MediaEnded(MediaEnded),
-    AppStateChange(AppLifecycleStateChange),
-    Raw(RawBehaviorMetricRequest),
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct InternalInitializeParams {
+    #[serde(deserialize_with = "deserialize_version")]
+    pub version: Version,
 }
 
-impl BehavioralMetricPayload {
-    pub fn update_context(&mut self, context: BehavioralMetricContext) {
-        match self {
-            Self::Ready(r) => r.context = context,
-            Self::SignIn(s) => s.context = context,
-            Self::SignOut(s) => s.context = context,
-            Self::StartContent(s) => s.context = context,
-            Self::StopContent(s) => s.context = context,
-            Self::Page(p) => p.context = context,
-            Self::Action(a) => a.context = context,
-            Self::Error(e) => e.context = context,
-            Self::MediaLoadStart(m) => m.context = context,
-            Self::MediaPlay(m) => m.context = context,
-            Self::MediaPlaying(m) => m.context = context,
-            Self::MediaPause(m) => m.context = context,
-            Self::MediaWaiting(m) => m.context = context,
-            Self::MediaProgress(m) => m.context = context,
-            Self::MediaSeeking(m) => m.context = context,
-            Self::MediaSeeked(m) => m.context = context,
-            Self::MediaRateChanged(m) => m.context = context,
-            Self::MediaRenditionChanged(m) => m.context = context,
-            Self::MediaEnded(m) => m.context = context,
-            Self::AppStateChange(a) => a.context = context,
-            Self::Raw(r) => r.context = context,
-        }
-    }
-    pub fn get_context(&self) -> BehavioralMetricContext {
-        match self {
-            Self::Ready(r) => r.context.clone(),
-            Self::SignIn(s) => s.context.clone(),
-            Self::SignOut(s) => s.context.clone(),
-            Self::StartContent(s) => s.context.clone(),
-            Self::StopContent(s) => s.context.clone(),
-            Self::Page(p) => p.context.clone(),
-            Self::Action(a) => a.context.clone(),
-            Self::Error(e) => e.context.clone(),
-            Self::MediaLoadStart(m) => m.context.clone(),
-            Self::MediaPlay(m) => m.context.clone(),
-            Self::MediaPlaying(m) => m.context.clone(),
-            Self::MediaPause(m) => m.context.clone(),
-            Self::MediaWaiting(m) => m.context.clone(),
-            Self::MediaProgress(m) => m.context.clone(),
-            Self::MediaSeeking(m) => m.context.clone(),
-            Self::MediaSeeked(m) => m.context.clone(),
-            Self::MediaRateChanged(m) => m.context.clone(),
-            Self::MediaRenditionChanged(m) => m.context.clone(),
-            Self::MediaEnded(m) => m.context.clone(),
-            Self::AppStateChange(a) => a.context.clone(),
-            Self::Raw(r) => r.context.clone(),
-        }
-    }
+#[derive(Deserialize, Debug, Clone, Serialize)]
+pub struct InternalInitializeResponse {
+    pub version: Version,
 }
 
 /*
@@ -542,9 +188,6 @@ impl Counter {
         } else {
             false
         }
-    }
-    pub fn to_extn_request(&self) -> OperationalMetricRequest {
-        OperationalMetricRequest::Counter(self.clone())
     }
 }
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -657,18 +300,9 @@ impl Timer {
             my_tags.insert("error".to_string(), true.to_string());
         }
     }
-
-    pub fn to_extn_request(&self) -> OperationalMetricRequest {
-        OperationalMetricRequest::Timer(self.clone())
-    }
 }
 
 static FIREBOLT_RPC_NAME: &str = "firebolt_rpc_call";
-impl From<Timer> for OperationalMetricRequest {
-    fn from(timer: Timer) -> Self {
-        OperationalMetricRequest::Timer(timer)
-    }
-}
 
 pub fn fb_api_counter(method_name: String, tags: Option<HashMap<String, String>>) -> Counter {
     let counter_tags = match tags {
@@ -687,11 +321,6 @@ pub fn fb_api_counter(method_name: String, tags: Option<HashMap<String, String>>
         value: 1,
         tags: Some(counter_tags),
     }
-}
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-pub enum OperationalMetricPayload {
-    Timer(Timer),
-    Counter(Counter),
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -718,212 +347,22 @@ impl std::fmt::Display for MetricsEnvironment {
     }
 }
 
-/// all the things that are provided by platform that need to
-/// be updated, and eventually in/outjected into/out of a payload
-/// These items may (or may not) be available when the ripple
-/// process starts, so this service may need a way to wait for the values
-/// to become available
-/// This design assumes that all of the items will be available at the same times
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
-pub struct MetricsContext {
-    pub enabled: bool,
-    pub device_language: String,
-    pub device_model: String,
-    pub device_id: Option<String>,
-    pub account_id: Option<String>,
-    pub device_timezone: String,
-    pub device_timezone_offset: String,
-    pub device_name: Option<String>,
-    pub platform: String,
-    pub os_name: String,
-    pub os_ver: String,
-    pub distribution_tenant_id: String,
-    pub device_session_id: String,
-    pub mac_address: String,
-    pub serial_number: String,
-    pub firmware: String,
-    pub ripple_version: String,
-    pub data_governance_tags: Option<Vec<String>>,
-    pub activated: Option<bool>,
-    pub proposition: String,
-    pub retailer: Option<String>,
-    pub primary_provider: Option<String>,
-    pub coam: Option<bool>,
-    pub country: Option<String>,
-    pub region: Option<String>,
-    pub account_type: Option<String>,
-    pub operator: Option<String>,
-    pub account_detail_type: Option<String>,
-    pub device_type: String,
-    pub device_manufacturer: String,
-    pub authenticated: Option<bool>,
-}
-
 #[allow(non_camel_case_types)]
-pub enum MetricsContextField {
-    enabled,
-    device_language,
-    device_model,
-    device_id,
-    account_id,
-    device_timezone,
-    device_timezone_offset,
-    device_name,
-    platform,
-    os_name,
-    os_ver,
-    distributor_id,
-    session_id,
-    mac_address,
-    serial_number,
-    firmware,
-    ripple_version,
-    env,
-    cet_list,
-    activated,
-    proposition,
-    retailer,
-    primary_provider,
-    coam,
-    country,
-    region,
-    account_type,
-    operator,
-    account_detail_type,
-}
-
-impl MetricsContext {
-    pub fn new() -> MetricsContext {
-        MetricsContext {
-            enabled: false,
-            device_language: String::from(""),
-            device_model: String::from(""),
-            device_id: None,
-            device_timezone: String::from(""),
-            device_timezone_offset: String::from(""),
-            device_name: None,
-            mac_address: String::from(""),
-            serial_number: String::from(""),
-            account_id: None,
-            platform: String::from("entos:rdk"),
-            os_name: String::from(""),
-            os_ver: String::from(""),
-            device_session_id: String::from(""),
-            distribution_tenant_id: String::from(""),
-            firmware: String::from(""),
-            ripple_version: String::from(""),
-            data_governance_tags: None,
-            activated: None,
-            proposition: String::from(""),
-            retailer: None,
-            primary_provider: None,
-            coam: None,
-            country: None,
-            region: None,
-            account_type: None,
-            operator: None,
-            account_detail_type: None,
-            device_type: String::from(""),
-            device_manufacturer: String::from(""),
-            authenticated: None,
-        }
-    }
-}
-
-#[async_trait]
-pub trait BehavioralMetricsService {
-    async fn send_metric(&mut self, metrics: BehavioralMetricPayload) -> ();
-}
-#[async_trait]
-pub trait ContextualMetricsService {
-    async fn update_metrics_context(&mut self, new_context: Option<MetricsContext>) -> ();
-}
-#[async_trait]
-pub trait MetricsManager: Send + Sync {
-    async fn send_metric(&mut self, metrics: BehavioralMetricPayload) -> ();
-}
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct BehavioralMetricRequest {
-    pub context: Option<MetricsContext>,
-    pub payload: BehavioralMetricPayload,
-    pub session: AccountSession,
+pub enum ErrorType {
+    network,
+    media,
+    restriction,
+    entitlement,
+    other,
 }
 
-impl ExtnPayloadProvider for BehavioralMetricRequest {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::BehavioralMetric(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<BehavioralMetricRequest> {
-        if let ExtnPayload::Request(ExtnRequest::BehavioralMetric(r)) = payload {
-            return Some(r);
-        }
-
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::BehaviorMetrics
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum MetricsResponse {
-    None,
-    Boolean,
-}
-
-impl ExtnPayloadProvider for MetricsResponse {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Response(ExtnResponse::Value(
-            serde_json::to_value(self.clone()).unwrap(),
-        ))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        if let ExtnPayload::Response(ExtnResponse::Value(value)) = payload {
-            if let Ok(v) = serde_json::from_value(value) {
-                return Some(v);
-            }
-        }
-
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::BehaviorMetrics
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum MetricsPayload {
-    BehaviorMetric(BehavioralMetricPayload, CallContext),
-    TelemetryPayload(TelemetryPayload),
-    OperationalMetric(OperationalMetricPayload),
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct MetricsRequest {
-    pub payload: MetricsPayload,
-    /// Additional info extensions want to send which can be appended to the context of the Metrics data
-    pub context: Option<HashMap<String, String>>,
-}
-
-impl ExtnPayloadProvider for MetricsRequest {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::Metrics(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<MetricsRequest> {
-        if let ExtnPayload::Request(ExtnRequest::Metrics(r)) = payload {
-            return Some(r);
-        }
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::Metrics
-    }
+#[derive(Debug, PartialEq, PartialOrd, Serialize, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum FlatMapValue {
+    String(String),
+    Number(f64),
+    Boolean(bool),
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -989,62 +428,9 @@ impl Tag {
     }
 }
 
-pub fn get_metrics_tags(
-    extn_client: &ExtnClient,
-    interaction_type: InteractionType,
-    app_id: Option<String>,
-) -> Option<HashMap<String, String>> {
-    let metrics_context = extn_client.get_metrics_context()?;
-    let mut tags: HashMap<String, String> = HashMap::new();
-
-    tags.insert(Tag::Type.key(), interaction_type.to_string());
-
-    if let Some(app) = app_id {
-        tags.insert(Tag::App.key(), app);
-    }
-
-    tags.insert(Tag::Firmware.key(), metrics_context.firmware.clone());
-    tags.insert(Tag::RippleVersion.key(), metrics_context.ripple_version);
-
-    let features = extn_client.get_features();
-    let feature_count = features.len();
-    let mut features_str = String::new();
-
-    if feature_count > 0 {
-        for (i, feature) in features.iter().enumerate() {
-            features_str.push_str(feature);
-            if i < feature_count - 1 {
-                features_str.push(',');
-            }
-        }
-    }
-
-    tags.insert(Tag::Features.key(), features_str);
-
-    Some(tags)
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct BehavioralMetricsEvent {
-    pub event_name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub event_version: Option<String>,
-    pub event_source: String,
-    pub event_source_version: String,
-    pub cet_list: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub epoch_timestamp: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub uptime_timestamp: Option<u64>,
-    pub event_payload: Value,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::gateway::rpc_gateway_api::ApiProtocol;
-    use crate::utils::test_utils::test_extn_payload_provider;
     use serde_json::json;
 
     #[test]
@@ -1103,118 +489,6 @@ mod tests {
     }
 
     #[test]
-    fn test_extn_request_behavioral_metric() {
-        let behavioral_metric_context = BehavioralMetricContext {
-            app_id: "test_app_id".to_string(),
-            product_version: "test_product_version".to_string(),
-            partner_id: "test_partner_id".to_string(),
-            app_session_id: "test_app_session_id".to_string(),
-            app_user_session_id: Some("test_user_session_id".to_string()),
-            durable_app_id: "test_durable_app_id".to_string(),
-            app_version: Some("test_app_version".to_string()),
-            governance_state: Some(AppDataGovernanceState {
-                data_tags_to_apply: HashSet::new(),
-            }),
-        };
-
-        let ready_payload = Ready {
-            context: behavioral_metric_context,
-            ttmu_ms: 100,
-        };
-
-        let behavioral_metric_request = BehavioralMetricRequest {
-            context: Some(MetricsContext {
-                enabled: true,
-                device_language: "en".to_string(),
-                device_model: "iPhone".to_string(),
-                device_id: Some("test_device_id".to_string()),
-                account_id: Some("test_account_id".to_string()),
-                device_timezone: "GMT".to_string(),
-                device_timezone_offset: "+0:00".to_string(),
-                device_name: Some("TestDevice".to_string()),
-                platform: "iOS".to_string(),
-                os_name: "test_os_name".to_string(),
-                os_ver: "14.0".to_string(),
-                distribution_tenant_id: "test_distribution_tenant_id".to_string(),
-                device_session_id: "test_device_session_id".to_string(),
-                mac_address: "test_mac_address".to_string(),
-                serial_number: "test_serial_number".to_string(),
-                firmware: "test_firmware".to_string(),
-                ripple_version: "test_ripple_version".to_string(),
-                data_governance_tags: None,
-                activated: None,
-                proposition: "test_proposition".to_string(),
-                retailer: None,
-                primary_provider: None,
-                coam: None,
-                country: None,
-                region: None,
-                account_type: None,
-                operator: None,
-                account_detail_type: None,
-                device_type: "test_device_type".to_string(),
-                device_manufacturer: "test_device_manufacturer".to_string(),
-                authenticated: None,
-            }),
-            payload: BehavioralMetricPayload::Ready(ready_payload),
-            session: AccountSession {
-                id: "test_session_id".to_string(),
-                token: "test_token".to_string(),
-                account_id: "test_account_id".to_string(),
-                device_id: "test_device_id".to_string(),
-            },
-        };
-
-        let contract_type: RippleContract = RippleContract::BehaviorMetrics;
-        test_extn_payload_provider(behavioral_metric_request, contract_type);
-    }
-
-    #[test]
-    fn test_extn_request_metrics() {
-        let behavior_metric_payload = BehavioralMetricPayload::Ready(Ready {
-            context: BehavioralMetricContext {
-                app_id: "test_app_id".to_string(),
-                product_version: "test_product_version".to_string(),
-                partner_id: "test_partner_id".to_string(),
-                app_session_id: "test_app_session_id".to_string(),
-                app_user_session_id: Some("test_user_session_id".to_string()),
-                durable_app_id: "test_durable_app_id".to_string(),
-                app_version: Some("test_app_version".to_string()),
-                governance_state: Some(AppDataGovernanceState {
-                    data_tags_to_apply: HashSet::new(),
-                }),
-            },
-            ttmu_ms: 100,
-        });
-        let call_context = CallContext {
-            session_id: "test_session_id".to_string(),
-            request_id: "test_request_id".to_string(),
-            app_id: "test_app_id".to_string(),
-            call_id: 123,
-            protocol: ApiProtocol::Extn,
-            method: "some method".to_string(),
-            cid: Some("test_cid".to_string()),
-            gateway_secure: true,
-            context: Vec::new(),
-        };
-
-        let metrics_request = MetricsRequest {
-            payload: MetricsPayload::BehaviorMetric(behavior_metric_payload, call_context),
-            context: None,
-        };
-
-        let contract_type: RippleContract = RippleContract::Metrics;
-        test_extn_payload_provider(metrics_request, contract_type);
-    }
-
-    #[test]
-    fn test_extn_response_metrics() {
-        let metrics_response = MetricsResponse::None;
-        let contract_type: RippleContract = RippleContract::BehaviorMetrics;
-        test_extn_payload_provider(metrics_response, contract_type);
-    }
-
-    #[test]
     fn test_hashmap_to_param_vec() {
         let mut map = HashMap::new();
         map.insert(
@@ -1251,54 +525,6 @@ mod tests {
         assert_eq!(flatmap, FlatMapValue::String("value1".to_string()));
         assert_eq!(flatmap2, FlatMapValue::Number(2.0));
         assert_eq!(flatmap3, FlatMapValue::Boolean(true));
-    }
-
-    #[test]
-    fn test_behavioral_metric_payload() {
-        let behavioral_metric_context = BehavioralMetricContext {
-            app_id: "test_app_id".to_string(),
-            product_version: "test_product_version".to_string(),
-            partner_id: "test_partner_id".to_string(),
-            app_session_id: "test_app_session_id".to_string(),
-            app_user_session_id: Some("test_user_session_id".to_string()),
-            durable_app_id: "test_durable_app_id".to_string(),
-            app_version: Some("test_app_version".to_string()),
-            governance_state: Some(AppDataGovernanceState {
-                data_tags_to_apply: HashSet::new(),
-            }),
-        };
-
-        let ready_payload = Ready {
-            context: behavioral_metric_context.clone(),
-            ttmu_ms: 100,
-        };
-
-        let mut behavioral_metric_payload = BehavioralMetricPayload::Ready(ready_payload);
-
-        assert_eq!(
-            behavioral_metric_payload.get_context(),
-            behavioral_metric_context
-        );
-
-        let new_behavioral_metric_context = BehavioralMetricContext {
-            app_id: "new_test_app_id".to_string(),
-            product_version: "new_test_product_version".to_string(),
-            partner_id: "new_test_partner_id".to_string(),
-            app_session_id: "new_test_app_session_id".to_string(),
-            app_user_session_id: Some("new_test_user_session_id".to_string()),
-            durable_app_id: "new_test_durable_app_id".to_string(),
-            app_version: Some("test_app_version".to_string()),
-            governance_state: Some(AppDataGovernanceState {
-                data_tags_to_apply: HashSet::new(),
-            }),
-        };
-
-        behavioral_metric_payload.update_context(new_behavioral_metric_context.clone());
-
-        assert_eq!(
-            behavioral_metric_payload.get_context(),
-            new_behavioral_metric_context
-        );
     }
 
     #[test]
@@ -1401,13 +627,6 @@ mod tests {
         );
         timer.error();
         assert_eq!(timer.tags.unwrap().get("error"), Some(&"true".to_string()));
-    }
-
-    #[test]
-    fn test_timer_to_extn_request() {
-        let timer = Timer::start("test_timer".to_string(), None, None);
-        let request = timer.to_extn_request();
-        assert_eq!(request, OperationalMetricRequest::Timer(timer));
     }
 
     #[test]

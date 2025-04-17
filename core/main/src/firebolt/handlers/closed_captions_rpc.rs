@@ -35,7 +35,7 @@ use ripple_sdk::api::{
         device_accessibility_data::{
             ClosedCaptionStyle, ClosedCaptionsSettings, FONT_EDGE_LIST, FONT_FAMILY_LIST,
         },
-        device_peristence::{SetProperty, SetPropertyOpt},
+        device_peristence::SetPropertyOpt,
     },
     firebolt::{
         fb_general::{ListenRequest, ListenerResponse},
@@ -45,12 +45,12 @@ use ripple_sdk::api::{
     storage_property::{
         StorageProperty as SP, EVENT_CC_PREFERRED_LANGUAGES,
         EVENT_CLOSED_CAPTIONS_BACKGROUND_COLOR, EVENT_CLOSED_CAPTIONS_BACKGROUND_OPACITY,
-        EVENT_CLOSED_CAPTIONS_ENABLED, EVENT_CLOSED_CAPTIONS_FONT_COLOR,
-        EVENT_CLOSED_CAPTIONS_FONT_EDGE, EVENT_CLOSED_CAPTIONS_FONT_EDGE_COLOR,
-        EVENT_CLOSED_CAPTIONS_FONT_FAMILY, EVENT_CLOSED_CAPTIONS_FONT_OPACITY,
-        EVENT_CLOSED_CAPTIONS_FONT_SIZE, EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED,
-        EVENT_CLOSED_CAPTIONS_TEXT_ALIGN, EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL,
-        EVENT_CLOSED_CAPTIONS_WINDOW_COLOR, EVENT_CLOSED_CAPTIONS_WINDOW_OPACITY,
+        EVENT_CLOSED_CAPTIONS_FONT_COLOR, EVENT_CLOSED_CAPTIONS_FONT_EDGE,
+        EVENT_CLOSED_CAPTIONS_FONT_EDGE_COLOR, EVENT_CLOSED_CAPTIONS_FONT_FAMILY,
+        EVENT_CLOSED_CAPTIONS_FONT_OPACITY, EVENT_CLOSED_CAPTIONS_FONT_SIZE,
+        EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED, EVENT_CLOSED_CAPTIONS_TEXT_ALIGN,
+        EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL, EVENT_CLOSED_CAPTIONS_WINDOW_COLOR,
+        EVENT_CLOSED_CAPTIONS_WINDOW_OPACITY,
     },
 };
 use serde_json::Value;
@@ -75,32 +75,14 @@ impl AppEventDecorator for CCEventDecorator {
         Box::new(self.clone())
     }
 }
-
 #[rpc(server)]
 pub trait Closedcaptions {
-    #[method(name = "accessibility.closedCaptionsSettings", aliases = ["accessibility.closedCaptions"])]
-    async fn closed_captions_settings(
-        &self,
-        _ctx: CallContext,
-    ) -> RpcResult<ClosedCaptionsSettings>;
     #[method(name = "accessibility.onClosedCaptionsSettingsChanged")]
     async fn on_closed_captions_settings_changed(
         &self,
         _ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
-
-    #[method(name = "closedcaptions.enabled")]
-    async fn cc_enabled_rpc(&self, _ctx: CallContext) -> RpcResult<bool>;
-    #[method(name = "closedcaptions.setEnabled")]
-    async fn cc_enabled_set(&self, _ctx: CallContext, request: SetProperty<bool>) -> RpcResult<()>;
-    #[method(name = "closedcaptions.onEnabledChanged")]
-    async fn cc_enabled_changed(
-        &self,
-        _ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
-
     #[method(name = "closedcaptions.fontFamily")]
     async fn font_family(&self, _ctx: CallContext) -> RpcResult<Option<String>>;
     #[method(name = "closedcaptions.setFontFamily")]
@@ -444,14 +426,6 @@ impl ClosedcaptionsImpl {
 
 #[async_trait]
 impl ClosedcaptionsServer for ClosedcaptionsImpl {
-    async fn closed_captions_settings(
-        &self,
-        _ctx: CallContext,
-    ) -> RpcResult<ClosedCaptionsSettings> {
-        let settings = ClosedcaptionsImpl::get_cc_settings(&self.state).await?;
-        Ok(settings)
-    }
-
     async fn on_closed_captions_settings_changed(
         &self,
         ctx: CallContext,
@@ -465,22 +439,6 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
             Some(Box::new(CCEventDecorator {})),
         )
         .await
-    }
-
-    async fn cc_enabled_rpc(&self, _ctx: CallContext) -> RpcResult<bool> {
-        ClosedcaptionsImpl::cc_enabled(&self.state).await
-    }
-
-    async fn cc_enabled_set(&self, _ctx: CallContext, request: SetProperty<bool>) -> RpcResult<()> {
-        StorageManager::set_bool(&self.state, SP::ClosedCaptionsEnabled, request.value, None).await
-    }
-
-    async fn cc_enabled_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(&self.state, ctx, request, EVENT_CLOSED_CAPTIONS_ENABLED).await
     }
 
     async fn font_family(&self, _ctx: CallContext) -> RpcResult<Option<String>> {

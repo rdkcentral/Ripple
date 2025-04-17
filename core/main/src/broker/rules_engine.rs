@@ -321,10 +321,8 @@ impl RuleEngine {
         self.rules.rules.insert(rule.alias.clone(), rule);
     }
 
-    pub fn has_rule(&self, request: &RpcRequest) -> bool {
-        self.rules
-            .rules
-            .contains_key(&request.ctx.method.to_lowercase())
+    pub fn has_rule(&self, request: &str) -> bool {
+        self.rules.rules.contains_key(&request.to_lowercase())
     }
     fn wildcard_match(rule_name: &str, method: &str) -> bool {
         rule_name.ends_with(".*") && method.starts_with(&rule_name[..rule_name.len() - 2])
