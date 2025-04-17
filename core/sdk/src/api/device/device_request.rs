@@ -232,6 +232,7 @@ pub enum PowerState {
     DeepSleep,
     LightSleep,
     On,
+    Unknown,
 }
 impl FromStr for PowerState {
     type Err = ();
@@ -242,7 +243,7 @@ impl FromStr for PowerState {
             "DEEP_SLEEP" => Ok(PowerState::DeepSleep),
             "LIGHT_SLEEP" => Ok(PowerState::LightSleep),
             "ON" => Ok(PowerState::On),
-            _ => Err(()),
+            _ => Ok(PowerState::Unknown),
         }
     }
 }
@@ -317,7 +318,7 @@ mod tests {
 
     #[test]
     fn test_power_state_from_str_invalid() {
-        assert_eq!(PowerState::from_str("INVALID"), Err(()));
+        assert_eq!(PowerState::from_str("INVALID"), Ok(PowerState::Unknown));
     }
 
     #[rstest]

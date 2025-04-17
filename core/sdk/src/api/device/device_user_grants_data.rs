@@ -26,7 +26,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct GrantStep {
@@ -40,7 +40,7 @@ impl GrantStep {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct GrantRequirements {
@@ -81,7 +81,7 @@ impl Hash for GrantLifespan {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum AutoApplyPolicy {
     Always,
@@ -90,7 +90,7 @@ pub enum AutoApplyPolicy {
     Never,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct GrantPrivacySetting {
@@ -122,14 +122,14 @@ pub enum PolicyPersistenceType {
     Device,
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum EvaluateAt {
     Invocation,
     ActiveSession,
     LoadedSession,
 }
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 #[serde(rename_all = "camelCase")]
 pub struct GrantPolicy {
@@ -167,7 +167,7 @@ impl Default for GrantPolicy {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct GrantPolicies {
     #[serde(rename = "use")]
@@ -218,7 +218,7 @@ impl GrantPolicy {
         None
     }
 }
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct GrantExclusionFilter {
     pub capability: Option<String>,
