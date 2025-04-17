@@ -21,7 +21,7 @@ use ripple_sdk::{
     serde_json::{self, Result as SResult},
 };
 
-use crate::state::otel_state::OpMetricState;
+use crate::state::ops_metrics_state::OpMetricState;
 
 pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage) {
     let callback = match extn_msg.clone().callback {

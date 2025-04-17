@@ -49,7 +49,9 @@ use crate::{
     broker::broker_utils::BrokerUtils,
     firebolt::firebolt_gateway::JsonRpcError,
     service::extn::ripple_client::RippleClient,
-    state::{otel_state::OpMetricState, platform_state::PlatformState, session_state::Session},
+    state::{
+        ops_metrics_state::OpMetricState, platform_state::PlatformState, session_state::Session,
+    },
     utils::router_utils::{
         add_telemetry_status_code, capture_stage, get_rpc_header, return_extn_response,
     },
@@ -1857,7 +1859,7 @@ mod endpoint_broker_tests {
         use crate::{
             broker::rules_engine::{RuleEngine, RuleSet},
             service::extn::ripple_client::RippleClient,
-            state::{bootstrap_state::ChannelsState, otel_state::OpMetricState},
+            state::{bootstrap_state::ChannelsState, ops_metrics_state::OpMetricState},
         };
 
         use super::EndpointBrokerState;
@@ -2454,7 +2456,7 @@ mod endpoint_broker_tests {
         use crate::broker::rules_engine::{Rule, RuleTransform};
         use crate::service::extn::ripple_client::RippleClient;
         use crate::state::bootstrap_state::ChannelsState;
-        use crate::state::otel_state::OpMetricState;
+        use crate::state::ops_metrics_state::OpMetricState;
         use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
         use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
 
@@ -2702,7 +2704,7 @@ mod endpoint_broker_tests {
                 rules_engine::{Rule, RuleEngine, RuleSet},
             },
             service::extn::ripple_client::RippleClient,
-            state::{bootstrap_state::ChannelsState, otel_state::OpMetricState},
+            state::{bootstrap_state::ChannelsState, ops_metrics_state::OpMetricState},
         };
         use ripple_sdk::{
             api::gateway::rpc_gateway_api::RpcRequest, tokio::sync::mpsc::channel, Mockable,
@@ -2770,7 +2772,7 @@ mod endpoint_broker_tests {
                 rules_engine::{Rule, RuleEngine, RuleSet},
             },
             service::extn::ripple_client::RippleClient,
-            state::{bootstrap_state::ChannelsState, otel_state::OpMetricState},
+            state::{bootstrap_state::ChannelsState, ops_metrics_state::OpMetricState},
         };
         use ripple_sdk::{
             api::gateway::rpc_gateway_api::RpcRequest,
@@ -2937,7 +2939,7 @@ mod endpoint_broker_tests {
                     endpoint_broker::BrokerCallback,
                     rules_engine::{Rule, RuleSet, RuleTransform},
                 },
-                state::otel_state::OpMetricState,
+                state::ops_metrics_state::OpMetricState,
             };
 
             use super::*;
