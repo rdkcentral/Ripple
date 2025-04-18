@@ -1008,7 +1008,9 @@ impl EndpointBrokerState {
             Ok(response) => match response.clone() {
                 RenderedRequest::JsonRpc(data) => {
                     tokio::spawn(async move {
-                        let _ = broker_callback.sender.try_send(BrokerOutput::new(data));
+                        if let Err(err) = broker_callback.sender.try_send(BrokerOutput::new(data)) {
+                            error!("Error sending json rpc response to broker {:?}", err);
+                        }
                     });
                     Ok(response)
                 }
