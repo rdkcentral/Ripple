@@ -40,8 +40,6 @@ use ripple_sdk::{
 };
 
 use crate::{
-    general_distributor_token_processor::DistributorTokenProcessor,
-    general_paltform_token_processor::PlatformTokenProcessor,
     general_permission_processor::DistributorPermissionProcessor,
     general_privacy_processor::DistributorPrivacyProcessor,
     general_securestorage_processor::DistributorSecureStorageProcessor,
@@ -101,8 +99,6 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
             client.add_request_processor(DistributorPermissionProcessor::new(client.clone()));
             client.add_request_processor(DistributorSecureStorageProcessor::new(client.clone()));
             client.add_request_processor(GeneralTokenProcessor::new(client.clone()));
-            client.add_request_processor(DistributorTokenProcessor::new(client.clone()));
-            client.add_request_processor(PlatformTokenProcessor::new(client.clone()));
 
             // Lets Main know that the distributor channel is ready
             let _ = client.event(ExtnStatus::Ready);
