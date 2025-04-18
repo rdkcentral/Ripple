@@ -84,7 +84,7 @@ pub struct BrokerCleaner {
 impl BrokerCleaner {
     async fn cleanup_session(&self, appid: &str) -> Result<String, RippleError> {
         if let Some(cleaner) = self.cleaner.clone() {
-            if let Err(e) = cleaner.send(appid.to_owned()).await {
+            if let Err(e) = cleaner.try_send(appid.to_owned()) {
                 error!("Couldnt cleanup {} {:?}", appid, e);
                 return Err(RippleError::SendFailure);
             }
@@ -264,7 +264,7 @@ pub(crate) static ATOMIC_ID: AtomicU64 = AtomicU64::new(0);
 impl BrokerCallback {
     pub async fn send_json_rpc_api_response(&self, response: JsonRpcApiResponse) {
         let output = BrokerOutput::new(response);
-        if let Err(e) = self.sender.send(output).await {
+        if let Err(e) = self.sender.try_send(output) {
             error!("couldnt send response for {:?}", e);
         }
     }
@@ -443,8 +443,7 @@ impl BrokerEndpoint {
         match self {
             BrokerEndpoint::BrokerSender(broker_sender) => broker_sender
                 .sender
-                .send(request)
-                .await
+                .try_send(request)
                 .map_err(|_| RippleError::SendFailure),
             _ => {
                 error!("BrokerEndpoint::send: BrokerSender not supported");
@@ -792,7 +791,6 @@ impl EndpointBrokerState {
 
         capture_stage(&self.metrics_state, &rpc_request, "static_rule_request");
         data
-        //tokio::spawn(async move { callback.sender.send(output).await });
     }
 
     fn handle_provided_request(
@@ -1010,7 +1008,7 @@ impl EndpointBrokerState {
             Ok(response) => match response.clone() {
                 RenderedRequest::JsonRpc(data) => {
                     tokio::spawn(async move {
-                        let _ = broker_callback.sender.send(BrokerOutput::new(data)).await;
+                        let _ = broker_callback.sender.try_send(BrokerOutput::new(data));
                     });
                     Ok(response)
                 }
@@ -1053,20 +1051,19 @@ impl EndpointBrokerState {
                         params: request.rpc.get_params(),
                     };
                     let request_for_spawn = request.clone();
-                    tokio::spawn(async move {
-                        endpoint.send_request(request_for_spawn).await
-                        //broker_callback.sender.send(BrokerOutput::new(cl)).await
-                    });
+                    tokio::spawn(async move { endpoint.send_request(request_for_spawn).await });
 
                     Ok(RenderedRequest::ProviderJsonRpc(data))
                 }
 
                 RenderedRequest::ProviderJsonRpc(json_rpc_api_response) => {
                     tokio::spawn(async move {
-                        broker_callback
+                        if let Err(err) = broker_callback
                             .sender
-                            .send(BrokerOutput::new(json_rpc_api_response))
-                            .await
+                            .try_send(BrokerOutput::new(json_rpc_api_response))
+                        {
+                            error!("Error sending json rpc response to broker {:?}", err);
+                        }
                     });
                     Ok(response)
                 }
@@ -1213,7 +1210,7 @@ pub trait EndpointBroker {
             final_result = Ok(BrokerOutput::new(data));
         }
         if let Ok(output) = final_result.clone() {
-            tokio::spawn(async move { callback.sender.send(output).await });
+            tokio::spawn(async move { callback.sender.try_send(output) });
         } else {
             error!("Bad broker response {}", String::from_utf8_lossy(result));
         }
@@ -1452,8 +1449,7 @@ impl BrokerOutputForwarder {
                             .emit_debug();
                             let _ = workflow_callback
                                 .sender
-                                .send(BrokerOutput::new(response.clone()))
-                                .await;
+                                .try_send(BrokerOutput::new(response.clone()));
                         } else {
                             let tm_str = get_rpc_header(&rpc_request);
 
@@ -1522,7 +1518,7 @@ impl BrokerOutputForwarder {
                         }
 
                         for listener in telemetry_response_listeners {
-                            let _ = listener.send(BrokerOutput::new(response.clone())).await;
+                            let _ = listener.try_send(BrokerOutput::new(response.clone()));
                         }
                     } else {
                         error!(
@@ -1661,10 +1657,12 @@ impl BrokerOutputForwarder {
         callback: BrokerCallback,
     ) {
         tokio::spawn(async move {
-            callback
+            if let Err(e) = callback
                 .sender
-                .send(BrokerOutput::new(json_rpc_api_response))
-                .await
+                .try_send(BrokerOutput::new(json_rpc_api_response))
+            {
+                error!("Error sending json rpc response to broker {:?}", e)
+            }
         });
     }
     pub fn send_json_rpc_success_response_to_broker(
@@ -1672,10 +1670,15 @@ impl BrokerOutputForwarder {
         callback: BrokerCallback,
     ) {
         tokio::spawn(async move {
-            callback
+            if let Err(err) = callback
                 .sender
-                .send(BrokerOutput::new(json_rpc_api_success_response))
-                .await
+                .try_send(BrokerOutput::new(json_rpc_api_success_response))
+            {
+                error!(
+                    "Error sending json rpc success response to broker {:?}",
+                    err
+                )
+            }
         });
     }
 }
