@@ -1,6 +1,6 @@
 use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerRequest, BrokerSender,
-    EndpointBroker,
+    EndpointBroker, BROKER_CHANNEL_BUFFER_SIZE,
 };
 use super::rules_engine::JsonDataSource;
 use crate::broker::endpoint_broker::{BrokerOutput, EndpointBrokerState};
@@ -34,7 +34,7 @@ async fn subbroker_call(
     rpc_request: RpcRequest,
     source: JsonDataSource,
 ) -> Result<serde_json::Value, SubBrokerErr> {
-    let (brokered_tx, mut brokered_rx) = mpsc::channel::<BrokerOutput>(10);
+    let (brokered_tx, mut brokered_rx) = mpsc::channel::<BrokerOutput>(BROKER_CHANNEL_BUFFER_SIZE);
     endpoint_broker.handle_brokerage(
         rpc_request,
         None,
@@ -164,8 +164,9 @@ impl WorkflowBroker {
         trace!("Composed {:?}", composed.result);
         Ok(composed)
     }
+
     pub fn start(callback: BrokerCallback, endpoint_broker: EndpointBrokerState) -> BrokerSender {
-        let (tx, mut rx) = mpsc::channel::<BrokerRequest>(10);
+        let (tx, mut rx) = mpsc::channel::<BrokerRequest>(BROKER_CHANNEL_BUFFER_SIZE);
         /*
         This is a "meta rule": a rule that composes other rules.
         */
@@ -337,7 +338,7 @@ pub mod tests {
         */
         use super::*;
 
-        let (tx, mut _rx) = mpsc::channel::<BrokerOutput>(10);
+        let (tx, mut _rx) = mpsc::channel::<BrokerOutput>(32);
         let callback = BrokerCallback { sender: tx };
         let request = broker_request(callback);
         let broker = endppoint_broker_state();
@@ -345,5 +346,185 @@ pub mod tests {
         let foo = WorkflowBroker::run_workflow(&request, broker);
         let foo = foo.await;
         assert!(foo.is_ok());
+    }
+
+    #[tokio::test]
+    pub async fn test_log_error_and_send_broker_failure_response() {
+        use super::*;
+        use tokio::time::{timeout, Duration};
+
+        let (tx, mut rx) = mpsc::channel::<BrokerOutput>(10);
+        let callback = BrokerCallback { sender: tx };
+
+        let mut rpc_request = RpcRequest::mock();
+        rpc_request.ctx.call_id = 147;
+
+        let broker_request = BrokerRequest {
+            rpc: rpc_request,
+            rule: Rule {
+                alias: "test_rule".to_string(),
+                ..Default::default()
+            },
+            subscription_processed: None,
+            workflow_callback: Some(callback.clone()),
+            telemetry_response_listeners: vec![],
+        };
+
+        let error = JsonRpcApiError::default()
+            .with_code(-32001)
+            .with_message("Test error message".to_string())
+            .with_id(147);
+
+        WorkflowBroker::log_error_and_send_broker_failure_response(
+            broker_request.clone(),
+            &callback,
+            error.clone(),
+        );
+
+        if let Ok(Some(BrokerOutput { data, .. })) =
+            timeout(Duration::from_secs(5), rx.recv()).await
+        {
+            assert!(data.is_error());
+        } else {
+            panic!("Timeout or channel closed without receiving data");
+        }
+    }
+
+    #[tokio::test]
+    pub async fn test_get_broker() {
+        use super::*;
+
+        let (tx, _) = mpsc::channel::<BrokerOutput>(10);
+        let callback = BrokerCallback { sender: tx };
+
+        let mut broker_state = endppoint_broker_state();
+        let request = BrokerConnectRequest::default();
+
+        let broker = WorkflowBroker::get_broker(None, request, callback.clone(), &mut broker_state);
+
+        // Verify that the broker sender is initialized
+        assert!(!broker.get_sender().sender.is_closed());
+
+        // invoke BrokerCleaner()
+        let cleaner = broker.get_cleaner();
+
+        assert!(cleaner.cleaner.is_none());
+    }
+
+    #[tokio::test]
+    pub async fn test_subbroker_call_error() {
+        use super::*;
+
+        let (tx, mut rx) = mpsc::channel::<BrokerOutput>(10);
+        let _callback = BrokerCallback { sender: tx };
+
+        let mut rpc_request = RpcRequest::mock();
+        rpc_request.method = "test.method".to_string();
+
+        let source = JsonDataSource {
+            method: "test.method".to_string(),
+            namespace: Some("test_namespace".to_string()),
+            ..Default::default()
+        };
+
+        let endpoint_broker = endppoint_broker_state();
+
+        tokio::spawn(async move {
+            if let Some(BrokerOutput { data, .. }) = rx.recv().await {
+                // Handle the received message or log an error
+                error!("Received message: {:?}", data);
+            }
+        });
+
+        let result = subbroker_call(endpoint_broker, rpc_request, source).await;
+
+        assert!(result.is_err());
+        if let Err(SubBrokerErr::RpcError(err)) = result {
+            assert_eq!(err.to_string(), "BrokerError Failed to receive message");
+        }
+    }
+
+    #[tokio::test]
+    pub async fn test_start_successful_workflow() {
+        use super::*;
+        use tokio::time::{timeout, Duration};
+
+        let (tx, mut rx) = mpsc::channel::<BrokerOutput>(10);
+        let callback = BrokerCallback { sender: tx };
+
+        let endpoint_broker = endppoint_broker_state();
+        let broker_sender = WorkflowBroker::start(callback.clone(), endpoint_broker.clone());
+
+        let mut rpc_request = RpcRequest::mock();
+        rpc_request.method = "test.method".to_string();
+
+        let broker_request = BrokerRequest {
+            rpc: rpc_request,
+            rule: Rule {
+                alias: "test_rule".to_string(),
+                ..Default::default()
+            },
+            subscription_processed: None,
+            workflow_callback: Some(callback.clone()),
+            telemetry_response_listeners: vec![],
+        };
+        broker_sender.sender.send(broker_request).await.unwrap();
+
+        if let Ok(Some(BrokerOutput { data, .. })) =
+            timeout(Duration::from_secs(5), rx.recv()).await
+        {
+            assert!(!data.is_error());
+        } else {
+            panic!("Timeout or channel closed without receiving data");
+        }
+    }
+
+    #[tokio::test]
+    pub async fn test_start_workflow_with_jsonrpc_error() {
+        use super::*;
+        use tokio::time::{timeout, Duration};
+
+        let (tx, mut rx) = mpsc::channel::<BrokerOutput>(10);
+        let callback = BrokerCallback { sender: tx };
+
+        let endpoint_broker = endppoint_broker_state();
+        let broker_sender = WorkflowBroker::start(callback.clone(), endpoint_broker.clone());
+
+        let mut rpc_request = RpcRequest::mock();
+        rpc_request.method = "test.method".to_string();
+
+        let broker_request = BrokerRequest {
+            rpc: rpc_request,
+            rule: Rule {
+                alias: "test_rule".to_string(),
+                ..Default::default()
+            },
+            subscription_processed: None,
+            workflow_callback: Some(callback.clone()),
+            telemetry_response_listeners: vec![],
+        };
+
+        broker_sender.sender.send(broker_request).await.unwrap();
+
+        let response = JsonRpcApiResponse {
+            jsonrpc: "2.0".to_owned(),
+            id: Some(147),
+            error: Some(json!("SubBrokerErr::JsonRpcApiError")),
+            result: None,
+            method: None,
+            params: None,
+        };
+
+        let broker_output = BrokerOutput { data: response };
+
+        callback.sender.send(broker_output).await.unwrap();
+
+        if let Ok(Some(BrokerOutput { data, .. })) =
+            timeout(Duration::from_secs(5), rx.recv()).await
+        {
+            assert!(data.is_error());
+        } else {
+            panic!("Timeout or channel closed without receiving data");
+        }
     }
 }
