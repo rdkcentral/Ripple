@@ -49,7 +49,7 @@ use crate::{
 };
 
 use super::{
-    cap::cap_state::CapState, openrpc_state::OpenRpcState, otel_state::OpMetricState,
+    cap::cap_state::CapState, openrpc_state::OpenRpcState, ops_metrics_state::OpMetricState,
     ripple_cache::RippleCache, session_state::SessionState,
 };
 

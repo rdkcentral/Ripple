@@ -16,6 +16,7 @@
 //
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::{
@@ -160,6 +161,12 @@ pub struct FireboltInteraction {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct FireboltEvent {
+    pub event_name: String,
+    pub result: Value,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum TelemetryPayload {
     AppLoadStart(AppLoadStart),
     AppLoadStop(AppLoadStop),
@@ -170,6 +177,7 @@ pub enum TelemetryPayload {
     SignOut(TelemetrySignOut),
     InternalInitialize(InternalInitialize),
     FireboltInteraction(FireboltInteraction), // External Service failures (service, error)
+    FireboltEvent(FireboltEvent),
 }
 
 impl TelemetryPayload {
@@ -184,6 +192,7 @@ impl TelemetryPayload {
             Self::SignOut(s) => s.ripple_session_id = session_id,
             Self::InternalInitialize(i) => i.ripple_session_id = session_id,
             Self::FireboltInteraction(f) => f.ripple_session_id = session_id,
+            Self::FireboltEvent(_) => {}
         }
     }
 }
