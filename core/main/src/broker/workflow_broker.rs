@@ -1,6 +1,6 @@
 use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerRequest, BrokerSender,
-    EndpointBroker,
+    EndpointBroker, BROKER_CHANNEL_BUFFER_SIZE,
 };
 use super::rules_engine::JsonDataSource;
 use crate::broker::endpoint_broker::{BrokerOutput, EndpointBrokerState};
@@ -34,7 +34,7 @@ async fn subbroker_call(
     rpc_request: RpcRequest,
     source: JsonDataSource,
 ) -> Result<serde_json::Value, SubBrokerErr> {
-    let (brokered_tx, mut brokered_rx) = mpsc::channel::<BrokerOutput>(10);
+    let (brokered_tx, mut brokered_rx) = mpsc::channel::<BrokerOutput>(BROKER_CHANNEL_BUFFER_SIZE);
     endpoint_broker.handle_brokerage(
         rpc_request,
         None,
@@ -166,7 +166,7 @@ impl WorkflowBroker {
     }
 
     pub fn start(callback: BrokerCallback, endpoint_broker: EndpointBrokerState) -> BrokerSender {
-        let (tx, mut rx) = mpsc::channel::<BrokerRequest>(10);
+        let (tx, mut rx) = mpsc::channel::<BrokerRequest>(BROKER_CHANNEL_BUFFER_SIZE);
         /*
         This is a "meta rule": a rule that composes other rules.
         */
@@ -338,7 +338,7 @@ pub mod tests {
         */
         use super::*;
 
-        let (tx, mut _rx) = mpsc::channel::<BrokerOutput>(10);
+        let (tx, mut _rx) = mpsc::channel::<BrokerOutput>(32);
         let callback = BrokerCallback { sender: tx };
         let request = broker_request(callback);
         let broker = endppoint_broker_state();
