@@ -157,7 +157,6 @@ impl MergeConfig<CascadedRippleConfiguration> for RippleConfiguration {
         }
         if let Some(cas_exclusory) = cascaded.exclusory {
             if self.exclusory.is_none() {
-                // TODO: need map cascaded struct into default struct and assign here
                 // Eg: need to copy CascadedExclusoryImpl data into CascadedExclusoryImpl (both are diffrent structure)
             } else {
                 self.exclusory.clone().unwrap().merge_config(cas_exclusory);
@@ -385,12 +384,10 @@ impl MergeConfig<CascadedCapabilityConfiguration> for CapabilityConfiguration {
                     if let Some(existing_policies) = self_grant_policies.get_mut(&key) {
                         existing_policies.merge_config(other_policies);
                     } else {
-                        // TODO
                         // If the key doesn't exist in self, insert a new GrantPolicies
                     }
                 }
             } else {
-                // TODO
                 // If self.grant_policies is None, simply assign from other
             }
         }
