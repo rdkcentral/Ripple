@@ -192,7 +192,13 @@ impl<T: std::fmt::Display + ContextAsJson> LogSignal<T> {
         let log_levels = MODULE_LOG_LEVELS.read().unwrap();
         if let Some(log_level) = log_levels.get("ripple_sdk::api::observability::log_signal") {
             let target = "ripple_sdk::api::observability::log_signal";
-            let message = serde_json::Value::from(self).to_string();
+
+            // For readability, strip any redundant backslashes due to diagnostic_context
+            // that contains serialized Value::Object types.
+            let message = serde_json::Value::from(self)
+                .to_string()
+                .replace("\\\\", "");
+
             match log_level {
                 log::LevelFilter::Error if log::log_enabled!(log::Level::Error) => {
                     log::error!(target: target, "{}", message);
