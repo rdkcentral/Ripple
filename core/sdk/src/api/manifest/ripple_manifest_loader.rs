@@ -122,7 +122,7 @@ impl RippleManifestLoader {
                     return path;
                 }
             }
-        } else if cfg!(test) {
+        } else if cfg!(any(test, feature = "test")) {
             if let Ok(path) = std::env::var("RIPPLE_CONFIG_BASE_PATH") {
                 info!("Loaded base path from env (test): {}", path);
                 return path;

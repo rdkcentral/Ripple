@@ -54,7 +54,7 @@ type DeviceManifestLoader = Vec<fn() -> Result<(String, DeviceManifest), RippleE
 fn try_manifest_files() -> Result<DeviceManifest, RippleError> {
     let dm_arr: DeviceManifestLoader = if cfg!(feature = "local_dev") {
         vec![load_from_env, load_from_home]
-    } else if cfg!(test) {
+    } else if cfg!(any(test, feature = "test")) {
         vec![load_from_env]
     } else {
         vec![load_from_etc]
