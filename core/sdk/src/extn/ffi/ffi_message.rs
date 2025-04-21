@@ -44,27 +44,7 @@ pub struct CExtnMessage {
     pub ts: i64,
 }
 
-impl From<ExtnMessage> for CExtnMessage {
-    fn from(value: ExtnMessage) -> Self {
-        let payload: String = value.payload.into();
-        CExtnMessage {
-            callback: value.callback,
-            id: value.id,
-            payload,
-            requestor: value.requestor.to_string(),
-            target: value.target.into(),
-            target_id: match value.target_id {
-                Some(id) => id.to_string(),
-                None => "".to_owned(),
-            },
-            ts: if let Some(v) = value.ts {
-                v
-            } else {
-                chrono::Utc::now().timestamp_millis()
-            },
-        }
-    }
-}
+
 
 impl TryInto<ExtnMessage> for CExtnMessage {
     type Error = RippleError;
@@ -91,7 +71,6 @@ impl TryInto<ExtnMessage> for CExtnMessage {
         let payload = payload.unwrap();
         let ts = Some(self.ts);
         Ok(ExtnMessage {
-            callback: self.callback,
             id: self.id,
             requestor,
             target,
@@ -113,35 +92,6 @@ mod tests {
     use crate::framework::ripple_contract::RippleContract;
     use rstest::rstest;
 
-    #[test]
-    fn test_from_extn_message_to_c_extn_message() {
-        // Create a mock ExtnMessage
-        let extn_message = ExtnMessage {
-            id: "test_id".to_string(),
-            requestor: ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
-            target: RippleContract::Internal,
-            target_id: Some(ExtnId::get_main_target("main".into())),
-            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
-            callback: None,
-            ts: Some(1234567890),
-        };
-        let c_extn_message: CExtnMessage = extn_message.into();
-
-        // Check if the conversion is valid
-        assert_eq!(c_extn_message.id, "test_id");
-        assert_eq!(c_extn_message.requestor, "ripple:channel:device:info");
-        assert_eq!(
-            c_extn_message.target,
-            format!(r#""{}""#, RippleContract::Internal.as_clear_string())
-        );
-        assert_eq!(c_extn_message.target_id, "ripple:main:internal:main");
-        assert_eq!(
-            c_extn_message.payload,
-            r#"{"Request":{"Config":"DefaultName"}}"#.to_string()
-        );
-        assert!(c_extn_message.callback.is_none());
-        assert_eq!(c_extn_message.ts, 1234567890);
-    }
 
     #[rstest(
         requestor,
@@ -210,7 +160,6 @@ mod tests {
                             crate::api::config::Config::DefaultName
                         ))
                     );
-                    assert!(extn_message.callback.is_none());
                     assert_eq!(extn_message.ts.unwrap(), 1234567890);
                 } else {
                     panic!("Expected Ok, but got Err: {:?}", extn_message);

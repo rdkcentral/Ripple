@@ -16,12 +16,10 @@
 //
 
 use ripple_sdk::{
-    api::firebolt::fb_openrpc::OpenRPCParser,
     async_trait::async_trait,
     extn::{
-        client::extn_sender::ExtnSender,
         extn_id::ExtnId,
-        ffi::{ffi_channel::load_channel_builder, ffi_jsonrpsee::load_jsonrpsee_methods},
+        ffi::ffi_channel::load_channel_builder,
     },
     framework::bootstrap::Bootstep,
     log::{debug, error, info},
@@ -29,10 +27,9 @@ use ripple_sdk::{
 };
 
 use crate::state::{
-    bootstrap_state::{BootstrapState, ChannelsState},
+    bootstrap_state::BootstrapState,
     extn_state::PreLoadedExtnChannel,
 };
-use jsonrpsee::core::server::rpc_module::Methods;
 
 /// Actual bootstep which loads the extensions into the ExtnState.
 /// Currently this step loads
@@ -49,9 +46,6 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
         let loaded_extensions = state.extn_state.loaded_libraries.read().unwrap();
         let mut deferred_channels: Vec<PreLoadedExtnChannel> = Vec::new();
         let mut device_channels: Vec<PreLoadedExtnChannel> = Vec::new();
-        let mut jsonrpsee_extns: Methods = Methods::new();
-        let mut open_rpcs: Vec<OpenRPCParser> = Vec::new();
-        let main_sender = state.extn_state.clone().get_sender();
         for extn in loaded_extensions.iter() {
             unsafe {
                 let path = extn.entry.path.clone();
@@ -62,7 +56,6 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                     extn.metadata.symbols.len()
                 );
                 let channels = extn.get_channels();
-                let extensions = extn.get_extns();
                 for channel in channels {
                     debug!("loading channel builder for {}", channel.id);
                     if let Ok(extn_id) = ExtnId::try_from(channel.id.clone()) {
@@ -79,14 +72,7 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                                 } else {
                                     deferred_channels.push(preloaded_channel);
                                 }
-                                if let Some(open_rpc) = (builder.get_extended_capabilities)() {
-                                    match serde_json::from_str(&open_rpc) {
-                                        Ok(v) => open_rpcs.push(v),
-                                        Err(e) => error!("{}", e.to_string()),
-                                    }
-                                } else {
-                                    info!("Channel: No extended capabilities");
-                                }
+                                
                             } else {
                                 error!("invalid channel builder in {}", path);
                                 return Err(RippleError::BootstrapError);
@@ -98,32 +84,6 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                     } else {
                         error!("invalid extn manifest entry for extn_id");
                         return Err(RippleError::BootstrapError);
-                    }
-                }
-                for extension in extensions {
-                    debug!("loading extension {}", extension.id);
-                    if let Ok(extn_id) = ExtnId::try_from(extension.id.clone()) {
-                        let builder = load_jsonrpsee_methods(library);
-                        if let Some(builder) = builder {
-                            let (_tx, tr) = ChannelsState::get_iec_channel();
-                            let extn_sender = ExtnSender::new(
-                                main_sender.clone(),
-                                extn_id,
-                                extension.uses,
-                                extension.fulfills,
-                                extension.config,
-                            );
-                            if let Some(open_rpc) = (builder.get_extended_capabilities)() {
-                                match serde_json::from_str(&open_rpc) {
-                                    Ok(v) => open_rpcs.push(v),
-                                    Err(e) => error!("{}", e.to_string()),
-                                }
-                            } else {
-                                info!("No extended capabilities");
-                            }
-
-                            let _ = jsonrpsee_extns.merge((builder.build)(extn_sender, tr));
-                        }
                     }
                 }
             }
@@ -142,15 +102,6 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
                 deferred_channels.len()
             );
             let _ = deferred_channel_state.extend(deferred_channels);
-        }
-
-        state.extn_state.extend_methods(jsonrpsee_extns);
-
-        for open_rpc in open_rpcs {
-            state
-                .platform_state
-                .open_rpc_state
-                .add_open_rpc(open_rpc.into());
         }
 
         Ok(())

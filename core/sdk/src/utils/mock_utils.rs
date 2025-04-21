@@ -240,7 +240,6 @@ pub fn get_mock_message(payload_type: PayloadType) -> ExtnMessage {
             PayloadType::Event => get_mock_event_payload(),
             PayloadType::Request => get_mock_request_payload(),
         },
-        callback: None,
         ts: Some(Utc::now().timestamp_millis()),
     }
 }

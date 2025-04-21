@@ -15,8 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::broker::broker_utils::BrokerUtils;
-
 use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerRequest,
     BrokerSender, EndpointBroker,
@@ -24,10 +22,12 @@ use super::endpoint_broker::{
 use crate::broker::endpoint_broker::EndpointBrokerState;
 use crate::state::platform_state::PlatformState;
 use futures_util::{SinkExt, StreamExt};
+use ripple_sdk::tokio_tungstenite::tungstenite::Message;
 use ripple_sdk::{
     api::observability::log_signal::LogSignal,
     log::{debug, error},
     tokio::{self, sync::mpsc},
+    utils::ws_utils::{WebSocketConfigBuilder, WebSocketUtils},
 };
 use std::{
     collections::HashMap,
@@ -49,8 +49,12 @@ impl WebsocketBroker {
         let broker = BrokerSender { sender: tx };
         tokio::spawn(async move {
             if endpoint.jsonrpc {
-                let (mut ws_tx, mut ws_rx) =
-                    BrokerUtils::get_ws_broker(&endpoint.get_url(), None).await;
+                let resp = WebSocketUtils::get_ws_stream(&endpoint.get_url(), None).await;
+                if resp.is_err() {
+                    error!("Error connecting to websocket broker");
+                    return false;
+                }
+                let (mut ws_tx, mut ws_rx) = resp.unwrap();
 
                 tokio::pin! {
                     let read = ws_rx.next();
@@ -60,7 +64,7 @@ impl WebsocketBroker {
                         Some(value) = &mut read => {
                             match value {
                                 Ok(v) => {
-                                    if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
+                                    if let Message::Text(t) = v {
                                         // send the incoming text without context back to the sender
                                        match  Self::handle_jsonrpc_response(t.as_bytes(),callback.clone(), None) {
                                              Ok(_) => {},
@@ -91,7 +95,7 @@ impl WebsocketBroker {
                                     request.rpc.ctx.clone(),
                                 )
                                 .emit_debug();
-                                let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(updated_request)).await;
+                                let _feed = ws_tx.feed(Message::Text(updated_request)).await;
                                 let _flush = ws_tx.flush().await;
                             }
 
@@ -156,8 +160,16 @@ impl WSNotificationBroker {
         tokio::spawn(async move {
             let app_id = request_c.get_id();
             let alias = request_c.rule.alias.clone();
-            let (mut ws_tx, mut ws_rx) =
-                BrokerUtils::get_ws_broker(&url, Some(alias.clone())).await;
+            let resp = WebSocketUtils::get_ws_stream(
+                &url,
+                Some(WebSocketConfigBuilder::new().alias(alias).build()),
+            )
+            .await;
+            if resp.is_err() {
+                error!("Error connecting to websocket broker");
+                return;
+            }
+            let (mut ws_tx, mut ws_rx) = resp.unwrap();
 
             tokio::pin! {
                 let read = ws_rx.next();
@@ -168,7 +180,7 @@ impl WSNotificationBroker {
                     Some(value) = &mut read => {
                         match value {
                             Ok(v) => {
-                                if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
+                                if let Message::Text(t) = v {
                                     // send the incoming text without context back to the sender
                                     if let Err(e) = BrokerOutputForwarder::handle_non_jsonrpc_response(
                                         t.as_bytes(),
@@ -193,7 +205,7 @@ impl WSNotificationBroker {
                     Some(request) = tr.recv() => {
                         debug!("Recieved cleaner request for {}", request);
                         if request.eq(&app_id) {
-                            let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Close(None)).await;
+                            let _feed = ws_tx.feed(Message::Close(None)).await;
                             let _flush = ws_tx.flush().await;
                             break;
                         }

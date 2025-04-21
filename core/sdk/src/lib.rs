@@ -36,6 +36,7 @@ pub extern crate serde;
 pub extern crate serde_json;
 pub extern crate serde_yaml;
 pub extern crate tokio;
+pub extern crate tokio_tungstenite;
 pub extern crate uuid;
 
 pub trait Mockable {

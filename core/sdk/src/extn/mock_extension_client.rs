@@ -198,7 +198,6 @@ impl MockExtnClient {
 
     pub fn req(contract: RippleContract, req: ExtnRequest) -> ExtnMessage {
         ExtnMessage {
-            callback: None,
             id: Uuid::new_v4().to_string(),
             payload: ExtnPayload::Request(req),
             requestor: ExtnId::new_channel(ExtnClassId::Internal, "test".into()),
