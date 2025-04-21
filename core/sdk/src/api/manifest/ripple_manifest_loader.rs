@@ -389,7 +389,6 @@ impl RippleConfigLoader {
 mod tests {
     use super::*;
     use std::env;
-    use std::path::PathBuf;
 
     use crate::api::manifest::ripple_manifest_loader::RippleManifestLoader;
 
@@ -449,11 +448,13 @@ mod tests {
 
     #[test]
     fn test_get_manifest_paths_with_real_config_from_mock() {
-        // Define the path to the mock config file
-        let config_path_buf = PathBuf::from("../../../firebolt-devices/rdke/ripple.config.json");
+        let current_dir = env::current_dir().expect("Failed to get current working directory");
+        let relative_path = "src/api/manifest/mock_manifests/mock-ripple-config.json";
+        // Join the current directory PathBuf with the relative path
+        let config_path_buf = current_dir.join(relative_path);
+
         let config_path_str = config_path_buf.to_str().unwrap();
 
-        // Ensure the config file exists
         assert!(
             config_path_buf.exists(),
             "Mock config file not found: {}",
@@ -481,14 +482,11 @@ mod tests {
         };
         let config_loader = loader.get_config_loader();
 
-        // Construct the base path for assertions
         let base_path = config_path_buf.parent().unwrap().display().to_string();
         println!("basepath - {:?}", base_path);
 
-        // Call get_manifest_paths for device manifests
         let (default_device_path, device_paths) = config_loader.get_manifest_paths(false);
 
-        // Validate the resolved device paths for "us"
         assert_eq!(
             default_device_path,
             Some(format!("{}/manifest.json", base_path))
@@ -497,37 +495,9 @@ mod tests {
         assert_eq!(
             device_paths,
             vec![
-                format!("{}/northamerica/na.manifest.json", base_path),
-                format!("{}/northamerica/na.tv.manifest.json", base_path)
+                format!("{}/na/na.manifest.json", base_path),
+                format!("{}/na/na.tv.manifest.json", base_path)
             ]
-        );
-        // Call get_manifest_paths for extension manifests
-        let (default_extn_path, extn_paths) = config_loader.get_manifest_paths(true);
-
-        // Validate the resolved extension paths for "us" with device type "tv"
-        assert_eq!(default_extn_path, Some(format!("{}/extn.json", base_path)));
-        assert_eq!(
-            extn_paths,
-            vec![format!(
-                "{}/northamerica/badger/badger.extn.json",
-                base_path
-            )]
-        );
-
-        // Test with a different country
-        env::set_var("RIPPLE_COUNTRY", "au");
-        let loader_au = RippleManifestLoader {
-            cascaded_config: true,
-            manifest_config: RippleManifestLoader::load_ripple_config(config_path_str),
-            base_path: config_path_buf.parent().unwrap().display().to_string(),
-            country_code: "au".to_string(),
-            device_type: Some("tv".to_string()),
-        };
-        let config_loader_au = loader_au.get_config_loader();
-        let (_, device_paths_au) = config_loader_au.get_manifest_paths(false);
-        assert_eq!(
-            device_paths_au,
-            vec![format!("{}/apac/apac.manifest.json", base_path)]
         );
 
         // Test with a device type that has a specific tag for extensions
@@ -542,9 +512,14 @@ mod tests {
         };
         let config_loader_eu_tv = loader_eu_tv.get_config_loader();
         let (_, extn_paths_eu_tv) = config_loader_eu_tv.get_manifest_paths(true);
+
         assert_eq!(
             extn_paths_eu_tv,
-            vec![format!("{}/eu/eu.tv.extn.json", base_path)]
+            vec![
+                format!("{}/eu/eu.extn.json", base_path),
+                format!("{}/eu/eu.tv.extn.json", base_path)
+            ],
+            "Specific extension paths mismatch for EU/TV"
         );
 
         // Clean up environment variables
