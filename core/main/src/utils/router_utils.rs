@@ -24,13 +24,13 @@ use ripple_sdk::{
 use crate::state::otel_state::OpMetricState;
 
 pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage) {
-    let callback = match extn_msg.clone().callback {
-        Some(cb) => cb,
-        None => {
-            error!("No valid callbacks");
-            return;
-        }
-    };
+    // let callback = match extn_msg.clone().callback {
+    //     Some(cb) => cb,
+    //     None => {
+    //         error!("No valid callbacks");
+    //         return;
+    //     }
+    // };
 
     let r: SResult<JsonRpcApiResponse> = serde_json::from_str(&msg.jsonrpc_msg);
 
@@ -45,13 +45,13 @@ pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage) {
         };
 
         let return_value = ExtnResponse::Value(response_value);
-        if let Ok(response) = extn_msg.get_response(return_value) {
-            if let Err(e) = callback.try_send(response.into()) {
-                error!("Error while sending back rpc request for extn {:?}", e);
-            }
-        } else {
-            error!("Not a Request object {:?}", extn_msg);
-        }
+        // if let Ok(response) = extn_msg.get_response(return_value) {
+        //     if let Err(e) = callback.try_send(response.into()) {
+        //         error!("Error while sending back rpc request for extn {:?}", e);
+        //     }
+        // } else {
+        //     error!("Not a Request object {:?}", extn_msg);
+        // }
     }
 }
 

@@ -250,30 +250,30 @@ impl FireboltGateway {
             request.clone(),
         )
         .emit_debug();
-        let mut extn_cb = None;
+        //let mut extn_cb = None;
         match request.ctx.protocol {
             ApiProtocol::Extn => {
                 extn_request = true;
                 // extn protocol with subscription requests means there is no need for callback
                 // it is using extn_client::subscribe method which uses id field to resolve.
-                if !request.is_subscription()
-                    && (callback_c.is_none() || callback_c.unwrap().callback.is_none())
-                {
-                    trace!("No callback for request {:?} ", request);
-                    if let Some(extn_message) = extn_msg.clone() {
-                        let extn_id = extn_message.requestor;
-                        extn_cb = self
-                            .state
-                            .platform_state
-                            .get_client()
-                            .get_extn_client()
-                            .get_extn_sender_with_extn_id(&extn_id.to_string());
-                    }
-                    if extn_cb.is_none() {
-                        error!("No sender for request {:?} ", request);
-                        return;
-                    }
-                }
+                // if !request.is_subscription()
+                //     && (callback_c.is_none() || callback_c.unwrap().callback.is_none())
+                // {
+                //     trace!("No callback for request {:?} ", request);
+                //     if let Some(extn_message) = extn_msg.clone() {
+                //         let extn_id = extn_message.requestor;
+                //         extn_cb = self
+                //             .state
+                //             .platform_state
+                //             .get_client()
+                //             .get_extn_client()
+                //             .get_extn_sender_with_extn_id(&extn_id.to_string());
+                //     }
+                //     if extn_cb.is_none() {
+                //         error!("No sender for request {:?} ", request);
+                //         return;
+                //     }
+                // }
             }
             _ => {
                 if !self
@@ -345,13 +345,6 @@ impl FireboltGateway {
                         .has_rpc_override_method(&request_c.method)
                     {
                         request_c.method = overridden_method;
-                    }
-
-                    if extn_cb.is_some() {
-                        if let Some(mut msg) = extn_msg.clone() {
-                            msg.callback = extn_cb;
-                            let _ = extn_msg.insert(msg);
-                        }
                     }
 
                     let session = if matches!(&request.ctx.protocol, ApiProtocol::JsonRpc) {

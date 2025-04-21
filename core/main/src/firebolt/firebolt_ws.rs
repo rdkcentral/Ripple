@@ -31,6 +31,10 @@ use crate::{
 use futures::SinkExt;
 use futures::StreamExt;
 use jsonrpsee::types::{error::INVALID_REQUEST_CODE, ErrorObject, ErrorResponse, Id};
+use ripple_sdk::tokio_tungstenite::{
+    tungstenite::{self, Message},
+    WebSocketStream,
+};
 use ripple_sdk::{
     api::{
         gateway::rpc_gateway_api::{
@@ -47,10 +51,6 @@ use ripple_sdk::{
     uuid::Uuid,
 };
 use ripple_sdk::{log::debug, tokio};
-use tokio_tungstenite::{
-    tungstenite::{self, Message},
-    WebSocketStream,
-};
 #[allow(dead_code)]
 pub struct FireboltWs {}
 
@@ -200,7 +200,9 @@ impl FireboltWs {
                 secure,
                 internal_app_id: internal_app_id.clone(),
             };
-            match tokio_tungstenite::accept_hdr_async(stream, ConnectionCallback(cfg)).await {
+            match ripple_sdk::tokio_tungstenite::accept_hdr_async(stream, ConnectionCallback(cfg))
+                .await
+            {
                 Err(e) => {
                     error!("websocket connection error {:?}", e);
                 }

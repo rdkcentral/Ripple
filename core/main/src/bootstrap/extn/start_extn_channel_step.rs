@@ -32,7 +32,7 @@ fn start_preloaded_channel(
 ) -> RippleResponse {
     let client = state.platform_state.get_client();
 
-    if let Err(e) = state.extn_state.clone().start_channel(channel, client) {
+    if let Err(e) = state.extn_state.clone().start_channel(channel) {
         error!("Error during Device channel bootstrap");
         return Err(e);
     }

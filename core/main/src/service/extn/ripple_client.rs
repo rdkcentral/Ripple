@@ -19,19 +19,15 @@ use std::sync::{Arc, RwLock};
 
 use ripple_sdk::{
     api::{
-        apps::{AppError, AppManagerResponse, AppMethod, AppRequest},
-        manifest::extn_manifest::ExtnSymbol,
+        apps::{AppError, AppManagerResponse, AppMethod, AppRequest}, gateway::rpc_gateway_api::ApiMessage, manifest::extn_manifest::ExtnSymbol
     },
-    async_channel::Sender as CSender,
     extn::{
         client::{
             extn_client::ExtnClient,
             extn_processor::{ExtnEventProcessor, ExtnRequestProcessor},
-            extn_sender::ExtnSender,
         },
         extn_client_message::{ExtnMessage, ExtnPayloadProvider},
         extn_id::ExtnId,
-        ffi::ffi_message::CExtnMessage,
     },
     framework::RippleResponse,
     log::error,
@@ -72,15 +68,7 @@ pub struct RippleClient {
 
 impl RippleClient {
     pub fn new(state: ChannelsState) -> RippleClient {
-        let capability = ExtnId::get_main_target("main".into());
-        let extn_sender = ExtnSender::new(
-            state.get_extn_sender(),
-            capability,
-            Vec::new(),
-            Vec::new(),
-            None,
-        );
-        let extn_client = ExtnClient::new(state.get_extn_receiver(), extn_sender);
+        let extn_client = ExtnClient::new_main();
         RippleClient {
             gateway_sender: state.get_gateway_sender(),
             app_mgr_sender: state.get_app_mgr_sender(),
@@ -164,7 +152,7 @@ impl RippleClient {
         self.get_extn_client().add_event_processor(stream_processor)
     }
 
-    pub fn add_extn_sender(&self, id: ExtnId, symbol: ExtnSymbol, sender: CSender<CExtnMessage>) {
+    pub fn add_extn_sender(&self, id: ExtnId, symbol: ExtnSymbol, sender: Sender<ApiMessage>) {
         self.get_extn_client().add_sender(id, symbol, sender);
     }
 

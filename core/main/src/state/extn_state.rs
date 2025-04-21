@@ -27,11 +27,9 @@ use ripple_sdk::{
         manifest::extn_manifest::{ExtnManifest, ExtnManifestEntry, ExtnSymbol},
         status_update::ExtnStatus,
     },
-    async_channel::Sender as CSender,
     extn::{
-        client::extn_sender::ExtnSender,
         extn_id::ExtnId,
-        ffi::{ffi_channel::ExtnChannel, ffi_library::ExtnMetadata, ffi_message::CExtnMessage},
+        ffi::{ffi_channel::ExtnChannel, ffi_library::ExtnMetadata},
     },
     libloading::Library,
     log::info,
@@ -119,7 +117,6 @@ pub struct PreLoadedExtnChannel {
 /// Content within state is related to extension symbols and Libraries.
 #[derive(Debug, Clone)]
 pub struct ExtnState {
-    sender: CSender<CExtnMessage>,
     pub permission_map: HashMap<String, Vec<String>>,
     pub loaded_libraries: Arc<RwLock<Vec<LoadedLibrary>>>,
     pub device_channels: Arc<RwLock<Vec<PreLoadedExtnChannel>>>,
@@ -130,9 +127,8 @@ pub struct ExtnState {
 }
 
 impl ExtnState {
-    pub fn new(channels_state: ChannelsState, manifest: ExtnManifest) -> ExtnState {
+    pub fn new(manifest: ExtnManifest) -> ExtnState {
         ExtnState {
-            sender: channels_state.get_extn_sender(),
             permission_map: manifest.get_extn_permissions(),
             loaded_libraries: Arc::new(RwLock::new(Vec::new())),
             device_channels: Arc::new(RwLock::new(Vec::new())),
@@ -181,31 +177,18 @@ impl ExtnState {
         let _ = extn_status_listeners.remove(extn_id.to_string().as_str());
     }
 
-    pub fn get_sender(self) -> CSender<CExtnMessage> {
-        self.sender
-    }
 
     pub fn start_channel(
         &mut self,
         channel: PreLoadedExtnChannel,
-        client: RippleClient,
     ) -> Result<(), RippleError> {
-        let sender = self.clone().get_sender();
         let symbol = channel.symbol.clone();
         let extn_id = channel.extn_id.clone();
-        let extn_sender = ExtnSender::new(
-            sender,
-            extn_id.clone(),
-            symbol.uses.clone(),
-            symbol.fulfills.clone(),
-            symbol.config.clone(),
-        );
-        let (extn_tx, extn_rx) = ChannelsState::get_iec_channel();
+        
         let extn_channel = channel.channel;
         thread::spawn(move || {
-            (extn_channel.start)(extn_sender, extn_rx);
+            (extn_channel.start)();
         });
-        client.add_extn_sender(extn_id, symbol, extn_tx);
         Ok(())
     }
 

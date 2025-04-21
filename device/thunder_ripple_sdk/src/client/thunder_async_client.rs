@@ -20,20 +20,17 @@ use super::{
     thunder_async_client_plugins_status_mgr::{AsyncCallback, AsyncSender, StatusManager},
 };
 use crate::utils::get_next_id;
-use futures::{
-    stream::{SplitSink, SplitStream},
-    SinkExt, StreamExt,
-};
+use futures::{stream::SplitSink, SinkExt, StreamExt};
 //use futures_util::{SinkExt, StreamExt};
+use ripple_sdk::tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::{JsonRpcApiRequest, JsonRpcApiResponse},
     log::{debug, error, info},
     tokio::{self, net::TcpStream, sync::mpsc::Receiver},
-    utils::{error::RippleError, rpc_utils::extract_tcp_port},
+    utils::{error::RippleError, ws_utils::WebSocketUtils},
 };
 use serde_json::{json, Value};
-use std::{collections::HashMap, time::Duration};
-use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
+use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 pub struct ThunderAsyncClient {
@@ -129,37 +126,6 @@ impl ThunderAsyncClient {
 
     pub fn get_callback(&self) -> AsyncCallback {
         self.callback.clone()
-    }
-    async fn create_ws(
-        endpoint: &str,
-    ) -> (
-        SplitSink<WebSocketStream<TcpStream>, Message>,
-        SplitStream<WebSocketStream<TcpStream>>,
-    ) {
-        debug!("create_ws: {}", endpoint);
-        let port = extract_tcp_port(endpoint);
-        let tcp_port = port.unwrap();
-        let mut index = 0;
-
-        loop {
-            // Try connecting to the tcp port first
-            if let Ok(v) = TcpStream::connect(&tcp_port).await {
-                debug!("create_ws: Connected");
-                // Setup handshake for websocket with the tcp port
-                // Some WS servers lock on to the Port but not setup handshake till they are fully setup
-                if let Ok((stream, _)) = client_async(endpoint, v).await {
-                    break stream.split();
-                }
-            }
-            if (index % 10).eq(&0) {
-                error!(
-                    "create_ws: endpoint {} failed with retry for last {} secs in {}",
-                    endpoint, index, tcp_port
-                );
-            }
-            index += 1;
-            tokio::time::sleep(Duration::from_secs(1)).await;
-        }
     }
 
     fn check_plugin_status_n_prepare_request(
@@ -297,9 +263,7 @@ impl ThunderAsyncClient {
             subscription_request.id = Some(new_id);
 
             let request_json = serde_json::to_string(&subscription_request).unwrap();
-            let _feed = ws_tx
-                .feed(tokio_tungstenite::tungstenite::Message::Text(request_json))
-                .await;
+            let _feed = ws_tx.feed(Message::Text(request_json)).await;
         }
     }
 
@@ -310,8 +274,12 @@ impl ThunderAsyncClient {
     ) {
         loop {
             info!("start: (re)establishing websocket connection: url={}", url);
-
-            let (mut thunder_tx, mut thunder_rx) = Self::create_ws(url).await;
+            let resp = WebSocketUtils::get_ws_stream(url, None).await;
+            if resp.is_err() {
+                error!("FATAL ERROR Thunder URL badly configured.");
+                break;
+            }
+            let (mut thunder_tx, mut thunder_rx) = resp.unwrap();
 
             // send the controller statechange subscription request
             let status_request = self
@@ -319,9 +287,7 @@ impl ThunderAsyncClient {
                 .generate_state_change_subscribe_request();
 
             let _feed = thunder_tx
-                .feed(tokio_tungstenite::tungstenite::Message::Text(
-                    status_request.to_string(),
-                ))
+                .feed(Message::Text(status_request.to_string()))
                 .await;
 
             self.process_subscribe_requests(&mut thunder_tx).await;
@@ -360,7 +326,7 @@ impl ThunderAsyncClient {
                                                 debug!("thunder_async_request_rx: subscription request={}", updated_request);
                                                 // Reroute subsubscription requests through the persistent websocket so all notifications
                                                 // are sent to the same websocket connection.
-                                                let _feed = thunder_tx.feed(tokio_tungstenite::tungstenite::Message::Text(updated_request)).await;
+                                                let _feed = thunder_tx.feed(Message::Text(updated_request)).await;
                                                 let _flush = thunder_tx.flush().await;
                                             } else {
                                                 error!("thunder_async_request_rx: Missing 'event' parameter");
@@ -371,7 +337,7 @@ impl ThunderAsyncClient {
                                     }
                                     else {
                                         debug!("thunder_async_request_rx: call request={}", updated_request);
-                                        let _feed = thunder_tx.feed(tokio_tungstenite::tungstenite::Message::Text(updated_request)).await;
+                                        let _feed = thunder_tx.feed(Message::Text(updated_request)).await;
                                         let _flush = thunder_tx.flush().await;
                                     }
                                 }

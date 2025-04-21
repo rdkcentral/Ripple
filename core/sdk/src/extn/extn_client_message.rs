@@ -21,7 +21,7 @@ use async_channel::Sender as CSender;
 #[cfg(not(test))]
 use log::error;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::fmt::Debug;
 
 #[cfg(test)]
@@ -53,7 +53,7 @@ use crate::{
             fb_secure_storage::{SecureStorageRequest, SecureStorageResponse},
             fb_telemetry::{OperationalMetricRequest, TelemetryPayload},
         },
-        gateway::rpc_gateway_api::RpcRequest,
+        gateway::rpc_gateway_api::{ApiMessage, ApiProtocol, JsonRpcApiResponse, RpcRequest},
         manifest::device_manifest::AppLibraryEntry,
         session::{AccountSessionRequest, AccountSessionResponse, SessionTokenRequest},
         settings::{SettingValue, SettingsRequest},
@@ -89,7 +89,6 @@ pub struct ExtnMessage {
     pub target: RippleContract,
     pub target_id: Option<ExtnId>,
     pub payload: ExtnPayload,
-    pub callback: Option<CSender<CExtnMessage>>,
     pub ts: Option<i64>,
 }
 
@@ -101,7 +100,6 @@ impl ExtnMessage {
     pub fn get_response(&self, response: ExtnResponse) -> Result<ExtnMessage, RippleError> {
         match self.payload {
             ExtnPayload::Request(_) => Ok(ExtnMessage {
-                callback: self.callback.clone(),
                 id: self.id.clone(),
                 payload: ExtnPayload::Response(response),
                 requestor: self.requestor.clone(),
@@ -123,7 +121,6 @@ impl ExtnMessage {
     pub fn get_event(&self, event: ExtnEvent) -> Result<ExtnMessage, RippleError> {
         match self.payload {
             ExtnPayload::Request(_) => Ok(ExtnMessage {
-                callback: self.callback.clone(),
                 id: self.id.clone(),
                 payload: ExtnPayload::Event(event),
                 requestor: self.requestor.clone(),
@@ -145,7 +142,6 @@ impl ExtnMessage {
             target: self.target.clone(),
             target_id: self.target_id.clone(),
             payload: ExtnPayload::Response(ExtnResponse::None(())),
-            callback: self.callback.clone(),
             ts: None,
         }
     }
@@ -183,6 +179,164 @@ pub enum ExtnPayload {
 impl Default for ExtnPayload {
     fn default() -> Self {
         ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName))
+    }
+}
+
+impl From<ExtnMessage> for ApiMessage {
+    fn from(val: ExtnMessage) -> Self {
+        let mut message = JsonRpcApiResponse::default();
+        let request_id = val.id.clone();
+        let value = json!({
+            "id": val.id,
+            "requestor": val.requestor.to_string(),
+            "target": serde_json::to_string(&val.target).unwrap(),
+            "target_id": match val.target_id {
+                Some(id) => id.to_string(),
+                None => "".to_owned(),
+            },
+            "ts": if let Some(v) = val.ts {
+                v
+            } else {
+                chrono::Utc::now().timestamp_millis()
+            },
+            "payload": match val.payload.clone() {
+                ExtnPayload::Request(r) => serde_json::to_value(r).unwrap(),
+                ExtnPayload::Response(r) => serde_json::to_value(r).unwrap(),
+                ExtnPayload::Event(r) => serde_json::to_value(r).unwrap(),
+            },
+        });
+        match val.payload {
+            ExtnPayload::Request(_) => {
+                message.params = Some(value);
+                message.method = Some("service.request".to_string());
+            }
+            ExtnPayload::Response(_) => {
+                message.result = Some(value);
+                message.method = Some("service.response".to_string());
+            }
+            ExtnPayload::Event(_) => {
+                message.params = Some(value);
+                message.method = Some("service.event".to_string());
+            }
+        }
+
+        ApiMessage {
+            protocol: ApiProtocol::JsonRpc,
+            jsonrpc_msg: serde_json::to_string(&message).unwrap(),
+            request_id,
+            stats: None,
+        }
+    }
+}
+
+impl TryFrom<String> for ExtnMessage {
+    type Error = RippleError;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        if let Ok(message) = serde_json::from_str::<JsonRpcApiResponse>(&value) {
+            let mut extn_message = ExtnMessage::default();
+            let mut json_payload = None;
+            if let Some(method) = message.method {
+                match method.as_str() {
+                    "service.request" => {
+                        if let Some(params) = message.params {
+                            if let Some(payload) = params.get("payload").cloned() {
+                                if let Ok(request) = serde_json::from_value::<ExtnRequest>(payload)
+                                {
+                                    extn_message.payload = ExtnPayload::Request(request);
+                                    let _ = json_payload.insert(params);
+                                }
+                            }
+                        }
+                    }
+                    "service.response" => {
+                        if let Some(params) = message.result {
+                            if let Some(payload) = params.get("payload").cloned() {
+                                if let Ok(request) = serde_json::from_value::<ExtnResponse>(payload)
+                                {
+                                    extn_message.payload = ExtnPayload::Response(request);
+                                    let _ = json_payload.insert(params);
+                                }
+                            }
+                        }
+                    }
+                    "service.event" => {
+                        if let Some(params) = message.result {
+                            if let Some(payload) = params.get("payload").cloned() {
+                                if let Ok(request) = serde_json::from_value::<ExtnEvent>(payload) {
+                                    extn_message.payload = ExtnPayload::Event(request);
+                                    let _ = json_payload.insert(params);
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            if let Some(payload) = json_payload {
+                let mut data_is_valid = false;
+                if let Some(id) = payload.get("id") {
+                    if let Some(id) = id.as_str() {
+                        println!("id: {}", id);
+                        extn_message.id = id.to_owned();
+                        data_is_valid = true
+                    }
+                }
+
+                if data_is_valid {
+                    data_is_valid = false;
+                    if let Some(requestor) = payload.get("requestor") {
+                        if let Some(requestor) = requestor.as_str() {
+                            if let Ok(id) = ExtnId::try_from(requestor.to_owned()) {
+                                extn_message.requestor = id;
+                                data_is_valid = true
+                            }
+                        }
+                    }
+                }
+
+                if data_is_valid {
+                    data_is_valid = false;
+                    if let Some(target) = payload.get("target") {
+                        if let Some(requestor) = target.as_str() {
+                            if let Ok(id) = RippleContract::try_from(requestor.to_owned()) {
+                                extn_message.target = id;
+                                data_is_valid = true
+                            }
+                        }
+                    }
+                }
+
+                if data_is_valid {
+                    data_is_valid = false;
+                    if let Some(target) = payload.get("target_id") {
+                        if let Some(requestor) = target.as_str() {
+                            if let Ok(id) = ExtnId::try_from(requestor.to_owned()) {
+                                extn_message.target_id = Some(id);
+                                data_is_valid = true;
+                            }
+                        }
+                    }
+                }
+
+                if data_is_valid {
+                    if let Some(ts) = payload.get("ts") {
+                        if let Some(ts) = ts.as_i64() {
+                            extn_message.ts = Some(ts);
+                        }
+                    }
+                }
+                return Ok(extn_message);
+            }
+        }
+        Err(RippleError::ParseError)
+    }
+}
+
+impl TryFrom<ApiMessage> for ExtnMessage {
+    type Error = RippleError;
+    fn try_from(value: ApiMessage) -> Result<Self, Self::Error> {
+        ExtnMessage::try_from(value.jsonrpc_msg)
     }
 }
 
@@ -484,7 +638,6 @@ mod tests {
             target,
             target_id: None,
             payload,
-            callback: None,
             ts: None,
         };
 
@@ -526,7 +679,6 @@ mod tests {
             target: RippleContract::Internal,
             target_id: Some(ExtnId::get_main_target("main".into())),
             payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
-            callback: None,
             ts: Some(1234567890),
         };
 
@@ -548,7 +700,6 @@ mod tests {
             ack_message.payload,
             ExtnPayload::Response(ExtnResponse::None(()))
         );
-        assert!(ack_message.callback.is_none());
         assert!(ack_message.ts.is_none());
     }
 
@@ -589,7 +740,6 @@ mod tests {
             target: RippleContract::Internal,
             target_id: Some(ExtnId::get_main_target("main".into())),
             payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
-            callback: None,
             ts: Some(1234567890),
         };
         let event_payload = ExtnEvent::Value(json!(1));
@@ -597,5 +747,30 @@ mod tests {
         let extn_event_payload = ExtnPayload::Event(event_payload);
         assert!(value.id.eq_ignore_ascii_case("test_id"));
         assert!(value.payload.eq(&extn_event_payload));
+    }
+
+    #[test]
+    fn test_get_request() {
+        let original_message = ExtnMessage {
+            id: "test_id".to_string(),
+            requestor: ExtnId::get_main_target("main".into()),
+            target: RippleContract::Internal,
+            target_id: Some(ExtnId::get_main_target("main".into())),
+            payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
+            ts: Some(1234567890),
+        };
+
+        let api_message: ApiMessage = original_message.into();
+
+        let tried_message: ExtnMessage = ExtnMessage::try_from(api_message).unwrap();
+        assert!(tried_message.payload.is_request());
+        assert!(tried_message.id.eq_ignore_ascii_case("test_id"));
+        assert!(tried_message.requestor == ExtnId::get_main_target("main".into()));
+        assert!(tried_message.target == RippleContract::Internal);
+        assert!(tried_message.target_id == Some(ExtnId::get_main_target("main".into())));
+        assert!(
+            tried_message.payload == ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName))
+        );
+        assert!(tried_message.ts == Some(1234567890));
     }
 }

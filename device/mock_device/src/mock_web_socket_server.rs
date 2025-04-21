@@ -32,14 +32,14 @@ use ripple_sdk::{
         net::{TcpListener, TcpStream},
         sync::Mutex,
     },
+    tokio_tungstenite::{
+        accept_hdr_async,
+        tungstenite::{handshake, Error, Message, Result},
+        WebSocketStream,
+    },
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tokio_tungstenite::{
-    accept_hdr_async,
-    tungstenite::{handshake, Error, Message, Result},
-    WebSocketStream,
-};
 
 use crate::{
     errors::MockServerWebSocketError,
@@ -552,7 +552,7 @@ mod tests {
         request: Message,
     ) -> Result<Option<Result<Message, Error>>, Elapsed> {
         let (client, _) =
-            tokio_tungstenite::connect_async(format!("ws://0.0.0.0:{}", server.port()))
+            ripple_sdk::tokio_tungstenite::connect_async(format!("ws://0.0.0.0:{}", server.port()))
                 .await
                 .expect("Unable to connect to WS server");
 
@@ -604,9 +604,10 @@ mod tests {
         let mock_data = HashMap::default();
         let server = start_server(mock_data).await;
 
-        let _ = tokio_tungstenite::connect_async(format!("ws://0.0.0.0:{}", server.port()))
-            .await
-            .expect("Unable to connect to WS server");
+        let _ =
+            ripple_sdk::tokio_tungstenite::connect_async(format!("ws://0.0.0.0:{}", server.port()))
+                .await
+                .expect("Unable to connect to WS server");
     }
 
     #[tokio::test(flavor = "multi_thread")]
