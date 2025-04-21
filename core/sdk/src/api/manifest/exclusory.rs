@@ -57,6 +57,16 @@ impl ExclusoryImpl {
             },
         }
     }
+
+    pub fn new() -> Self {
+        ExclusoryImpl {
+            resolve_only: None,
+            app_authorization_rules: AppAuthorizationRules {
+                app_ignore_rules: HashMap::default(),
+            },
+            method_ignore_rules: Vec::default(),
+        }
+    }
 }
 
 impl Exclusory for ExclusoryImpl {

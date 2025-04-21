@@ -155,13 +155,19 @@ impl MergeConfig<CascadedRippleConfiguration> for RippleConfiguration {
         if let Some(cas_distributor_services) = cascaded.distributor_services {
             self.distributor_services = Some(cas_distributor_services)
         }
-        if let Some(cas_exclusory) = cascaded.exclusory {
-            if self.exclusory.is_none() {
-                // Eg: need to copy CascadedExclusoryImpl data into CascadedExclusoryImpl (both are diffrent structure)
+
+        if let Some(cascaded_exclusory) = cascaded.exclusory {
+            if let Some(exclusory) = &mut self.exclusory {
+                exclusory.merge_config(cascaded_exclusory);
             } else {
-                self.exclusory.clone().unwrap().merge_config(cas_exclusory);
+                self.exclusory = Some(ExclusoryImpl::new());
+                self.exclusory
+                    .as_mut()
+                    .unwrap()
+                    .merge_config(cascaded_exclusory);
             }
         }
+
         if let Some(cas_features) = cascaded.features {
             self.features.merge_config(cas_features)
         }
@@ -764,9 +770,7 @@ pub struct CascadedAppAuthorizationRules {
 impl MergeConfig<CascadedAppAuthorizationRules> for AppAuthorizationRules {
     fn merge_config(&mut self, other: CascadedAppAuthorizationRules) {
         if let Some(other_rules) = other.app_ignore_rules {
-            for (key, values) in other_rules {
-                self.app_ignore_rules.entry(key).or_default().extend(values);
-            }
+            self.app_ignore_rules.extend(other_rules);
         }
     }
 }
