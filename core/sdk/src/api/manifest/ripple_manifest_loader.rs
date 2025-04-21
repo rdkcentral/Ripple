@@ -76,8 +76,8 @@ impl RippleManifestLoader {
             .unwrap_or(false);
         info!("RIPPLE_CASCADED_CONFIGURATION {}", cascaded_config);
         let base_path = Self::try_load_base_path();
-        let country_code = std::env::var("RIPPLE_COUNTRY").unwrap_or_else(|_| "eu".to_string());
-        let device_type = std::env::var("RIPPLE_DEVICE_PLATFORM").ok();
+        let mut country_code = std::env::var("RIPPLE_COUNTRY").unwrap_or_default();
+        let device_type = Some(std::env::var("RIPPLE_DEVICE_PLATFORM").unwrap_or("box".to_owned()));
         let manifest_config = if cascaded_config {
             Path::new(&base_path)
                 .join("ripple.config.json")
@@ -86,6 +86,14 @@ impl RippleManifestLoader {
         } else {
             None
         };
+
+        if country_code.is_empty() {
+            if let Some(c) = manifest_config.clone() {
+                if let Some(t) = c.default.tag {
+                    country_code = t.clone();
+                }
+            }
+        }
 
         let loader = RippleManifestLoader {
             cascaded_config,
