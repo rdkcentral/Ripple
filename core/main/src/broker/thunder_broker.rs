@@ -18,6 +18,7 @@ use super::{
     endpoint_broker::{
         BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutput, BrokerRequest,
         BrokerSender, BrokerSubMap, EndpointBroker, EndpointBrokerState,
+        BROKER_CHANNEL_BUFFER_SIZE,
     },
     thunder::thunder_plugins_status_mgr::StatusManager,
     thunder::user_data_migrator::UserDataMigrator,
@@ -191,7 +192,7 @@ impl ThunderBroker {
 
     fn start(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
         let endpoint = request.endpoint.clone();
-        let (broker_request_tx, mut broker_request_rx) = mpsc::channel(10);
+        let (broker_request_tx, mut broker_request_rx) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
         let (c_tx, mut c_tr) = mpsc::channel(2);
         let broker_sender = BrokerSender {
             sender: broker_request_tx,
@@ -264,6 +265,10 @@ impl ThunderBroker {
                         match broker_c.check_and_generate_plugin_activation_request(&request) {
                             Ok(requests) => {
                                 if !requests.is_empty() {
+                                    LogSignal::new("thunder_broker".to_string(),"sending message to thunder".to_string(), request.rpc.ctx.clone())
+                                    .with_diagnostic_context_item("updated_request", &format!("{:?}", requests))
+                                    .emit_debug();
+
                                     let mut ws_tx = ws_tx_wrap.lock().await;
                                     for r in requests {
                                         let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
@@ -937,7 +942,7 @@ mod tests {
     async fn test_thunderbroker_get_cleaner() {
         let (tx, mut _rx) = mpsc::channel(1);
         let (sender, _rec) = mpsc::channel(1);
-        let send_data = vec![WSMockData::get(json!({"key":"value"}).to_string())];
+        let send_data = vec![WSMockData::get(json!({"key":"value"}).to_string(), None)];
 
         let thndr_broker = get_thunderbroker(tx, send_data, sender, false).await;
         assert!(thndr_broker.get_cleaner().cleaner.is_some());
@@ -947,7 +952,7 @@ mod tests {
     async fn test_thunderbroker_handle_jsonrpc_response() {
         let (tx, mut _rx) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);
-        let send_data = vec![WSMockData::get(json!({"key":"value"}).to_string())];
+        let send_data = vec![WSMockData::get(json!({"key":"value"}).to_string(), None)];
 
         let _thndr_broker = get_thunderbroker(tx, send_data, sender.clone(), false).await;
 

@@ -23,15 +23,14 @@ use ripple_sdk::{
     extn::ffi::ffi_message::CExtnMessage,
     framework::bootstrap::TransientChannel,
     log::{info, warn},
+    manifest::device::LoadDeviceManifestStep,
     tokio::sync::mpsc::{self, Receiver, Sender},
     utils::error::RippleError,
 };
 
 use crate::{
-    bootstrap::manifest::{
-        apps::LoadAppLibraryStep, device::LoadDeviceManifestStep, extn::LoadExtnManifestStep,
-    },
-    broker::endpoint_broker::BrokerOutput,
+    bootstrap::manifest::{apps::LoadAppLibraryStep, extn::LoadExtnManifestStep},
+    broker::endpoint_broker::{BrokerOutput, BROKER_CHANNEL_BUFFER_SIZE},
     firebolt::firebolt_gateway::FireboltGatewayCommand,
     service::extn::ripple_client::RippleClient,
 };
@@ -53,7 +52,7 @@ impl ChannelsState {
         let (gateway_tx, gateway_tr) = mpsc::channel(32);
         let (app_req_tx, app_req_tr) = mpsc::channel(32);
         let (ctx, ctr) = unbounded();
-        let (broker_tx, broker_rx) = mpsc::channel(10);
+        let (broker_tx, broker_rx) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
 
         ChannelsState {
             gateway_channel: TransientChannel::new(gateway_tx, gateway_tr),
@@ -120,6 +119,7 @@ impl BootstrapState {
         let channels_state = ChannelsState::new();
         let client = RippleClient::new(channels_state.clone());
         let device_manifest = LoadDeviceManifestStep::get_manifest();
+        LoadDeviceManifestStep::read_env_variable();
         let app_manifest_result = LoadAppLibraryStep::load_app_library();
         let extn_manifest = LoadExtnManifestStep::get_manifest();
         let extn_state = ExtnState::new(channels_state.clone(), extn_manifest.clone());

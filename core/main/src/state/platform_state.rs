@@ -44,13 +44,12 @@ use crate::{
             app_events::AppEventsState, delegated_launcher_handler::AppManagerState,
             provider_broker::ProviderBrokerState,
         },
-        data_governance::DataGovernanceState,
         extn::ripple_client::RippleClient,
     },
 };
 
 use super::{
-    cap::cap_state::CapState, metrics_state::MetricsState, openrpc_state::OpenRpcState,
+    cap::cap_state::CapState, openrpc_state::OpenRpcState, ops_metrics_state::OpMetricState,
     ripple_cache::RippleCache, session_state::SessionState,
 };
 
@@ -103,8 +102,7 @@ pub struct PlatformState {
     pub app_manager_state: AppManagerState,
     pub open_rpc_state: OpenRpcState,
     pub router_state: RouterState,
-    pub data_governance: DataGovernanceState,
-    pub metrics: MetricsState,
+    pub metrics: OpMetricState,
     pub device_session_id: DeviceSessionIdentifier,
     pub ripple_cache: RippleCache,
     pub version: Option<String>,
@@ -124,7 +122,7 @@ impl PlatformState {
         let rule_engine = RuleEngine::build(&extn_manifest);
         let extn_sdks = extn_manifest.extn_sdks.clone();
         let provider_registations = extn_manifest.provider_registrations.clone();
-        let metrics_state = MetricsState::default();
+        let metrics_state = OpMetricState::default();
         Self {
             extn_manifest,
             cap_state: CapState::new(manifest.clone()),
@@ -137,7 +135,6 @@ impl PlatformState {
             app_manager_state: AppManagerState::new(&manifest.configuration.saved_dir),
             open_rpc_state: OpenRpcState::new(Some(exclusory), extn_sdks, provider_registations),
             router_state: RouterState::new(),
-            data_governance: DataGovernanceState::default(),
             metrics: metrics_state.clone(),
             device_session_id: DeviceSessionIdentifier::default(),
             ripple_cache: RippleCache::default(),
@@ -183,16 +180,6 @@ impl PlatformState {
         self.get_client().respond(msg).await
     }
 
-    pub fn supports_cloud_sync(&self) -> bool {
-        let contract = RippleContract::CloudSync.as_clear_string();
-        self.extn_manifest.required_contracts.contains(&contract)
-    }
-
-    pub fn supports_encoding(&self) -> bool {
-        let contract = RippleContract::Encoder.as_clear_string();
-        self.extn_manifest.required_contracts.contains(&contract)
-    }
-
     pub fn supports_distributor_session(&self) -> bool {
         let contract = RippleContract::Session(SessionAdjective::Distributor).as_clear_string();
         self.extn_manifest.required_contracts.contains(&contract)
@@ -205,11 +192,6 @@ impl PlatformState {
 
     pub fn supports_device_tokens(&self) -> bool {
         let contract = RippleContract::Session(SessionAdjective::Device).as_clear_string();
-        self.extn_manifest.required_contracts.contains(&contract)
-    }
-
-    pub fn supports_app_catalog(&self) -> bool {
-        let contract = RippleContract::AppCatalog.as_clear_string();
         self.extn_manifest.required_contracts.contains(&contract)
     }
 

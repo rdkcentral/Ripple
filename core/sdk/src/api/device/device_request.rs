@@ -16,7 +16,7 @@
 //
 
 use crate::{
-    api::{firebolt::fb_openrpc::FireboltSemanticVersion, session::EventAdjective},
+    api::firebolt::fb_openrpc::FireboltSemanticVersion,
     extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
     framework::ripple_contract::RippleContract,
 };
@@ -24,10 +24,9 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 use super::{
-    device_accessory::RemoteAccessoryRequest, device_apps::AppsRequest,
-    device_browser::BrowserRequest, device_info_request::DeviceInfoRequest,
-    device_peristence::DevicePersistenceRequest, device_wifi::WifiRequest,
-    device_window_manager::WindowManagerRequest,
+    device_accessory::RemoteAccessoryRequest, device_browser::BrowserRequest,
+    device_info_request::DeviceInfoRequest, device_peristence::DevicePersistenceRequest,
+    device_wifi::WifiRequest, device_window_manager::WindowManagerRequest,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,7 +38,6 @@ pub enum DeviceRequest {
     Storage(DevicePersistenceRequest),
     Wifi(WifiRequest),
     Accessory(RemoteAccessoryRequest),
-    Apps(AppsRequest),
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Serialize, Deserialize, Clone)]
@@ -120,6 +118,16 @@ pub enum InternetConnectionStatus {
     LimitedInternet,
     CaptivePortal,
     FullyConnected,
+}
+
+impl From<bool> for InternetConnectionStatus {
+    fn from(value: bool) -> Self {
+        if value {
+            InternetConnectionStatus::FullyConnected
+        } else {
+            InternetConnectionStatus::NoInternet
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -208,11 +216,6 @@ impl Resolution {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct OnInternetConnectedRequest {
-    pub timeout: u64,
-}
-
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct TimezoneProperty {
     // Original Regex in the Firebolt Timezone openrpc spec seems to be allowing
@@ -266,24 +269,6 @@ pub struct TimeZone {
     #[serde(rename = "timeZone")]
     pub time_zone: String,
     pub offset: i64,
-}
-
-impl ExtnPayloadProvider for TimeZone {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Event(ExtnEvent::TimeZone(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<TimeZone> {
-        if let ExtnPayload::Event(ExtnEvent::TimeZone(r)) = payload {
-            return Some(r);
-        }
-
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::DeviceEvents(EventAdjective::TimeZone)
-    }
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -391,17 +376,6 @@ mod tests {
     //     let tz = "{\"value\":\"America/New_York\"}";
     //     assert!(serde_json::from_str::<TimezoneProperty>(tz).is_ok());
     // }
-
-    #[test]
-    fn test_extn_payload_provider_for_time_zone() {
-        let time_zone = TimeZone {
-            time_zone: String::from("America/Los_Angeles"),
-            offset: -28800,
-        };
-
-        let contract_type: RippleContract = RippleContract::DeviceEvents(EventAdjective::TimeZone);
-        test_extn_payload_provider(time_zone, contract_type);
-    }
 
     #[test]
     fn test_extn_payload_provider_for_voice_guidance_state() {

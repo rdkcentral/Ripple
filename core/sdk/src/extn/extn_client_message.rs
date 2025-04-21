@@ -29,14 +29,11 @@ use println as error;
 
 use crate::{
     api::{
-        account_link::AccountLinkRequest,
-        app_catalog::{AppCatalogRequest, AppMetadata, AppsUpdate},
         apps::AppEventRequest,
         caps::CapsRequest,
         config::{Config, ConfigResponse},
         context::{RippleContext, RippleContextUpdateRequest},
         device::{
-            device_apps::InstalledApp,
             device_events::DeviceEventRequest,
             device_peristence::StorageData,
             device_request::{DeviceRequest, NetworkResponse, TimeZone, VoiceGuidanceState},
@@ -45,24 +42,19 @@ use crate::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
             distributor_platform::PlatformTokenRequest,
             distributor_privacy::{PrivacyCloudRequest, PrivacySettingsStoreRequest},
-            distributor_request::DistributorRequest,
-            distributor_sync::SyncAndMonitorRequest,
             distributor_token::DistributorTokenRequest,
             distributor_usergrants::UserGrantsCloudStoreRequest,
         },
         firebolt::{
-            fb_advertising::{AdvertisingRequest, AdvertisingResponse},
             fb_authentication::TokenResult,
             fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
             fb_lifecycle_management::LifecycleManagementRequest,
-            fb_metrics::{BehavioralMetricRequest, MetricsRequest},
             fb_pin::{PinChallengeRequestWithContext, PinChallengeResponse},
             fb_secure_storage::{SecureStorageRequest, SecureStorageResponse},
             fb_telemetry::{OperationalMetricRequest, TelemetryPayload},
         },
         gateway::rpc_gateway_api::RpcRequest,
         manifest::device_manifest::AppLibraryEntry,
-        observability::analytics::AnalyticsRequest,
         session::{AccountSessionRequest, AccountSessionResponse, SessionTokenRequest},
         settings::{SettingValue, SettingsRequest},
         status_update::ExtnStatus,
@@ -301,28 +293,20 @@ pub enum ExtnRequest {
     PinChallenge(PinChallengeRequestWithContext),
     Keyboard(KeyboardSessionRequest),
     Permission(PermissionRequest),
-    Distributor(DistributorRequest),
     AccountSession(AccountSessionRequest),
     SessionToken(SessionTokenRequest),
     SecureStorage(SecureStorageRequest),
-    Advertising(AdvertisingRequest),
     PrivacySettings(PrivacyCloudRequest),
-    BehavioralMetric(BehavioralMetricRequest),
     StorageManager(StorageManagerRequest),
-    AccountLink(AccountLinkRequest),
     Settings(SettingsRequest),
-    CloudSync(SyncAndMonitorRequest),
     UserGrantsCloudStore(UserGrantsCloudStoreRequest),
     UserGrantsStore(UserGrantsStoreRequest),
     PrivacySettingsStore(PrivacySettingsStoreRequest),
     AuthorizedInfo(CapsRequest),
-    Metrics(MetricsRequest),
     OperationalMetricsRequest(OperationalMetricRequest),
     PlatformToken(PlatformTokenRequest),
     DistributorToken(DistributorTokenRequest),
     Context(RippleContextUpdateRequest),
-    AppCatalog(AppCatalogRequest),
-    Analytics(AnalyticsRequest),
 }
 
 impl ExtnPayloadProvider for ExtnRequest {
@@ -366,10 +350,7 @@ pub enum ExtnResponse {
     DefaultApp(AppLibraryEntry),
     Settings(HashMap<String, SettingValue>),
     BoolMap(HashMap<String, bool>),
-    Advertising(AdvertisingResponse),
     SecureStorage(SecureStorageResponse),
-    AppCatalog(Vec<AppMetadata>),
-    InstalledApps(Vec<InstalledApp>),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {
@@ -401,7 +382,6 @@ pub enum ExtnEvent {
     Context(RippleContext),
     VoiceGuidanceState(VoiceGuidanceState),
     TimeZone(TimeZone),
-    AppsUpdate(AppsUpdate),
 }
 
 impl ExtnPayloadProvider for ExtnEvent {
@@ -617,14 +597,5 @@ mod tests {
         let extn_event_payload = ExtnPayload::Event(event_payload);
         assert!(value.id.eq_ignore_ascii_case("test_id"));
         assert!(value.payload.eq(&extn_event_payload));
-    }
-    #[test]
-    fn test_analytics_request_serialization() {
-        let analytics_request = ExtnRequest::Analytics(AnalyticsRequest::default());
-        let payload = ExtnPayload::Request(analytics_request.clone());
-
-        // Test extraction
-        let extracted: Option<ExtnRequest> = payload.extract();
-        assert_eq!(extracted, Some(analytics_request));
     }
 }

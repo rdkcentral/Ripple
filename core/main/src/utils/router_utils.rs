@@ -19,10 +19,9 @@ use ripple_sdk::{
     extn::extn_client_message::{ExtnMessage, ExtnResponse},
     log::{error, trace},
     serde_json::{self, Result as SResult},
-    utils::error::RippleError,
 };
 
-use crate::state::metrics_state::MetricsState;
+use crate::state::ops_metrics_state::OpMetricState;
 
 pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage) {
     let callback = match extn_msg.clone().callback {
@@ -41,7 +40,8 @@ pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage) {
         } else if let Some(error) = resp.error {
             error
         } else {
-            serde_json::to_value(RippleError::InvalidOutput).unwrap()
+            // Most of handler calls return Null resulting in None
+            serde_json::Value::Null
         };
 
         let return_value = ExtnResponse::Value(response_value);
@@ -70,7 +70,7 @@ pub fn add_telemetry_status_code(original_ref: &str, status_code: &str) -> Optio
     Some(format!("{},{}", original_ref, status_code))
 }
 
-pub fn capture_stage(metrics_state: &MetricsState, request: &RpcRequest, stage: &str) {
+pub fn capture_stage(metrics_state: &OpMetricState, request: &RpcRequest, stage: &str) {
     let mut state = metrics_state.clone();
     let duration = state.update_api_stage(&request.ctx.request_id, stage);
 

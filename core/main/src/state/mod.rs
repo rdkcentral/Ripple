@@ -17,8 +17,8 @@
 
 pub mod bootstrap_state;
 pub mod extn_state;
-pub mod metrics_state;
 pub mod openrpc_state;
+pub mod ops_metrics_state;
 pub mod platform_state;
 pub mod ripple_cache;
 pub mod session_state;

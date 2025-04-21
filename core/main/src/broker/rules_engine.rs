@@ -27,6 +27,7 @@ use ripple_sdk::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
 use std::{fs, path::Path};
 
 #[derive(Debug, Deserialize, Default, Clone)]
@@ -48,8 +49,10 @@ impl RuleSet {
             .collect();
         self.rules.extend(rules);
     }
+    pub fn get(&self, key: &str) -> Option<&Rule> {
+        self.rules.get(key)
+    }
 }
-
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct RuleEndpoint {
     pub protocol: RuleEndpointProtocol,
@@ -109,6 +112,68 @@ pub struct Rule {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sources: Option<Vec<JsonDataSource>>,
 }
+impl std::fmt::Display for Rule {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Rule {{ alias: {} }}", self.alias)
+    }
+}
+/*
+war on dots
+*/
+#[derive(PartialEq)]
+pub enum RuleType {
+    Static,
+    Provider,
+    Endpoint,
+}
+impl Rule {
+    fn apply_context(&mut self, rpc_request: &RpcRequest) -> &mut Self {
+        self.transform.apply_context(rpc_request);
+        self
+    }
+    pub fn rule_type(&self) -> RuleType {
+        match self.alias.trim().to_ascii_lowercase().as_str() {
+            "static" => RuleType::Static,
+            "provided" => RuleType::Provider,
+            /*
+            maps to a sender that can be used to send a message to the endpoint, for instance: Thunder
+            */
+            _ => RuleType::Endpoint,
+        }
+    }
+    pub fn with_alias(&mut self, alias: String) -> &mut Self {
+        self.alias = alias;
+        self
+    }
+    pub fn with_rule_tranformt(&mut self, transform: RuleTransform) -> &mut Self {
+        self.transform = transform;
+        self
+    }
+    pub fn with_filter(&mut self, filter: String) -> &mut Self {
+        self.filter = Some(filter);
+        self
+    }
+    pub fn with_event_handler(&mut self, event_handler: String) -> &mut Self {
+        self.event_handler = Some(event_handler);
+        self
+    }
+    pub fn with_endpoint(&mut self, endpoint: String) -> &mut Self {
+        self.endpoint = Some(endpoint);
+        self
+    }
+    pub fn with_sources(&mut self, sources: Vec<JsonDataSource>) -> &mut Self {
+        self.sources = Some(sources);
+        self
+    }
+    pub fn with_source(&mut self, source: JsonDataSource) -> &mut Self {
+        if let Some(sources) = &mut self.sources {
+            sources.push(source);
+        } else {
+            self.sources = Some(vec![source]);
+        }
+        self
+    }
+}
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct RuleTransform {
@@ -141,7 +206,7 @@ impl RuleTransform {
         output
     }
 
-    pub fn apply_context(&mut self, rpc_request: &RpcRequest) {
+    pub fn apply_context(&mut self, rpc_request: &RpcRequest) -> &mut Self {
         if let Some(value) = self.request.take() {
             let _ = self
                 .request
@@ -159,6 +224,7 @@ impl RuleTransform {
                 .rpcv2_event
                 .insert(self.check_and_replace(&value, rpc_request));
         }
+        self
     }
 
     pub fn get_transform_data(&self, typ: RuleTransformType) -> Option<String> {
@@ -248,37 +314,79 @@ impl RuleEngine {
             }
         }
     }
-
-    pub fn has_rule(&self, request: &RpcRequest) -> bool {
-        self.rules
-            .rules
-            .contains_key(&request.ctx.method.to_lowercase())
+    pub fn add_rules(&mut self, rules: RuleSet) {
+        self.rules.append(rules);
+    }
+    pub fn add_rule(&mut self, rule: Rule) {
+        self.rules.rules.insert(rule.alias.clone(), rule);
     }
 
-    pub fn get_rule(&self, rpc_request: &RpcRequest) -> Option<Rule> {
-        let method = rpc_request.method.to_lowercase();
-        if let Some(mut rule) = self.rules.rules.get(&method).cloned() {
-            rule.transform.apply_context(rpc_request);
-            return Some(rule);
-        } else {
-            for (key, value) in &self.rules.rules {
-                if key.ends_with(".*") && method.starts_with(&key[..key.len() - 2]) {
-                    let mut rule = value.clone();
-                    rule.transform.apply_context(rpc_request);
-                    return Some(rule);
-                }
-            }
-            trace!(
-                "Rule not available for {}, hence falling back to extension handler",
-                rpc_request.method
-            );
+    pub fn has_rule(&self, request: &str) -> bool {
+        self.rules.rules.contains_key(&request.to_lowercase())
+    }
+    fn wildcard_match(rule_name: &str, method: &str) -> bool {
+        rule_name.ends_with(".*") && method.starts_with(&rule_name[..rule_name.len() - 2])
+    }
+    fn find_wildcard_rule(
+        rules: &HashMap<String, Rule>,
+        method: &str,
+    ) -> Result<RuleRetrieved, RuleRetrievalError> {
+        let filtered_rules: Vec<&Rule> = rules
+            .iter()
+            .filter(|(rule_name, _)| Self::wildcard_match(rule_name, method))
+            .map(|(_, rule)| rule)
+            .collect();
+
+        match filtered_rules.len() {
+            1 => Ok(RuleRetrieved::WildcardMatch(filtered_rules[0].clone())),
+            0 => Err(RuleRetrievalError::RuleNotFoundAsWildcard),
+            _ => Err(RuleRetrievalError::TooManyWildcardMatches),
         }
-        None
     }
+
+    pub fn get_rule(&self, rpc_request: &RpcRequest) -> Result<RuleRetrieved, RuleRetrievalError> {
+        let method = rpc_request.method.to_lowercase();
+        /*
+        match directly from method name
+         */
+
+        if let Some(mut rule) = self.rules.get(&method).cloned() {
+            return Ok(RuleRetrieved::ExactMatch(
+                rule.apply_context(rpc_request).to_owned(),
+            ));
+        } else {
+            /*
+             * match, for example api.v1.* as rule name and api.v1.get as method name
+             */
+            Self::find_wildcard_rule(&self.rules.rules, &method)
+        }
+    }
+
     pub fn get_rule_by_method(&self, method: &str) -> Option<Rule> {
         self.rules.rules.get(&method.to_lowercase()).cloned()
     }
 }
+#[derive(Debug)]
+pub enum RuleRetrieved {
+    ExactMatch(Rule),
+    WildcardMatch(Rule),
+}
+impl From<RuleRetrieved> for Rule {
+    fn from(rule_retrieved: RuleRetrieved) -> Self {
+        match rule_retrieved {
+            RuleRetrieved::ExactMatch(rule) => rule,
+            RuleRetrieved::WildcardMatch(rule) => rule,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum RuleRetrievalError {
+    RuleNotFound(String),
+    RuleNotFoundAsWildcard,
+    TooManyWildcardMatches,
+}
+
 /// Compiles and executes a JQ filter on a given JSON input value.
 ///
 /// # Arguments
@@ -382,6 +490,7 @@ pub fn make_name_json_safe(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
     use ripple_sdk::serde_json::json;
 
     #[test]
@@ -484,5 +593,117 @@ mod tests {
         .as_str()
         .unwrap()
         .contains("nested"));
+    }
+    use ripple_sdk::api::gateway::rpc_gateway_api::CallContext;
+
+    #[test]
+    fn test_get_rule_exact_match() {
+        let mut rule_set = RuleSet::default();
+        let rule = Rule {
+            alias: "test_rule".to_string(),
+            ..Default::default()
+        };
+        rule_set
+            .rules
+            .insert("test.method".to_string(), rule.clone());
+
+        let rule_engine = RuleEngine { rules: rule_set };
+
+        let rpc_request = RpcRequest {
+            method: "test.method".to_string(),
+            ctx: CallContext {
+                app_id: "test_app".to_string(),
+                method: "test.method".to_string(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let result = rule_engine.get_rule(&rpc_request);
+        match result {
+            Ok(RuleRetrieved::ExactMatch(retrieved_rule)) => {
+                assert_eq!(retrieved_rule.alias, rule.alias);
+            }
+            _ => panic!("Expected exact match, but got {:?}", result),
+        }
+    }
+
+    #[test]
+    fn test_get_rule_wildcard_match() {
+        let mut rule_set = RuleSet::default();
+        let rule = Rule {
+            alias: "wildcard_rule".to_string(),
+            ..Default::default()
+        };
+        rule_set.rules.insert("api.v1.*".to_string(), rule.clone());
+
+        let rule_engine = RuleEngine { rules: rule_set };
+
+        let rpc_request = RpcRequest {
+            method: "api.v1.get".to_string(),
+            ctx: CallContext {
+                app_id: "test_app".to_string(),
+                method: "api.v1.get".to_string(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let result = rule_engine.get_rule(&rpc_request);
+        match result {
+            Ok(RuleRetrieved::WildcardMatch(retrieved_rule)) => {
+                assert_eq!(retrieved_rule.alias, rule.alias);
+            }
+            _ => panic!("Expected wildcard match, but got {:?}", result),
+        }
+    }
+
+    #[test]
+    fn test_get_rule_no_match() {
+        let rule_set = RuleSet::default();
+        let rule_engine = RuleEngine { rules: rule_set };
+
+        let rpc_request = RpcRequest {
+            method: "nonexistent.method".to_string(),
+            ctx: CallContext {
+                app_id: "test_app".to_string(),
+                method: "nonexistent.method".to_string(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let result = rule_engine.get_rule(&rpc_request);
+        assert!(matches!(
+            result,
+            Err(RuleRetrievalError::RuleNotFoundAsWildcard)
+        ));
+    }
+
+    #[test]
+    fn test_get_rule_multiple_wildcard_matches() {
+        let mut rule_set = RuleSet::default();
+        rule_set
+            .rules
+            .insert("api.v1.*".to_string(), Rule::default());
+        rule_set.rules.insert("api.*".to_string(), Rule::default());
+
+        let rule_engine = RuleEngine { rules: rule_set };
+
+        let rpc_request = RpcRequest {
+            method: "api.v1.get".to_string(),
+            ctx: CallContext {
+                app_id: "test_app".to_string(),
+                method: "api.v1.get".to_string(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let result = rule_engine.get_rule(&rpc_request);
+        assert!(matches!(
+            result,
+            Err(RuleRetrievalError::TooManyWildcardMatches)
+        ));
     }
 }

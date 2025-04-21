@@ -44,7 +44,6 @@ pub mod processors {
         pub mod thunder_event_handlers;
     }
     pub mod thunder_analytics;
-    pub mod thunder_package_manager;
     pub mod thunder_persistent_store;
     pub mod thunder_rfc;
     pub mod thunder_telemetry;
@@ -55,14 +54,13 @@ pub mod utils;
 pub mod thunder_state;
 pub extern crate ripple_sdk;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "mock"))]
 pub mod tests {
     #[cfg(feature = "websocket_contract_tests")]
     pub mod contracts {
         pub mod contract_utils;
         pub mod thunder_controller_pacts;
         pub mod thunder_device_info_pacts;
-        pub mod thunder_package_manager_pacts;
         pub mod thunder_persistent_store_pacts;
     }
     pub mod mock_thunder_controller;

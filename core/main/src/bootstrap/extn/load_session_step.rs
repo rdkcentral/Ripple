@@ -16,13 +16,10 @@
 //
 
 use ripple_sdk::framework::bootstrap::Bootstep;
-use ripple_sdk::tokio;
 use ripple_sdk::{async_trait::async_trait, framework::RippleResponse};
 
 use crate::processor::main_context_processor::MainContextProcessor;
-use crate::service::context_manager::ContextManager;
 use crate::state::bootstrap_state::BootstrapState;
-use crate::state::metrics_state::MetricsState;
 
 pub struct LoadDistributorValuesStep;
 
@@ -33,14 +30,8 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
     }
 
     async fn setup(&self, s: BootstrapState) -> RippleResponse {
-        let mut ps = s.platform_state.clone();
-        tokio::spawn(async move {
-            MetricsState::initialize(&mut ps).await;
-        });
-
         MainContextProcessor::remove_expired_and_inactive_entries(&s.platform_state);
 
-        ContextManager::setup(&s.platform_state).await;
         if !s.platform_state.supports_session() {
             return Ok(());
         }

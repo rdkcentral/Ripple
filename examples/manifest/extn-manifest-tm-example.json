@@ -25,10 +25,7 @@
                         "app_events",
                         "input.device_events",
                         "voice_guidance.device_events",
-                        "internet.device_events",
-                        "audio.device_events",
-                        "system_power_state.device_events",
-                        "time_zone.device_events"
+                        "audio.device_events"
                     ],
                     "config": {
                         "rdk_telemetry": "true"
@@ -50,10 +47,7 @@
                         "secure_storage",
                         "advertising",
                         "privacy_settings",
-                        "metrics",
-                        "session_token",
-                        "discovery",
-                        "media_events"
+                        "session_token"
                     ]
                 }
             ]
@@ -86,12 +80,8 @@
         "device_persistence",
         "remote_accessory",
         "secure_storage",
-        "advertising",
         "privacy_settings",
-        "session_token",
-        "metrics",
-        "discovery",
-        "media_events"
+        "session_token"
     ],
     "rpc_aliases": {
         "device.model": [

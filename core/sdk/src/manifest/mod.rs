@@ -14,20 +14,4 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-
-use serde::{Deserialize, Serialize};
-
-use super::{
-    distributor_discovery::{DiscoveryRequest, MediaEventRequest},
-    distributor_encoder::EncoderRequest,
-    distributor_permissions::PermissionRequest,
-};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(test, derive(PartialEq))]
-pub enum DistributorRequest {
-    Permission(PermissionRequest),
-    Discovery(DiscoveryRequest),
-    MediaEvent(MediaEventRequest),
-    Encoder(EncoderRequest),
-}
+pub mod device;
