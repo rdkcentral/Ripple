@@ -29,8 +29,10 @@ use ripple_sdk::{
 };
 
 use crate::{
-    bootstrap::manifest::apps::LoadAppLibraryStep, broker::endpoint_broker::BrokerOutput,
-    firebolt::firebolt_gateway::FireboltGatewayCommand, service::extn::ripple_client::RippleClient,
+    bootstrap::manifest::apps::LoadAppLibraryStep,
+    broker::endpoint_broker::{BrokerOutput, BROKER_CHANNEL_BUFFER_SIZE},
+    firebolt::firebolt_gateway::FireboltGatewayCommand,
+    service::extn::ripple_client::RippleClient,
 };
 
 use super::{extn_state::ExtnState, platform_state::PlatformState};
@@ -50,7 +52,7 @@ impl ChannelsState {
         let (gateway_tx, gateway_tr) = mpsc::channel(32);
         let (app_req_tx, app_req_tr) = mpsc::channel(32);
         let (ctx, ctr) = unbounded();
-        let (broker_tx, broker_rx) = mpsc::channel(10);
+        let (broker_tx, broker_rx) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
 
         ChannelsState {
             gateway_channel: TransientChannel::new(gateway_tx, gateway_tr),
@@ -132,9 +134,6 @@ impl BootstrapState {
         );
 
         fn ripple_version_from_etc() -> Option<String> {
-            /*
-            read /etc/rippleversion
-            */
             static RIPPLE_VER_FILE_DEFAULT: &str = "/etc/rippleversion.txt";
             static RIPPLE_VER_VAR_NAME_DEFAULT: &str = "RIPPLE_VER";
             let version_file_name = std::env::var("RIPPLE_VERSIONS_FILE")
