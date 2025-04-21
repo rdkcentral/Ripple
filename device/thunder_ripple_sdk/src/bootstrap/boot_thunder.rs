@@ -17,23 +17,22 @@
 
 use crate::{
     bootstrap::setup_thunder_processors::SetupThunderProcessor,
-    client::plugin_manager::ThunderPluginBootParam, thunder_state::ThunderBootstrapStateWithClient,
+    client::{plugin_manager::ThunderPluginBootParam, thunder_client::ThunderClientBuilder},
+    thunder_state::{
+        ThunderBootstrapStateWithClient, ThunderBootstrapStateWithConfig, ThunderState,
+    },
 };
 use ripple_sdk::{
-    extn::client::extn_client::ExtnClient,
+    api::config::Config,
+    extn::{
+        client::extn_client::ExtnClient,
+        extn_client_message::{ExtnMessage, ExtnResponse},
+    },
     log::{debug, error, info, warn},
     serde_json,
+    utils::error::RippleError,
 };
-
-use super::{get_config_step::ThunderGetConfigStep, setup_thunder_pool_step::ThunderPoolStep};
-use crate::client::thunder_client::ThunderClientBuilder;
-use crate::thunder_state::ThunderBootstrapStateWithConfig;
-use crate::thunder_state::ThunderState;
-use ripple_sdk::api::config::Config;
-use ripple_sdk::utils::error::RippleError;
 use serde::Deserialize;
-
-use ripple_sdk::extn::extn_client_message::{ExtnMessage, ExtnResponse};
 
 const GATEWAY_DEFAULT: &str = "ws://127.0.0.1:9998/jsonrpc";
 
@@ -129,13 +128,6 @@ pub async fn boot_thunder(
 
             Some(thndr_boot_stateclient)
         } else {
-            None
-        }
-    } else if let Ok(state) = ThunderGetConfigStep::setup(ext_client, plugin_param).await {
-        if let Ok(state) = ThunderPoolStep::setup(state).await {
-            Some(state)
-        } else {
-            error!("Unable to connect to Thunder, error in ThunderPoolStep");
             None
         }
     } else {
