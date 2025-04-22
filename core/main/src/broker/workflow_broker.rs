@@ -1,6 +1,6 @@
 use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerRequest, BrokerSender,
-    EndpointBroker, BROKER_CHANNEL_BUFFER_SIZE,
+    EndpointBroker, HandleBrokerageError, BROKER_CHANNEL_BUFFER_SIZE,
 };
 use super::rules_engine::JsonDataSource;
 use crate::broker::endpoint_broker::{BrokerOutput, EndpointBrokerState};
@@ -28,7 +28,27 @@ pub enum SubBrokerErr {
     JsonRpcApiError(JsonRpcApiError),
 }
 pub type SubBrokerResult = Result<JsonRpcApiResponse, SubBrokerErr>;
+impl From<HandleBrokerageError> for SubBrokerErr {
+    fn from(e: HandleBrokerageError) -> Self {
+        match e {
+            HandleBrokerageError::BrokerNotFound(name) => SubBrokerErr::RpcError(
+                RippleError::BrokerError(format!("Broker not found: {}", name)),
+            ),
+            HandleBrokerageError::RuleNotFound(method) => SubBrokerErr::RpcError(
+                RippleError::BrokerError(format!("Rule not found for {}", method)),
+            ),
+            HandleBrokerageError::BrokerSendError => {
+                SubBrokerErr::RpcError(RippleError::BrokerError("Broker send error".to_string()))
+            }
+            HandleBrokerageError::Broker => {
+                SubBrokerErr::RpcError(RippleError::BrokerError("Broker error".to_string()))
+            }
+        }
+    }
+}
 
+//TODO: decide fate of this function
+#[allow(dead_code)]
 async fn subbroker_call(
     endpoint_broker: EndpointBrokerState,
     rpc_request: RpcRequest,
@@ -80,6 +100,18 @@ impl WorkflowBroker {
 
         for source in sources.clone() {
             trace!("Source {:?}", source.clone());
+            LogSignal::new(
+                "workflow_broker".into(),
+                "Workflow task".into(),
+                rpc_request.ctx.clone(),
+            )
+            .with_diagnostic_context_item("source", &format!("{:?}", source))
+            .with_diagnostic_context_item("method", &format!("{:?}", source.method))
+            .with_diagnostic_context_item(
+                "params",
+                &format!("{:?}", source.params.clone().unwrap_or_default()),
+            )
+            .emit_debug();
 
             let mut rpc_request = rpc_request.clone();
             rpc_request.method = source.method.clone();
@@ -136,6 +168,12 @@ impl WorkflowBroker {
         /*
         workflow steps are currently all or nothing/sudden death: if one step fails, the whole workflow fails
         */
+        LogSignal::new(
+            "workflow_broker".into(),
+            "run_workflow".into(),
+            broker_request.rpc.ctx.clone(),
+        )
+        .emit_debug();
 
         // Define your batch size here
         let batch_size = 10;
