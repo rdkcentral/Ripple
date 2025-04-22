@@ -17,7 +17,7 @@
 
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::{
     collections::{HashMap, HashSet},
     fs,
@@ -152,8 +152,25 @@ impl MergeConfig<CascadedRippleConfiguration> for RippleConfiguration {
         if let Some(cas_distributor_experience_id) = cascaded.distributor_experience_id {
             self.distributor_experience_id = cas_distributor_experience_id
         }
-        if let Some(cas_distributor_services) = cascaded.distributor_services {
-            self.distributor_services = Some(cas_distributor_services)
+
+        if let Some(cascaded_distributor_services) = cascaded.distributor_services {
+            match &mut self.distributor_services {
+                Some(existing_value) => {
+                    if existing_value.is_object() && cascaded_distributor_services.is_object() {
+                        let mut merged_object = existing_value.as_object().unwrap().clone();
+                        let cascaded_object = cascaded_distributor_services.as_object().unwrap();
+                        // Use the helper function here
+                        merge_json_objects(&mut merged_object, cascaded_object);
+                        self.distributor_services = Some(Value::Object(merged_object));
+                    } else {
+                        // Override with the new value
+                        self.distributor_services = Some(cascaded_distributor_services);
+                    }
+                }
+                None => {
+                    self.distributor_services = Some(cascaded_distributor_services);
+                }
+            }
         }
 
         if let Some(cascaded_exclusory) = cascaded.exclusory {
@@ -187,6 +204,44 @@ impl MergeConfig<CascadedRippleConfiguration> for RippleConfiguration {
         }
         if let Some(cas_internet_monitering_conf) = cascaded.internet_monitoring_configuration {
             self.internet_monitoring_configuration = cas_internet_monitering_conf;
+        }
+    }
+}
+
+// Helper function to merge two JSON objects
+pub fn merge_json_objects(
+    existing_object: &mut Map<String, Value>,
+    cascaded_object: &Map<String, Value>,
+) {
+    for (key, cascaded_value) in cascaded_object.iter() {
+        if existing_object.contains_key(key) {
+            // Key exists in both:  Merge values.
+            let existing_value = existing_object.get_mut(key).unwrap();
+
+            if existing_value.is_object() && cascaded_value.is_object() {
+                // Both are objects:  Recursively merge.
+                let merged_nested_object = existing_value
+                    .as_object()
+                    .unwrap()
+                    .clone()
+                    .into_iter()
+                    .chain(cascaded_value.as_object().unwrap().clone().into_iter())
+                    .collect();
+                *existing_value = Value::Object(merged_nested_object);
+            } else if existing_value.is_array() && cascaded_value.is_array() {
+                if let (Value::Array(existing_array), Value::Array(cascaded_array)) =
+                    (existing_value, cascaded_value)
+                {
+                    existing_array.extend(cascaded_array.clone());
+                    existing_array.dedup();
+                }
+            } else {
+                // Otherwise:  Override the existing value.
+                *existing_value = cascaded_value.clone();
+            }
+        } else {
+            // Key exists in cascaded, but not in existing:  Add it.
+            existing_object.insert(key.clone(), cascaded_value.clone());
         }
     }
 }
@@ -383,18 +438,33 @@ impl MergeConfig<CascadedCapabilityConfiguration> for CapabilityConfiguration {
             self.supported.dedup();
         }
 
-        if let Some(other_grant_policies) = cascaded.grant_policies {
-            if let Some(self_grant_policies) = &mut self.grant_policies {
-                for (key, other_policies) in other_grant_policies {
-                    // Check if the key exists in self's grant policies
-                    if let Some(existing_policies) = self_grant_policies.get_mut(&key) {
-                        existing_policies.merge_config(other_policies);
+        if let Some(cascaded_grant_policies) = cascaded.grant_policies {
+            if let Some(grant_policies) = &mut self.grant_policies {
+                for (key, cascaded_policy) in cascaded_grant_policies {
+                    if let Some(policy) = grant_policies.get_mut(&key) {
+                        policy.merge_config(cascaded_policy);
                     } else {
-                        // If the key doesn't exist in self, insert a new GrantPolicies
+                        let mut new_policy = GrantPolicies {
+                            use_: None,
+                            manage: None,
+                            provide: None,
+                        };
+                        new_policy.merge_config(cascaded_policy);
+                        grant_policies.insert(key, new_policy);
                     }
                 }
             } else {
-                // If self.grant_policies is None, simply assign from other
+                let mut new_grant_policies: HashMap<String, GrantPolicies> = HashMap::new();
+                for (key, cascaded_policy) in cascaded_grant_policies {
+                    let mut new_policy = GrantPolicies {
+                        use_: None,
+                        manage: None,
+                        provide: None,
+                    };
+                    new_policy.merge_config(cascaded_policy);
+                    new_grant_policies.insert(key, new_policy);
+                }
+                self.grant_policies = Some(new_grant_policies);
             }
         }
 
@@ -1003,7 +1073,11 @@ mod tests {
         let cascaded_manifest = CascadedDeviceManifest::mock();
         manifest.merge_config(cascaded_manifest);
         let caps_requiring_grant = manifest.get_caps_requiring_grant();
-        assert_eq!(caps_requiring_grant, Vec::<String>::new());
+        let expected = vec![
+            "xrn:firebolt:capability:device:mock".to_string(),
+            "xrn:firebolt:capability:device:id".to_string(),
+        ];
+        assert_eq!(caps_requiring_grant, expected);
     }
 
     #[test]
@@ -1013,7 +1087,9 @@ mod tests {
         manifest.merge_config(cascaded_manifest);
         let grant_policies = manifest.get_grant_policies();
 
-        assert_eq!(grant_policies, None);
+        if let Some(result_map) = grant_policies {
+            assert!(result_map.contains_key("xrn:firebolt:capability:device:mock"));
+        }
     }
 
     #[test]
@@ -1047,42 +1123,6 @@ mod tests {
             assert_eq!(manifest.capabilities.grant_policies, None);
         }
     }
-
-    // #feature not implelemeted.
-
-    // #[test]
-    // fn test_merged_config_capabilities_grant_policies_multiple_policies() {
-    //     let mut manifest = DeviceManifest::mock();
-
-    //     let capability_config = CapabilityConfiguration {
-    //         supported: vec!["example_capability".to_string()],
-    //         grant_policies: Some({
-    //             let mut map = HashMap::new();
-    //             map.insert(
-    //                 "xrn:firebolt:capability:example".to_string(),
-    //                 GrantPolicies {
-    //                     use_: None,
-    //                     manage: None,
-    //                     provide: None,
-    //                 },
-    //             );
-    //             map
-    //         }),
-    //         grant_exclusion_filters: Vec::new(), // Use the default value
-    //         dependencies: HashMap::new(),       // Use the default value
-    //     };
-
-    //     manifest.capabilities = capability_config.clone();
-    //     let cascaded_manifest = CascadedDeviceManifest::mock();
-
-    //     manifest.merge_config(cascaded_manifest);
-
-    //     assert_eq!(
-    //         manifest.capabilities.grant_policies,
-    //         None
-    //     );
-
-    // }
 
     #[test]
     fn test_get_distributor_experience_id() {

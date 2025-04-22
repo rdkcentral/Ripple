@@ -54,10 +54,6 @@ impl MergeConfig<CascadedExtnManifest> for ExtnManifest {
                     {
                         self.extns.push(new_entry);
                     }
-                } else {
-                    // If cascaded entry has no path, we can't reliably merge or add it
-                    // Consider logging a warning or handling this differently based on your needs
-                    eprintln!("Warning: CascadedExtnManifestEntry with no path cannot be merged.");
                 }
             }
         }

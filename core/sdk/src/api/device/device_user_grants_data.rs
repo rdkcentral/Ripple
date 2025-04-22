@@ -162,7 +162,7 @@ impl Default for GrantPolicy {
             lifespan_ttl: None,
             privacy_setting: None,
             persistence: PolicyPersistenceType::Device,
-            evaluate_at: vec![EvaluateAt::Invocation],
+            evaluate_at: vec![EvaluateAt::ActiveSession],
         }
     }
 }
