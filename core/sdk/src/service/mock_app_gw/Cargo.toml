@@ -20,7 +20,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["mock_service"]
+default = []
 mock_service = []
 
 [dependencies]
