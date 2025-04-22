@@ -1,6 +1,6 @@
 {
-    "get_device_name": { "device_name": "X1-MediaBox" },
+    "get_device_name": { "device_name": "XiOne" },
     "get_country_code": { "country_code": "US" },
-    "get_os_version": { "os_version": "5.2.3" }
+    "get_os_version": { "os_version": "2.5.3" }
 }
   
