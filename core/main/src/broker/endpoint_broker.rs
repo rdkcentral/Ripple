@@ -116,21 +116,9 @@ impl ripple_sdk::api::observability::log_signal::ContextAsJson for BrokerRequest
             "call_id".to_string(),
             serde_json::Value::Number(serde_json::Number::from(self.rpc.ctx.call_id)),
         );
-        // map.insert(
-        //     "protocol".to_string(),
-        //     serde_json::Value::String(self.rpc.ctx.protocol.clone()),
-        // );
         map.insert(
             "method".to_string(),
             serde_json::Value::String(self.rpc.method.clone()),
-        );
-        // map.insert(
-        //     "cid".to_string(),
-        //     serde_json::Value::String(self.rpc.ctx.cid.clone()),
-        // );
-        map.insert(
-            "gateway_secure".to_string(),
-            serde_json::Value::Bool(self.rpc.ctx.gateway_secure),
         );
         serde_json::Value::Object(map)
     }
