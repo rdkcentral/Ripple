@@ -1072,11 +1072,13 @@ mod tests {
         let mut manifest = DeviceManifest::mock();
         let cascaded_manifest = CascadedDeviceManifest::mock();
         manifest.merge_config(cascaded_manifest);
-        let caps_requiring_grant = manifest.get_caps_requiring_grant();
-        let expected = vec![
+        let mut caps_requiring_grant = manifest.get_caps_requiring_grant();
+        let mut expected = vec![
             "xrn:firebolt:capability:device:mock".to_string(),
             "xrn:firebolt:capability:device:id".to_string(),
         ];
+        caps_requiring_grant.sort();
+        expected.sort();
         assert_eq!(caps_requiring_grant, expected);
     }
 
