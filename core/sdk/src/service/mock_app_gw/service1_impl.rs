@@ -27,7 +27,7 @@ struct Service1;
 #[async_trait::async_trait]
 impl Service for Service1 {
     fn service_id(&self) -> &str {
-        "urn:mydomain:appgw:service1"
+        "mock:service:appgw:service1"
     }
 
     async fn handle_inbound_request(&self, request: Value) -> Value {
@@ -72,7 +72,7 @@ pub async fn start_service1() {
     // Example: send init request to AppGW
     let init_req = json!({
         "jsonrpc": "2.0",
-        "id": "svc1-init-1",
+        "id": 100,
         "method": "get_device_name"
     });
     outbound_tx
@@ -88,7 +88,7 @@ pub async fn start_service1() {
         while let Some(req) = inbound_rx.recv().await {
             let result = svc_task.handle_inbound_request(req.clone()).await;
             println!("[service1] processed: {:?}", result);
-            let _ = outbound_tx
+            outbound_tx
                 .send(Message::Text(result.to_string()))
                 .await
                 .unwrap();
@@ -96,6 +96,10 @@ pub async fn start_service1() {
     });
 
     svc.clone()
-        .run("ws://127.0.0.1:1234", &mut outbound_rx, inbound_tx)
+        .run(
+            crate::service_trait::APPGW_WS_URL,
+            &mut outbound_rx,
+            inbound_tx,
+        )
         .await;
 }

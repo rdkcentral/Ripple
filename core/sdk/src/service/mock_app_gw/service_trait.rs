@@ -25,6 +25,8 @@ use tokio::{
 };
 use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
+pub const APPGW_WS_URL: &str = "ws://127.0.0.1:1234";
+
 #[async_trait]
 pub trait Service: Send + Sync + 'static {
     fn service_id(&self) -> &str;
@@ -91,8 +93,8 @@ async fn wait_for_connection(url: &str) -> WebSocketStream<MaybeTlsStream<TcpStr
             }
             Err(e) => {
                 eprintln!(
-                    "[Service] Failed to connect: {e}. Retrying in {}s...",
-                    backoff
+                    "[Service] Failed to connect to {}: {e}. Retrying in {}s...",
+                    url, backoff
                 );
                 sleep(Duration::from_secs(backoff)).await;
                 backoff = (backoff * 2).min(30); // cap wait at 30s

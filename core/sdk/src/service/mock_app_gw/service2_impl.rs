@@ -27,7 +27,7 @@ struct Service2;
 #[async_trait::async_trait]
 impl Service for Service2 {
     fn service_id(&self) -> &str {
-        "urn:mydomain:appgw:service2"
+        "mock:service:appgw:service2"
     }
 
     async fn handle_inbound_request(&self, request: Value) -> Value {
@@ -62,30 +62,43 @@ impl Service for Service2 {
 }
 
 pub async fn start_service2() {
-    let (tx, mut rx) = mpsc::channel::<Message>(32);
-    let (appgw_tx, mut appgw_rx) = mpsc::channel::<Value>(32);
+    // Create channels for communication between AppGW and service
+    // Inbound channel for receiving messages from AppGW
+    let (inbound_tx, mut inbound_rx) = mpsc::channel::<Value>(32);
+    // Outbound channel for sending messages to AppGW
+    let (outbound_tx, mut outbound_rx) = mpsc::channel::<Message>(32);
 
     // Example: send init request to AppGW
     let init_req = json!({
         "jsonrpc": "2.0",
-        "id": "svc1-init-1",
+        "id": 200,
         "method": "get_device_name"
     });
-    tx.send(Message::Text(init_req.to_string())).await.unwrap();
+    outbound_tx
+        .send(Message::Text(init_req.to_string()))
+        .await
+        .unwrap();
 
     let svc = Arc::new(Service2);
     // Todo: Service related init operations
 
     let svc_task = Arc::clone(&svc);
     tokio::spawn(async move {
-        while let Some(req) = appgw_rx.recv().await {
+        while let Some(req) = inbound_rx.recv().await {
             let result = svc_task.handle_inbound_request(req.clone()).await;
             println!("[service2] processed: {:?}", result);
-            let _ = tx.send(Message::Text(result.to_string())).await.unwrap();
+            outbound_tx
+                .send(Message::Text(result.to_string()))
+                .await
+                .unwrap();
         }
     });
 
     svc.clone()
-        .run("ws://127.0.0.1:1234", &mut rx, appgw_tx)
+        .run(
+            crate::service_trait::APPGW_WS_URL,
+            &mut outbound_rx,
+            inbound_tx,
+        )
         .await;
 }

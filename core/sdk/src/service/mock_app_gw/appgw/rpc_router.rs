@@ -18,81 +18,208 @@ use crate::appgw::types::*;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message;
-use uuid::Uuid;
 
-pub async fn handle_jsonrpc(
+use std::sync::atomic::{AtomicU64, Ordering};
+
+// Define a global atomic counter for generating unique u64 IDs
+static REQ_ID_COUNTER: AtomicU64 = AtomicU64::new(1000);
+
+struct CleanupContext<'a> {
+    service_id: &'a str,
+    clients: &'a Clients,
+    routed: Option<&'a RoutedMap>,
+    pending: Option<&'a PendingMap>,
+    sender_id: &'a str,
+    original_id: u64,
+    error: CleanupError,
+}
+
+struct CleanupError {
+    code: i64,
+    message: String,
+}
+
+pub async fn handle_jsonrpc_request(
     v: Value,
     clients: &Clients,
     pending: &PendingMap,
     routed: &RoutedMap,
     sender_id: &str,
     internal_api_map: Arc<HashMap<String, Value>>,
+    service_rules: &HashMap<String, String>,
 ) {
     let method = v["method"].as_str().unwrap_or_default();
 
     match method {
-        "aggregate.system_health" | "aggregate.device_status" => {
+        "aggregate.device_status" => {
             handle_aggregate_call(v, clients, pending, sender_id).await;
         }
         _ => {
-            handle_direct_or_internal_call(v, clients, routed, sender_id, internal_api_map).await;
+            handle_direct_or_internal_call(
+                v,
+                clients,
+                routed,
+                sender_id,
+                internal_api_map,
+                service_rules,
+            )
+            .await;
         }
     }
 }
 
 async fn handle_aggregate_call(v: Value, clients: &Clients, pending: &PendingMap, sender_id: &str) {
-    let _method = v["method"].as_str().unwrap_or_default();
-    let id = v["id"].as_str().unwrap_or("unknown").to_string();
+    let id = match parse_request_id(&v).await {
+        Some(id) => id,
+        None => {
+            send_invalid_id_error(&v, clients, sender_id).await;
+            return;
+        }
+    };
 
-    let services = ["service1", "service2"];
+    let available_services = find_available_services(
+        clients,
+        &["mock:service:appgw:service1", "mock:service:appgw:service2"],
+    )
+    .await;
+
+    let Some(sender) = get_sender(clients, sender_id).await else {
+        return;
+    };
+
+    if available_services.is_empty() {
+        send_no_services_error(id, sender).await;
+        return;
+    }
+
+    let mut tracker = initialize_tracker(id, sender.clone(), available_services.as_slice());
+
+    let agg_id = send_requests_to_services(
+        available_services,
+        &mut tracker,
+        clients,
+        pending,
+        sender_id,
+        id,
+    )
+    .await
+    .unwrap_or(0);
+
+    finalize_or_store_tracker(tracker, pending, id, agg_id).await;
+}
+
+async fn handle_direct_or_internal_call(
+    v: Value,
+    clients: &Clients,
+    routed: &RoutedMap,
+    sender_id: &str,
+    internal_api_map: Arc<HashMap<String, Value>>,
+    service_rules: &HashMap<String, String>,
+) {
+    let id = match parse_request_id(&v).await {
+        Some(id) => id,
+        None => {
+            send_invalid_id_error(&v, clients, sender_id).await;
+            return;
+        }
+    };
+
+    let method = v["method"].as_str().unwrap_or_default();
+
+    if let Some(service_id) = match_service_rules(method, service_rules) {
+        route_to_service(v, clients, routed, sender_id, id, &service_id).await;
+    } else if let Some(response) = internal_api_map.get(method) {
+        send_internal_api_response(id, response, clients, sender_id).await;
+    } else {
+        send_method_not_found_error(id, clients, sender_id, method).await;
+    }
+}
+
+// Reusable helper functions
+async fn parse_request_id(v: &Value) -> Option<u64> {
+    v["id"].as_u64()
+}
+
+async fn find_available_services(
+    clients: &Clients,
+    services: &[&str],
+) -> Vec<(String, mpsc::Sender<Message>)> {
     let mut available = vec![];
-
-    {
-        let map = clients.lock().await;
-        for &svc in &services {
-            if let Some(c) = map.get(svc) {
-                available.push((svc.to_string(), c.tx.clone()));
-            }
+    let map = clients.lock().await;
+    for &svc in services {
+        if let Some(client_info) = map
+            .iter()
+            .find(|(_, c)| c.is_service && c.service_id == Some(svc.to_string()))
+        {
+            available.push((svc.to_string(), client_info.1.tx.clone()));
         }
     }
+    available
+}
 
-    let Some(tester) = clients.lock().await.get(sender_id).map(|c| c.tx.clone()) else {
-        return;
-    };
+async fn get_sender(clients: &Clients, sender_id: &str) -> Option<mpsc::Sender<Message>> {
+    clients.lock().await.get(sender_id).map(|c| c.tx.clone())
+}
 
-    if available.is_empty() {
-        let err = json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "error": { "code": -32001, "message": "No services available" }
-        });
-        let _ = tester.send(Message::Text(err.to_string())).await;
-        return;
-    }
-
-    let mut tracker = PendingAggregate {
-        original_id: id.clone(),
-        tester_tx: tester.clone(),
-        expected: available.iter().map(|(s, _)| s.clone()).collect(),
+fn initialize_tracker(
+    id: u64,
+    sender: mpsc::Sender<Message>,
+    available_services: &[(String, mpsc::Sender<Message>)],
+) -> PendingAggregate {
+    PendingAggregate {
+        original_id: id,
+        sender_tx: sender,
+        expected: available_services.iter().map(|(s, _)| s.clone()).collect(),
         responses: HashMap::new(),
-    };
+    }
+}
 
-    let agg_id = format!("agg-{}", Uuid::new_v4());
-    for (svc, tx) in available {
-        let mid = format!("{}|{}", agg_id, svc);
+async fn send_requests_to_services(
+    available_services: Vec<(String, mpsc::Sender<Message>)>,
+    tracker: &mut PendingAggregate,
+    clients: &Clients,
+    pending: &PendingMap,
+    sender_id: &str,
+    id: u64,
+) -> Result<u64, ()> {
+    let agg_id = REQ_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
+    for (svc, tx) in available_services {
+        let method = svc.split(':').last().unwrap_or_default();
         let req = json!({
             "jsonrpc": "2.0",
-            "id": mid,
-            "method": format!("{}.get_status", svc)
+            "id": agg_id,
+            "method": format!("{}.get_status", method)
         });
-        if let Err(_) = tx.send(Message::Text(req.to_string())).await {
+        if (tx.send(Message::Text(req.to_string())).await).is_err() {
             tracker
                 .responses
-                .insert(svc, json!({ "error": "send failed" }));
+                .insert(svc.clone(), json!({ "error": "send failed" }));
+            cleanup_disconnected_service(CleanupContext {
+                service_id: &svc,
+                clients,
+                routed: None,
+                pending: Some(pending),
+                sender_id,
+                original_id: id,
+                error: CleanupError {
+                    code: -32002,
+                    message: format!("Service {} is not available", svc),
+                },
+            })
+            .await;
         }
     }
+    Ok(agg_id)
+}
 
+async fn finalize_or_store_tracker(
+    mut tracker: PendingAggregate,
+    pending: &PendingMap,
+    id: u64,
+    agg_id: u64,
+) {
     if tracker.responses.len() == tracker.expected.len() {
         let mut result = json!({});
         for s in &tracker.expected {
@@ -102,7 +229,8 @@ async fn handle_aggregate_call(v: Value, clients: &Clients, pending: &PendingMap
                 .unwrap_or(json!({ "error": "no response" }));
             result[s] = json!({ "from_service": s, "response": val });
         }
-        let _ = tester
+        let _ = tracker
+            .sender_tx
             .send(Message::Text(
                 json!({
                     "jsonrpc": "2.0",
@@ -117,46 +245,215 @@ async fn handle_aggregate_call(v: Value, clients: &Clients, pending: &PendingMap
     }
 }
 
-async fn handle_direct_or_internal_call(
+fn match_service_rules(method: &str, service_rules: &HashMap<String, String>) -> Option<String> {
+    service_rules
+        .iter()
+        .filter_map(|(pattern, alias)| {
+            if pattern.ends_with(".*") {
+                let prefix = &pattern[..pattern.len() - 2];
+                if method.starts_with(prefix) {
+                    return Some((prefix.len(), alias));
+                }
+            } else if pattern == method {
+                return Some((usize::MAX, alias));
+            }
+            None
+        })
+        .max_by_key(|(priority, _)| *priority)
+        .map(|(_, alias)| alias.clone())
+}
+
+async fn route_to_service(
     v: Value,
     clients: &Clients,
     routed: &RoutedMap,
     sender_id: &str,
-    internal_api_map: Arc<HashMap<String, Value>>,
+    id: u64,
+    service_id: &str,
 ) {
-    let method = v["method"].as_str().unwrap_or_default();
-    let id = v["id"].as_str().unwrap_or("unknown").to_string();
-
-    if let Some((prefix, _)) = method.split_once('.') {
+    // Extract necessary data while holding the lock
+    let (svc_tx, tester_tx) = {
         let map = clients.lock().await;
-        if let Some((_, svc)) = map.iter().find(|(_, c)| c.is_service && c.id == prefix) {
-            if let Some(tester_tx) = map.get(sender_id).map(|c| c.tx.clone()) {
-                routed.lock().await.insert(id.clone(), tester_tx);
-            }
 
-            let _ = svc.tx.send(Message::Text(v.to_string())).await;
-            return;
-        }
-    }
+        // Find the service transmitter
+        let svc_tx = map
+            .iter()
+            .find(|(_, c)| c.is_service && c.service_id == Some(service_id.to_string()))
+            .map(|(_, c)| c.tx.clone());
 
-    if let Some(response) = internal_api_map.get(method) {
-        let reply = json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "result": response
-        });
-        if let Some(tx) = clients.lock().await.get(sender_id).map(|c| c.tx.clone()) {
-            let _ = tx.send(Message::Text(reply.to_string())).await;
-        }
+        // Find the sender's transmitter
+        let tester_tx = map.get(sender_id).map(|c| c.tx.clone());
+
+        (svc_tx, tester_tx)
+    }; // Lock is released here
+
+    // If the service transmitter is not found, send an error
+    let Some(svc_tx) = svc_tx else {
+        send_service_not_available_error(id, clients, sender_id, service_id).await;
         return;
+    };
+
+    // If the sender's transmitter is not found, return early
+    let Some(tester_tx) = tester_tx else {
+        return;
+    };
+
+    // Add to the routed map
+    let req_id = REQ_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
+    routed.lock().await.insert(
+        req_id,
+        RoutedRequest {
+            service_id: service_id.to_string(),
+            original_id: id,
+            sender_tx: tester_tx.clone(),
+        },
+    );
+
+    // Send the message to the service
+    let req = json!({
+        "jsonrpc": "2.0",
+        "id": req_id,
+        "method": v["method"],
+        "params": v["params"]
+    });
+    if let Err(err) = svc_tx.send(Message::Text(req.to_string())).await {
+        eprintln!(
+            "Failed to send message to service {} for method {}: {:?}",
+            service_id, v["method"], err
+        );
+
+        // Call the cleanup function
+        cleanup_disconnected_service(CleanupContext {
+            service_id,
+            clients,
+            routed: Some(routed),
+            pending: None,
+            sender_id,
+            original_id: id,
+            error: CleanupError {
+                code: -32002,
+                message: format!(
+                    "Service {} is not available for the method {}",
+                    service_id, v["method"]
+                ),
+            },
+        })
+        .await;
+    }
+}
+
+async fn send_internal_api_response(id: u64, response: &Value, clients: &Clients, sender_id: &str) {
+    let reply = json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": response
+    });
+    if let Some(tx) = clients.lock().await.get(sender_id).map(|c| c.tx.clone()) {
+        let _ = tx.send(Message::Text(reply.to_string())).await;
+    }
+}
+
+async fn cleanup_disconnected_service(context: CleanupContext<'_>) {
+    let CleanupContext {
+        service_id,
+        clients,
+        routed,
+        pending,
+        sender_id,
+        original_id,
+        error,
+    } = context;
+
+    // Lock the clients map and remove the service
+    let mut map = clients.lock().await;
+    if let Some(service_key) = map
+        .iter()
+        .find(|(_, c)| c.service_id.as_deref() == Some(service_id))
+        .map(|(key, _)| key.clone())
+    {
+        map.remove(&service_key);
     }
 
-    if let Some(tester) = clients.lock().await.get(sender_id) {
-        let err = json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "error": { "code": -32601, "message": "Method not found" }
-        });
-        let _ = tester.tx.send(Message::Text(err.to_string())).await;
+    // Clean up entries in the routed map
+    if let Some(routed) = routed {
+        let mut routed_map = routed.lock().await;
+        routed_map.retain(|_, req| req.service_id != service_id);
     }
+
+    // Clean up entries in the pending map (if provided)
+    if let Some(pending_map) = pending {
+        let mut pending_map = pending_map.lock().await;
+        pending_map.retain(|_, tracker| !tracker.expected.contains(service_id));
+    }
+
+    // Send an error response back to the caller
+    if let Some(tx) = map.get(sender_id).map(|c| c.tx.clone()) {
+        let err_response = json!({
+            "jsonrpc": "2.0",
+            "id": original_id,
+            "error": { "code": error.code, "message": error.message }
+        });
+        let _ = tx.send(Message::Text(err_response.to_string())).await;
+    }
+}
+
+// Error handling functions
+async fn send_invalid_id_error(v: &Value, clients: &Clients, sender_id: &str) {
+    eprintln!(
+        "Invalid id format. Expected u64, but received: {:?}",
+        v["id"]
+    );
+    let err = json!({
+        "jsonrpc": "2.0",
+        "id": v["id"],
+        "error": { "code": -32600, "message": "Invalid id format" }
+    });
+    if let Some(tx) = clients.lock().await.get(sender_id).map(|c| c.tx.clone()) {
+        let _ = tx.send(Message::Text(err.to_string())).await;
+    }
+}
+
+async fn send_no_services_error(id: u64, sender: mpsc::Sender<Message>) {
+    eprintln!("No services available for processing the request");
+    let err = json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": { "code": -32001, "message": "No services available" }
+    });
+    let _ = sender.send(Message::Text(err.to_string())).await;
+}
+
+async fn send_method_not_found_error(id: u64, clients: &Clients, sender_id: &str, method: &str) {
+    eprint!("send_method_not_found_error {}", method);
+    let err = json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": { "code": -32601, "message": format!("Method {} not found", method) }
+    });
+    if let Some(tx) = clients.lock().await.get(sender_id).map(|c| c.tx.clone()) {
+        let _ = tx.send(Message::Text(err.to_string())).await;
+    }
+    println!("I'm here");
+}
+
+async fn send_service_not_available_error(
+    id: u64,
+    clients: &Clients,
+    sender_id: &str,
+    service_id: &str,
+) {
+    eprintln!(
+        "The Service {} is not available for processing the method",
+        service_id
+    );
+    let err = json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": { "code": -32001, "message": format!("The service {} is not available for processing the method", service_id) }
+    });
+    if let Some(tx) = clients.lock().await.get(sender_id).map(|c| c.tx.clone()) {
+        let _ = tx.send(Message::Text(err.to_string())).await;
+    }
+
+    println!("I'm here");
 }

@@ -33,3 +33,20 @@ pub fn load_internal_api_map() -> Arc<HashMap<String, Value>> {
         }
     }
 }
+
+pub fn load_service_rules() -> HashMap<String, String> {
+    let file_content =
+        std::fs::read_to_string("mock_service.rules").expect("Failed to read rules file");
+    let rules: Value = serde_json::from_str(&file_content).expect("Failed to parse rules file");
+
+    let mut method_to_service_map = HashMap::new();
+    if let Some(rules_map) = rules["rules"].as_object() {
+        for (method_pattern, rule) in rules_map {
+            if let Some(alias) = rule["alias"].as_str() {
+                method_to_service_map.insert(method_pattern.clone(), alias.to_string());
+            }
+        }
+    }
+
+    method_to_service_map
+}

@@ -35,7 +35,6 @@ async-trait = "0.1.57"
 [lib]
 path = "lib.rs"
 
-# Explicitly declare each binary
 [[bin]]
 name = "appgw"
 path = "bin/appgw.rs"

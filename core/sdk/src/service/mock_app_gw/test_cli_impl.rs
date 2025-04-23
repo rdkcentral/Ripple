@@ -20,6 +20,10 @@ use std::io::{self, Write};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static REQ_ID_COUNTER: AtomicU64 = AtomicU64::new(5000);
+
 pub async fn start_tester() {
     let (ws_stream, _) = connect_async("ws://127.0.0.1:1234")
         .await
@@ -33,7 +37,7 @@ pub async fn start_tester() {
     tokio::spawn(async move {
         while let Some(Ok(Message::Text(resp))) = read.next().await {
             if let Ok(v) = serde_json::from_str::<Value>(&resp) {
-                let id = v["id"].as_str().unwrap_or("unknown").to_string();
+                let id = v["id"].as_u64().unwrap_or(0);
                 if let Some(result) = v.get("result") {
                     if let Some(service) = result.get("from_service") {
                         println!(
@@ -51,7 +55,7 @@ pub async fn start_tester() {
                     println!("[Unknown][{}]: {}", id, resp);
                 }
             } else {
-                println!("[Tester] Non-JSON response: {}", resp);
+                println!("[Test CLI] Non-JSON response: {}", resp);
             }
         }
     });
@@ -59,11 +63,10 @@ pub async fn start_tester() {
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin);
     let mut line = String::new();
-    let mut counter = 100;
 
     loop {
         println!();
-        println!("=== Tester Menu ===");
+        println!("=== Test CLI Menu ===");
         println!("1. Call service1.get_status");
         println!("2. Call service2.compute");
         println!("3. Send aggregate.device_status");
@@ -78,8 +81,8 @@ pub async fn start_tester() {
             break;
         }
 
-        let id = format!("test-{}", counter);
-        counter += 1;
+        let id = REQ_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
+
         let choice = line.trim();
 
         let msg = match choice {
