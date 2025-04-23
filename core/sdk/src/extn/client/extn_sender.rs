@@ -19,10 +19,9 @@ use std::collections::HashMap;
 
 use crate::{
     api::{gateway::rpc_gateway_api::ApiMessage, manifest::extn_manifest::ExtnSymbol}, extn::{
-        extn_client_message::{ExtnMessage, ExtnPayloadProvider}, extn_id::ExtnId, ffi::ffi_message::CExtnMessage,
+        extn_client_message::{ExtnMessage, ExtnPayloadProvider}, extn_id::ExtnId, 
     }, framework::{ripple_contract::RippleContract, RippleResponse}, utils::error::RippleError
 };
-use async_channel::Sender as CSender;
 use chrono::Utc;
 #[cfg(not(test))]
 use log::{debug, error, trace};
@@ -63,15 +62,6 @@ impl ExtnSender {
         todo!()
     }
 
-    pub fn new(
-        tx: CSender<CExtnMessage>,
-        id: ExtnId,
-        context: Vec<String>,
-        fulfills: Vec<String>,
-        config: Option<HashMap<String, String>>,
-    ) -> Self {
-        todo!()
-    }
     pub fn check_contract_permission(&self, contract: RippleContract) -> bool {
         if self.id.is_main() {
             true
@@ -103,8 +93,7 @@ impl ExtnSender {
         &self,
         id: String,
         payload: impl ExtnPayloadProvider,
-        other_sender: Option<Sender<ApiMessage>>,
-        callback: Option<Sender<ApiMessage>>,
+        other_sender: Option<Sender<ApiMessage>>
     ) -> Result<(), RippleError> {
         // Extns can only send request to which it has permissions through Extn manifest
         if !self.check_contract_permission(payload.get_contract()) {
@@ -480,8 +469,7 @@ pub mod tests {
         let result = sender.send_request(
             "some_id".to_string(),
             DeviceInfoRequest::Model.clone(),
-            Some(sender.tx.clone()),
-            None,
+            Some(sender.tx.clone())
         );
 
         if permitted_req {

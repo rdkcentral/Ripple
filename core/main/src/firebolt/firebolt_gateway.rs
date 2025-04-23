@@ -23,12 +23,10 @@ use ripple_sdk::{
         firebolt::{
             fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
             fb_openrpc::FireboltOpenRpcMethod,
-        },
-        gateway::{
+        }, gateway::{
             rpc_error::RpcError,
             rpc_gateway_api::{ApiMessage, ApiProtocol, JsonRpcApiResponse, RpcRequest},
-        },
-        observability::{log_signal::LogSignal, metrics_util::ApiStats},
+        }, manifest::extn_manifest::ExtnSymbol, observability::{log_signal::LogSignal, metrics_util::ApiStats}
     },
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
@@ -83,6 +81,7 @@ pub enum FireboltGatewayCommand {
     UnregisterSession {
         session_id: String,
         cid: String,
+        is_service: bool
     },
     HandleRpc {
         request: RpcRequest,
@@ -94,6 +93,11 @@ pub enum FireboltGatewayCommand {
         response: JsonRpcApiResponse,
     },
     StopServer,
+    RegisterExtnService {
+        session_id: String,
+        session: Session,
+        symbol: ExtnSymbol
+    }
 }
 
 impl FireboltGateway {
@@ -134,16 +138,29 @@ impl FireboltGateway {
                         .session_state
                         .add_session(session_id, session);
                 }
-                UnregisterSession { session_id, cid } => {
+                UnregisterSession { session_id, cid, is_service } => {
                     AppEvents::remove_session(&self.state.platform_state, session_id.clone());
-                    ProviderBroker::unregister_session(&self.state.platform_state, cid.clone())
+                    
+                    if is_service {
+                        self.state.platform_state.extn_manifest.get_all_extns()
+                            .iter()
+                            .for_each(|extn| {
+                                if extn.id.eq(&session_id) {
+                                    self.state.platform_state.get_client().get_extn_client().remove_sender(session_id.clone(), extn.clone());
+                                }
+                            });
+                    } else {
+                        ProviderBroker::unregister_session(&self.state.platform_state, cid.clone())
                         .await;
-                    self.state
-                        .platform_state
-                        .endpoint_state
-                        .cleanup_for_app(&cid)
-                        .await;
+                        self.state
+                            .platform_state
+                            .endpoint_state
+                            .cleanup_for_app(&cid)
+                            .await;
+                    }
+                   
                     self.state.platform_state.session_state.clear_session(&cid);
+                    
                 }
                 HandleRpc { request } => self.handle(request, None).await,
                 HandleRpcForExtn { msg } => {
@@ -159,6 +176,17 @@ impl FireboltGateway {
                 StopServer => {
                     error!("Stopping server");
                     break;
+                }
+                RegisterExtnService { session_id, session, symbol } => {
+                    let id = session.get_app_id();
+                    if let Some(sender) = session.get_sender() {
+                        self.state.platform_state.get_client().get_extn_client().add_sender(id, symbol, sender);
+                    }
+                    self.state
+                        .platform_state
+                        .session_state
+                        .add_session(session_id, session);
+                    
                 }
             }
         }
@@ -234,7 +262,7 @@ impl FireboltGateway {
             .handle_broker_response(response);
     }
 
-    pub async fn handle(&self, request: RpcRequest, mut extn_msg: Option<ExtnMessage>) {
+    pub async fn handle(&self, request: RpcRequest, extn_msg: Option<ExtnMessage>) {
         trace!(
             "firebolt_gateway Received Firebolt request {} {} {}",
             request.ctx.request_id,
@@ -242,8 +270,6 @@ impl FireboltGateway {
             request.params_json
         );
         let mut extn_request = false;
-        // First check sender if no sender no need to process
-        let callback_c = extn_msg.clone();
         LogSignal::new(
             "firebolt_gateway".into(),
             "start_processing_request".into(),
@@ -254,26 +280,6 @@ impl FireboltGateway {
         match request.ctx.protocol {
             ApiProtocol::Extn => {
                 extn_request = true;
-                // extn protocol with subscription requests means there is no need for callback
-                // it is using extn_client::subscribe method which uses id field to resolve.
-                // if !request.is_subscription()
-                //     && (callback_c.is_none() || callback_c.unwrap().callback.is_none())
-                // {
-                //     trace!("No callback for request {:?} ", request);
-                //     if let Some(extn_message) = extn_msg.clone() {
-                //         let extn_id = extn_message.requestor;
-                //         extn_cb = self
-                //             .state
-                //             .platform_state
-                //             .get_client()
-                //             .get_extn_client()
-                //             .get_extn_sender_with_extn_id(&extn_id.to_string());
-                //     }
-                //     if extn_cb.is_none() {
-                //         error!("No sender for request {:?} ", request);
-                //         return;
-                //     }
-                // }
             }
             _ => {
                 if !self

@@ -644,7 +644,6 @@ pub mod tests {
     #[rstest(exp_resp, case(Some(ExtnResponse::Boolean(true))))]
     #[tokio::test(flavor = "multi_thread")]
     async fn test_request_processor_run(exp_resp: Option<ExtnResponse>) {
-        let (mock_sender, receiver) = ExtnSender::mock();
         let mut extn_client = ExtnClient::new_main();
         let processor = MockRequestProcessor {
             state: MockState {
@@ -707,7 +706,7 @@ pub mod tests {
     )]
     #[tokio::test]
     async fn test_event_processor_run(exp_resp: Option<ExtnResponse>) {
-        let (mock_sender, mock_rx) = ExtnSender::mock();
+        let (mock_sender, _mock_rx) = ExtnSender::mock();
         let mut extn_client = ExtnClient::new_main();
         let processor = MockEventProcessor {
             state: MockState {
@@ -721,7 +720,7 @@ pub mod tests {
         let extn_client_for_thread = extn_client.clone();
 
         extn_client.clone().add_sender(
-            ExtnId::get_main_target("main".into()),
+            ExtnId::get_main_target("main".into()).to_string(),
             ExtnSymbol {
                 id: "id".to_string(),
                 uses: vec!["uses".to_string()],

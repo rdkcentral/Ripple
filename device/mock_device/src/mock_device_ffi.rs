@@ -19,10 +19,7 @@ use std::collections::HashMap;
 
 use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::{
-    api::{manifest::extn_manifest::ExtnSymbol, status_update::ExtnStatus},
-    async_channel::Receiver as CReceiver,
-    export_channel_builder, export_extn_metadata,
-    extn::{
+    api::{manifest::extn_manifest::ExtnSymbol, status_update::ExtnStatus}, async_channel::Receiver as CReceiver, export_channel_builder, export_extn_metadata, extn::{
         client::{extn_client::ExtnClient, extn_sender::ExtnSender},
         extn_id::{ExtnClassId, ExtnId, ExtnProviderAdjective},
         ffi::{
@@ -30,12 +27,7 @@ use ripple_sdk::{
             ffi_library::{CExtnMetadata, ExtnMetadata, ExtnSymbolMetadata},
             ffi_message::CExtnMessage,
         },
-    },
-    framework::ripple_contract::{ContractFulfiller, RippleContract},
-    log::{debug, info},
-    semver::Version,
-    tokio::{self, runtime::Runtime},
-    utils::{error::RippleError, logger::init_logger},
+    }, framework::ripple_contract::{ContractFulfiller, RippleContract}, log::{debug, info}, processor::rpc_request_processor::RPCRequestProcessor, semver::Version, tokio::{self, runtime::Runtime}, utils::{error::RippleError, logger::init_logger}
 };
 
 use crate::{
@@ -56,16 +48,12 @@ fn init_library() -> CExtnMetadata {
         })]),
         Version::new(1, 0, 0),
     );
-    let mock_device_extn = ExtnSymbolMetadata::get(
-        ExtnId::new_extn(ExtnClassId::Jsonrpsee, EXTN_NAME.into()),
-        ContractFulfiller::new(vec![RippleContract::JsonRpsee]),
-        Version::new(1, 0, 0),
-    );
+
 
     debug!("Returning mock_device metadata builder");
     let extn_metadata = ExtnMetadata {
         name: EXTN_NAME.into(),
-        symbols: vec![mock_device_channel, mock_device_extn],
+        symbols: vec![mock_device_channel],
     };
 
     extn_metadata.into()
@@ -89,7 +77,15 @@ fn start_launcher() {
         tokio::spawn(async move {
             match boot_ws_server(client.clone()).await {
                 Ok(server) => {
-                    client.add_request_processor(MockDeviceProcessor::new(client.clone(), server))
+                    client.add_request_processor(MockDeviceProcessor::new(client.clone(), server));
+                    let mut methods = Methods::new();
+                    let _ = methods.merge(MockDeviceController::new(client.clone()).into_rpc());
+                    let processor = RPCRequestProcessor::new(
+                        client.clone(),
+                        methods,
+                        ExtnId::new_channel(ExtnClassId::Gateway, "badger".into()),
+                    );
+                    client.add_request_processor(processor);
                 }
                 Err(err) => panic!("websocket server failed to start. {}", err),
             };
@@ -97,6 +93,7 @@ fn start_launcher() {
             // Lets Main know that the mock_device channel is ready
             let _ = client.event(ExtnStatus::Ready);
         });
+        
         client_c.initialize().await;
     });
 }
@@ -131,7 +128,6 @@ export_channel_builder!(ExtnChannelBuilder, init_extn_builder);
 mod tests {
     use serde_json::json;
 
-    use crate::test_utils::extn_sender_web_socket_mock_server;
 
     use super::*;
 

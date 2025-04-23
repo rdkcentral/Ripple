@@ -15,44 +15,15 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
-    extn::extn_client_message::{ExtnMessage, ExtnResponse},
-    log::{error, trace},
-    serde_json::{self, Result as SResult},
+    api::gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
+    extn::{client::extn_client::ExtnClient, extn_client_message::ExtnMessage},
+    log::trace
 };
 
 use crate::state::otel_state::OpMetricState;
 
-pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage) {
-    // let callback = match extn_msg.clone().callback {
-    //     Some(cb) => cb,
-    //     None => {
-    //         error!("No valid callbacks");
-    //         return;
-    //     }
-    // };
-
-    let r: SResult<JsonRpcApiResponse> = serde_json::from_str(&msg.jsonrpc_msg);
-
-    if let Ok(resp) = r {
-        let response_value = if let Some(result) = resp.result {
-            result
-        } else if let Some(error) = resp.error {
-            error
-        } else {
-            // Most of handler calls return Null resulting in None
-            serde_json::Value::Null
-        };
-
-        let return_value = ExtnResponse::Value(response_value);
-        // if let Ok(response) = extn_msg.get_response(return_value) {
-        //     if let Err(e) = callback.try_send(response.into()) {
-        //         error!("Error while sending back rpc request for extn {:?}", e);
-        //     }
-        // } else {
-        //     error!("Not a Request object {:?}", extn_msg);
-        // }
-    }
+pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage, client: ExtnClient) {
+    client.respond_with_api_message(extn_msg, msg);
 }
 
 pub fn get_rpc_header_with_status(request: &RpcRequest, status_code: i32) -> Option<String> {

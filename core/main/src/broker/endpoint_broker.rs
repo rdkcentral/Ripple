@@ -1253,6 +1253,7 @@ impl BrokerOutputForwarder {
                                 if let Ok(extn_message) =
                                     platform_state.endpoint_state.get_extn_message(id, is_event)
                                 {
+                                    let client = platform_state.get_client().get_extn_client();
                                     if is_event {
                                         forward_extn_event(
                                             &extn_message,
@@ -1261,7 +1262,7 @@ impl BrokerOutputForwarder {
                                         )
                                         .await;
                                     } else {
-                                        return_extn_response(message, extn_message)
+                                        return_extn_response(message, extn_message, client)
                                     }
                                 }
                             } else if let Some(session) = platform_state

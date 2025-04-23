@@ -37,10 +37,6 @@ use ripple_sdk::{
     utils::error::RippleError,
 };
 
-use crate::service::extn::ripple_client::RippleClient;
-
-use super::bootstrap_state::ChannelsState;
-
 #[derive(Debug)]
 pub struct LoadedLibrary {
     pub library: Library,
@@ -182,9 +178,6 @@ impl ExtnState {
         &mut self,
         channel: PreLoadedExtnChannel,
     ) -> Result<(), RippleError> {
-        let symbol = channel.symbol.clone();
-        let extn_id = channel.extn_id.clone();
-        
         let extn_channel = channel.channel;
         thread::spawn(move || {
             (extn_channel.start)();

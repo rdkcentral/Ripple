@@ -86,7 +86,6 @@ mod tests {
     use core::panic;
 
     use super::*;
-    use crate::api::config::Config;
     use crate::extn::extn_client_message::ExtnRequest;
     use crate::extn::extn_id::ExtnClassId;
     use crate::framework::ripple_contract::RippleContract;
