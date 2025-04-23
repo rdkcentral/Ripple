@@ -51,7 +51,7 @@ pub async fn boot_thunder(
     plugin_param: ThunderPluginBootParam,
 ) -> Option<ThunderBootstrapStateWithClient> {
     info!("Booting thunder initiated");
-    let state = if ext_client.get_bool_config("use_with_thunder_async_client") {
+    let state = {
         info!("Using thunder_async_clinet");
         let mut extn_client = ext_client.clone();
         let mut gateway_url = match url::Url::parse(GATEWAY_DEFAULT) {
@@ -101,11 +101,11 @@ pub async fn boot_thunder(
 
         if let Ok(thndr_client) = ThunderClientBuilder::start_thunder_client(
             gateway_url.clone(),
-            None,
-            None,
-            None,
-            None,
-            true,
+            // None,
+            // None,
+            // None,
+            // None,
+            // true,
         )
         .await
         {
@@ -128,11 +128,9 @@ pub async fn boot_thunder(
 
             Some(thndr_boot_stateclient)
         } else {
+            error!("Unable to start_thunder_client");
             None
         }
-    } else {
-        error!("Unable to connect to Thunder, error in ThunderGetConfigStep");
-        None
     };
 
     if let Some(s) = state.clone() {

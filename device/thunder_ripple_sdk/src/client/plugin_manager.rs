@@ -472,7 +472,7 @@ impl PluginManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client::thunder_client_pool::ThunderClientPool;
+    //use crate::client::thunder_client_pool::ThunderClientPool;
     use crate::tests::thunder_client_pool_test_utility::{
         CustomMethodHandler, MockWebSocketServer,
     };

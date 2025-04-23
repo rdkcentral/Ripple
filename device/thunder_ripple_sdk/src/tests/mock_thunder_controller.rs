@@ -202,15 +202,15 @@ impl MockThunderController {
     ) -> (CachedState, Receiver<CExtnMessage>) {
         let s_thunder = MockThunderController::start_with_custom_handlers(custom_thunder);
         let thunder_client = ThunderClient {
-            sender: Some(s_thunder),
-            pooled_sender: None,
+            // sender: Some(s_thunder),
+            // pooled_sender: None,
             id: Uuid::new_v4(),
-            plugin_manager_tx: None,
-            subscriptions: None,
+            // plugin_manager_tx: None,
+            // subscriptions: None,
             thunder_async_client: None,
             thunder_async_subscriptions: None,
             thunder_async_callbacks: None,
-            use_thunder_async: false,
+            //use_thunder_async: false,
         };
 
         let (s, r) = unbounded();
@@ -222,15 +222,15 @@ impl MockThunderController {
     pub fn get_thunder_state_mock_with_handler(handler: Option<CustomHandler>) -> ThunderState {
         let s_thunder = MockThunderController::start_with_custom_handlers(handler);
         let thunder_client = ThunderClient {
-            sender: Some(s_thunder),
-            pooled_sender: None,
+            // sender: Some(s_thunder),
+            // pooled_sender: None,
             id: Uuid::new_v4(),
-            plugin_manager_tx: None,
-            subscriptions: None,
+            // plugin_manager_tx: None,
+            // subscriptions: None,
             thunder_async_client: None,
             thunder_async_subscriptions: None,
             thunder_async_callbacks: None,
-            use_thunder_async: false,
+            // use_thunder_async: false,
         };
 
         let (s, _) = unbounded();

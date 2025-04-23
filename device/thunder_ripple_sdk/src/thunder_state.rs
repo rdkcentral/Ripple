@@ -122,9 +122,10 @@ impl ThunderState {
         {
             if listen {
                 self.subscribe(handler).await
-            } else {
-                self.unsubscribe(handler).await
             }
+            //  else {
+            //     self.unsubscribe(handler).await
+            // }
         }
     }
 
@@ -134,14 +135,14 @@ impl ThunderState {
         let _ = client.subscribe(handler.request, sender).await;
     }
 
-    async fn unsubscribe(&self, handler: ThunderEventHandler) {
-        let client = self.get_thunder_client();
-        let request = DeviceUnsubscribeRequest {
-            module: handler.request.module,
-            event_name: handler.request.event_name,
-        };
-        client.unsubscribe(request).await;
-    }
+    // async fn unsubscribe(&self, handler: ThunderEventHandler) {
+    //     let client = self.get_thunder_client();
+    //     let request = DeviceUnsubscribeRequest {
+    //         module: handler.request.module,
+    //         event_name: handler.request.event_name,
+    //     };
+    //     client.unsubscribe(request).await;
+    // }
 
     pub fn start_event_thread(&self) {
         let mut rx = self.receiver.write().unwrap();

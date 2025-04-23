@@ -47,7 +47,7 @@
 // use url::Url;
 use super::thunder_async_client::{ThunderAsyncClient, ThunderAsyncRequest, ThunderAsyncResponse};
 use super::thunder_async_client_plugins_status_mgr::{AsyncCallback, AsyncSender};
-use super::thunder_client_pool::ThunderPoolCommand;
+//use super::thunder_client_pool::ThunderPoolCommand;
 use super::{
     device_operator::{
         DeviceCallRequest, DeviceChannelParams, DeviceChannelRequest, DeviceOperator,
@@ -237,15 +237,15 @@ impl ThunderMessage {
 
 #[derive(Debug, Clone)]
 pub struct ThunderClient {
-    pub sender: Option<MpscSender<ThunderMessage>>,
-    pub pooled_sender: Option<MpscSender<ThunderPoolCommand>>,
+    //pub sender: Option<MpscSender<ThunderMessage>>,
+    //pub pooled_sender: Option<MpscSender<ThunderPoolCommand>>,
     pub id: Uuid,
-    pub plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
-    pub subscriptions: Option<Arc<Mutex<HashMap<String, ThunderSubscription>>>>,
+    //pub plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
+    //pub subscriptions: Option<Arc<Mutex<HashMap<String, ThunderSubscription>>>>,
     pub thunder_async_client: Option<ThunderAsyncClient>,
     pub thunder_async_subscriptions: Option<Arc<RwLock<BrokerSubMap>>>,
     pub thunder_async_callbacks: Option<Arc<RwLock<BrokerCallbackMap>>>,
-    pub use_thunder_async: bool,
+    //pub use_thunder_async: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -253,15 +253,15 @@ pub struct DefaultThunderResult {
     pub success: bool,
 }
 
-impl ThunderClient {
-    /// Sends a message to thunder. If this client is pooled
-    /// then it will wrap the message in a pool command before sending
-    pub async fn send_message(&self, message: ThunderMessage) {
-        if let Some(s) = &self.sender {
-            mpsc_send_and_log(s, message, "ThunderMessage").await;
-        }
-    }
-}
+// impl ThunderClient {
+//     // Sends a message to thunder. If this client is pooled
+//     // then it will wrap the message in a pool command before sending
+//     // pub async fn send_message(&self, message: ThunderMessage) {
+//     //     if let Some(s) = &self.sender {
+//     //         mpsc_send_and_log(s, message, "ThunderMessage").await;
+//     //     }
+//     // }
+// }
 
 #[async_trait]
 impl DeviceOperator for ThunderClient {
@@ -292,26 +292,25 @@ impl DeviceOperator for ThunderClient {
         request: DeviceSubscribeRequest,
         handler: mpsc::Sender<DeviceResponseMessage>,
     ) -> Result<DeviceResponseMessage, RecvError> {
-        if !self.use_thunder_async {
-            let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
-            let message = ThunderSubscribeMessage {
-                module: request.module,
-                event_name: request.event_name,
-                params: request.params,
-                handler,
-                callback: Some(tx),
-                sub_id: request.sub_id,
-            };
-            let msg = ThunderMessage::ThunderSubscribeMessage(message);
-            self.send_message(msg).await;
-            let result = rx.await;
-            if let Err(ref e) = result {
-                error!("subscribe: e={:?}", e);
-            }
-            result
-        } else if let Some(subscribe_request) =
-            self.add_subscription_handler(&request, handler.clone())
-        {
+        // if !self.use_thunder_async {
+        //     let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
+        //     let message = ThunderSubscribeMessage {
+        //         module: request.module,
+        //         event_name: request.event_name,
+        //         params: request.params,
+        //         handler,
+        //         callback: Some(tx),
+        //         sub_id: request.sub_id,
+        //     };
+        //     let msg = ThunderMessage::ThunderSubscribeMessage(message);
+        //     self.send_message(msg).await;
+        //     let result = rx.await;
+        //     if let Err(ref e) = result {
+        //         error!("subscribe: e={:?}", e);
+        //     }
+        //     result
+        // } else
+        if let Some(subscribe_request) = self.add_subscription_handler(&request, handler.clone()) {
             let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
             self.add_callback(&subscribe_request, tx);
             if let Some(async_client) = &self.thunder_async_client {
@@ -331,17 +330,17 @@ impl DeviceOperator for ThunderClient {
     }
 
     async fn unsubscribe(&self, request: DeviceUnsubscribeRequest) {
-        if !self.use_thunder_async {
-            let message = ThunderUnsubscribeMessage {
-                module: request.module,
-                event_name: request.event_name,
-                subscription_id: None,
-            };
-            let msg = ThunderMessage::ThunderUnsubscribeMessage(message);
-            self.send_message(msg).await;
-        } else {
-            // unsubscribe() deprecate
-        }
+        // if !self.use_thunder_async {
+        //     let message = ThunderUnsubscribeMessage {
+        //         module: request.module,
+        //         event_name: request.event_name,
+        //         subscription_id: None,
+        //     };
+        //     let msg = ThunderMessage::ThunderUnsubscribeMessage(message);
+        //     self.send_message(msg).await;
+        // } else {
+        // unsubscribe() deprecate
+        //}
     }
 }
 
@@ -826,11 +825,11 @@ impl ThunderClientBuilder {
 
     pub async fn start_thunder_client(
         url: Url,
-        plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
-        pool_tx: Option<mpsc::Sender<ThunderPoolCommand>>,
-        thunder_connection_state: Option<Arc<ThunderConnectionState>>,
-        existing_client: Option<ThunderClient>,
-        use_thunderasync_client: bool,
+        // plugin_manager_tx: Option<MpscSender<PluginManagerCommand>>,
+        // pool_tx: Option<mpsc::Sender<ThunderPoolCommand>>,
+        // thunder_connection_state: Option<Arc<ThunderConnectionState>>,
+        // existing_client: Option<ThunderClient>,
+        // use_thunderasync_client: bool,
     ) -> Result<ThunderClient, RippleError> {
         // if !use_thunderasync_client {
         //     Self::start_thunderpool_client(
@@ -849,15 +848,15 @@ impl ThunderClientBuilder {
         let client = ThunderAsyncClient::new(callback, broker_sender);
 
         let thunder_client = ThunderClient {
-            sender: None,
-            pooled_sender: None,
+            // sender: None,
+            // pooled_sender: None,
             id: Uuid::new_v4(),
-            plugin_manager_tx: None,
-            subscriptions: None,
+            // plugin_manager_tx: None,
+            // subscriptions: None,
             thunder_async_client: Some(client),
             thunder_async_subscriptions: Some(Arc::new(RwLock::new(HashMap::new()))),
             thunder_async_callbacks: Some(Arc::new(RwLock::new(HashMap::new()))),
-            use_thunder_async: true,
+            //use_thunder_async: true,
         };
 
         ThunderClientManager::start(thunder_client.clone(), broker_rx, resp_rx, url.to_string());
@@ -868,15 +867,15 @@ impl ThunderClientBuilder {
     #[cfg(test)]
     pub fn mock(sender: MpscSender<ThunderMessage>) -> ThunderClient {
         ThunderClient {
-            sender: Some(sender),
-            pooled_sender: None,
+            // sender: Some(sender),
+            // pooled_sender: None,
             id: Uuid::new_v4(),
-            plugin_manager_tx: None,
-            subscriptions: None,
+            // plugin_manager_tx: None,
+            // subscriptions: None,
             thunder_async_client: None,
             thunder_async_subscriptions: None,
             thunder_async_callbacks: None,
-            use_thunder_async: false,
+            // use_thunder_async: false,
         }
     }
 }
