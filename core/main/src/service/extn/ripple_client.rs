@@ -152,10 +152,6 @@ impl RippleClient {
         self.get_extn_client().add_event_processor(stream_processor)
     }
 
-    pub fn add_extn_sender(&self, id: ExtnId, symbol: ExtnSymbol, sender: Sender<ApiMessage>) {
-        self.get_extn_client().add_sender(id, symbol, sender);
-    }
-
     pub fn cleanup_event_processor(&self, capability: ExtnId) {
         self.get_extn_client().cleanup_event_stream(capability);
     }

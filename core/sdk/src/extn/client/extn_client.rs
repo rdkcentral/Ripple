@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use async_channel::{ Receiver as CReceiver};
 use chrono::Utc;
 use log::warn;
 #[cfg(not(test))]
@@ -43,7 +42,6 @@ use crate::{
     extn::{
         extn_client_message::{ExtnMessage, ExtnPayloadProvider, ExtnResponse},
         extn_id::ExtnId,
-        ffi::ffi_message::CExtnMessage,
     },
     framework::{ripple_contract::RippleContract, RippleResponse},
     utils::{error::RippleError, extn_utils::ExtnStackSize, ws_utils::WebSocketUtils},
@@ -115,17 +113,6 @@ impl ExtnClient {
     /// `receiver` - Async Channel Receiver provided by the `Main` Application for IEC
     ///
     /// `sender` - [ExtnSender] object provided by `Main` Application with a unique [ExtnCapability]
-    pub fn new(receiver: CReceiver<CExtnMessage>, sender: ExtnSender) -> ExtnClient {
-        ExtnClient {
-            sender,
-            extn_sender_map: Arc::new(RwLock::new(HashMap::new())),
-            contract_map: Arc::new(RwLock::new(HashMap::new())),
-            response_processors: Arc::new(RwLock::new(HashMap::new())),
-            request_processors: Arc::new(RwLock::new(HashMap::new())),
-            event_processors: Arc::new(RwLock::new(HashMap::new())),
-            ripple_context: Arc::new(RwLock::new(RippleContext::default())),
-        }
-    }
 
     pub fn new_main() -> ExtnClient {
         todo!()
@@ -202,8 +189,7 @@ impl ExtnClient {
     }
 
     /// Used mainly by `Main` application to add senders of the extensions for IEC
-    pub fn add_sender(&mut self, id: ExtnId, symbol: ExtnSymbol, sender: MSender<ApiMessage>) {
-        let id = id.to_string();
+    pub fn add_sender(&mut self, id: String, symbol: ExtnSymbol, sender: MSender<ApiMessage>) {
         {
             // creating a map - extnId & sender used for requestor mapping to add to callback in extnMessage
             let mut sender_map = self.extn_sender_map.write().unwrap();
@@ -227,6 +213,20 @@ impl ExtnClient {
         }
     }
 
+    pub fn remove_sender(&mut self, id:String, symbol: ExtnSymbol) {
+        {
+            let mut sender_map = self.extn_sender_map.write().unwrap();
+            sender_map.remove(&id);
+        }
+
+        {
+            let mut contract_map = self.contract_map.write().unwrap();
+            for contract in symbol.fulfills {
+                contract_map.remove(&contract);
+            }
+        }
+    }
+
     pub fn get_other_senders(&self) -> Vec<MSender<ApiMessage>> {
         self.extn_sender_map
             .read()
@@ -241,7 +241,11 @@ impl ExtnClient {
     /// Called once per client initialization this is a blocking method. Use a spawned thread to call this method
     pub async fn initialize(&self) {
         debug!("Starting initialize");
-        let path = format!("ws://127.0.0.1:3474?service_handshake={}",self.sender.get_cap().to_string());
+        let base_path = std::env::var("RIPPLE_SERVICE_HANDSHAKE_PATH").unwrap_or_else(|_| {
+            "ws://127.0.0.1:3474?service_handshake=".to_string()
+        });
+
+        let path = format!("{}{}",base_path, self.sender.get_cap().to_string());
         let (tx,mut tr) = mpsc::channel::<ApiMessage>(32);
         if let Ok((mut ws_tx,mut ws_rx)) = WebSocketUtils::get_ws_stream(&path, None).await {
             tokio::pin! {
@@ -589,12 +593,22 @@ impl ExtnClient {
         }
     }
 
+    pub fn respond_with_api_message(&self, req: ExtnMessage, response: ApiMessage) {
+        if !req.payload.is_request() {
+            error!("Invalid input");
+        } else {
+            let _ = self.sender.send(response,self.get_extn_sender_with_extn_id(&req.requestor.to_string()) ).map_err(|e|{
+                error!("Error sending message {:?}", e);
+            });
+        }
+    }
+
     /// Method used for sending a fully build [ExtnMessage]
     /// # Arguments
     /// `msg` - [ExtnMessage]
     pub async fn send_message(&mut self, msg: ExtnMessage) -> RippleResponse {
         self.sender.respond(
-            msg.clone().into(),
+            msg.clone(),
             self.get_extn_sender_with_extn_id(&msg.requestor.to_string()),
         )
     }
@@ -621,7 +635,7 @@ impl ExtnClient {
         let (tx, rx) = oneshot::channel();
         add_single_processor(id.clone(), Some(tx), self.response_processors.clone());
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
-        self.sender.send_request(id, payload, other_sender, None)?;
+        self.sender.send_request(id, payload, other_sender)?;
         if let Ok(r) = rx.await {
             return Ok(r);
         }
@@ -637,7 +651,7 @@ impl ExtnClient {
         let (tx, rx) = oneshot::channel();
         add_single_processor(id.clone(), Some(tx), self.response_processors.clone());
 
-        match self.sender.send_request(id, payload, None, None) {
+        match self.sender.send_request(id, payload, None) {
             Ok(_) => {
                 if let Ok(r) = rx.await {
                     return Ok(r);
@@ -699,7 +713,7 @@ impl ExtnClient {
 
         match self
             .sender
-            .send_request(id, payload, other_sender, Some(self.sender.tx.clone()))
+            .send_request(id, payload, other_sender)
         {
             Ok(_) => {
                 if let Ok(r) = rx.await {
@@ -856,44 +870,6 @@ impl ExtnClient {
     }
 
     /// Request method which accepts a impl [ExtnPayloadProvider] and uses the capability provided by the trait to send the request.
-    /// As part of the send process it adds a callback to asynchronously respond back to the caller when the response does get
-    /// received. This method can be called synchronously with a timeout
-    ///
-    /// # Arguments
-    /// `payload` - impl [ExtnPayloadProvider]
-    pub async fn standalone_request<T: ExtnPayloadProvider>(
-        &self,
-        payload: impl ExtnPayloadProvider,
-        timeout_in_msecs: u64,
-    ) -> Result<T, RippleError> {
-        let id = uuid::Uuid::new_v4().to_string();
-        let (tx, mut tr) = mpsc::channel(2);
-        let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
-        self.sender
-            .send_request(id, payload, other_sender, Some(tx))?;
-        match tokio::time::timeout(Duration::from_millis(timeout_in_msecs), tr.recv()).await {
-            Ok(Some(cmessage)) => {
-                trace!("** receiving message msg={:?}", cmessage);
-                let message: Result<ExtnMessage, RippleError> = cmessage.try_into();
-
-                if let Ok(message) = message {
-                    if let Some(v) = message.payload.extract() {
-                        return Ok(v);
-                    } else {
-                        return Err(RippleError::ParseError);
-                    }
-                }
-            }
-            Ok(_) => error!("Invalid message" ),
-            Err(_) => {
-                error!("Channel disconnected");
-            }
-        }
-
-        Err(RippleError::InvalidOutput)
-    }
-
-    /// Request method which accepts a impl [ExtnPayloadProvider] and uses the capability provided by the trait to send the request.
     /// This method doesnt provide a response it just provides a result after a successful send. Useful for transient requests from
     /// protocols which do not need a single point of request and response.
     ///
@@ -906,7 +882,7 @@ impl ExtnClient {
         let id = uuid::Uuid::new_v4().to_string();
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
         self.sender
-            .send_request(id.clone(), payload, other_sender, None)?;
+            .send_request(id.clone(), payload, other_sender)?;
         Ok(id)
     }
 
@@ -1071,27 +1047,11 @@ pub mod tests {
             _fulfills: Vec<String>,
             _config: Option<HashMap<String, String>>,
         ) -> ExtnClient {
-            let (tx, rx) = unbounded();
-            let mock_sender = ExtnSender::new(
-                tx,
-                ExtnId::get_main_target("main".into()),
-                vec!["context".to_string()],
-                Vec::new(),
-                Some(HashMap::new()),
-            );
-            ExtnClient::new(rx, mock_sender)
+            ExtnClient::new_main()
         }
 
         fn mock() -> ExtnClient {
-            let (tx, rx) = unbounded();
-            let mock_sender = ExtnSender::new(
-                tx,
-                ExtnId::get_main_target("main".into()),
-                vec!["context".to_string()],
-                Vec::new(),
-                Some(HashMap::new()),
-            );
-            ExtnClient::new(rx, mock_sender)
+            ExtnClient::new_main()
         }
     }
 
@@ -1243,7 +1203,7 @@ pub mod tests {
 
         let (s, _receiver) = mpsc::channel(2);
         extn_client.clone().add_sender(
-            cap,
+            cap.to_string(),
             ExtnSymbol {
                 id: "id".to_string(),
                 uses: Vec::new(),
@@ -1271,7 +1231,7 @@ pub mod tests {
 
         let (s, _receiver) = mpsc::channel(2);
         extn_client.clone().add_sender(
-            ExtnId::get_main_target("main".into()),
+            ExtnId::get_main_target("main".into()).to_string(),
             ExtnSymbol {
                 id: "id".to_string(),
                 uses: Vec::new(),
@@ -1298,7 +1258,7 @@ pub mod tests {
 
         let (s, _receiver) = mpsc::channel(2);
         extn_client.clone().add_sender(
-            ExtnId::get_main_target("main".into()),
+            ExtnId::get_main_target("main".into()).to_string(),
             ExtnSymbol {
                 id: "id".to_string(),
                 uses: Vec::new(),
@@ -1329,7 +1289,7 @@ pub mod tests {
 
         let (s, _receiver) = mpsc::channel(2);
         extn_client.clone().add_sender(
-            ExtnId::get_main_target("main".into()),
+            ExtnId::get_main_target("main".into()).to_string(),
             ExtnSymbol {
                 id: "id".to_string(),
                 uses: Vec::new(),
@@ -1530,7 +1490,7 @@ pub mod tests {
 
         // add sender to main
         main_client.clone().add_sender(
-            ExtnId::new_extn(ExtnClassId::Device, "info".into()),
+            ExtnId::new_extn(ExtnClassId::Device, "info".into()).to_string(),
             ExtnSymbol {
                 id: ExtnId::new_extn(ExtnClassId::Device, "info".into()).to_string(),
                 uses: Vec::new(),
@@ -1613,7 +1573,7 @@ pub mod tests {
 
         // add sender to contract map
         main_client.clone().add_sender(
-            ExtnId::new_extn(ExtnClassId::Device, "info".into()),
+            ExtnId::new_extn(ExtnClassId::Device, "info".into()).to_string(),
             ExtnSymbol {
                 id: ExtnId::new_extn(ExtnClassId::Device, "info".into()).to_string(),
                 uses: vec![RippleContract::Config.as_clear_string()],
@@ -1694,7 +1654,7 @@ pub mod tests {
 
         // add dist sender to main contract map
         main_client.clone().add_sender(
-            ExtnId::new_extn(ExtnClassId::Distributor, "general".into()),
+            ExtnId::new_extn(ExtnClassId::Distributor, "general".into()).to_string(),
             ExtnSymbol {
                 id: ExtnId::new_extn(ExtnClassId::Distributor, "general".into()).to_string(),
                 uses: vec![
@@ -1724,7 +1684,7 @@ pub mod tests {
 
         // add device sender to main contract map
         main_client.clone().add_sender(
-            ExtnId::new_extn(ExtnClassId::Device, "info".into()),
+            ExtnId::new_extn(ExtnClassId::Device, "info".into()).to_string(),
             ExtnSymbol {
                 id: ExtnId::new_extn(ExtnClassId::Device, "info".into()).to_string(),
                 uses: vec![RippleContract::Config.as_clear_string()],
@@ -1786,7 +1746,7 @@ pub mod tests {
         let (mock_sender, mock_rx) = ExtnSender::mock();
         let main_client = ExtnClient::new_main();
         main_client.clone().add_sender(
-            ExtnId::get_main_target("main".into()),
+            ExtnId::get_main_target("main".into()).to_string(),
             ExtnSymbol {
                 id: "id".to_string(),
                 uses: vec!["config".to_string()],
@@ -2201,29 +2161,13 @@ pub mod tests {
         }
     }
 
-    #[tokio::test] // TODO: fix the dummy test
-    async fn test_standalone_request() {
-        let (mock_sender, mock_rx) = ExtnSender::mock();
-        let extn_client = ExtnClient::new_main();
-
-        // TODO - this is a dummy test, need to add a real test
-        if let Ok(ExtnResponse::Value(_v)) = extn_client
-            .standalone_request(Config::DistributorServices, 2000)
-            .await
-        {
-            println!("**** Got some successful response from standalone_request");
-        } else {
-            println!("**** not the expected respone from standalone_request");
-        }
-    }
-
     #[tokio::test]
     async fn test_request_transient() {
         let (mock_sender, mock_rx) = ExtnSender::mock();
         let mut extn_client = ExtnClient::new_main();
 
         extn_client.add_sender(
-            ExtnId::get_main_target("main".into()),
+            ExtnId::get_main_target("main".into()).to_string(),
             ExtnSymbol {
                 id: "id".to_string(),
                 uses: vec!["config".to_string()],
@@ -2362,7 +2306,7 @@ pub mod tests {
 
         if id != "non_existent_id" {
             extn_client.clone().add_sender(
-                ExtnId::get_main_target("main".into()),
+                ExtnId::get_main_target("main".into()).to_string(),
                 ExtnSymbol {
                     id: id.to_string(),
                     uses: vec!["config".to_string()],

@@ -113,15 +113,16 @@ impl MockDeviceController {
             value: serde_json::to_value(request).unwrap(),
             id: self.id.clone(),
         };
-        self.rt
-            .spawn(async move {
-                client
-                    .standalone_request(request, 5000)
-                    .await
-                    .map_err(MockDeviceControllerError::RequestFailed)
-            })
-            .await
-            .map_err(|_| MockDeviceControllerError::ExtnCommunicationFailed)?
+        // self.rt
+        //     .spawn(async move {
+        //         // client
+        //         //     .standalone_request(request, 5000)
+        //         //     .await
+        //         //     .map_err(MockDeviceControllerError::RequestFailed)
+        //     })
+        //     .await
+        //     .map_err(|_| MockDeviceControllerError::ExtnCommunicationFailed)?
+        Err(MockDeviceControllerError::ExtnCommunicationFailed)
     }
 }
 

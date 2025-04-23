@@ -2,12 +2,10 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 
 use crate::{
-    async_channel::{unbounded, Sender},
     extn::{
-        client::{extn_client::ExtnClient, extn_sender::ExtnSender},
+        client::extn_client::ExtnClient,
         extn_client_message::{ExtnMessage, ExtnPayload, ExtnRequest},
         extn_id::{ExtnClassId, ExtnId},
-        ffi::ffi_message::CExtnMessage,
     },
     framework::ripple_contract::RippleContract,
     uuid::Uuid,
@@ -162,32 +160,12 @@ impl<T> MockProcessorClient<T> {
 pub struct MockExtnClient {}
 
 impl MockExtnClient {
-    pub fn client(response_sender: Sender<CExtnMessage>) -> ExtnClient {
-        let (_, ignore) = unbounded();
-        ExtnClient::new(
-            ignore,
-            ExtnSender::new(
-                response_sender,
-                ExtnId::new_channel(ExtnClassId::Internal, "test".into()),
-                Vec::new(),
-                Vec::new(),
-                None,
-            ),
-        )
+    pub fn client() -> ExtnClient {
+        ExtnClient::new_main()
     }
 
     pub fn main() -> ExtnClient {
-        let (main_s, main_r) = async_channel::unbounded();
-        ExtnClient::new(
-            main_r,
-            ExtnSender::new(
-                main_s,
-                ExtnId::get_main_target(String::from("main")),
-                Vec::new(),
-                Vec::new(),
-                None,
-            ),
-        )
+        ExtnClient::new_main()
     }
 
     pub fn start(client: ExtnClient) {

@@ -17,7 +17,6 @@
 
 use std::collections::HashMap;
 
-use async_channel::Sender as CSender;
 #[cfg(not(test))]
 use log::error;
 use serde::{Deserialize, Serialize};
@@ -62,7 +61,7 @@ use crate::{
     utils::error::RippleError,
 };
 
-use super::{extn_id::ExtnId, ffi::ffi_message::CExtnMessage};
+use super::extn_id::ExtnId;
 
 /// Default Message enum for the Communication Channel
 /// Message would be either a request or response or event

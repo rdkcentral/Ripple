@@ -31,10 +31,10 @@ use crate::{
 use futures::SinkExt;
 use futures::StreamExt;
 use jsonrpsee::types::{error::INVALID_REQUEST_CODE, ErrorObject, ErrorResponse, Id};
-use ripple_sdk::tokio_tungstenite::{
+use ripple_sdk::{api::manifest::extn_manifest::{ExtnManifest, ExtnSymbol}, extn::{self, extn_client_message::ExtnMessage, extn_id::{self, ExtnId}}, tokio_tungstenite::{
     tungstenite::{self, Message},
     WebSocketStream,
-};
+}};
 use ripple_sdk::{
     api::{
         gateway::rpc_gateway_api::{
@@ -60,6 +60,7 @@ pub struct ClientIdentity {
     session_id: String,
     app_id: String,
     rpc_v2: bool,
+    service_info: Option<ExtnSymbol>
 }
 
 struct ConnectionCallbackConfig {
@@ -67,6 +68,18 @@ struct ConnectionCallbackConfig {
     pub app_state: AppManagerState,
     pub secure: bool,
     pub internal_app_id: Option<String>,
+    extns: Vec<ExtnSymbol>
+}
+
+impl ConnectionCallbackConfig {
+    fn is_a_valid_extn(&self, id: &str) -> Option<ExtnSymbol> {
+        for extn in &self.extns {
+            if extn.id.eq(id) {
+                return Some(extn.clone());
+            }
+        }
+        None
+    }
 }
 pub struct ConnectionCallback(ConnectionCallbackConfig);
 
@@ -116,6 +129,37 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
     > {
         info!("New firebolt connection {:?}", request.uri().query());
         let cfg = self.0;
+
+        if !cfg.secure {
+            if let Ok(extn_id_str) = get_query(request, "service_handshake", false) {
+                if let Some(extn_id) = extn_id_str {
+                    if let Some(c) = cfg.is_a_valid_extn(&extn_id) {
+                        // valid extn_id
+                        info!("New Service connection {:?}", extn_id);
+                        let cid = ClientIdentity {
+                            session_id: Uuid::new_v4().to_string(),
+                            app_id: extn_id,
+                            rpc_v2: true,
+                            service_info: Some(c)
+                        };
+                        oneshot_send_and_log(cfg.next, cid, "ResolveClientIdentity");
+                        return Ok(response);
+                    } else {
+                        // invalid extn_id
+                        let err = tungstenite::http::response::Builder::new()
+                            .status(403)
+                            .body(Some(format!(
+                                "Invalid service handshake for extn_id={}",
+                                extn_id
+                            )))
+                            .unwrap();
+                        error!("Invalid service handshake for extn_id={}", extn_id);
+                        return Err(err);
+                    }
+                }
+            }
+        }
+
         let app_id_opt = match cfg.secure {
             true => None,
             false => match get_query(request, "appId", false)? {
@@ -123,6 +167,7 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
                 None => cfg.internal_app_id,
             },
         };
+
         let session_id = match app_id_opt {
             Some(_) => Uuid::new_v4().to_string(),
             // can unwrap here because if session is not given, then error will be returned
@@ -158,6 +203,7 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
             session_id: session_id.clone(),
             app_id,
             rpc_v2,
+            service_info: None
         };
         oneshot_send_and_log(cfg.next, cid, "ResolveClientIdentity");
         /*
@@ -190,6 +236,7 @@ impl FireboltWs {
         let listener = try_socket.unwrap_or_else(|_| panic!("Failed to bind {:?}", server_addr));
         info!("Listening on: {} secure={}", server_addr, secure);
         let state_for_connection = state.clone();
+        let extns = state.extn_manifest.get_all_extns();
         let app_state = state.app_manager_state.clone();
         // Let's spawn the handling of each connection in a separate task.
         while let Ok((stream, client_addr)) = listener.accept().await {
@@ -199,6 +246,7 @@ impl FireboltWs {
                 app_state: app_state.clone(),
                 secure,
                 internal_app_id: internal_app_id.clone(),
+                extns: extns.clone() 
             };
             match ripple_sdk::tokio_tungstenite::accept_hdr_async(stream, ConnectionCallback(cfg))
                 .await
@@ -255,10 +303,14 @@ impl FireboltWs {
         );
 
         let connection_id_c = connection_id.clone();
-
-        let msg = FireboltGatewayCommand::RegisterSession {
-            session_id: connection_id.clone(),
-            session,
+        let (msg,is_service) = if let Some(symbol) = identity.service_info.clone() {
+            (FireboltGatewayCommand::RegisterExtnService { session_id: connection_id.clone(),
+                session, symbol }, true)
+        } else {
+            (FireboltGatewayCommand::RegisterSession {
+                session_id: connection_id.clone(),
+                session,
+            }, false)
         };
         if let Err(e) = client.send_gateway_command(msg) {
             error!("Error registering the connection {:?}", e);
@@ -343,8 +395,17 @@ impl FireboltWs {
             match msg {
                 Ok(msg) => {
                     if msg.is_text() && !msg.is_empty() {
-                        let req_text = String::from(msg.to_text().unwrap());
                         let req_id = Uuid::new_v4().to_string();
+                        let req_text = String::from(msg.to_text().unwrap());
+                        if is_service {
+                            if let Ok(v) = ExtnMessage::try_from(req_text.clone()) {
+                                state.get_client().get_extn_client().handle_message(v);
+                            } else {
+                                return_invalid_format_error_message(req_id, &state, &connection_id).await;
+                            }
+                            
+                            continue;
+                        }
                         let context = { rpc_context.read().unwrap().clone() };
                         if let Ok(request) = RpcRequest::parse(
                             req_text.clone(),
@@ -366,24 +427,7 @@ impl FireboltWs {
                                 error!("failed to send request {:?}", e);
                             }
                         } else {
-                            if let Some(session) = &state
-                                .session_state
-                                .get_session_for_connection_id(&connection_id)
-                            {
-                                let err = ErrorResponse::owned(
-                                    ErrorObject::owned::<()>(
-                                        INVALID_REQUEST_CODE,
-                                        "invalid request".to_owned(),
-                                        None,
-                                    ),
-                                    Id::Null,
-                                );
-
-                                let msg = serde_json::to_string(&err).unwrap();
-                                let api_msg =
-                                    ApiMessage::new(ApiProtocol::JsonRpc, msg, req_id.clone());
-                                let _ = session.send_json_rpc(api_msg).await;
-                            }
+                            return_invalid_format_error_message(req_id, &state, &connection_id).await;
                             error!("invalid message {}", req_text)
                         }
                     }
@@ -397,9 +441,33 @@ impl FireboltWs {
         let msg = FireboltGatewayCommand::UnregisterSession {
             session_id: identity.session_id.clone(),
             cid: connection_id,
+            is_service
         };
         if let Err(e) = client.send_gateway_command(msg) {
             error!("Error Unregistering {:?}", e);
         }
     }
+}
+
+async fn return_invalid_format_error_message(req_id: String, state: &PlatformState, connection_id: &String) {
+    if let Some(session) = state
+                                .session_state
+                                .get_session_for_connection_id(connection_id)
+                            {
+                                let err = ErrorResponse::owned(
+                                    ErrorObject::owned::<()>(
+                                        INVALID_REQUEST_CODE,
+                                        "invalid request".to_owned(),
+                                        None,
+                                    ),
+                                    Id::Null,
+                                );
+                            
+                                let msg = serde_json::to_string(&err).unwrap();
+                                let api_msg =
+                                    ApiMessage::new(ApiProtocol::JsonRpc, msg, req_id.clone());
+                                let _ = session.send_json_rpc(api_msg).await;
+                                
+    }
+    
 }

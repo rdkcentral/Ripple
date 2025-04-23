@@ -16,7 +16,6 @@
 //
 
 use crate::extn::client::extn_client::ExtnClient;
-use crate::extn::client::extn_sender::ExtnSender;
 use crate::extn::extn_client_message::{
     ExtnEvent, ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse,
 };
@@ -24,7 +23,6 @@ use crate::extn::extn_id::ExtnId;
 use crate::framework::ripple_contract::RippleContract;
 #[cfg(any(test, feature = "mock"))]
 use crate::utils::error::RippleError;
-use async_channel::unbounded;
 use chrono::Utc;
 #[cfg(any(test, feature = "mock"))]
 use lazy_static::lazy_static;
@@ -218,16 +216,7 @@ impl ExtnPayloadProvider for MockRequest {
 }
 
 pub fn get_mock_extn_client(id: ExtnId) -> ExtnClient {
-    let (s, receiver) = unbounded();
-    let mock_sender = ExtnSender::new(
-        s,
-        id,
-        vec!["context".to_string()],
-        vec!["fulfills".to_string()],
-        Some(HashMap::new()),
-    );
-
-    ExtnClient::new(receiver, mock_sender)
+    ExtnClient::new_main()
 }
 
 pub fn get_mock_message(payload_type: PayloadType) -> ExtnMessage {
