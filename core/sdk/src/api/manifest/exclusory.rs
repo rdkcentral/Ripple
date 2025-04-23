@@ -17,18 +17,18 @@
 
 use std::collections::HashMap;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::api::firebolt::fb_openrpc::FireboltOpenRpcMethod;
 
 use super::device_manifest::DeviceManifest;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AppAuthorizationRules {
     pub app_ignore_rules: HashMap<String, Vec<String>>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ExclusoryImpl {
     pub resolve_only: Option<Vec<String>>,
     pub app_authorization_rules: AppAuthorizationRules,
@@ -55,6 +55,16 @@ impl ExclusoryImpl {
             app_authorization_rules: AppAuthorizationRules {
                 app_ignore_rules: HashMap::new(),
             },
+        }
+    }
+
+    pub fn new() -> Self {
+        ExclusoryImpl {
+            resolve_only: None,
+            app_authorization_rules: AppAuthorizationRules {
+                app_ignore_rules: HashMap::default(),
+            },
+            method_ignore_rules: Vec::default(),
         }
     }
 }

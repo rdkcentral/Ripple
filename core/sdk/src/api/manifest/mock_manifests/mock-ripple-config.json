@@ -1,0 +1,33 @@
+{
+    "default": {
+        "device": "/manifest.json",
+        "extn": "/extn.json",
+        "tag": "eu"
+    },
+    "tags": {
+        "na": {
+            "manifest": "/na/na.manifest.json"
+        },
+        "na-tv": {
+            "manifest": "/na/na.tv.manifest.json",
+            "extn": "/na/na.tv.extn.json"
+        },
+        "eu": {
+            "manifest": "/eu/eu.manifest.json",
+            "extn": "/eu/eu.extn.json"
+        },
+        "eu-tv": {
+            "manifest": "/eu/eu.tv.manifest.json",
+            "extn": "/eu/eu.tv.extn.json"
+        }
+    }, 
+    "build" : {
+        "country": {
+            "us": {
+                "tags": [
+                    "na"
+                ]
+            }
+        }
+    }
+}
