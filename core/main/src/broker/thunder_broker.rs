@@ -18,6 +18,7 @@ use super::{
     endpoint_broker::{
         BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutput, BrokerRequest,
         BrokerSender, BrokerSubMap, EndpointBroker, EndpointBrokerState,
+        BROKER_CHANNEL_BUFFER_SIZE,
     },
     thunder::thunder_plugins_status_mgr::StatusManager,
     thunder::user_data_migrator::UserDataMigrator,
@@ -192,7 +193,7 @@ impl ThunderBroker {
 
     fn start(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
         let endpoint = request.endpoint.clone();
-        let (broker_request_tx, mut broker_request_rx) = mpsc::channel(10);
+        let (broker_request_tx, mut broker_request_rx) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
         let (c_tx, mut c_tr) = mpsc::channel(2);
         let broker_sender = BrokerSender {
             sender: broker_request_tx,
@@ -270,6 +271,10 @@ impl ThunderBroker {
                         match broker_c.check_and_generate_plugin_activation_request(&request) {
                             Ok(requests) => {
                                 if !requests.is_empty() {
+                                    LogSignal::new("thunder_broker".to_string(),"sending message to thunder".to_string(), request.rpc.ctx.clone())
+                                    .with_diagnostic_context_item("updated_request", &format!("{:?}", requests))
+                                    .emit_debug();
+
                                     let mut ws_tx = ws_tx_wrap.lock().await;
                                     for r in requests {
                                         let _feed = ws_tx.feed(Message::Text(r)).await;

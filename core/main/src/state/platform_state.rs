@@ -17,6 +17,7 @@
 
 use ripple_sdk::{
     api::{
+        config::FEATURE_DISTRIBUTOR_SESSION,
         gateway::rpc_gateway_api::RpcRequest,
         manifest::{
             app_library::AppLibraryState,
@@ -49,7 +50,7 @@ use crate::{
 };
 
 use super::{
-    cap::cap_state::CapState, openrpc_state::OpenRpcState, otel_state::OpMetricState,
+    cap::cap_state::CapState, openrpc_state::OpenRpcState, ops_metrics_state::OpMetricState,
     ripple_cache::RippleCache, session_state::SessionState,
 };
 
@@ -181,8 +182,10 @@ impl PlatformState {
     }
 
     pub fn supports_distributor_session(&self) -> bool {
-        let contract = RippleContract::Session(SessionAdjective::Distributor).as_clear_string();
-        self.extn_manifest.required_contracts.contains(&contract)
+        self.get_client()
+            .get_extn_client()
+            .get_features()
+            .contains(&String::from(FEATURE_DISTRIBUTOR_SESSION))
     }
 
     pub fn supports_session(&self) -> bool {

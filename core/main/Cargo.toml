@@ -76,3 +76,6 @@ vergen = "1"
 [dev-dependencies]
 ripple_tdk = { path = "../tdk" }
 rstest = "0.18.0"
+# serial_test is used to provide determinism around monotonic counter generation
+# using AtomicU64
+serial_test = "3"

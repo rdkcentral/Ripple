@@ -20,7 +20,7 @@ use ripple_sdk::{
     log::trace
 };
 
-use crate::state::otel_state::OpMetricState;
+use crate::state::ops_metrics_state::OpMetricState;
 
 pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage, client: ExtnClient) {
     client.respond_with_api_message(extn_msg, msg);

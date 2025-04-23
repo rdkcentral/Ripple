@@ -18,17 +18,17 @@
 use std::time::Instant;
 
 use ripple_sdk::{
-    api::apps::AppRequest,
+    api::{apps::AppRequest, manifest::ripple_manifest_loader::RippleManifestLoader},
     framework::bootstrap::TransientChannel,
-    log::{info, warn},
+    log::{error, info, warn},
     manifest::device::LoadDeviceManifestStep,
     tokio::sync::mpsc::{self, Receiver, Sender},
     utils::error::RippleError,
 };
 
 use crate::{
-    bootstrap::manifest::{apps::LoadAppLibraryStep, extn::LoadExtnManifestStep},
-    broker::endpoint_broker::BrokerOutput,
+    bootstrap::manifest::apps::LoadAppLibraryStep,
+    broker::endpoint_broker::{BrokerOutput, BROKER_CHANNEL_BUFFER_SIZE},
     firebolt::firebolt_gateway::FireboltGatewayCommand,
     service::extn::ripple_client::RippleClient,
 };
@@ -99,11 +99,13 @@ impl BootstrapState {
     pub fn build() -> Result<BootstrapState, RippleError> {
         let channels_state = ChannelsState::new();
         let client = RippleClient::new(channels_state.clone());
-        let device_manifest = LoadDeviceManifestStep::get_manifest();
+        let Ok((extn_manifest, device_manifest)) = RippleManifestLoader::initialize() else {
+            error!("Error initializing manifests");
+            return Err(RippleError::BootstrapError);
+        };
         LoadDeviceManifestStep::read_env_variable();
         let app_manifest_result = LoadAppLibraryStep::load_app_library();
-        let extn_manifest = LoadExtnManifestStep::get_manifest();
-        let extn_state = ExtnState::new(extn_manifest.clone());
+        let extn_state = ExtnState::new( extn_manifest.clone());
         let platform_state = PlatformState::new(
             extn_manifest,
             device_manifest,
@@ -113,9 +115,6 @@ impl BootstrapState {
         );
 
         fn ripple_version_from_etc() -> Option<String> {
-            /*
-            read /etc/rippleversion
-            */
             static RIPPLE_VER_FILE_DEFAULT: &str = "/etc/rippleversion.txt";
             static RIPPLE_VER_VAR_NAME_DEFAULT: &str = "RIPPLE_VER";
             let version_file_name = std::env::var("RIPPLE_VERSIONS_FILE")

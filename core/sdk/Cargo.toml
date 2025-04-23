@@ -78,4 +78,3 @@ ripple_sdk = { path = ".", features=["tdk"]}
 rstest = "0.18.0"
 async-std = { version = "1.5", features = ["attributes"] }
 testing_logger = "0.1.1"
-

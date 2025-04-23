@@ -27,7 +27,7 @@ use ripple_sdk::{
 
 use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerRequest,
-    BrokerSender, EndpointBroker, EndpointBrokerState,
+    BrokerSender, EndpointBroker, EndpointBrokerState, BROKER_CHANNEL_BUFFER_SIZE,
 };
 use crate::state::platform_state::PlatformState;
 use ripple_sdk::tokio_tungstenite::tungstenite::http::uri::InvalidUri;
@@ -121,7 +121,7 @@ impl EndpointBroker for HttpBroker {
         _broker_state: &mut EndpointBrokerState,
     ) -> Self {
         let endpoint = request.endpoint.clone();
-        let (tx, mut tr) = mpsc::channel(10);
+        let (tx, mut tr) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
         let broker = BrokerSender { sender: tx };
         let client = Client::new();
 

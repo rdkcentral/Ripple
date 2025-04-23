@@ -373,6 +373,7 @@ impl FireboltGateway {
                         session.clone(),
                         vec![requestor_callback_tx],
                     );
+                    //.is_ok();
 
                     if !handled {
                         // Route
