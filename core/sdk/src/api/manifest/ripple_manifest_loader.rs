@@ -93,7 +93,12 @@ impl RippleManifestLoader {
                 }
             }
         }
-        info!("RIPPLE_CASCADED_CONFIGURATION={}, RIPPLE_COUNTRY={}, RIPPLE_DEVICE_PLATFORM={} ", cascaded_config, country_code, device_type.as_ref().unwrap());
+        info!(
+            "RIPPLE_CASCADED_CONFIGURATION={}, RIPPLE_COUNTRY={}, RIPPLE_DEVICE_PLATFORM={} ",
+            cascaded_config,
+            country_code,
+            device_type.as_ref().unwrap()
+        );
         let loader = RippleManifestLoader {
             cascaded_config,
             manifest_config,
