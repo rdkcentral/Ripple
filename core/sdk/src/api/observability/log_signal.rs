@@ -150,7 +150,7 @@ impl ContextAsJson for RpcRequest {
                 obj.remove("gateway_secure");
             }
         }
-        map.insert("params".to_string(), serde_json::Value::Array(params));
+        map.insert("p".to_string(), serde_json::Value::Array(params));
         map.insert("call_context".to_string(), self.ctx.as_json());
         serde_json::Value::Object(map)
     }
