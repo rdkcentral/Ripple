@@ -23,9 +23,10 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static REQ_ID_COUNTER: AtomicU64 = AtomicU64::new(5000);
+const APPGW_WS_URL: &str = "ws://127.0.0.1:1234";
 
-pub async fn start_tester() {
-    let (ws_stream, _) = connect_async("ws://127.0.0.1:1234")
+pub async fn start_test_cli() {
+    let (ws_stream, _) = connect_async(APPGW_WS_URL)
         .await
         .expect("Failed to connect to AppGW");
     let (mut write, mut read) = ws_stream.split();
@@ -90,7 +91,7 @@ pub async fn start_tester() {
             "2" => json!({ "jsonrpc": "2.0", "id": id, "method": "service2.compute" }),
             "3" => json!({ "jsonrpc": "2.0", "id": id, "method": "aggregate.device_status" }),
             "4" => json!({ "jsonrpc": "2.0", "id": id, "method": "unknown.method" }),
-            "5" => json!({ "jsonrpc": "2.0", "id": id, "method": "nonexistent.do_something" }),
+            "5" => json!({ "jsonrpc": "2.0", "id": id, "method": "service1.good_bye" }),
             "q" | "Q" => break,
             _ => {
                 println!("Invalid choice");
@@ -105,5 +106,5 @@ pub async fn start_tester() {
         println!("Sent request [{}] for option '{}'", id, choice);
     }
 
-    println!("Tester exiting...");
+    println!("Test CLI exiting...");
 }

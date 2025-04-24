@@ -31,6 +31,12 @@ use uuid::Uuid;
 
 const APPGW_BIND_ADDRESS: &str = "127.0.0.1:1234";
 
+/// Starts the Mock Application Gateway (AppGW) service.
+///
+/// This function initializes the WebSocket server, listens for incoming client connections,
+/// and spawns a new task to handle each client connection. It also sets up shared state
+/// for managing connected clients, pending requests, routed requests, and service rules.
+///
 pub async fn start_app_gw() {
     let listener = TcpListener::bind(APPGW_BIND_ADDRESS).await.unwrap();
     let clients: Clients = Arc::new(Mutex::new(HashMap::new()));
@@ -64,7 +70,23 @@ pub async fn start_app_gw() {
         });
     }
 }
-
+/// Handles a single client connection to the Application Gateway (AppGW).
+///
+/// This function manages the lifecycle of a client connection, including:
+/// - Accepting the WebSocket connection.
+/// - Registering the client in the `clients` Registry.
+/// - Spawning a writer task to handle outgoing messages to the client.
+/// - Processing incoming messages from the client.
+/// - Cleaning up the client upon disconnection.
+///
+/// # Parameters
+/// - `stream`: The TCP stream representing the client connection.
+/// - `clients`: A reference to the `Clients` map, which stores information about connected clients.
+/// - `pending`: A reference to the `PendingMap`, which tracks aggregate requests awaiting responses.
+/// - `routed`: A reference to the `RoutedMap`, which tracks routed requests awaiting responses.
+/// - `internal_api_map`: A reference to the internal API map, which contains predefined API responses.
+/// - `service_rules`: A map of service routing rules used to route client requests.
+///
 async fn handle_client_connection(
     stream: tokio::net::TcpStream,
     clients: Clients,
@@ -77,9 +99,8 @@ async fn handle_client_connection(
     let (mut write, mut read) = ws_stream.split();
     let (tx, mut rx) = mpsc::channel::<Message>(32);
 
-    let client_id = register_client(&clients, tx).await;
+    let client_id = add_client_to_registry(&clients, tx).await;
 
-    //tokio::spawn(handle_client_writer(write, rx, clients.clone(), client_id.clone()));
     let writer_clients = Arc::clone(&clients);
     let writer_id = client_id.clone();
     tokio::spawn(async move {
@@ -93,9 +114,9 @@ async fn handle_client_connection(
     });
 
     while let Some(Ok(Message::Text(msg))) = read.next().await {
-        println!("[AppGW] Received message from {}: {}", client_id, msg);
+        println!("[AppGW] Received request from {}: {}", client_id, msg);
         if let Ok(v) = serde_json::from_str::<Value>(&msg) {
-            process_client_message(
+            process_client_request(
                 v,
                 &clients,
                 &pending,
@@ -112,7 +133,20 @@ async fn handle_client_connection(
     println!("[AppGW] Client {} disconnected", client_id);
 }
 
-async fn register_client(clients: &Clients, tx: mpsc::Sender<Message>) -> String {
+/// Adds a new client to the registry of connected clients.
+///
+/// This function generates a unique client ID, creates a `ClientInfo` object for the client,
+/// and inserts it into the `clients` map. The client is initialized with default values,
+/// such as not being a service and having no associated service ID.
+///
+/// # Parameters
+/// - `clients`: A reference to the `Clients` map, which stores information about connected clients.
+/// - `tx`: The `mpsc::Sender<Message>` used to send messages to the client.
+///
+/// # Returns
+/// - A `String` representing the unique client ID assigned to the client.
+///
+async fn add_client_to_registry(clients: &Clients, tx: mpsc::Sender<Message>) -> String {
     let client_id = Uuid::new_v4().to_string();
     clients.lock().await.insert(
         client_id.clone(),
@@ -125,8 +159,25 @@ async fn register_client(clients: &Clients, tx: mpsc::Sender<Message>) -> String
     );
     client_id
 }
-
-async fn process_client_message(
+/// Processes a client request received by the Application Gateway (AppGW).
+///
+/// This function determines the type of request received from the client and delegates
+/// it to the appropriate handler. It supports the following types of requests:
+/// - `register`: Registers the client as a service.
+/// - `unregister`: Unregisters a service and remove the client.
+/// - Other JSON-RPC requests: Routes the request to the appropriate service or internal API.
+/// - JSON-RPC responses: Handles responses from services for routed or aggregate requests.
+///
+/// # Parameters
+/// - `v`: The JSON-RPC request or response received from the client.
+/// - `clients`: A reference to the `Clients` map, which stores information about connected clients.
+/// - `pending`: A reference to the `PendingMap`, which tracks aggregate requests awaiting responses.
+/// - `routed`: A reference to the `RoutedMap`, which tracks routed requests awaiting responses.
+/// - `client_id`: The identifier of the client that sent the request.
+/// - `internal_api_map`: A reference to the internal API map, which contains predefined API responses.
+/// - `service_rules`: A map of service routing rules used to route client requests.
+///
+async fn process_client_request(
     v: Value,
     clients: &Clients,
     pending: &PendingMap,
@@ -136,9 +187,9 @@ async fn process_client_message(
     service_rules: &HashMap<String, String>,
 ) {
     if v["method"] == "register" {
-        handle_register_message(v, clients, client_id).await;
+        handle_service_register_request(v, clients, client_id).await;
     } else if v["method"] == "unregister" {
-        handle_unregister_message(clients, client_id).await;
+        handle_service_unregister_request(clients, client_id).await;
     } else if v.get("method").is_some() {
         handle_jsonrpc_request(
             v,
@@ -154,25 +205,127 @@ async fn process_client_message(
         handle_service_response(v, clients, pending, routed, client_id).await;
     }
 }
-
-async fn handle_register_message(v: Value, clients: &Clients, client_id: &str) {
+/// Handles a service register request by associating a client with a service ID.
+///
+/// This function allows a client to register as a service by associating it with a `service_id`.
+/// If the `service_id` is already in use by another client, the old client is removed, and the
+/// new client is registered with the same `service_id`.
+///
+/// # Parameters
+/// - `v`: The JSON-RPC request containing the `service_id` to register.
+/// - `clients`: A reference to the `Clients` map, which stores information about connected clients.
+/// - `client_id`: The identifier of the client requesting to register.
+///
+/// # Behavior
+/// - If the `service_id` is already in use:
+///   - The old client associated with the `service_id` is removed from the `clients` map.
+///   - The old client's connection is cleaned up.
+/// - The new client is registered with the `service_id` and marked as a service.
+async fn handle_service_register_request(v: Value, clients: &Clients, client_id: &str) {
     if let Some(sid) = v["params"]["service_id"].as_str() {
         let mut map = clients.lock().await;
+
+        // Check if the `service_id` is already in use
+        let old_client = map
+            .iter()
+            .find(|(_, c)| c.service_id.as_deref() == Some(sid))
+            .map(|(id, _)| id.clone());
+
+        if let Some(old_client_id) = old_client {
+            // Remove the old client associated with the `service_id`
+            println!(
+                "[AppGW] Service ID {} is already in use by client {}. Cleaning up old client.",
+                sid, old_client_id
+            );
+
+            // Optionally, clean up the old client's connection (e.g., send a disconnect message)
+            // Note: This assumes the old client's `tx` is still valid.
+            if let Some(old_client_info) = map.get(&old_client_id) {
+                let _ = old_client_info.tx.send(Message::Close(None)).await;
+            }
+
+            map.remove(&old_client_id);
+        }
+
+        // Register the new client with the `service_id`
         if let Some(client_info) = map.get_mut(client_id) {
             client_info.service_id = Some(sid.to_string());
             client_info.is_service = true;
+            println!("[AppGW] Client {} registered as service {}", client_id, sid);
         } else {
             println!("[AppGW] Client {} not found in map", client_id);
         }
-        println!("[AppGW] Client {} registered as service {}", client_id, sid);
     }
 }
-
-async fn handle_unregister_message(clients: &Clients, client_id: &str) {
+/// Handles a service unregister request by updating the client's service information.
+///
+/// This function updates the `service_id` of the client to `None` and sets `is_service` to `false`,
+/// effectively unregistering the client as a service without removing it from the `clients` map.
+///
+/// # Parameters
+/// - `clients`: A reference to the `Clients` map, which stores information about connected clients.
+/// - `client_id`: The identifier of the client requesting to unregister.
+async fn handle_service_unregister_request(clients: &Clients, client_id: &str) {
     println!("[AppGW] Client {} requested unregister", client_id);
-    clients.lock().await.remove(client_id);
-}
 
+    let mut map = clients.lock().await;
+    if let Some(client_info) = map.get_mut(client_id) {
+        client_info.service_id = None;
+        client_info.is_service = false;
+        println!("[AppGW] Client {} unregistered as a service", client_id);
+    } else {
+        println!("[AppGW] Client {} not found in map", client_id);
+    }
+}
+/// Handles a service response for either an aggregate or direct request.
+///
+/// This function determines whether the response is part of an aggregate request or a direct request.
+/// It processes the response accordingly by calling `process_aggregate_response` for aggregate requests
+/// or `process_direct_response` for direct requests.
+///
+/// # Parameters
+/// - `v`: The JSON-RPC response from the service, containing either a `result` or an `error`.
+/// - `clients`: A reference to the `Clients` map, which stores information about connected clients and services.
+/// - `pending`: A reference to the `PendingMap`, which tracks aggregate requests awaiting responses from multiple services.
+/// - `routed`: A reference to the `RoutedMap`, which tracks routed requests awaiting responses from specific services.
+/// - `client_id`: The identifier of the client that initiated the request.
+///
+async fn handle_service_response(
+    v: Value,
+    clients: &Clients,
+    pending: &PendingMap,
+    routed: &RoutedMap,
+    client_id: &str,
+) {
+    let id = v["id"].as_u64().unwrap_or_default();
+    let mut pending_map = pending.lock().await;
+
+    if let Some(p) = pending_map.get_mut(&id) {
+        process_aggregate_response(v, clients, p, client_id).await;
+        // Remove the tracker if all responses are processed
+        if p.responses.len() == p.expected.len() {
+            pending_map.remove(&id);
+        }
+    } else {
+        let mut routed_map = routed.lock().await;
+        if let Some(routed_req) = routed_map.remove(&id) {
+            process_direct_response(v, clients, routed_req, client_id).await;
+        }
+    }
+}
+/// Processes a response from a service as part of an aggregate request.
+///
+/// This function is responsible for tracking responses from multiple services
+/// involved in an aggregate request. It updates the tracker with the received
+/// response, checks if all expected responses have been received, and sends the
+/// final aggregated response back to the client if complete.
+///
+/// # Parameters
+/// - `v`: The JSON-RPC response from a service, containing either a `result` or an `error`.
+/// - `clients`: A reference to the `Clients` map, which stores information about connected clients and services.
+/// - `tracker`: A mutable reference to the `PendingAggregate` tracker, which keeps track of the responses received so far.
+/// - `client_id`: The identifier of the client that initiated the aggregate request.
+///
 async fn process_aggregate_response(
     v: Value,
     clients: &Clients,
@@ -209,21 +362,31 @@ async fn process_aggregate_response(
             result[s] = json!({ "from_service": s, "response": value });
         }
 
-        // Construct the final message
+        // Construct the final response message
         let final_msg = json!({
             "jsonrpc": "2.0",
             "id": tracker.original_id,
             "result": result
         });
 
-        // Send the final message to the client
+        // Send the final response message to the client
         let _ = tracker
             .sender_tx
             .send(Message::Text(final_msg.to_string()))
             .await;
     }
 }
-
+/// Processes a direct response from a service for a routed request.
+///
+/// This function handles the response from a service for a direct or routed request.
+/// It wraps the response in JSON-RPC format and sends it back to the client that initiated the request.
+///
+/// # Parameters
+/// - `v`: The JSON-RPC response from the service, containing either a `result` or an `error`.
+/// - `clients`: A reference to the `Clients` map, which stores information about connected clients and services.
+/// - `routed_req`: The `RoutedRequest` object containing details about the routed request, such as the original request ID and the sender's transmitter.
+/// - `client_id`: The identifier of the client that initiated the request.
+///
 async fn process_direct_response(
     v: Value,
     clients: &Clients,
@@ -269,28 +432,4 @@ async fn process_direct_response(
         .sender_tx
         .send(Message::Text(wrapped.to_string()))
         .await;
-}
-
-async fn handle_service_response(
-    v: Value,
-    clients: &Clients,
-    pending: &PendingMap,
-    routed: &RoutedMap,
-    client_id: &str,
-) {
-    let id = v["id"].as_u64().unwrap_or_default();
-    let mut pending_map = pending.lock().await;
-
-    if let Some(p) = pending_map.get_mut(&id) {
-        process_aggregate_response(v, clients, p, client_id).await;
-        // Remove the tracker if all responses are processed
-        if p.responses.len() == p.expected.len() {
-            pending_map.remove(&id);
-        }
-    } else {
-        let mut routed_map = routed.lock().await;
-        if let Some(routed_req) = routed_map.remove(&id) {
-            process_direct_response(v, clients, routed_req, client_id).await;
-        }
-    }
 }

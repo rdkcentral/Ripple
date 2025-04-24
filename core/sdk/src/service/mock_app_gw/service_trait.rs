@@ -25,8 +25,54 @@ use tokio::{
 };
 use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
-pub const APPGW_WS_URL: &str = "ws://127.0.0.1:1234";
-
+/// A trait that defines the behavior of a service in the Application Gateway (AppGW) system.
+///
+/// The `Service` trait provides a common interface for implementing services that interact
+/// with the Application Gateway. It includes methods for handling inbound requests, processing
+/// responses, and managing the service's lifecycle, including WebSocket communication.
+///
+/// # Requirements
+/// Any type implementing this trait must:
+/// - Be thread-safe (`Send + Sync`).
+/// - Have a `'static` lifetime, meaning it does not contain non-static references.
+///
+/// # Methods
+/// - `service_id`: Returns the unique identifier of the service.
+/// - `handle_inbound_request`: Processes inbound requests received by the service.
+/// - `handle_response`: Handles responses received by the service.
+/// - `run`: Manages the service's lifecycle, including WebSocket communication.
+///
+/// # Example
+/// ```rust
+/// use async_trait::async_trait;
+/// use serde_json::Value;
+/// use std::sync::Arc;
+/// use tokio::sync::mpsc::{Receiver, Sender};
+///
+/// struct MyService {
+///     id: String,
+/// }
+///
+/// #[async_trait]
+/// impl Service for MyService {
+///     fn service_id(&self) -> &str {
+///         &self.id
+///     }
+///
+///     async fn handle_inbound_request(&self, request: Value) -> Value {
+///         println!("[{}] Handling request: {}", self.service_id(), request);
+///         Value::Null // Example response
+///     }
+///
+///     async fn handle_response(&self, response: Value) {
+///         println!("[{}] Got response: {}", self.service_id(), response);
+///     }
+/// }
+/// ```
+///
+/// # Notes
+/// - The `run` method is designed to manage the WebSocket connection and handle communication
+///   with the Application Gateway. It includes automatic reconnection logic for resilience.
 #[async_trait]
 pub trait Service: Send + Sync + 'static {
     fn service_id(&self) -> &str;
@@ -48,6 +94,7 @@ pub trait Service: Send + Sync + 'static {
 
         let register_msg = json!({
             "jsonrpc": "2.0",
+            "id": 777, // TBD get a unique ID
             "method": "register",
             "params": { "service_id": self.service_id() }
         });
@@ -60,25 +107,38 @@ pub trait Service: Send + Sync + 'static {
         let tx_clone = inbound_tx.clone();
         let self_clone = Arc::clone(&self);
 
+        let sid_c1 = sid.clone();
+        let sid_c2 = sid.clone();
+
         tokio::spawn(async move {
             while let Some(Ok(Message::Text(msg))) = ws_rx.next().await {
                 if let Ok(value) = serde_json::from_str::<Value>(&msg) {
                     if value.get("method").is_some() {
                         if let Err(e) = tx_clone.send(value).await {
-                            eprintln!("[{}] Failed to forward inbound: {}", sid, e);
+                            eprintln!("[{}] Failed to forward inbound: {}", sid_c1, e);
                         }
                     } else if value.get("result").is_some() || value.get("error").is_some() {
                         self_clone.handle_response(value).await;
                     }
                 }
             }
-            println!("[{}] Connection closed", sid);
+            println!("[{}] Connection closed", sid_c1.clone());
             std::process::exit(0);
         });
 
         while let Some(msg) = outbound_rx.recv().await {
-            ws_tx.send(msg).await.unwrap();
+            match msg {
+                Message::Close(_) => {
+                    println!("[{}] Sending Close message and exiting...", sid_c2);
+                    ws_tx.send(msg).await.unwrap();
+                    break; // Exit the loop after sending the Close message
+                }
+                _ => {
+                    ws_tx.send(msg).await.unwrap();
+                }
+            }
         }
+        println!("[{}] Service exiting...", sid);
     }
 }
 

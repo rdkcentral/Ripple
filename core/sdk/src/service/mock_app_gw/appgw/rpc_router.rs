@@ -433,7 +433,6 @@ async fn send_method_not_found_error(id: u64, clients: &Clients, sender_id: &str
     if let Some(tx) = clients.lock().await.get(sender_id).map(|c| c.tx.clone()) {
         let _ = tx.send(Message::Text(err.to_string())).await;
     }
-    println!("I'm here");
 }
 
 async fn send_service_not_available_error(
@@ -454,6 +453,4 @@ async fn send_service_not_available_error(
     if let Some(tx) = clients.lock().await.get(sender_id).map(|c| c.tx.clone()) {
         let _ = tx.send(Message::Text(err.to_string())).await;
     }
-
-    println!("I'm here");
 }

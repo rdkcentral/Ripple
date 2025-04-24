@@ -22,6 +22,8 @@ use tokio_tungstenite::tungstenite::Message;
 
 use crate::service_trait::Service;
 
+const APPGW_WS_URL: &str = "ws://127.0.0.1:1234";
+
 struct Service2;
 
 #[async_trait::async_trait]
@@ -95,10 +97,6 @@ pub async fn start_service2() {
     });
 
     svc.clone()
-        .run(
-            crate::service_trait::APPGW_WS_URL,
-            &mut outbound_rx,
-            inbound_tx,
-        )
+        .run(APPGW_WS_URL, &mut outbound_rx, inbound_tx)
         .await;
 }

@@ -18,5 +18,5 @@
 
 #[tokio::main]
 async fn main() {
-    mock_app_gw::test_cli_impl::start_tester().await;
+    mock_app_gw::test_cli_impl::start_test_cli().await;
 }
