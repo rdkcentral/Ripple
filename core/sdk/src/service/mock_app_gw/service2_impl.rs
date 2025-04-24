@@ -39,7 +39,7 @@ impl Service for Service2 {
         let method = request["method"].as_str().unwrap_or_default();
         let response = match method {
             "service2.get_status" => json!({"status": "running"}),
-            "service2.compute" => json!({"result": 42}),
+            "service2.compute" => json!({"value": 42}),
             "service2.info" => json!({"info": "service2 reporting"}),
             "service2.check" => json!({"check": "ok"}),
             "service2.stats" => json!({"cpu": 12.3, "mem": 256}),
@@ -84,10 +84,10 @@ pub async fn start_service2() {
     let svc = Arc::new(Service2);
     // Todo: Service related init operations
 
-    let svc_task = Arc::clone(&svc);
+    let svc_c = Arc::clone(&svc);
     tokio::spawn(async move {
         while let Some(req) = inbound_rx.recv().await {
-            let result = svc_task.handle_inbound_request(req.clone()).await;
+            let result = svc_c.handle_inbound_request(req.clone()).await;
             println!("[service2] processed: {:?}", result);
             outbound_tx
                 .send(Message::Text(result.to_string()))

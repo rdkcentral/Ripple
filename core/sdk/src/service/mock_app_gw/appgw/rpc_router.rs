@@ -244,13 +244,22 @@ async fn finalize_or_store_tracker(
         pending.lock().await.insert(agg_id, tracker);
     }
 }
-
+///
+/// Matches a method name against a set of service routing rules and returns the alias
+/// of the best-matching rule, if one exists.
+///
+/// Exact matches are given the highest priority (`usize::MAX`).
+/// Wildcard matches are given a lower priority based on the length of the prefix.
+/// The function selects the best match based on priority
+///    - Exact matches take precedence over prefix matches.
+///    - Among prefix matches, the longest prefix is chosen.
+///
 fn match_service_rules(method: &str, service_rules: &HashMap<String, String>) -> Option<String> {
     service_rules
         .iter()
         .filter_map(|(pattern, alias)| {
             if pattern.ends_with(".*") {
-                let prefix = &pattern[..pattern.len() - 2];
+                let prefix = &pattern[..pattern.len() - 1];
                 if method.starts_with(prefix) {
                     return Some((prefix.len(), alias));
                 }
@@ -272,7 +281,7 @@ async fn route_to_service(
     service_id: &str,
 ) {
     // Extract necessary data while holding the lock
-    let (svc_tx, tester_tx) = {
+    let (svc_tx, sender_tx) = {
         let map = clients.lock().await;
 
         // Find the service transmitter
@@ -282,9 +291,9 @@ async fn route_to_service(
             .map(|(_, c)| c.tx.clone());
 
         // Find the sender's transmitter
-        let tester_tx = map.get(sender_id).map(|c| c.tx.clone());
+        let sender_tx = map.get(sender_id).map(|c| c.tx.clone());
 
-        (svc_tx, tester_tx)
+        (svc_tx, sender_tx)
     }; // Lock is released here
 
     // If the service transmitter is not found, send an error
@@ -294,7 +303,7 @@ async fn route_to_service(
     };
 
     // If the sender's transmitter is not found, return early
-    let Some(tester_tx) = tester_tx else {
+    let Some(sender_tx) = sender_tx else {
         return;
     };
 
@@ -305,7 +314,7 @@ async fn route_to_service(
         RoutedRequest {
             service_id: service_id.to_string(),
             original_id: id,
-            sender_tx: tester_tx.clone(),
+            sender_tx: sender_tx.clone(),
         },
     );
 

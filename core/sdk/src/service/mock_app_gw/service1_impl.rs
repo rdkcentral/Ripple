@@ -97,7 +97,7 @@ impl Service for MockService {
 
         let response = match method {
             "service1.get_status" => json!({ "status": "running" }),
-            "service1.compute" => json!({ "result": 42 }),
+            "service1.compute" => json!({ "value": 42 }),
             "service1.info" => json!({ "info": "service1 reporting" }),
             "service1.check" => json!({ "check": "ok" }),
             "service1.stats" => json!({ "cpu": 12.3, "mem": 256 }),
@@ -118,12 +118,13 @@ impl Service for MockService {
                     );
                 }
 
-                // Spawn a task to stop the service after 2 seconds
-                let sender = self.get_sender().unwrap();
-                tokio::spawn(async move {
-                    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-                    sender.send(Message::Close(None)).await.unwrap();
-                });
+                // Spawn a task to send a close message to the service after 2 seconds
+                if let Some(sender) = self.get_sender() {
+                    tokio::spawn(async move {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                        sender.send(Message::Close(None)).await.unwrap();
+                    });
+                }
 
                 // Return a response indicating that the service is stopping in 2 seconds
                 json!({
@@ -179,10 +180,10 @@ pub async fn start_service1() {
     service.start();
 
     let svc = Arc::new(service);
-    let svc_task = Arc::clone(&svc);
+    let svc_c = Arc::clone(&svc);
     tokio::spawn(async move {
         while let Some(req) = inbound_rx.recv().await {
-            let result = svc_task.handle_inbound_request(req.clone()).await;
+            let result = svc_c.handle_inbound_request(req.clone()).await;
             println!("[service1] processed: {:?}", result);
             outbound_tx
                 .send(Message::Text(result.to_string()))

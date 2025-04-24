@@ -16,8 +16,7 @@
 //
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
-use std::io::{self, Write};
-use tokio::io::{AsyncBufReadExt, BufReader};
+use std::io::{self, BufRead, Write};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -30,9 +29,6 @@ pub async fn start_test_cli() {
         .await
         .expect("Failed to connect to AppGW");
     let (mut write, mut read) = ws_stream.split();
-
-    //let (_tx, _rx) = mpsc::channel::<(String, String)>(32);
-    //let pending: HashMap<String, String> = HashMap::new();
 
     // Spawn receiver task
     tokio::spawn(async move {
@@ -61,8 +57,8 @@ pub async fn start_test_cli() {
         }
     });
 
-    let stdin = tokio::io::stdin();
-    let mut reader = BufReader::new(stdin);
+    let stdin = io::stdin();
+    let mut reader = stdin.lock();
     let mut line = String::new();
 
     loop {
@@ -78,7 +74,7 @@ pub async fn start_test_cli() {
         io::stdout().flush().unwrap();
 
         line.clear();
-        if reader.read_line(&mut line).await.unwrap() == 0 {
+        if reader.read_line(&mut line).unwrap() == 0 {
             break;
         }
 

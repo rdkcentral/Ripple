@@ -45,8 +45,8 @@ use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, Web
 /// use std::sync::Arc;
 /// use tokio::sync::mpsc::{Receiver, Sender};
 ///
-/// use crate::service_trait::Service;
-/// 
+/// use crate::mock_app_gw::service_trait::Service;
+///
 /// struct MyService {
 ///     id: String,
 /// }
@@ -87,7 +87,7 @@ pub trait Service: Send + Sync + 'static {
         outbound_rx: &mut Receiver<Message>,
         inbound_tx: Sender<Value>,
     ) {
-        let ws_stream = wait_for_connection(url).await;
+        let ws_stream = establish_connection_with_backoff(url).await;
         let (mut ws_tx, mut ws_rx) = ws_stream.split();
 
         let register_msg = json!({
@@ -96,10 +96,8 @@ pub trait Service: Send + Sync + 'static {
             "method": "register",
             "params": { "service_id": self.service_id() }
         });
-        ws_tx
-            .send(Message::Text(register_msg.to_string()))
-            .await
-            .unwrap();
+        let _feed = ws_tx.feed(Message::Text(register_msg.to_string())).await;
+        let _flush = ws_tx.flush().await;
 
         let sid = self.service_id().to_string();
         let tx_clone = inbound_tx.clone();
@@ -128,11 +126,13 @@ pub trait Service: Send + Sync + 'static {
             match msg {
                 Message::Close(_) => {
                     println!("[{}] Sending Close message and exiting...", sid_c2);
-                    ws_tx.send(msg).await.unwrap();
+                    let _feed = ws_tx.feed(msg).await;
+                    let _flush = ws_tx.flush().await;
                     break; // Exit the loop after sending the Close message
                 }
                 _ => {
-                    ws_tx.send(msg).await.unwrap();
+                    let _feed = ws_tx.feed(msg).await;
+                    let _flush = ws_tx.flush().await;
                 }
             }
         }
@@ -141,7 +141,9 @@ pub trait Service: Send + Sync + 'static {
 }
 
 // Utility function for resilient WebSocket connection
-async fn wait_for_connection(url: &str) -> WebSocketStream<MaybeTlsStream<TcpStream>> {
+async fn establish_connection_with_backoff(
+    url: &str,
+) -> WebSocketStream<MaybeTlsStream<TcpStream>> {
     let mut backoff = 1;
     loop {
         match connect_async(url).await {
