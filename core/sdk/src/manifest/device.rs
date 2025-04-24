@@ -27,26 +27,6 @@ impl LoadDeviceManifestStep {
 
         r.expect("Need valid Device Manifest")
     }
-
-    pub fn read_env_variable() {
-        let country_env = std::env::var("RIPPLE_COUNTRY").unwrap_or_else(|_| "eu".to_string()); // Default to "eu"
-        info!(
-            "RIPPLE_COUNTRY environment variable set to : {}",
-            country_env
-        );
-
-        match std::env::var("RIPPLE_DEVICE_PLATFORM") {
-            Ok(device_platform) => {
-                info!(
-                    "RIPPLE_DEVICE_PLATFORM environment variable set to: {}",
-                    device_platform
-                );
-            }
-            Err(_) => {
-                info!("RIPPLE_DEVICE_PLATFORM environment variable is not set.");
-            }
-        }
-    }
 }
 
 type DeviceManifestLoader = Vec<fn() -> Result<(String, DeviceManifest), RippleError>>;
