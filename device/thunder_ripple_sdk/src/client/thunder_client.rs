@@ -55,33 +55,45 @@ use super::{
         DeviceUnsubscribeRequest,
     },
     jsonrpc_method_locator::JsonRpcMethodLocator,
-    plugin_manager::{PluginActivatedResult, PluginManagerCommand},
+    //plugin_manager::{PluginActivatedResult, PluginManagerCommand},
 };
-use crate::thunder_state::ThunderConnectionState;
-use crate::utils::get_error_value;
-use jsonrpsee::core::client::{Client, ClientT, SubscriptionClientT};
-use jsonrpsee::core::params::{ArrayParams, ObjectParams};
-use jsonrpsee::core::{async_trait, error::Error as JsonRpcError};
-use jsonrpsee::ws_client::WsClientBuilder;
-use regex::Regex;
+// use crate::thunder_state::ThunderConnectionState;
+// use crate::utils::get_error_value;
+// use jsonrpsee::core::client::{Client, ClientT, SubscriptionClientT};
+// use jsonrpsee::core::params::{ArrayParams, ObjectParams};
+use jsonrpsee::core::{
+    async_trait,
+    // error::Error as JsonRpcError
+};
+// use jsonrpsee::ws_client::WsClientBuilder;
+// use regex::Regex;
 
 use ripple_sdk::{
-    log::{error, info, warn},
-    serde_json::{self, json, Value},
+    log::{
+        error,
+        //info, warn
+    },
+    serde_json::{
+        //self, json,
+        Value,
+    },
     tokio,
     tokio::sync::mpsc::{self, Receiver, Sender as MpscSender},
     tokio::sync::oneshot::{self, error::RecvError, Sender as OneShotSender},
-    tokio::{sync::Mutex, task::JoinHandle, time::sleep},
+    //tokio::{sync::Mutex, task::JoinHandle, time::sleep},
     utils::channel_utils::{mpsc_send_and_log, oneshot_send_and_log},
     utils::error::RippleError,
     uuid::Uuid,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    //BTreeMap,
+    HashMap,
+};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::{env, process::Command};
+//use std::{env, process::Command};
 use tokio::sync::oneshot::Sender;
 use url::Url;
 

@@ -32,7 +32,11 @@ use url::Url;
 
 use crate::{
     client::{
-        device_operator::{DeviceOperator, DeviceResponseMessage, DeviceUnsubscribeRequest},
+        device_operator::{
+            DeviceOperator,
+            DeviceResponseMessage,
+            //DeviceUnsubscribeRequest
+        },
         plugin_manager::ThunderPluginBootParam,
         thunder_client::ThunderClient,
     },
