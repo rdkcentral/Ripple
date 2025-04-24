@@ -31,10 +31,6 @@ use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, Web
 /// with the Application Gateway. It includes methods for handling inbound requests, processing
 /// responses, and managing the service's lifecycle, including WebSocket communication.
 ///
-/// # Requirements
-/// Any type implementing this trait must:
-/// - Be thread-safe (`Send + Sync`).
-/// - Have a `'static` lifetime, meaning it does not contain non-static references.
 ///
 /// # Methods
 /// - `service_id`: Returns the unique identifier of the service.
@@ -49,6 +45,8 @@ use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, Web
 /// use std::sync::Arc;
 /// use tokio::sync::mpsc::{Receiver, Sender};
 ///
+/// use crate::service_trait::Service;
+/// 
 /// struct MyService {
 ///     id: String,
 /// }
