@@ -169,7 +169,9 @@ impl WebSocketUtils {
             Err(e) => {
                 error!("Failed to connect to TCP port {}: {}", tcp_port, e);
                 if e.to_string().to_lowercase().contains("connection refused") {
-                    return Err(RippleError::Permission(crate::api::firebolt::fb_capabilities::DenyReason::Unpermitted));
+                    return Err(RippleError::Permission(
+                        crate::api::firebolt::fb_capabilities::DenyReason::Unpermitted,
+                    ));
                 }
             }
         }
@@ -211,14 +213,18 @@ impl WebSocketUtils {
                     match e {
                         // There is no need to retry if its a permission issue
                         // This call will never succeed
-                        RippleError::Permission(crate::api::firebolt::fb_capabilities::DenyReason::Unpermitted) => {
-                            break Err(RippleError::Permission(crate::api::firebolt::fb_capabilities::DenyReason::Unpermitted));
+                        RippleError::Permission(
+                            crate::api::firebolt::fb_capabilities::DenyReason::Unpermitted,
+                        ) => {
+                            break Err(RippleError::Permission(
+                                crate::api::firebolt::fb_capabilities::DenyReason::Unpermitted,
+                            ));
                         }
                         _ => {}
                     }
                 }
             }
-            
+
             if (index % LOG_RETRY_INTERVAL).eq(&0) {
                 error!(
                     "Websocket TCP Connection with {} failed with retry for last {} secs in {}",

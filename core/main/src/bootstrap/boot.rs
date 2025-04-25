@@ -26,9 +26,7 @@ use ripple_sdk::{
 use crate::state::bootstrap_state::BootstrapState;
 
 use super::{
-    extn::{
-        load_extn_step::LoadExtensionsStep, load_session_step::LoadDistributorValuesStep,
-    },
+    extn::{load_extn_step::LoadExtensionsStep, load_session_step::LoadDistributorValuesStep},
     logging_bootstrap_step::LoggingBootstrapStep,
     setup_extn_client_step::SetupExtnClientStep,
     start_app_manager_step::StartAppManagerStep,

@@ -29,9 +29,8 @@ use crate::{
     processor::{
         app_events_processor::AppEventsProcessor,
         authorized_info_processor::AuthorizedInfoProcessor,
-        config_processor::ConfigRequestProcessor,
-        keyboard_processor::KeyboardProcessor, pin_processor::PinProcessor,
-        storage::storage_manager_processor::StorageManagerProcessor,
+        config_processor::ConfigRequestProcessor, keyboard_processor::KeyboardProcessor,
+        pin_processor::PinProcessor, storage::storage_manager_processor::StorageManagerProcessor,
     },
     state::bootstrap_state::BootstrapState,
 };

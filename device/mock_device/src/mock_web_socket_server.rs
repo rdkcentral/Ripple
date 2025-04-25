@@ -505,7 +505,7 @@ impl MockWebSocketServer {
         Ok(())
     }
 
-    pub async fn emit_event(self: Arc<Self>, event: &Value, delay: u64) {
+    pub async fn emit_event(&self, event: &Value, delay: u64) {
         let mut peers = self.connected_peer_sinks.lock().await;
         let event_value = event.to_string();
         let mut new_peers = HashMap::new();

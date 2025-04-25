@@ -18,14 +18,17 @@
 use std::thread;
 
 use ripple_sdk::{
-    api::manifest::extn_manifest::ExtnManifestEntry, async_trait::async_trait, 
+    api::manifest::extn_manifest::ExtnManifestEntry,
+    async_trait::async_trait,
     extn::ffi::ffi_channel::load_channel_builder,
-    framework::bootstrap::Bootstep, log::{debug, info, warn}, utils::error::RippleError
+    framework::bootstrap::Bootstep,
+    log::{debug, info, warn},
+    utils::error::RippleError,
 };
 
 use crate::state::bootstrap_state::BootstrapState;
-use std::ffi::OsStr;
 use ripple_sdk::libloading::Library;
+use std::ffi::OsStr;
 
 #[derive(Debug)]
 pub struct LoadedLibrary {
@@ -34,14 +37,8 @@ pub struct LoadedLibrary {
 }
 
 impl LoadedLibrary {
-    pub fn new(
-        library: Library,
-        entry: ExtnManifestEntry,
-    ) -> LoadedLibrary {
-        LoadedLibrary {
-            library,
-            entry,
-        }
+    pub fn new(library: Library, entry: ExtnManifestEntry) -> LoadedLibrary {
+        LoadedLibrary { library, entry }
     }
 }
 
@@ -52,7 +49,6 @@ impl LoadedLibrary {
 pub struct LoadExtensionsStep;
 
 impl LoadExtensionsStep {
-
     unsafe fn load_extension_library<P: AsRef<OsStr>>(
         filename: P,
         entry: ExtnManifestEntry,
@@ -108,7 +104,7 @@ impl LoadExtensionsStep {
                 warn!("No valid extensions");
             }
             info!("Total Libraries loaded={}", valid_extension_libraries);
-            return Ok(loaded_extns)
+            return Ok(loaded_extns);
         }
     }
 }
@@ -124,15 +120,11 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
             unsafe {
                 let path = extn.entry.path.clone();
                 let library = &extn.library;
-                info!(
-                    "Starting library of path {}",
-                    path
-                );
+                info!("Starting library of path {}", path);
                 if let Ok(builder) = load_channel_builder(library) {
                     thread::spawn(move || {
                         (builder.start)();
                     });
-                    
                 }
             }
         }

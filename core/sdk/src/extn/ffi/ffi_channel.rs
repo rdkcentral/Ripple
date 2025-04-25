@@ -20,7 +20,6 @@ use log::{debug, error};
 
 use crate::utils::error::RippleError;
 
-
 /// Generic Extension channel
 #[repr(C)]
 #[derive(Debug)]

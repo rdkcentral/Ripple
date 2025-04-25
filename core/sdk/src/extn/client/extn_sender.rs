@@ -18,9 +18,13 @@
 use std::collections::HashMap;
 
 use crate::{
-    api::{gateway::rpc_gateway_api::ApiMessage, manifest::extn_manifest::ExtnSymbol}, extn::{
-        extn_client_message::{ExtnMessage, ExtnPayloadProvider}, extn_id::ExtnId, 
-    }, framework::{ripple_contract::RippleContract, RippleResponse}, utils::error::RippleError
+    api::{gateway::rpc_gateway_api::ApiMessage, manifest::extn_manifest::ExtnSymbol},
+    extn::{
+        extn_client_message::{ExtnMessage, ExtnPayloadProvider},
+        extn_id::ExtnId,
+    },
+    framework::{ripple_contract::RippleContract, RippleResponse},
+    utils::error::RippleError,
 };
 use chrono::Utc;
 #[cfg(not(test))]
@@ -55,22 +59,22 @@ impl ExtnSender {
     }
 
     pub fn new_main() -> Self {
-        ExtnSender { 
-            tx: None, 
-            id: ExtnId::get_main_target("main".to_owned()), 
-            permitted: Vec::default(), 
-            fulfills: Vec::default(), 
-            config: None 
+        ExtnSender {
+            tx: None,
+            id: ExtnId::get_main_target("main".to_owned()),
+            permitted: Vec::default(),
+            fulfills: Vec::default(),
+            config: None,
         }
     }
-    
-    pub fn new_extn(tx:Sender<ApiMessage>, symbol: ExtnSymbol) -> Self {
+
+    pub fn new_extn(tx: Sender<ApiMessage>, symbol: ExtnSymbol) -> Self {
         ExtnSender {
             tx: Some(tx),
             id: ExtnId::try_from(symbol.id.clone()).unwrap(),
             permitted: symbol.uses.clone(),
             fulfills: symbol.fulfills.clone(),
-            config: symbol.config.clone()
+            config: symbol.config.clone(),
         }
     }
 
@@ -101,7 +105,7 @@ impl ExtnSender {
         None
     }
 
-    pub fn get_message(&self, id:String, payload: impl ExtnPayloadProvider) -> ExtnMessage {
+    pub fn get_message(&self, id: String, payload: impl ExtnPayloadProvider) -> ExtnMessage {
         ExtnMessage {
             requestor: self.id.clone(),
             payload: payload.get_extn_payload(),
@@ -116,7 +120,7 @@ impl ExtnSender {
         &self,
         id: String,
         payload: impl ExtnPayloadProvider,
-        other_sender: Option<Sender<ApiMessage>>
+        other_sender: Option<Sender<ApiMessage>>,
     ) -> Result<(), RippleError> {
         // Extns can only send request to which it has permissions through Extn manifest
         if !self.check_contract_permission(payload.get_contract()) {
@@ -154,7 +158,7 @@ impl ExtnSender {
                 return Err(RippleError::SendFailure);
             }
             Ok(())
-        } else if let Some(tx) = self.tx.clone(){
+        } else if let Some(tx) = self.tx.clone() {
             trace!("sending to main channel");
             if let Err(e) = tx.try_send(msg) {
                 error!("send() error for message in main sender {}", e);
@@ -178,10 +182,13 @@ impl ExtnSender {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::{api::device::device_info_request::DeviceInfoRequest, extn::extn_id::ExtnClassId, utils::logger::init_and_configure_logger};
+    use crate::{
+        api::device::device_info_request::DeviceInfoRequest, extn::extn_id::ExtnClassId,
+        utils::logger::init_and_configure_logger,
+    };
     use rstest::rstest;
-    use tokio::sync::mpsc;
     use std::collections::HashMap;
+    use tokio::sync::mpsc;
 
     #[cfg(test)]
     pub trait Mockable {
@@ -194,7 +201,7 @@ pub mod tests {
             context: Vec<String>,
             fulfills: Vec<String>,
             config: Option<HashMap<String, String>>,
-        ) -> (Self,  mpsc::Receiver<ApiMessage>)
+        ) -> (Self, mpsc::Receiver<ApiMessage>)
         where
             Self: Sized;
 
@@ -204,8 +211,8 @@ pub mod tests {
             context: Vec<String>,
             fulfills: Vec<String>,
             config: Option<HashMap<String, String>>,
-            main_sender:  mpsc::Sender<ApiMessage>,
-        ) -> (Self,  mpsc::Sender<ApiMessage>,  mpsc::Receiver<ApiMessage>)
+            main_sender: mpsc::Sender<ApiMessage>,
+        ) -> (Self, mpsc::Sender<ApiMessage>, mpsc::Receiver<ApiMessage>)
         where
             Self: Sized;
     }
@@ -237,7 +244,7 @@ pub mod tests {
             config: Option<HashMap<String, String>>,
             main_sender: mpsc::Sender<ApiMessage>,
         ) -> (Self, mpsc::Sender<ApiMessage>, mpsc::Receiver<ApiMessage>) {
-            let (tx,rx) = mpsc::channel(2);
+            let (tx, rx) = mpsc::channel(2);
             let (extn_sender, _tr) = ExtnSenderBuilder::new()
                 .main_sender(main_sender)
                 .id(id)
@@ -296,7 +303,7 @@ pub mod tests {
             let (tx, rx) = mpsc::channel(2);
             (
                 ExtnSender {
-                    tx:Some(tx.clone()),
+                    tx: Some(tx.clone()),
                     id: self.id,
                     permitted: self.context,
                     fulfills: self.fulfills,
@@ -445,18 +452,15 @@ pub mod tests {
         let result = sender.send_request(
             "some_id".to_string(),
             DeviceInfoRequest::Model.clone(),
-            Some(sender.clone().tx.unwrap())
+            Some(sender.clone().tx.unwrap()),
         );
 
         if permitted_req {
             assert!(result.is_ok());
             if let Some(m) = rx.recv().await {
-                let r:ExtnMessage = ExtnMessage::try_from(m.jsonrpc_msg).unwrap();
+                let r: ExtnMessage = ExtnMessage::try_from(m.jsonrpc_msg).unwrap();
                 assert_eq!(r.requestor, sender.id);
-                assert_eq!(
-                    r.target,
-                    RippleContract::DeviceInfo
-                );
+                assert_eq!(r.target, RippleContract::DeviceInfo);
 
                 // Generate the ExtnPayload using get_extn_payload
                 let extn_payload = DeviceInfoRequest::Model.get_extn_payload();
@@ -490,10 +494,7 @@ pub mod tests {
         if let Some(m) = rx.recv().await {
             let r = ExtnMessage::try_from(m).unwrap();
             assert_eq!(r.requestor, sender.id);
-            assert_eq!(
-                r.target,
-                RippleContract::DeviceInfo
-            );
+            assert_eq!(r.target, RippleContract::DeviceInfo);
 
             // Generate the ExtnPayload using get_extn_payload
             let extn_payload = DeviceInfoRequest::Model.get_extn_payload();
@@ -563,7 +564,6 @@ pub mod tests {
                     // Generate the ExtnPayload using get_extn_payload
                     let extn_payload = DeviceInfoRequest::Model.get_extn_payload();
 
-
                     assert_eq!(r.payload, extn_payload);
                 } else {
                     panic!("Expected a message to be received");
@@ -581,7 +581,7 @@ pub mod tests {
             ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
             vec!["device_info".to_owned()],
             Vec::new(),
-            None
+            None,
         );
 
         // Wrap rx in an Option to conditionally take it for dropping

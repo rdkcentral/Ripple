@@ -196,9 +196,7 @@ impl MockThunderController {
      * Returns the state and a receiver which can be used to listen to responses that
      * come back from the extension
      */
-    pub fn state_with_mock(
-        custom_thunder: Option<CustomHandler>,
-    ) -> CachedState {
+    pub fn state_with_mock(custom_thunder: Option<CustomHandler>) -> CachedState {
         let s_thunder = MockThunderController::start_with_custom_handlers(custom_thunder);
         let thunder_client = ThunderClient {
             sender: Some(s_thunder),

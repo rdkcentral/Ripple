@@ -92,11 +92,7 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
     }
 
     async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
-        let methods = self
-            .init_handlers(
-                state.platform_state.clone()
-            )
-            .await;
+        let methods = self.init_handlers(state.platform_state.clone()).await;
         let gateway = FireboltGateway::new(state.clone(), methods);
         debug!("Handlers initialized");
         #[cfg(feature = "sysd")]

@@ -27,10 +27,8 @@ use ripple_sdk::{
 };
 
 use crate::{
-    bootstrap::manifest::apps::LoadAppLibraryStep,
-    broker::endpoint_broker::BrokerOutput,
-    firebolt::firebolt_gateway::FireboltGatewayCommand,
-    service::extn::ripple_client::RippleClient,
+    bootstrap::manifest::apps::LoadAppLibraryStep, broker::endpoint_broker::BrokerOutput,
+    firebolt::firebolt_gateway::FireboltGatewayCommand, service::extn::ripple_client::RippleClient,
 };
 
 use super::platform_state::PlatformState;
@@ -91,7 +89,7 @@ impl Default for ChannelsState {
 pub struct BootstrapState {
     pub start_time: Instant,
     pub platform_state: PlatformState,
-    pub channels_state: ChannelsState
+    pub channels_state: ChannelsState,
 }
 
 impl BootstrapState {
