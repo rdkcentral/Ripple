@@ -122,20 +122,6 @@ impl ContextAsJson for JsonRpcApiResponse {
     }
 }
 impl ContextAsJson for RpcRequest {
-    // fn as_json(&self) -> serde_json::Value {
-    //     let mut map = serde_json::Map::new();
-    //     map.insert(
-    //         "method".to_string(),
-    //         serde_json::Value::String(self.method.clone()),
-    //     );
-    //     map.insert(
-    //         "params".to_string(),
-    //         serde_json::Value::String(self.params_json.clone()),
-    //     );
-    //     map.insert("call_context".to_string(), self.ctx.as_json());
-    //     serde_json::Value::Object(map)
-    // }
-
     fn as_json(&self) -> serde_json::Value {
         let mut map = serde_json::Map::new();
         map.insert(
@@ -144,13 +130,13 @@ impl ContextAsJson for RpcRequest {
         );
         let mut params: Vec<serde_json::Value> =
             serde_json::from_str(&self.params_json).unwrap_or_default();
-        //remove the gateway_secure field
+        //remove the "gateway_secure" field
         for param in params.iter_mut() {
             if let Some(obj) = param.as_object_mut() {
                 obj.remove("gateway_secure");
             }
         }
-        map.insert("p".to_string(), serde_json::Value::Array(params));
+        map.insert("params".to_string(), serde_json::Value::Array(params));
         map.insert("call_context".to_string(), self.ctx.as_json());
         serde_json::Value::Object(map)
     }
