@@ -208,7 +208,6 @@ impl ContractAdjective for EventAdjective {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::config::Config;
     use crate::utils::test_utils::test_extn_payload_provider;
 
     #[test]

@@ -28,6 +28,7 @@ use chrono::Utc;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+#[cfg(any(test, feature = "mock"))]
 use std::collections::HashMap;
 #[cfg(any(test, feature = "mock"))]
 use std::{

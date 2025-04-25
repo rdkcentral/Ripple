@@ -218,6 +218,15 @@ impl ExtnManifest {
         }
         all_extns
     }
+
+    pub fn get_extn_symbol(&self, id: &str) -> Option<ExtnSymbol> {
+        for extn in self.get_all_extns() {
+            if extn.id.eq(id) {
+                return Some(extn);
+            }
+        }
+        None
+    }
 }
 #[cfg(test)]
 pub(crate) mod tests {
