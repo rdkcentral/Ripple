@@ -875,15 +875,28 @@ impl EndpointBrokerState {
         .with_diagnostic_context_item("workflow", &workflow_callback.is_some().to_string())
         .emit_debug();
 
-        self.handle_brokerage_workflow(
-            rpc_request,
+        let resp = self.handle_brokerage_workflow(
+            rpc_request.clone(),
             extn_message,
             workflow_callback,
             permissions,
             session,
             telemetry_response_listeners,
-        )
-        .is_ok()
+        );
+
+        if resp.is_err() {
+            let err = resp.unwrap_err();
+            LogSignal::new(
+                "handle_brokerage".to_string(),
+                "Rule error".to_string(),
+                rpc_request.ctx.clone(),
+            )
+            .with_diagnostic_context_item("error", &format!("{:?}", err))
+            .emit_error();
+            false
+        } else {
+            true
+        }
     }
 
     fn get_endpoint(
