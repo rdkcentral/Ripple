@@ -89,13 +89,13 @@ impl MergeConfig<CascadedExtnManifest> for ExtnManifest {
 
 impl CascadedExtnManifest {
     pub fn load(path: String) -> Result<(String, CascadedExtnManifest), RippleError> {
-        info!("Trying to load device manifest from path={}", path);
+        info!("Trying to load extn manifest from path={}", path);
         if let Some(p) = Path::new(&path).to_str() {
             if let Ok(contents) = fs::read_to_string(p) {
                 return Self::load_from_content(contents);
             }
         }
-        info!("No device manifest found in {}", path);
+        info!("No extns manifest found in {}", path);
         Err(RippleError::MissingInput)
     }
     pub fn load_from_content(
@@ -104,7 +104,7 @@ impl CascadedExtnManifest {
         match serde_json::from_str::<CascadedExtnManifest>(&contents) {
             Ok(manifest) => Ok((contents, manifest)),
             Err(err) => {
-                warn!("{:?} could not load device manifest", err);
+                warn!("{:?} could not load extn manifest", err);
                 Err(RippleError::InvalidInput)
             }
         }
