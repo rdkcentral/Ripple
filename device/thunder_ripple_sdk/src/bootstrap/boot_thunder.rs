@@ -17,7 +17,7 @@
 
 use crate::{
     bootstrap::setup_thunder_processors::SetupThunderProcessor,
-    client::{plugin_manager::ThunderPluginBootParam, thunder_client::ThunderClientBuilder},
+    client::thunder_client::ThunderClientBuilder,
     thunder_state::{
         ThunderBootstrapStateWithClient, ThunderBootstrapStateWithConfig, ThunderState,
     },
@@ -46,10 +46,7 @@ fn gateway_default() -> String {
     String::from(GATEWAY_DEFAULT)
 }
 
-pub async fn boot_thunder(
-    ext_client: ExtnClient,
-    plugin_param: ThunderPluginBootParam,
-) -> Option<ThunderBootstrapStateWithClient> {
+pub async fn boot_thunder(ext_client: ExtnClient) -> Option<ThunderBootstrapStateWithClient> {
     info!("Booting thunder initiated");
     let state = {
         info!("Using thunder_async_clinet");

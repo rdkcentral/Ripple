@@ -21,7 +21,6 @@ use super::{
     device_operator::{
         DeviceCallRequest, DeviceChannelParams, DeviceChannelRequest, DeviceOperator,
         DeviceResponseMessage, DeviceResponseSubscription, DeviceSubscribeRequest,
-        DeviceUnsubscribeRequest,
     },
     jsonrpc_method_locator::JsonRpcMethodLocator,
 };
@@ -242,28 +241,6 @@ impl DeviceOperator for ThunderClient {
             })
         }
     }
-
-    async fn unsubscribe(&self, request: DeviceUnsubscribeRequest) {
-        // if !self.use_thunder_async {
-        //     let message = ThunderUnsubscribeMessage {
-        //         module: request.module,
-        //         event_name: request.event_name,
-        //         subscription_id: None,
-        //     };
-        //     let msg = ThunderMessage::ThunderUnsubscribeMessage(message);
-        //     self.send_message(msg).await;
-        // } else {
-        // unsubscribe() deprecate
-        //}
-    }
-}
-
-#[derive(Debug)]
-pub struct ThunderSubscription {
-    // handle: JoinHandle<()>,
-    // params: Option<String>,
-    // listeners: HashMap<String, MpscSender<DeviceResponseMessage>>,
-    // rpc_response: DeviceResponseMessage,
 }
 
 impl ThunderClient {
@@ -349,133 +326,6 @@ impl ThunderClientBuilder {
     //     }
     // }
 }
-
-// pub struct ThunderRawBoolRequest {
-//     // method: String,
-//     // v: bool,
-// }
-
-// impl ThunderRawBoolRequest {
-//     // async fn send_request(self: Box<Self>) -> Value {
-//     //     let host = {
-//     //         if cfg!(feature = "local_dev") {
-//     //             match env::var("DEVICE_HOST") {
-//     //                 Ok(h) => h,
-//     //                 Err(_) => String::from("127.0.0.1"),
-//     //             }
-//     //         } else {
-//     //             String::from("127.0.0.1")
-//     //         }
-//     //     };
-
-//     //     if let Ok(t) = env::var("THUNDER_TOKEN") {
-//     //         let command = format!(
-//     //             r#"/usr/bin/curl -H "Authorization: Bearer {}" -d '{{"jsonrpc":"2.0","id":"1","method":"{}","params":{}}}' http://{}:9998/jsonrpc"#,
-//     //             t, self.method, self.v, host
-//     //         );
-//     //         let mut start_ref_app_command = Command::new("sh");
-//     //         start_ref_app_command.arg("-c").arg(command);
-//     //         if start_ref_app_command.output().is_ok() {
-//     //             Value::Bool(true)
-//     //         } else {
-//     //             Value::Bool(false)
-//     //         }
-//     //     } else {
-//     //         let command = format!(
-//     //             r#"/usr/bin/curl -d '{{"jsonrpc":"2.0","id":"1","method":"{}","params":{}}}' http://{}:9998/jsonrpc"#,
-//     //             self.method, self.v, host
-//     //         );
-//     //         let mut start_ref_app_command = Command::new("sh");
-//     //         start_ref_app_command.arg("-c").arg(command);
-//     //         if start_ref_app_command.output().is_ok() {
-//     //             Value::Bool(true)
-//     //         } else {
-//     //             Value::Bool(false)
-//     //         }
-//     //     }
-//     // }
-// }
-
-// pub struct ThunderNoParamRequest {
-//     //method: String,
-// }
-
-// impl ThunderNoParamRequest {
-//     // async fn send_request(self: Box<Self>, client: &Client) -> Value {
-//     //     let result = client.request(&self.method, ObjectParams::new()).await;
-//     //     if let Err(e) = result {
-//     //         error!("send_request: Error: e={}", e);
-//     //         return get_error_value(&e);
-//     //     }
-//     //     result.unwrap()
-//     // }
-// }
-
-// pub struct ThunderParamRequest<'a> {
-//     // method: &'a str,
-//     // params: &'a str,
-//     // json_based: bool,
-// }
-// /*
-// Polymorph wrapper needed to be able to properly call `client.requse` */
-// enum ParamWrapper {
-//     Object(ObjectParams),
-//     Array(ArrayParams),
-//     None,
-// }
-// impl<'a> ThunderParamRequest<'a> {
-//     // async fn send_request(self: Box<Self>, client: &Client) -> Value {
-//     //     let method = self.method;
-
-//     //     let result = match &self.get_params() {
-//     //         ParamWrapper::Object(object_params) => {
-//     //             client.request(method, object_params.clone()).await
-//     //         }
-//     //         ParamWrapper::Array(array_params) => client.request(method, array_params.clone()).await,
-//     //         ParamWrapper::None => client.request(method, ArrayParams::new()).await,
-//     //     };
-
-//     //     if let Err(e) = result {
-//     //         error!("send_request: Error: e={}", e);
-//     //         return get_error_value(&e);
-//     //     }
-//     //     result.unwrap()
-//     // }
-
-//     // fn get_params(self) -> ParamWrapper {
-//     //     /*
-//     //     Map in jsonrpsee is "ObjectParams" and Array is "ArrayParams"
-//     //     */
-//     //     match self.json_based {
-//     //         true => {
-//     //             /*map */
-//     //             match serde_json::from_str::<BTreeMap<&'a str, Value>>(self.params) {
-//     //                 Ok(v_tree_map) => {
-//     //                     let mut params = ObjectParams::new();
-//     //                     for kvp in v_tree_map {
-//     //                         let _ = params.insert(kvp.0, kvp.1);
-//     //                     }
-//     //                     ParamWrapper::Object(params)
-//     //                 }
-//     //                 Err(_e) => ParamWrapper::None,
-//     //             }
-//     //         }
-//     //         /*array */
-//     //         false => {
-//     //             let mut arrayparams = ArrayParams::new();
-//     //             match arrayparams.insert(Value::String(String::from(self.params))) {
-//     //                 Ok(_) => ParamWrapper::Array(arrayparams),
-//     //                 Err(_e) => ParamWrapper::None,
-//     //             }
-//     //         }
-//     //     }
-//     // }
-// }
-
-// fn return_message(callback: OneShotSender<DeviceResponseMessage>, response: Value) {
-//     let msg = DeviceResponseMessage::call(response);
-//     oneshot_send_and_log(callback, msg, "returning message");
-// }
 
 #[cfg(test)]
 mod tests {
