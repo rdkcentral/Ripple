@@ -654,11 +654,6 @@ pub mod tests {
         };
 
         extn_client.add_request_processor(processor);
-        let extn_client_for_thread = extn_client.clone();
-
-        tokio::spawn(async move {
-            extn_client_for_thread.clone().initialize().await;
-        });
 
         let response = extn_client
             .request(MockRequest {
@@ -717,7 +712,6 @@ pub mod tests {
         };
 
         extn_client.add_event_processor(processor);
-        let extn_client_for_thread = extn_client.clone();
 
         extn_client.clone().add_sender(
             ExtnId::get_main_target("main".into()).to_string(),
@@ -727,12 +721,12 @@ pub mod tests {
                 fulfills: Vec::new(),
                 config: None,
             },
-            mock_sender.tx,
+            mock_sender.tx.unwrap(),
         );
 
-        tokio::spawn(async move {
-            extn_client_for_thread.initialize().await;
-        });
+        // tokio::spawn(async move {
+        //     extn_client_for_thread.initialize().await;
+        // });
 
         let response = extn_client.event(MockEvent {
             event_name: "test_event".to_string(),

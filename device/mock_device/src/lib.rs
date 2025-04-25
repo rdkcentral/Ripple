@@ -23,6 +23,5 @@ pub mod mock_device_ffi;
 pub mod mock_device_processor;
 pub mod mock_server;
 pub mod mock_web_socket_server;
-#[cfg(test)]
-pub(crate) mod test_utils;
+
 pub mod utils;

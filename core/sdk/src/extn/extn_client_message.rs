@@ -17,6 +17,7 @@
 
 use std::collections::HashMap;
 
+use chrono::Utc;
 #[cfg(not(test))]
 use log::error;
 use serde::{Deserialize, Serialize};
@@ -104,7 +105,7 @@ impl ExtnMessage {
                 requestor: self.requestor.clone(),
                 target: self.target.clone(),
                 target_id: self.target_id.clone(),
-                ts: None,
+                ts: Some(Utc::now().timestamp_millis()),
             }),
             _ => {
                 error!("can only respond for a request message");
@@ -307,12 +308,10 @@ impl TryFrom<String> for ExtnMessage {
                 }
 
                 if data_is_valid {
-                    data_is_valid = false;
                     if let Some(target) = payload.get("target_id") {
                         if let Some(requestor) = target.as_str() {
                             if let Ok(id) = ExtnId::try_from(requestor.to_owned()) {
                                 extn_message.target_id = Some(id);
-                                data_is_valid = true;
                             }
                         }
                     }

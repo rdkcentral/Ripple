@@ -215,7 +215,7 @@ impl ExtnPayloadProvider for MockRequest {
     }
 }
 
-pub fn get_mock_extn_client(id: ExtnId) -> ExtnClient {
+pub fn get_mock_extn_client() -> ExtnClient {
     ExtnClient::new_main()
 }
 

@@ -19,15 +19,11 @@ use std::collections::HashMap;
 
 use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::{
-    api::{manifest::extn_manifest::ExtnSymbol, status_update::ExtnStatus}, async_channel::Receiver as CReceiver, export_channel_builder, export_extn_metadata, extn::{
-        client::{extn_client::ExtnClient, extn_sender::ExtnSender},
-        extn_id::{ExtnClassId, ExtnId, ExtnProviderAdjective},
-        ffi::{
-            ffi_channel::{ExtnChannel, ExtnChannelBuilder},
-            ffi_library::{CExtnMetadata, ExtnMetadata, ExtnSymbolMetadata},
-            ffi_message::CExtnMessage,
-        },
-    }, framework::ripple_contract::{ContractFulfiller, RippleContract}, log::{debug, info}, processor::rpc_request_processor::RPCRequestProcessor, semver::Version, tokio::{self, runtime::Runtime}, utils::{error::RippleError, logger::init_logger}
+    api::{manifest::extn_manifest::ExtnSymbol, status_update::ExtnStatus}, export_extn_channel, extn::{
+        client::extn_client::ExtnClient,
+        extn_id::{ExtnClassId, ExtnId}, 
+        ffi::ffi_channel::ExtnChannel,
+    }, log::info, processor::rpc_request_processor::RPCRequestProcessor, tokio::{self, runtime::Runtime}, utils::logger::init_logger
 };
 
 use crate::{
@@ -38,30 +34,7 @@ use crate::{
 
 pub const EXTN_NAME: &str = "mock_device";
 
-fn init_library() -> CExtnMetadata {
-    let _ = init_logger(EXTN_NAME.into());
-    let id = ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.into());
-    let mock_device_channel = ExtnSymbolMetadata::get(
-        id.clone(),
-        ContractFulfiller::new(vec![RippleContract::ExtnProvider(ExtnProviderAdjective {
-            id,
-        })]),
-        Version::new(1, 0, 0),
-    );
-
-
-    debug!("Returning mock_device metadata builder");
-    let extn_metadata = ExtnMetadata {
-        name: EXTN_NAME.into(),
-        symbols: vec![mock_device_channel],
-    };
-
-    extn_metadata.into()
-}
-
-export_extn_metadata!(CExtnMetadata, init_library);
-
-fn start_launcher() {
+fn start() {
     let _ = init_logger(EXTN_NAME.into());
     info!("Starting mock device channel");
     let runtime = Runtime::new().unwrap();
@@ -71,7 +44,7 @@ fn start_launcher() {
         fulfills: Vec::new(), 
         config: Some(HashMap::new())
     };
-    let mut client = ExtnClient::new_extn(symbol);
+    let (mut client,tr) = ExtnClient::new_extn(symbol);
     runtime.block_on(async move {
         let client_c = client.clone();
         tokio::spawn(async move {
@@ -94,56 +67,15 @@ fn start_launcher() {
             let _ = client.event(ExtnStatus::Ready);
         });
         
-        client_c.initialize().await;
+        client_c.initialize(tr).await;
     });
 }
 
-fn build(extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
-    if let Ok(id) = ExtnId::try_from(extn_id) {
-        let current_id = ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.into());
-
-        if id.eq(&current_id) {
-            Ok(Box::new(ExtnChannel {
-                start: start_launcher,
-            }))
-        } else {
-            Err(RippleError::ExtnError)
-        }
-    } else {
-        Err(RippleError::InvalidInput)
+fn init_extn_channel() -> ExtnChannel {
+    ExtnChannel {
+        start
     }
 }
 
-fn init_extn_builder() -> ExtnChannelBuilder {
-    ExtnChannelBuilder {
-        build,
-        service: EXTN_NAME.into(),
-    }
-}
+export_extn_channel!(ExtnChannel, init_extn_channel);
 
-export_channel_builder!(ExtnChannelBuilder, init_extn_builder);
-
-
-#[cfg(test)]
-mod tests {
-    use serde_json::json;
-
-
-    use super::*;
-
-    #[test]
-    fn test_init_library() {
-        assert_eq!(
-            init_library(),
-            CExtnMetadata {
-                name: "mock_device".to_owned(),
-                metadata: json!([
-                    {"fulfills": json!([json!({"extn_provider": "ripple:channel:device:mock_device"}).to_string()]).to_string(), "id": "ripple:channel:device:mock_device", "required_version": "1.0.0"},
-                    {"fulfills": json!([json!("json_rpsee").to_string()]).to_string(), "id": "ripple:extn:jsonrpsee:mock_device", "required_version": "1.0.0"}
-                    ])
-                    .to_string()
-            }
-        )
-    }
-
-}

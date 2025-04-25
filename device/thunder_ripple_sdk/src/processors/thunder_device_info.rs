@@ -1047,7 +1047,7 @@ fn round_to_nearest_quarter_hour(offset_seconds: i64) -> i64 {
 
 #[cfg(test)]
 pub mod tests {
-    use std::{fs::File, sync::Arc};
+    use std::sync::Arc;
 
     use ripple_sdk::{
         api::device::{
@@ -1060,7 +1060,7 @@ pub mod tests {
             mock_extension_client::MockExtnClient,
         },
         framework::ripple_contract::RippleContract,
-        serde_json::{self, json},
+        serde_json::json,
         tokio,
         utils::channel_utils::oneshot_send_and_log,
     };
@@ -1119,11 +1119,9 @@ pub mod tests {
     }
 
     async fn test_platform_build_info_with_build_name(
-        build_name: &'static str,
+        _build_name: &'static str,
         handler: Arc<ThunderHandlerFn>,
     ) {
-        let tests_file = File::open("src/tests/buildinfo-parse-tests.json").unwrap();
-        let tests: Vec<BuildInfoTest> = serde_json::from_reader(tests_file).unwrap();
         let mut ch = CustomHandler::default();
         ch.custom_request_handler.insert(
             ThunderPlugin::System.unversioned_method("getSystemVersions"),

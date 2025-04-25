@@ -18,9 +18,7 @@
 use std::sync::{Arc, RwLock};
 
 use ripple_sdk::{
-    api::{
-        apps::{AppError, AppManagerResponse, AppMethod, AppRequest}, gateway::rpc_gateway_api::ApiMessage, manifest::extn_manifest::ExtnSymbol
-    },
+    api::apps::{AppError, AppManagerResponse, AppMethod, AppRequest},
     extn::{
         client::{
             extn_client::ExtnClient,
@@ -31,10 +29,7 @@ use ripple_sdk::{
     },
     framework::RippleResponse,
     log::error,
-    tokio::{
-        self,
-        sync::{mpsc::Sender, oneshot},
-    },
+    tokio::sync::{mpsc::Sender, oneshot},
     utils::error::RippleError,
 };
 
@@ -123,16 +118,11 @@ impl RippleClient {
         self.client.read().unwrap().clone()
     }
 
-    pub async fn init(&self) {
-        let client = self.get_extn_client();
-        tokio::spawn(async move { client.initialize().await });
-    }
-
     pub async fn send_extn_request(
         &self,
         payload: impl ExtnPayloadProvider,
     ) -> Result<ExtnMessage, RippleError> {
-        self.get_extn_client().clone().request(payload).await
+        self.get_extn_client().main_internal_request(payload).await
     }
     pub fn send_extn_request_transient(&self, payload: impl ExtnPayloadProvider) -> RippleResponse {
         self.get_extn_client().request_transient(payload)?;

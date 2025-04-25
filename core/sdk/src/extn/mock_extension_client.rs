@@ -132,7 +132,6 @@ macro_rules! create_processor {
             ) {
                 let mut main = $crate::extn::mock_extension_client::MockExtnClient::main();
                 let (cli, extn_rx) = $proc_ty::add(&mut main);
-                $crate::extn::mock_extension_client::MockExtnClient::start(main.clone());
                 (main, cli, extn_rx)
             }
         }
@@ -166,12 +165,6 @@ impl MockExtnClient {
 
     pub fn main() -> ExtnClient {
         ExtnClient::new_main()
-    }
-
-    pub fn start(client: ExtnClient) {
-        tokio::spawn(async move {
-            client.initialize().await;
-        });
     }
 
     pub fn req(contract: RippleContract, req: ExtnRequest) -> ExtnMessage {

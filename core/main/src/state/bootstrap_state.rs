@@ -28,12 +28,12 @@ use ripple_sdk::{
 
 use crate::{
     bootstrap::manifest::apps::LoadAppLibraryStep,
-    broker::endpoint_broker::{BrokerOutput, BROKER_CHANNEL_BUFFER_SIZE},
+    broker::endpoint_broker::BrokerOutput,
     firebolt::firebolt_gateway::FireboltGatewayCommand,
     service::extn::ripple_client::RippleClient,
 };
 
-use super::{extn_state::ExtnState, platform_state::PlatformState};
+use super::platform_state::PlatformState;
 
 use env_file_reader::read_file;
 #[derive(Debug, Clone)]
@@ -91,8 +91,7 @@ impl Default for ChannelsState {
 pub struct BootstrapState {
     pub start_time: Instant,
     pub platform_state: PlatformState,
-    pub channels_state: ChannelsState,
-    pub extn_state: ExtnState,
+    pub channels_state: ChannelsState
 }
 
 impl BootstrapState {
@@ -105,7 +104,6 @@ impl BootstrapState {
         };
         LoadDeviceManifestStep::read_env_variable();
         let app_manifest_result = LoadAppLibraryStep::load_app_library();
-        let extn_state = ExtnState::new( extn_manifest.clone());
         let platform_state = PlatformState::new(
             extn_manifest,
             device_manifest,
@@ -146,7 +144,6 @@ impl BootstrapState {
             start_time: Instant::now(),
             platform_state,
             channels_state,
-            extn_state,
         })
     }
 }

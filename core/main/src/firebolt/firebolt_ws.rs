@@ -31,7 +31,7 @@ use crate::{
 use futures::SinkExt;
 use futures::StreamExt;
 use jsonrpsee::types::{error::INVALID_REQUEST_CODE, ErrorObject, ErrorResponse, Id};
-use ripple_sdk::{api::manifest::extn_manifest::{ExtnManifest, ExtnSymbol}, extn::{self, extn_client_message::ExtnMessage, extn_id::{self, ExtnId}}, tokio_tungstenite::{
+use ripple_sdk::{api::manifest::extn_manifest::ExtnSymbol, extn::extn_client_message::ExtnMessage, tokio_tungstenite::{
     tungstenite::{self, Message},
     WebSocketStream,
 }};

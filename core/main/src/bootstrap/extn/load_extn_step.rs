@@ -15,21 +15,35 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::thread;
+
 use ripple_sdk::{
-    async_trait::async_trait,
-    extn::{
-        extn_id::ExtnId,
-        ffi::ffi_channel::load_channel_builder,
-    },
-    framework::bootstrap::Bootstep,
-    log::{debug, error, info},
-    utils::error::RippleError,
+    api::manifest::extn_manifest::ExtnManifestEntry, async_trait::async_trait, 
+    extn::ffi::ffi_channel::load_channel_builder,
+    framework::bootstrap::Bootstep, log::{debug, info, warn}, utils::error::RippleError
 };
 
-use crate::state::{
-    bootstrap_state::BootstrapState,
-    extn_state::PreLoadedExtnChannel,
-};
+use crate::state::bootstrap_state::BootstrapState;
+use std::ffi::OsStr;
+use ripple_sdk::libloading::Library;
+
+#[derive(Debug)]
+pub struct LoadedLibrary {
+    pub library: Library,
+    pub entry: ExtnManifestEntry,
+}
+
+impl LoadedLibrary {
+    pub fn new(
+        library: Library,
+        entry: ExtnManifestEntry,
+    ) -> LoadedLibrary {
+        LoadedLibrary {
+            library,
+            entry,
+        }
+    }
+}
 
 /// Actual bootstep which loads the extensions into the ExtnState.
 /// Currently this step loads
@@ -37,71 +51,90 @@ use crate::state::{
 /// 2. Device Extensions
 pub struct LoadExtensionsStep;
 
+impl LoadExtensionsStep {
+
+    unsafe fn load_extension_library<P: AsRef<OsStr>>(
+        filename: P,
+        entry: ExtnManifestEntry,
+    ) -> Option<LoadedLibrary> {
+        match Library::new(&filename) {
+            Ok(library) => Some(LoadedLibrary::new(library, entry)),
+            Err(err) => {
+                debug!("Extn not found: {:?}", err);
+                None
+            }
+        }
+    }
+
+    async fn pre_setup(&self, state: BootstrapState) -> Result<Vec<LoadedLibrary>, RippleError> {
+        debug!("Starting Extension Library step");
+        let manifest = state.platform_state.get_manifest();
+        let default_path = manifest.default_path;
+        let default_extn = manifest.default_extension;
+        let extn_paths: Vec<(String, ExtnManifestEntry)> = manifest
+            .extns
+            .into_iter()
+            .map(|f| {
+                (f.get_path(&default_path, &default_extn), f)
+                // TODO Add Resolution checks later on
+            })
+            .collect();
+        unsafe {
+            let mut loaded_extns = Vec::new();
+            for (extn_path, entry) in extn_paths {
+                debug!("");
+                debug!("");
+                debug!(
+                    "******************Loading {}************************",
+                    extn_path
+                );
+                let r = Self::load_extension_library(extn_path.clone(), entry);
+                match r {
+                    Some(loaded_extn) => {
+                        info!("Adding {}", loaded_extn.entry.path);
+                        loaded_extns.push(loaded_extn);
+                    }
+                    None => warn!(
+                        "file={} doesnt contain a valid extension library",
+                        extn_path
+                    ),
+                }
+                debug!("-------------------------------------------------");
+                debug!("");
+                debug!("");
+            }
+            let valid_extension_libraries = loaded_extns.len();
+            if valid_extension_libraries == 0 {
+                warn!("No valid extensions");
+            }
+            info!("Total Libraries loaded={}", valid_extension_libraries);
+            return Ok(loaded_extns)
+        }
+    }
+}
+
 #[async_trait]
 impl Bootstep<BootstrapState> for LoadExtensionsStep {
     fn get_name(&self) -> String {
         "LoadExtensionsStep".into()
     }
     async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
-        let loaded_extensions = state.extn_state.loaded_libraries.read().unwrap();
-        let mut deferred_channels: Vec<PreLoadedExtnChannel> = Vec::new();
-        let mut device_channels: Vec<PreLoadedExtnChannel> = Vec::new();
+        let loaded_extensions = self.pre_setup(state.clone()).await?;
         for extn in loaded_extensions.iter() {
             unsafe {
                 let path = extn.entry.path.clone();
                 let library = &extn.library;
                 info!(
-                    "path {} with # of symbols {}",
-                    path,
-                    extn.metadata.symbols.len()
+                    "Starting library of path {}",
+                    path
                 );
-                let channels = extn.get_channels();
-                for channel in channels {
-                    debug!("loading channel builder for {}", channel.id);
-                    if let Ok(extn_id) = ExtnId::try_from(channel.id.clone()) {
-                        if let Ok(builder) = load_channel_builder(library) {
-                            debug!("building channel {}", channel.id);
-                            if let Ok(extn_channel) = (builder.build)(extn_id.to_string()) {
-                                let preloaded_channel = PreLoadedExtnChannel {
-                                    channel: extn_channel,
-                                    extn_id: extn_id.clone(),
-                                    symbol: channel.clone(),
-                                };
-                                if extn_id.is_device_channel() {
-                                    device_channels.push(preloaded_channel);
-                                } else {
-                                    deferred_channels.push(preloaded_channel);
-                                }
-                                
-                            } else {
-                                error!("invalid channel builder in {}", path);
-                                return Err(RippleError::BootstrapError);
-                            }
-                        } else {
-                            error!("failed loading builder in {}", path);
-                            return Err(RippleError::BootstrapError);
-                        }
-                    } else {
-                        error!("invalid extn manifest entry for extn_id");
-                        return Err(RippleError::BootstrapError);
-                    }
+                if let Ok(builder) = load_channel_builder(library) {
+                    thread::spawn(move || {
+                        (builder.start)();
+                    });
+                    
                 }
             }
-        }
-
-        {
-            let mut device_channel_state = state.extn_state.device_channels.write().unwrap();
-            info!("{} Device channels extension loaded", device_channels.len());
-            let _ = device_channel_state.extend(device_channels);
-        }
-
-        {
-            let mut deferred_channel_state = state.extn_state.deferred_channels.write().unwrap();
-            info!(
-                "{} Deferred channels extension loaded",
-                deferred_channels.len()
-            );
-            let _ = deferred_channel_state.extend(deferred_channels);
         }
 
         Ok(())
