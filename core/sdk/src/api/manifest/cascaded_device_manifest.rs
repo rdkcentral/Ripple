@@ -1148,6 +1148,8 @@ mod tests {
                 privacy_settings_storage_type: PrivacySettingsStorageType::Local,
                 intent_validation: IntentValidation::Fail,
                 cloud_permissions: true,
+                thunder_plugin_status_check_at_broker_start_up: true
+
             }
         );
     }
