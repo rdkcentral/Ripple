@@ -28,7 +28,6 @@ use ripple_sdk::{
             rpc_error::RpcError,
             rpc_gateway_api::{ApiMessage, ApiProtocol, JsonRpcApiResponse, RpcRequest},
         },
-        manifest::extn_manifest::ExtnSymbol,
         observability::{log_signal::LogSignal, metrics_util::ApiStats},
     },
     chrono::Utc,
@@ -84,7 +83,6 @@ pub enum FireboltGatewayCommand {
     UnregisterSession {
         session_id: String,
         cid: String,
-        is_service: bool,
     },
     HandleRpc {
         request: RpcRequest,
@@ -96,11 +94,6 @@ pub enum FireboltGatewayCommand {
         response: JsonRpcApiResponse,
     },
     StopServer,
-    RegisterExtnService {
-        session_id: String,
-        session: Session,
-        symbol: ExtnSymbol,
-    },
 }
 
 impl FireboltGateway {
@@ -141,38 +134,15 @@ impl FireboltGateway {
                         .session_state
                         .add_session(session_id, session);
                 }
-                UnregisterSession {
-                    session_id,
-                    cid,
-                    is_service,
-                } => {
+                UnregisterSession { session_id, cid } => {
                     AppEvents::remove_session(&self.state.platform_state, session_id.clone());
-
-                    if is_service {
-                        self.state
-                            .platform_state
-                            .extn_manifest
-                            .get_all_extns()
-                            .iter()
-                            .for_each(|extn| {
-                                if extn.id.eq(&session_id) {
-                                    self.state
-                                        .platform_state
-                                        .get_client()
-                                        .get_extn_client()
-                                        .remove_sender(session_id.clone(), extn.clone());
-                                }
-                            });
-                    } else {
-                        ProviderBroker::unregister_session(&self.state.platform_state, cid.clone())
-                            .await;
-                        self.state
-                            .platform_state
-                            .endpoint_state
-                            .cleanup_for_app(&cid)
-                            .await;
-                    }
-
+                    ProviderBroker::unregister_session(&self.state.platform_state, cid.clone())
+                        .await;
+                    self.state
+                        .platform_state
+                        .endpoint_state
+                        .cleanup_for_app(&cid)
+                        .await;
                     self.state.platform_state.session_state.clear_session(&cid);
                 }
                 HandleRpc { request } => self.handle(request, None).await,
@@ -189,24 +159,6 @@ impl FireboltGateway {
                 StopServer => {
                     error!("Stopping server");
                     break;
-                }
-                RegisterExtnService {
-                    session_id,
-                    session,
-                    symbol,
-                } => {
-                    let id = session.get_app_id();
-                    if let Some(sender) = session.get_sender() {
-                        self.state
-                            .platform_state
-                            .get_client()
-                            .get_extn_client()
-                            .add_sender(id, symbol, sender);
-                    }
-                    self.state
-                        .platform_state
-                        .session_state
-                        .add_session(session_id, session);
                 }
             }
         }

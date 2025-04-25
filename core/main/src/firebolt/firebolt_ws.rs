@@ -296,47 +296,53 @@ impl FireboltWs {
         let app_id_c = app_id.clone();
         let session_id_c = identity.session_id.clone();
 
-        let connection_id = Uuid::new_v4().to_string();
-        info!(
-            "Creating new connection_id={} app_id={} session_id={}, gateway_secure={}, port={}",
-            connection_id,
-            app_id_c,
-            session_id_c,
-            gateway_secure,
-            _client_addr.port()
-        );
+        let connection_id = identity.session_id.clone();
 
         let connection_id_c = connection_id.clone();
-        let (msg, is_service) = if let Some(symbol) = identity.service_info.clone() {
-            (
-                FireboltGatewayCommand::RegisterExtnService {
-                    session_id: connection_id.clone(),
-                    session,
-                    symbol,
-                },
-                true,
-            )
+        let mut is_service = false;
+        if let Some(symbol) = identity.service_info.clone() {
+            info!(
+                "Creating new service connection_id={} app_id={} session_id={}, gateway_secure={}, port={}",
+                connection_id,
+                app_id_c,
+                session_id_c,
+                gateway_secure,
+                _client_addr.port()
+            );
+            is_service = true;
+            let id = session_id_c.clone();
+            if let Some(sender) = session.get_sender() {
+                // Gateway will probably not necessarily be ready when extensions start
+                state.session_state.add_session(id, session.clone());
+                client
+                    .get_extn_client()
+                    .add_sender(app_id_c.clone(), symbol, sender);
+            }
         } else {
-            (
-                FireboltGatewayCommand::RegisterSession {
-                    session_id: connection_id.clone(),
-                    session,
-                },
-                false,
-            )
-        };
-        if let Err(e) = client.send_gateway_command(msg) {
-            error!("Error registering the connection {:?}", e);
-            return;
+            info!(
+                "Creating new connection_id={} app_id={} session_id={}, gateway_secure={}, port={}",
+                connection_id,
+                app_id_c,
+                session_id_c,
+                gateway_secure,
+                _client_addr.port()
+            );
+            let msg = FireboltGatewayCommand::RegisterSession {
+                session_id: connection_id.clone(),
+                session,
+            };
+            if let Err(e) = client.send_gateway_command(msg) {
+                error!("Error registering the connection {:?}", e);
+                return;
+            }
+            if !gateway_secure
+                && PermissionHandler::fetch_and_store(&state, &app_id, false)
+                    .await
+                    .is_err()
+            {
+                error!("Couldnt pre cache permissions");
+            }
         }
-        if !gateway_secure
-            && PermissionHandler::fetch_and_store(&state, &app_id, false)
-                .await
-                .is_err()
-        {
-            error!("Couldnt pre cache permissions");
-        }
-
         let mut context = vec![];
         if identity.rpc_v2 {
             context.push(RPC_V2.to_string());
@@ -453,10 +459,18 @@ impl FireboltWs {
             }
         }
         debug!("SESSION DEBUG Unregistering {}", connection_id);
+        if let Some(symbol) = identity.service_info {
+            info!(
+                "Unregistering service connection_id={} app_id={} session_id={}",
+                connection_id, app_id_c, session_id_c
+            );
+            client
+                .get_extn_client()
+                .remove_sender(app_id_c.clone(), symbol);
+        }
         let msg = FireboltGatewayCommand::UnregisterSession {
             session_id: identity.session_id.clone(),
             cid: connection_id,
-            is_service,
         };
         if let Err(e) = client.send_gateway_command(msg) {
             error!("Error Unregistering {:?}", e);

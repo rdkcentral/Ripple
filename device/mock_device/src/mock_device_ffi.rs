@@ -15,18 +15,16 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::HashMap;
-
 use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::{
-    api::{manifest::extn_manifest::ExtnSymbol, status_update::ExtnStatus},
+    api::{manifest::ripple_manifest_loader::RippleManifestLoader, status_update::ExtnStatus},
     export_extn_channel,
     extn::{
         client::extn_client::ExtnClient,
         extn_id::{ExtnClassId, ExtnId},
         ffi::ffi_channel::ExtnChannel,
     },
-    log::info,
+    log::{error, info},
     processor::rpc_request_processor::RPCRequestProcessor,
     tokio::{self, runtime::Runtime},
     utils::logger::init_logger,
@@ -43,16 +41,18 @@ pub const EXTN_NAME: &str = "mock_device";
 fn start() {
     let _ = init_logger(EXTN_NAME.into());
     info!("Starting mock device channel");
-    let runtime = Runtime::new().unwrap();
-    let symbol = ExtnSymbol {
-        id: format!(
-            "{}",
-            ExtnId::new_channel(ExtnClassId::Distributor, EXTN_NAME.to_string())
-        ),
-        uses: Vec::new(),
-        fulfills: Vec::new(),
-        config: Some(HashMap::new()),
+    let Ok((extn_manifest, _device_manifest)) = RippleManifestLoader::initialize() else {
+        error!("Error initializing manifests");
+        return;
     };
+    let runtime = Runtime::new().unwrap();
+    let id = ExtnId::new_channel(ExtnClassId::Distributor, EXTN_NAME.to_string()).to_string();
+    let symbol = extn_manifest.get_extn_symbol(&id);
+    if symbol.is_none() {
+        error!("Error getting symbol");
+        return;
+    }
+    let symbol = symbol.unwrap();
     let (mut client, tr) = ExtnClient::new_extn(symbol);
     runtime.block_on(async move {
         let client_c = client.clone();

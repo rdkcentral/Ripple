@@ -816,7 +816,7 @@ impl ExtnClient {
         #[cfg(all(not(feature = "mock"), not(test)))]
         {
             let resp = tokio::time::timeout(
-                Duration::from_millis(timeout_in_msecs),
+                std::time::Duration::from_millis(timeout_in_msecs),
                 self.request(payload),
             )
             .await;
@@ -876,7 +876,7 @@ impl ExtnClient {
         #[cfg(all(not(feature = "mock"), not(test)))]
         {
             let resp = tokio::time::timeout(
-                Duration::from_millis(timeout_in_msecs),
+                std::time::Duration::from_millis(timeout_in_msecs),
                 self.send_rpc_main(payload),
             )
             .await;
