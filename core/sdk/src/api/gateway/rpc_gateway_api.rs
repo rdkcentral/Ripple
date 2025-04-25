@@ -80,6 +80,7 @@ impl From<CallContext> for serde_json::Value {
             "protocol": ctx.protocol,
             "method": ctx.method,
             "cid": ctx.cid,
+            "gateway_secure": ctx.gateway_secure,
         })
     }
 }
