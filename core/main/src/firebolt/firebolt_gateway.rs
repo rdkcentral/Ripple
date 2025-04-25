@@ -23,10 +23,13 @@ use ripple_sdk::{
         firebolt::{
             fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
             fb_openrpc::FireboltOpenRpcMethod,
-        }, gateway::{
+        },
+        gateway::{
             rpc_error::RpcError,
             rpc_gateway_api::{ApiMessage, ApiProtocol, JsonRpcApiResponse, RpcRequest},
-        }, manifest::extn_manifest::ExtnSymbol, observability::{log_signal::LogSignal, metrics_util::ApiStats}
+        },
+        manifest::extn_manifest::ExtnSymbol,
+        observability::{log_signal::LogSignal, metrics_util::ApiStats},
     },
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
@@ -81,7 +84,7 @@ pub enum FireboltGatewayCommand {
     UnregisterSession {
         session_id: String,
         cid: String,
-        is_service: bool
+        is_service: bool,
     },
     HandleRpc {
         request: RpcRequest,
@@ -96,8 +99,8 @@ pub enum FireboltGatewayCommand {
     RegisterExtnService {
         session_id: String,
         session: Session,
-        symbol: ExtnSymbol
-    }
+        symbol: ExtnSymbol,
+    },
 }
 
 impl FireboltGateway {
@@ -138,29 +141,39 @@ impl FireboltGateway {
                         .session_state
                         .add_session(session_id, session);
                 }
-                UnregisterSession { session_id, cid, is_service } => {
+                UnregisterSession {
+                    session_id,
+                    cid,
+                    is_service,
+                } => {
                     AppEvents::remove_session(&self.state.platform_state, session_id.clone());
-                    
+
                     if is_service {
-                        self.state.platform_state.extn_manifest.get_all_extns()
+                        self.state
+                            .platform_state
+                            .extn_manifest
+                            .get_all_extns()
                             .iter()
                             .for_each(|extn| {
                                 if extn.id.eq(&session_id) {
-                                    self.state.platform_state.get_client().get_extn_client().remove_sender(session_id.clone(), extn.clone());
+                                    self.state
+                                        .platform_state
+                                        .get_client()
+                                        .get_extn_client()
+                                        .remove_sender(session_id.clone(), extn.clone());
                                 }
                             });
                     } else {
                         ProviderBroker::unregister_session(&self.state.platform_state, cid.clone())
-                        .await;
+                            .await;
                         self.state
                             .platform_state
                             .endpoint_state
                             .cleanup_for_app(&cid)
                             .await;
                     }
-                   
+
                     self.state.platform_state.session_state.clear_session(&cid);
-                    
                 }
                 HandleRpc { request } => self.handle(request, None).await,
                 HandleRpcForExtn { msg } => {
@@ -177,16 +190,23 @@ impl FireboltGateway {
                     error!("Stopping server");
                     break;
                 }
-                RegisterExtnService { session_id, session, symbol } => {
+                RegisterExtnService {
+                    session_id,
+                    session,
+                    symbol,
+                } => {
                     let id = session.get_app_id();
                     if let Some(sender) = session.get_sender() {
-                        self.state.platform_state.get_client().get_extn_client().add_sender(id, symbol, sender);
+                        self.state
+                            .platform_state
+                            .get_client()
+                            .get_extn_client()
+                            .add_sender(id, symbol, sender);
                     }
                     self.state
                         .platform_state
                         .session_state
                         .add_session(session_id, session);
-                    
                 }
             }
         }

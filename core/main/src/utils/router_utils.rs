@@ -17,7 +17,7 @@
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
     extn::{client::extn_client::ExtnClient, extn_client_message::ExtnMessage},
-    log::trace
+    log::trace,
 };
 
 use crate::state::ops_metrics_state::OpMetricState;

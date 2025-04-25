@@ -1004,8 +1004,7 @@ pub mod tests {
             device_request::DeviceRequest,
         },
         extn::{
-            client::extn_processor::ExtnRequestProcessor,
-            extn_client_message::ExtnRequest,
+            client::extn_processor::ExtnRequestProcessor, extn_client_message::ExtnRequest,
             mock_extension_client::MockExtnClient,
         },
         framework::ripple_contract::RippleContract,

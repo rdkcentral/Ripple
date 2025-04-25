@@ -19,24 +19,27 @@ use chrono::Utc;
 use log::warn;
 #[cfg(not(test))]
 use log::{debug, error, info, trace};
-use tokio_tungstenite::tungstenite::Message;
 use std::{
     collections::HashMap,
     ops::ControlFlow,
     sync::{Arc, RwLock},
 };
+use tokio_tungstenite::tungstenite::Message;
 
-#[cfg(test)]
-use {println as info, println as trace, println as debug, println as error};
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::{
     mpsc::{self, Sender as MSender},
     oneshot::{self, Sender as OSender},
 };
+#[cfg(test)]
+use {println as info, println as trace, println as debug, println as error};
 
 use crate::{
     api::{
-        context::{ActivationStatus, RippleContext, RippleContextUpdateRequest}, device::device_request::{InternetConnectionStatus, TimeZone}, gateway::rpc_gateway_api::ApiMessage, manifest::extn_manifest::ExtnSymbol
+        context::{ActivationStatus, RippleContext, RippleContextUpdateRequest},
+        device::device_request::{InternetConnectionStatus, TimeZone},
+        gateway::rpc_gateway_api::ApiMessage,
+        manifest::extn_manifest::ExtnSymbol,
     },
     extn::{
         extn_client_message::{ExtnMessage, ExtnPayloadProvider, ExtnResponse},
@@ -125,7 +128,7 @@ impl ExtnClient {
         }
     }
 
-    pub fn new_extn(symbol:ExtnSymbol) -> (ExtnClient,mpsc::Receiver<ApiMessage>) {
+    pub fn new_extn(symbol: ExtnSymbol) -> (ExtnClient, mpsc::Receiver<ApiMessage>) {
         let (tx, tr) = mpsc::channel::<ApiMessage>(32);
         let client = Self {
             sender: ExtnSender::new_extn(tx, symbol),
@@ -137,7 +140,7 @@ impl ExtnClient {
             ripple_context: Arc::new(RwLock::new(RippleContext::default())),
         };
 
-        (client,tr)
+        (client, tr)
     }
 
     /// Adds a new request processor reference to the internal map of processors
@@ -231,7 +234,7 @@ impl ExtnClient {
         }
     }
 
-    pub fn remove_sender(&mut self, id:String, symbol: ExtnSymbol) {
+    pub fn remove_sender(&mut self, id: String, symbol: ExtnSymbol) {
         {
             let mut sender_map = self.extn_sender_map.write().unwrap();
             sender_map.remove(&id);
@@ -259,13 +262,12 @@ impl ExtnClient {
     /// Called once per client initialization this is a blocking method. Use a spawned thread to call this method
     pub async fn initialize(&self, mut tr: mpsc::Receiver<ApiMessage>) {
         debug!("Starting initialize");
-        
-            let base_path = std::env::var("RIPPLE_SERVICE_HANDSHAKE_PATH").unwrap_or_else(|_| {
-                "ws://127.0.0.1:3474?service_handshake=".to_string()
-            });
 
-        let path = format!("{}{}",base_path, self.sender.get_cap().to_string());
-        if let Ok((mut ws_tx,mut ws_rx)) = WebSocketUtils::get_ws_stream(&path, None).await {
+        let base_path = std::env::var("RIPPLE_SERVICE_HANDSHAKE_PATH")
+            .unwrap_or_else(|_| "ws://127.0.0.1:3474?service_handshake=".to_string());
+
+        let path = format!("{}{}", base_path, self.sender.get_cap().to_string());
+        if let Ok((mut ws_tx, mut ws_rx)) = WebSocketUtils::get_ws_stream(&path, None).await {
             tokio::pin! {
                 let read_pin = ws_rx.next();
             }
@@ -282,7 +284,7 @@ impl ExtnClient {
                                                 error!("IEC Latency {:?}", msg);
                                             }
                                         }
-                                        
+
                                         trace!("Received message: {:?}", extn_message);
                                         self.handle_message(extn_message);
                                     } else {
@@ -302,8 +304,7 @@ impl ExtnClient {
                     }
                 }
             }
-        
-    }
+        }
         debug!("Initialize Ended Abruptly");
     }
 
@@ -616,9 +617,15 @@ impl ExtnClient {
         if !req.payload.is_request() {
             error!("Invalid input");
         } else {
-            let _ = self.sender.send(response,self.get_extn_sender_with_extn_id(&req.requestor.to_string()) ).map_err(|e|{
-                error!("Error sending message {:?}", e);
-            });
+            let _ = self
+                .sender
+                .send(
+                    response,
+                    self.get_extn_sender_with_extn_id(&req.requestor.to_string()),
+                )
+                .map_err(|e| {
+                    error!("Error sending message {:?}", e);
+                });
         }
     }
 
@@ -635,17 +642,15 @@ impl ExtnClient {
                 self.get_extn_sender_with_extn_id(&msg.requestor.to_string()),
             )
         }
-        
     }
 
     /// Critical method used by event processors to emit event back to the requestor
     /// # Arguments
     /// `msg` - [ExtnMessage] event object
     pub fn event(&self, event: impl ExtnPayloadProvider) -> Result<(), RippleError> {
-        let msg = self.sender.get_message(
-            uuid::Uuid::new_v4().to_string(),
-            event.clone(),
-        );
+        let msg = self
+            .sender
+            .get_message(uuid::Uuid::new_v4().to_string(), event.clone());
         if self.sender.get_cap().is_main() && msg.requestor.is_main() {
             self.handle_message(msg);
             return Ok(());
@@ -672,10 +677,11 @@ impl ExtnClient {
             self.handle_message(request);
         } else {
             let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
-            self.sender.send_request(id.clone(), payload, other_sender)?;
+            self.sender
+                .send_request(id.clone(), payload, other_sender)?;
         }
         add_single_processor(id.clone(), Some(tx), self.response_processors.clone());
-        
+
         if let Ok(r) = rx.await {
             return Ok(r);
         }
@@ -751,22 +757,19 @@ impl ExtnClient {
 
         let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
         if other_sender.is_some() {
-            match self
-            .sender
-            .send_request(id, payload, other_sender)
-            {
+            match self.sender.send_request(id, payload, other_sender) {
                 Ok(_) => {
                     trace!("Main internal request sent successfully");
                 }
                 Err(e) => {
                     error!("Error sending main internal request {:?}", e);
-                    return Err(RippleError::ExtnError)
+                    return Err(RippleError::ExtnError);
                 }
             }
         } else {
             self.handle_message(self.sender.get_message(id, payload));
         }
-        
+
         if let Ok(r) = rx.await {
             return Ok(r);
         }
@@ -930,10 +933,10 @@ impl ExtnClient {
             self.handle_message(msg);
         } else {
             let other_sender = self.get_extn_sender_with_contract(payload.get_contract());
-        self.sender
-            .send_request(id.clone(), payload, other_sender)?;
+            self.sender
+                .send_request(id.clone(), payload, other_sender)?;
         }
-        
+
         Ok(id)
     }
 
@@ -982,7 +985,6 @@ impl ExtnClient {
         } else {
             Err(RippleError::SenderMissing)
         }
-        
     }
 
     /// Method to get configurations on the manifest per extension
@@ -1446,16 +1448,17 @@ pub mod tests {
         let processor =
             MockRequestProcessor::new_v1(extn_client.clone(), vec![RippleContract::Internal]);
         extn_client.add_request_processor(processor);
-        
-        let response = extn_client.main_internal_request(MockRequest {
-            app_id: "test_app_id".to_string(),
-            contract: RippleContract::Internal,
-            expected_response: Some(ExtnResponse::Boolean(true)),
-        }).await;
+
+        let response = extn_client
+            .main_internal_request(MockRequest {
+                app_id: "test_app_id".to_string(),
+                contract: RippleContract::Internal,
+                expected_response: Some(ExtnResponse::Boolean(true)),
+            })
+            .await;
 
         match response {
             Ok(actual_response) => {
-                
                 let expected_message = ExtnMessage {
                     id: "some-uuid".to_string(),
                     requestor: cap,
@@ -1487,7 +1490,7 @@ pub mod tests {
         let mut main_client = ExtnClient::new_main();
 
         // create extn client
-        
+
         let mut extn_client = ExtnClient::new_main();
 
         // add processor to extn
@@ -1524,7 +1527,7 @@ pub mod tests {
             })
             .await;
         println!("**** response: {:?}", response);
-        
+
         match response {
             Ok(actual_response) => {
                 let expected_message = ExtnMessage {
@@ -1577,13 +1580,16 @@ pub mod tests {
         );
 
         // initialize the clients
-        
+
         // make the request from extn to main
-        let mut message = main_client.sender.get_message(Uuid::new_v4().to_string(), MockRequest {
-            app_id: "test_app_id".to_string(),
-            contract: RippleContract::Config,
-            expected_response: Some(ExtnResponse::String("some_config_resp".to_string())),
-        });
+        let mut message = main_client.sender.get_message(
+            Uuid::new_v4().to_string(),
+            MockRequest {
+                app_id: "test_app_id".to_string(),
+                contract: RippleContract::Config,
+                expected_response: Some(ExtnResponse::String("some_config_resp".to_string())),
+            },
+        );
         message.requestor = ExtnId::new_extn(ExtnClassId::Device, "info".into());
         main_client.handle_message(message);
 
@@ -1667,7 +1673,7 @@ pub mod tests {
             app_id: Some("some_id".to_string()),
             expected_response: Some(ExtnResponse::Boolean(true)),
         };
-        
+
         extn_client.handle_message(ExtnMessage {
             id: "test_id".to_string(),
             requestor: ExtnId::get_main_target("main".into()),
@@ -1685,7 +1691,6 @@ pub mod tests {
             "Assertion failed: event_processors map should be empty after cleanup"
         );
     }
-
 
     #[tokio::test]
     async fn test_context_update() {
@@ -1712,10 +1717,11 @@ pub mod tests {
             contract: RippleContract::Internal,
             expected_response: Some(ExtnResponse::Boolean(true)),
         };
-        let (tx,mut rx) = mpsc::channel(1);
+        let (tx, mut rx) = mpsc::channel(1);
         let extn_id = ExtnId::new_channel(ExtnClassId::Protected, "some".into());
         let id = extn_id.to_string();
-        extn_client.add_sender(id.clone(),
+        extn_client.add_sender(
+            id.clone(),
             ExtnSymbol {
                 id: id.clone(),
                 uses: vec!["account.session".to_string()],
@@ -1724,11 +1730,16 @@ pub mod tests {
             },
             tx,
         );
-        let mut msg = extn_client.sender.get_message("somd_id".to_owned(), message);
+        let mut msg = extn_client
+            .sender
+            .get_message("somd_id".to_owned(), message);
         msg.requestor = extn_id.clone();
         extn_client.handle_message(msg);
 
-        let v = tokio::time::timeout(Duration::from_secs(1), rx.recv()).await.unwrap().unwrap();
+        let v = tokio::time::timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
         let extn_message_result = ExtnMessage::try_from(v).unwrap();
         if let ExtnPayload::Response(resp) = extn_message_result.payload {
             assert_eq!(resp, ExtnResponse::Error(RippleError::ProcessorError));
@@ -1933,9 +1944,12 @@ pub mod tests {
         let result = extn_client.respond(req.clone(), response.clone()).await;
         assert!(result.is_ok());
 
-        if let Ok(received_msg) = rx.await {  
+        if let Ok(received_msg) = rx.await {
             assert_eq!(received_msg.id, req.id);
-            assert_eq!(received_msg.requestor.to_string(), "ripple:main:internal:main");
+            assert_eq!(
+                received_msg.requestor.to_string(),
+                "ripple:main:internal:main"
+            );
             assert_eq!(received_msg.target.as_clear_string(), "internal");
             assert_eq!(received_msg.target_id, None);
             if let ExtnPayload::Response(ExtnResponse::String(s)) = received_msg.payload {
@@ -1950,7 +1964,6 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_send_message() {
-
         let mut extn_client = ExtnClient::new_main();
         let id = uuid::Uuid::new_v4().to_string();
 
@@ -1976,7 +1989,10 @@ pub mod tests {
 
         if let Ok(received_msg) = rx.await {
             assert_eq!(received_msg.id, msg.id);
-            assert_eq!(received_msg.requestor.to_string(), "ripple:main:internal:main");
+            assert_eq!(
+                received_msg.requestor.to_string(),
+                "ripple:main:internal:main"
+            );
             assert_eq!(received_msg.target.as_clear_string(), "internal");
             assert_eq!(received_msg.target_id, None);
             if let ExtnPayload::Response(ExtnResponse::String(s)) = received_msg.payload {
@@ -2029,7 +2045,6 @@ pub mod tests {
         let m = tr.recv().await.unwrap();
         let response = ExtnMessage::try_from(m).unwrap();
         assert!(response.payload.is_response());
-
     }
 
     #[rstest(
@@ -2039,11 +2054,12 @@ pub mod tests {
             case(HashMap::new(), None),
         )]
     fn test_get_stack_size(config: HashMap<String, String>, exp_size: Option<ExtnStackSize>) {
-        
-        let (extn_client,_) = ExtnClient::new_extn(
-            ExtnSymbol { id: ExtnId::get_main_target("main".into()).to_string(), 
-            uses: Vec::new(), fulfills: Vec::new(), config: Some(config) }
-        );
+        let (extn_client, _) = ExtnClient::new_extn(ExtnSymbol {
+            id: ExtnId::get_main_target("main".into()).to_string(),
+            uses: Vec::new(),
+            fulfills: Vec::new(),
+            config: Some(config),
+        });
         let result = extn_client.get_stack_size();
 
         match result {
@@ -2087,10 +2103,12 @@ pub mod tests {
         case(None, false),
     )]
     fn test_get_bool_config(config: Option<HashMap<String, String>>, expected_value: bool) {
-        
-        let (extn_client,_tr) = ExtnClient::new_extn(
-            ExtnSymbol { id: ExtnId::get_main_target("main".into()).to_string(), uses: Vec::new(), fulfills: Vec::new(), config: config }
-        );
+        let (extn_client, _tr) = ExtnClient::new_extn(ExtnSymbol {
+            id: ExtnId::get_main_target("main".into()).to_string(),
+            uses: Vec::new(),
+            fulfills: Vec::new(),
+            config: config,
+        });
         assert_eq!(extn_client.get_bool_config("key"), expected_value);
     }
 
@@ -2102,9 +2120,12 @@ pub mod tests {
         case(None, None),
     )]
     fn test_get_uint_config(config: Option<HashMap<String, String>>, expected_value: Option<u64>) {
-        let (extn_client,_tr) = ExtnClient::new_extn(
-            ExtnSymbol { id: ExtnId::get_main_target("main".into()).to_string(), uses: Vec::new(), fulfills: Vec::new(), config: config }
-        );
+        let (extn_client, _tr) = ExtnClient::new_extn(ExtnSymbol {
+            id: ExtnId::get_main_target("main".into()).to_string(),
+            uses: Vec::new(),
+            fulfills: Vec::new(),
+            config: config,
+        });
         assert_eq!(extn_client.get_uint_config("key"), expected_value);
     }
 
@@ -2140,14 +2161,14 @@ pub mod tests {
             1,
             "Assertion failed: extn_client.get_other_senders() does not have the expected length"
         );
-        let actual_response =
-            extn_client.send_event_with_id(extn_id.to_string().as_str(), crate::utils::mock_utils::get_mock_event());
+            let actual_response = extn_client.send_event_with_id(
+                extn_id.to_string().as_str(),
+                crate::utils::mock_utils::get_mock_event(),
+            );
             assert_eq!(actual_response, exp_resp);
             let response = tr.blocking_recv().unwrap();
             assert!(response.jsonrpc_msg.contains("test_app_id"));
         }
-
-        
     }
 
     #[rstest(id, permitted,fulfills, exp_resp, error_msg,
@@ -2166,9 +2187,12 @@ pub mod tests {
         exp_resp: bool,
         error_msg: &str,
     ) {
-        let (extn_client,_tr) = ExtnClient::new_extn(
-            ExtnSymbol { id: id.to_string(), uses: permitted, fulfills, config: None }
-        );
+        let (extn_client, _tr) = ExtnClient::new_extn(ExtnSymbol {
+            id: id.to_string(),
+            uses: permitted,
+            fulfills,
+            config: None,
+        });
         let cp = extn_client.check_contract_permitted(RippleContract::DeviceInfo);
         assert_eq!(cp, exp_resp, "{}", error_msg);
     }
@@ -2203,9 +2227,12 @@ pub mod tests {
         exp_resp: bool,
         error_msg: &str,
     ) {
-        let (extn_client,_tr) = ExtnClient::new_extn(
-            ExtnSymbol { id: id.to_string(), uses: Vec::new(), fulfills, config: None }
-        );
+        let (extn_client, _tr) = ExtnClient::new_extn(ExtnSymbol {
+            id: id.to_string(),
+            uses: Vec::new(),
+            fulfills,
+            config: None,
+        });
         let cp = extn_client.check_contract_fulfillment(RippleContract::DeviceInfo);
         assert_eq!(cp, exp_resp, "{}", error_msg);
     }
@@ -2308,7 +2335,7 @@ pub mod tests {
 
         let event = msg.get_event(ExtnEvent::String("some".to_owned())).unwrap();
         let _ = extn_client.handle_message(event);
-        
+
         let r = tokio::time::timeout(Duration::from_secs(2), tr.recv())
             .await
             .unwrap()
