@@ -3,7 +3,7 @@ use std::{
     future::Future,
     pin::Pin,
     //str::FromStr,
-    sync::Arc,
+    //sync::Arc,
 };
 
 use ripple_sdk::{
@@ -20,7 +20,7 @@ use ripple_sdk::{
     },
     //uuid::Uuid,
 };
-use serde_json::Value;
+//use serde_json::Value;
 
 use crate::{
     client::{
@@ -47,27 +47,27 @@ pub type ThunderSubscriberFn = dyn Fn(
 
 #[derive(Clone)]
 pub struct MockThunderSubscriberfn {
-    fnc: Arc<ThunderSubscriberFn>,
+    //fnc: Arc<ThunderSubscriberFn>,
 }
 
 impl MockThunderSubscriberfn {
-    pub fn new<F>(f: F) -> Self
-    where
-        F: Fn(
-                Sender<DeviceResponseMessage>,
-            ) -> Pin<Box<dyn Future<Output = Option<DeviceResponseMessage>> + Send>>
-            + Send
-            + Sync
-            + 'static,
-    {
-        Self {
-            fnc: Arc::new(Box::new(f)),
-        }
-    }
+    // pub fn new<F>(f: F) -> Self
+    // where
+    //     F: Fn(
+    //             Sender<DeviceResponseMessage>,
+    //         ) -> Pin<Box<dyn Future<Output = Option<DeviceResponseMessage>> + Send>>
+    //         + Send
+    //         + Sync
+    //         + 'static,
+    // {
+    //     Self {
+    //         fnc: Arc::new(Box::new(f)),
+    //     }
+    // }
 
-    async fn call(&self, sender: Sender<DeviceResponseMessage>) -> Option<DeviceResponseMessage> {
-        (self.fnc)(sender).await
-    }
+    // async fn call(&self, sender: Sender<DeviceResponseMessage>) -> Option<DeviceResponseMessage> {
+    //     (self.fnc)(sender).await
+    // }
 }
 
 #[derive(Default, Clone)]
@@ -80,13 +80,13 @@ pub struct CustomHandler {
 pub struct MockThunderController {
     state_subscribers: Vec<mpsc::Sender<DeviceResponseMessage>>,
     plugin_states: HashMap<String, String>,
-    custom_handlers: CustomHandler,
+    //custom_handlers: CustomHandler,
 }
 
-const EMPTY_RESPONSE: DeviceResponseMessage = DeviceResponseMessage {
-    message: Value::Null,
-    sub_id: None,
-};
+// const EMPTY_RESPONSE: DeviceResponseMessage = DeviceResponseMessage {
+//     message: Value::Null,
+//     sub_id: None,
+// };
 
 impl MockThunderController {
     pub async fn activate(&mut self, callsign: String) {
