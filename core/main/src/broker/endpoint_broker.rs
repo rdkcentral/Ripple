@@ -1129,7 +1129,27 @@ pub trait EndpointBroker {
     /// just before sending the data through the protocol
     fn update_request(rpc_request: &BrokerRequest) -> Result<String, RippleError> {
         let v = Self::apply_request_rule(rpc_request)?;
-        trace!("transformed request {:?}", v);
+        debug!("transformed request {:?}", v);
+        // Check if transformed request is an error object. If it is, map error code to RippleError and return the error to sender
+        if v.is_object() {
+            if let Some(error) = v.get("error") {
+                if error.is_object() {
+                    if let Some(code) = error.get("code") {
+                        match code.as_i64() {
+                            Some(code) => {
+                                if code == -32602 {
+                                    return Err(RippleError::InvalidInput);
+                                }
+                            }
+                            None => {
+                                return Err(RippleError::InvalidInput);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         let id = rpc_request.rpc.ctx.call_id;
         let method = rpc_request.rule.alias.clone();
         if let Value::Null = v {
@@ -1158,7 +1178,6 @@ pub trait EndpointBroker {
             } else {
                 Value::Null
             };
-
             if let Some(filter) = rpc_request
                 .rule
                 .transform
