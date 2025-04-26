@@ -411,10 +411,7 @@ async fn process_direct_response(
         json!({
             "jsonrpc": "2.0",
             "id": routed_req.original_id,
-            "result": {
-                "from_service": service_id,
-                "response": v["result"]
-            }
+            "result": v["result"]
         })
     } else {
         json!({

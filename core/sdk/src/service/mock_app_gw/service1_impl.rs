@@ -96,11 +96,23 @@ impl Service for MockService {
         let method = request["method"].as_str().unwrap_or_default();
 
         let response = match method {
-            "service1.get_status" => json!({ "status": "running" }),
-            "service1.compute" => json!({ "value": 42 }),
-            "service1.info" => json!({ "info": "service1 reporting" }),
-            "service1.check" => json!({ "check": "ok" }),
-            "service1.stats" => json!({ "cpu": 12.3, "mem": 256 }),
+            "service1.get_status" => json!({"result": {"status": "running" }}),
+            "service1.compute" => json!({"result": {"value": 42 }}),
+            "service1.check" => json!({"result": { "check": "ok" }}),
+            "service1.stats" => json!({"result": { "cpu": 12.3, "mem": 256 }}),
+            "service1.info" => json!({"result": {
+                "model": "xi6",
+                "hdr": {
+                    "settopHdrSupport": [],
+                    "tvHdrSupport": []
+                },
+                "videoDimensions": [1920,1080],
+                "privacySettings": {},
+                "timeZone": "America/New_York",
+                "timezone": "-4:00",
+                "userExperience": "1003",
+                "zipcode": "66952"
+            }}),
             "service1.good_bye" => {
                 // send the unregitser request to AppGW
                 let unregister_msg = json!({
@@ -148,36 +160,51 @@ impl Service for MockService {
             }
         };
 
-        json!({
+        let mut reply = json!({
             "jsonrpc": "2.0",
             "id": id,
-            "result": response
-        })
+        });
+
+        if let Some(result) = response.get("result") {
+            reply["result"] = result.clone();
+        } else if let Some(error) = response.get("error") {
+            reply["error"] = error.clone();
+        } else {
+            reply["error"] = json!({"message": "Unknown response format"});
+        }
+        reply
     }
 }
 
 pub async fn start_service1() {
-    // Create channels for communication between AppGW and service
-    // Inbound channel for receiving messages from AppGW
+    // Service creation and other Service init related operations here
+
+    // Create Inbound channel for collecting and processing messages from AppGW received through wx_receiver
     let (inbound_tx, mut inbound_rx) = mpsc::channel::<Value>(32);
-    // Outbound channel for sending messages to AppGW
+    // Create Outbound channel for collecting and sending messages to AppGW through wx_transport
     let (outbound_tx, mut outbound_rx) = mpsc::channel::<Message>(32);
 
-    // Example: send init request to AppGW
+    // Create the service instance
+    let mut service = MockService::new(SERVICE1_ID, Some(outbound_tx.clone()));
+    // DO: Service related init operations here
+    // For example, start the service
+    service.start();
+    println!(
+        "[service1] Service started with ID: {}",
+        service.service_id()
+    );
+
+    // Example: send request to AppGW to get device model
+    // This is just an example, you can modify the request as needed
     let init_req = json!({
         "jsonrpc": "2.0",
         "id": 100,
-        "method": "get_device_name"
+        "method": "Device.model"
     });
     outbound_tx
         .send(Message::Text(init_req.to_string()))
         .await
         .unwrap();
-
-    let mut service = MockService::new(SERVICE1_ID, Some(outbound_tx.clone()));
-    // DO: Service related init operations here
-    // For example, start the service
-    service.start();
 
     let svc = Arc::new(service);
     let svc_c = Arc::clone(&svc);
