@@ -87,7 +87,7 @@ pub trait Service: Send + Sync + 'static {
         outbound_rx: &mut Receiver<Message>,
         inbound_tx: Sender<Value>,
     ) {
-        let ws_stream = establish_connection_with_backoff(url).await;
+        let ws_stream = establish_connection_to_appgw_with_backoff(url).await;
         let (mut ws_tx, mut ws_rx) = ws_stream.split();
 
         let register_msg = json!({
@@ -96,11 +96,19 @@ pub trait Service: Send + Sync + 'static {
             "method": "register",
             "params": { "service_id": self.service_id() }
         });
-        let _feed = ws_tx.feed(Message::Text(register_msg.to_string())).await;
-        let _flush = ws_tx.flush().await;
+
+        // use send_message function to send the register message to AppGW
+        if let Err(e) = send_message(&mut ws_tx, Message::Text(register_msg.to_string())).await {
+            eprintln!(
+                "[{}] Failed to send register message: {}",
+                self.service_id(),
+                e
+            );
+            return;
+        }
 
         let sid = self.service_id().to_string();
-        let tx_clone = inbound_tx.clone();
+        let inbound_tx_clone = inbound_tx.clone();
         let self_clone = Arc::clone(&self);
 
         let sid_c1 = sid.clone();
@@ -110,7 +118,7 @@ pub trait Service: Send + Sync + 'static {
             while let Some(Ok(Message::Text(msg))) = ws_rx.next().await {
                 if let Ok(value) = serde_json::from_str::<Value>(&msg) {
                     if value.get("method").is_some() {
-                        if let Err(e) = tx_clone.send(value).await {
+                        if let Err(e) = inbound_tx_clone.send(value).await {
                             eprintln!("[{}] Failed to forward inbound: {}", sid_c1, e);
                         }
                     } else if value.get("result").is_some() || value.get("error").is_some() {
@@ -126,13 +134,15 @@ pub trait Service: Send + Sync + 'static {
             match msg {
                 Message::Close(_) => {
                     println!("[{}] Sending Close message and exiting...", sid_c2);
-                    let _feed = ws_tx.feed(msg).await;
-                    let _flush = ws_tx.flush().await;
+                    if let Err(e) = send_message(&mut ws_tx, msg).await {
+                        eprintln!("[{}] Failed to send Close message: {}", sid_c2, e);
+                    }
                     break; // Exit the loop after sending the Close message
                 }
                 _ => {
-                    let _feed = ws_tx.feed(msg).await;
-                    let _flush = ws_tx.flush().await;
+                    if let Err(e) = send_message(&mut ws_tx, msg).await {
+                        eprintln!("[{}] Failed to send message: {}", sid_c2, e);
+                    }
                 }
             }
         }
@@ -141,7 +151,7 @@ pub trait Service: Send + Sync + 'static {
 }
 
 // Utility function for resilient WebSocket connection
-async fn establish_connection_with_backoff(
+async fn establish_connection_to_appgw_with_backoff(
     url: &str,
 ) -> WebSocketStream<MaybeTlsStream<TcpStream>> {
     let mut backoff = 1;
@@ -161,4 +171,15 @@ async fn establish_connection_with_backoff(
             }
         }
     }
+}
+
+/// This function sends a message over the WebSocket connection and flushes the stream.
+async fn send_message<S>(ws_tx: &mut S, msg: Message) -> Result<(), Box<dyn std::error::Error>>
+where
+    S: SinkExt<Message> + Unpin,
+    S::Error: std::error::Error + 'static,
+{
+    ws_tx.feed(msg).await?;
+    ws_tx.flush().await?;
+    Ok(())
 }

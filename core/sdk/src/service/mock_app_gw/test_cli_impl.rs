@@ -44,10 +44,18 @@ pub async fn start_test_cli() {
                             result.get("response").unwrap_or(result)
                         );
                     } else {
-                        println!("[Success][{}]: {}", id, result);
+                        println!(
+                            "[Success][{}]: {}",
+                            id,
+                            serde_json::to_string_pretty(&v).unwrap_or_else(|_| v.to_string())
+                        );
                     }
-                } else if let Some(error) = v.get("error") {
-                    println!("[Error][{}]: {}", id, error);
+                } else if let Some(_error) = v.get("error") {
+                    println!(
+                        "[Error][{}]: {}",
+                        id,
+                        serde_json::to_string_pretty(&v).unwrap_or_else(|_| v.to_string())
+                    );
                 } else {
                     println!("[Unknown][{}]: {}", id, resp);
                 }
@@ -66,9 +74,11 @@ pub async fn start_test_cli() {
         println!("=== Test CLI Menu ===");
         println!("1. Call service1.get_status");
         println!("2. Call service2.compute");
-        println!("3. Send aggregate.device_status");
+        println!("3. Send aggregate.service_status");
         println!("4. Send invalid method");
         println!("5. Send request to unregistered service");
+        println!("6. Call service2.check");
+        println!("7. Call service1.info");
         println!("q. Quit");
         print!("Choose an option: ");
         io::stdout().flush().unwrap();
@@ -85,9 +95,11 @@ pub async fn start_test_cli() {
         let msg = match choice {
             "1" => json!({ "jsonrpc": "2.0", "id": id, "method": "service1.get_status" }),
             "2" => json!({ "jsonrpc": "2.0", "id": id, "method": "service2.compute" }),
-            "3" => json!({ "jsonrpc": "2.0", "id": id, "method": "aggregate.device_status" }),
+            "3" => json!({ "jsonrpc": "2.0", "id": id, "method": "aggregate.service_status" }),
             "4" => json!({ "jsonrpc": "2.0", "id": id, "method": "unknown.method" }),
             "5" => json!({ "jsonrpc": "2.0", "id": id, "method": "service1.good_bye" }),
+            "6" => json!({ "jsonrpc": "2.0", "id": id, "method": "service2.check" }),
+            "7" => json!({ "jsonrpc": "2.0", "id": id, "method": "service1.info" }),
             "q" | "Q" => break,
             _ => {
                 println!("Invalid choice");

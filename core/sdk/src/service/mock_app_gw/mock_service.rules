@@ -8,7 +8,7 @@
       "endpoint": "service",
       "alias": "mock:service:appgw:service2"
     },
-    "badger_service.testfunction": {
+    "service1.info": {
       "endpoint": "service",
       "alias": "mock:service:appgw:service1"
     }

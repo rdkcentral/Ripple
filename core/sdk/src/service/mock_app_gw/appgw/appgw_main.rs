@@ -114,7 +114,7 @@ async fn handle_client_connection(
     });
 
     while let Some(Ok(Message::Text(msg))) = read.next().await {
-        println!("[AppGW] Received request from {}: {}", client_id, msg);
+        println!("[AppGW] Received Message from {}: {:#?}", client_id, msg);
         if let Ok(v) = serde_json::from_str::<Value>(&msg) {
             process_client_request(
                 v,
@@ -148,6 +148,7 @@ async fn handle_client_connection(
 ///
 async fn add_client_to_registry(clients: &Clients, tx: mpsc::Sender<Message>) -> String {
     let client_id = Uuid::new_v4().to_string();
+    println!("[AppGW] New client connected: {}", client_id);
     clients.lock().await.insert(
         client_id.clone(),
         ClientInfo {
@@ -411,10 +412,7 @@ async fn process_direct_response(
         json!({
             "jsonrpc": "2.0",
             "id": routed_req.original_id,
-            "result": {
-                "from_service": service_id,
-                "response": v["result"]
-            }
+            "result": v["result"]
         })
     } else {
         json!({

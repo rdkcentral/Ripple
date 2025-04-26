@@ -53,7 +53,7 @@ pub async fn handle_jsonrpc_request(
     let method = v["method"].as_str().unwrap_or_default();
 
     match method {
-        "aggregate.device_status" => {
+        "aggregate.service_status" => {
             handle_aggregate_call(v, clients, pending, sender_id).await;
         }
         _ => {
@@ -281,6 +281,7 @@ async fn route_to_service(
     service_id: &str,
 ) {
     // Extract necessary data while holding the lock
+    println!("Routing message {:#?} to service: {}", v, service_id);
     let (svc_tx, sender_tx) = {
         let map = clients.lock().await;
 
@@ -352,11 +353,18 @@ async fn route_to_service(
 }
 
 async fn send_internal_api_response(id: u64, response: &Value, clients: &Clients, sender_id: &str) {
-    let reply = json!({
+    println!("Request Processed by AppGW : Response: {:#?}", response);
+    let mut reply = json!({
         "jsonrpc": "2.0",
         "id": id,
-        "result": response
     });
+    if let Some(result) = response.get("result") {
+        reply["result"] = result.clone();
+    } else if let Some(error) = response.get("error") {
+        reply["error"] = error.clone();
+    } else {
+        reply["error"] = json!({"message": "Unknown response format"});
+    }
     if let Some(tx) = clients.lock().await.get(sender_id).map(|c| c.tx.clone()) {
         let _ = tx.send(Message::Text(reply.to_string())).await;
     }

@@ -38,11 +38,9 @@ impl Service for Service2 {
         let id = request["id"].clone(); // preserve same ID
         let method = request["method"].as_str().unwrap_or_default();
         let response = match method {
-            "service2.get_status" => json!({"status": "running"}),
-            "service2.compute" => json!({"value": 42}),
-            "service2.info" => json!({"info": "service2 reporting"}),
-            "service2.check" => json!({"check": "ok"}),
-            "service2.stats" => json!({"cpu": 12.3, "mem": 256}),
+            "service2.get_status" => json!({"result": {"status": "running" }}),
+            "service2.compute" => json!({"result": {"value": 42 }}),
+            "service2.check" => json!({"error": {"value": "Not permitted" }}),
             _ => {
                 return json!({
                     "jsonrpc": "2.0",
@@ -55,34 +53,44 @@ impl Service for Service2 {
             }
         };
 
-        json!({
+        let mut reply = json!({
             "jsonrpc": "2.0",
             "id": id,
-            "result": response
-        })
+        });
+
+        if let Some(result) = response.get("result") {
+            reply["result"] = result.clone();
+        } else if let Some(error) = response.get("error") {
+            reply["error"] = error.clone();
+        } else {
+            reply["error"] = json!({"message": "Unknown response format"});
+        }
+        reply
     }
 }
 
 pub async fn start_service2() {
-    // Create channels for communication between AppGW and service
-    // Inbound channel for receiving messages from AppGW
+    // Service creation and other Service init related operations here
+    let svc = Arc::new(Service2);
+    // DO: Add service initialization logic here, if needed
+    // svc.start();
+    println!("[service2] Service started with ID: {}", svc.service_id());
+    // Create Inbound channel for collecting and processing messages from AppGW received through wx_receiver
     let (inbound_tx, mut inbound_rx) = mpsc::channel::<Value>(32);
-    // Outbound channel for sending messages to AppGW
+    // Create Outbound channel for collecting and sending messages to AppGW through wx_transport
     let (outbound_tx, mut outbound_rx) = mpsc::channel::<Message>(32);
 
-    // Example: send init request to AppGW
+    // Example: send request to AppGW to get device name
+    // This is just an example, you can modify the request as needed
     let init_req = json!({
         "jsonrpc": "2.0",
         "id": 200,
-        "method": "get_device_name"
+        "method": "Localization.countryCode"
     });
     outbound_tx
         .send(Message::Text(init_req.to_string()))
         .await
         .unwrap();
-
-    let svc = Arc::new(Service2);
-    // Todo: Service related init operations
 
     let svc_c = Arc::clone(&svc);
     tokio::spawn(async move {
