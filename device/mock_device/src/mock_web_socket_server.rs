@@ -538,14 +538,10 @@ mod tests {
     async fn start_server(mock_data: MockData) -> Arc<MockWebSocketServer> {
         let mut server_config = WsServerParameters::new();
         server_config.port(0);
-        let server = MockWebSocketServer::new(
-            mock_data,
-            server_config,
-            MockConfig::default(),
-        )
-        .await
-        .expect("Unable to start server")
-        .into_arc();
+        let server = MockWebSocketServer::new(mock_data, server_config, MockConfig::default())
+            .await
+            .expect("Unable to start server")
+            .into_arc();
 
         tokio::spawn(server.clone().start_server());
 
@@ -556,10 +552,12 @@ mod tests {
         server: Arc<MockWebSocketServer>,
         request: Message,
     ) -> Result<Option<Result<Message, Error>>, Elapsed> {
-        let (mut send, mut receive) =
-            WebSocketUtils::get_ws_stream(format!("ws://127.0.0.1:{}", server.port()).as_str(), None)
-                .await
-                .unwrap();
+        let (mut send, mut receive) = WebSocketUtils::get_ws_stream(
+            format!("ws://127.0.0.1:{}", server.port()).as_str(),
+            None,
+        )
+        .await
+        .unwrap();
         send.send(request).await.expect("Failed to send message");
         time::timeout(Duration::from_secs(1), receive.next()).await
     }
