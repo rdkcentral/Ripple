@@ -17,7 +17,7 @@
 
 use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::{
-    api::{manifest::ripple_manifest_loader::RippleManifestLoader, status_update::ExtnStatus},
+    api::manifest::ripple_manifest_loader::RippleManifestLoader,
     export_extn_channel,
     extn::{
         client::extn_client::ExtnClient,
@@ -27,7 +27,7 @@ use ripple_sdk::{
     log::{error, info},
     processor::rpc_request_processor::RPCRequestProcessor,
     tokio::{self, runtime::Runtime},
-    utils::logger::init_logger,
+    utils::logger::init_and_configure_logger,
 };
 
 use crate::{
@@ -39,14 +39,22 @@ use crate::{
 pub const EXTN_NAME: &str = "mock_device";
 
 fn start() {
-    let _ = init_logger(EXTN_NAME.into());
+    let log_lev = ripple_sdk::log::LevelFilter::Debug;
+    let _ = init_and_configure_logger(
+        "some_version",
+        EXTN_NAME.into(),
+        Some(vec![
+            ("extn_manifest".to_string(), log_lev),
+            ("device_manifest".to_string(), log_lev),
+        ]),
+    );
     info!("Starting mock device channel");
     let Ok((extn_manifest, _device_manifest)) = RippleManifestLoader::initialize() else {
         error!("Error initializing manifests");
         return;
     };
     let runtime = Runtime::new().unwrap();
-    let id = ExtnId::new_channel(ExtnClassId::Distributor, EXTN_NAME.to_string()).to_string();
+    let id = ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.to_string()).to_string();
     let symbol = extn_manifest.get_extn_symbol(&id);
     if symbol.is_none() {
         error!("Error getting symbol");
@@ -72,9 +80,6 @@ fn start() {
                 }
                 Err(err) => panic!("websocket server failed to start. {}", err),
             };
-
-            // Lets Main know that the mock_device channel is ready
-            let _ = client.event(ExtnStatus::Ready);
         });
 
         client_c.initialize(tr).await;

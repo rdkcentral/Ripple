@@ -218,9 +218,26 @@ mod tests {
     }
 
     #[test]
-    fn test_extn_request_account_session_none() {
-        let other_payload = ExtnPayload::Request(ExtnRequest::Config(Config::DefaultApp));
-        let result = AccountSessionRequest::get_from_payload(other_payload);
+    fn test_extn_request_session_token() {
+        let token_context = TokenContext {
+            distributor_id: String::from("test_distributor"),
+            app_id: String::from("test_app"),
+        };
+        let session_token_request = SessionTokenRequest {
+            token_type: TokenType::Device,
+            options: vec![String::from("option1"), String::from("option2")],
+            context: Some(token_context),
+        };
+
+        let contract_type: RippleContract = RippleContract::Session(SessionAdjective::Device);
+        test_extn_payload_provider(session_token_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_request_session_token_none() {
+        let other_payload =
+            ExtnPayload::Request(ExtnRequest::AccountSession(AccountSessionRequest::Get));
+        let result = SessionTokenRequest::get_from_payload(other_payload);
         assert_eq!(result, None);
     }
 
