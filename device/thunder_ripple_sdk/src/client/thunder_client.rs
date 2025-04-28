@@ -29,7 +29,7 @@ use super::{
     },
     //jsonrpc_method_locator::JsonRpcMethodLocator,
 };
-use jsonrpsee::core::async_trait;
+use ripple_sdk::async_trait::async_trait;
 use ripple_sdk::{
     log::error,
     serde_json::Value,

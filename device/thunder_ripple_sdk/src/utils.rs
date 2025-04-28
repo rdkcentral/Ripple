@@ -15,15 +15,13 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use crate::client::device_operator::DeviceResponseMessage;
+use ripple_sdk::{api::device::device_request::AudioProfile, serde_json::Value};
+use serde::Deserialize;
 use std::{
     collections::HashMap,
     sync::atomic::{AtomicU64, Ordering},
 };
-
-use crate::client::device_operator::DeviceResponseMessage;
-use jsonrpsee::core::Error;
-use ripple_sdk::{api::device::device_request::AudioProfile, serde_json::Value};
-use serde::Deserialize;
 
 pub fn get_audio_profile_from_value(value: Value) -> HashMap<AudioProfile, bool> {
     let mut hm: HashMap<AudioProfile, bool> = HashMap::new();
@@ -100,13 +98,6 @@ pub fn check_thunder_response_success(response: &DeviceResponseMessage) -> bool 
 #[derive(Deserialize)]
 pub struct ThunderErrorResponse {
     pub error: Value,
-}
-
-pub fn get_error_value(jsonrpsee_error: &Error) -> Value {
-    match ripple_sdk::serde_json::to_value(jsonrpsee_error.to_string()) {
-        Ok(value) => value,
-        Err(_) => Value::String("Unknown error".to_string()),
-    }
 }
 
 static ATOMIC_ID: AtomicU64 = AtomicU64::new(0);

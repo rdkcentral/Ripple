@@ -60,7 +60,6 @@ base64 = { workspace = true, default-features = false, features=["alloc"] }
 ripple_tdk = { path = "../../core/tdk" }
 ripple_sdk.workspace = true
 regex.workspace = true
-jsonrpsee = { workspace = true, features = ["macros", "ws-client"] }
 serde.workspace = true
 serde_json.workspace = true
 url.workspace = true
