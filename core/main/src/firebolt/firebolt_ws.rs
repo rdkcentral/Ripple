@@ -136,32 +136,29 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
         let cfg = self.0;
 
         if !cfg.secure {
-            if let Ok(extn_id_str) = get_query(request, "service_handshake", false) {
-                if let Some(extn_id) = extn_id_str {
-                    if let Some(c) = cfg.is_a_valid_extn(&extn_id) {
-                        // valid extn_id
-                        info!("New Service connection {:?}", extn_id);
-                        let cid = ClientIdentity {
-                            session_id: Uuid::new_v4().to_string(),
-                            app_id: extn_id,
-                            rpc_v2: true,
-                            service_info: Some(c),
-                        };
-                        oneshot_send_and_log(cfg.next, cid, "ResolveClientIdentity");
-                        return Ok(response);
-                    } else {
-                        // invalid extn_id
-                        let err = tungstenite::http::response::Builder::new()
-                            .status(403)
-                            .body(Some(format!(
-                                "Invalid service handshake for extn_id={}",
-                                extn_id
-                            )))
-                            .unwrap();
-                        error!("Invalid service handshake for extn_id={}", extn_id);
-                        return Err(err);
-                    }
+            if let Ok(Some(extn_id)) = get_query(request, "service_handshake", false) {
+                if let Some(c) = cfg.is_a_valid_extn(&extn_id) {
+                    // valid extn_id
+                    info!("New Service connection {:?}", extn_id);
+                    let cid = ClientIdentity {
+                        session_id: Uuid::new_v4().to_string(),
+                        app_id: extn_id,
+                        rpc_v2: true,
+                        service_info: Some(c),
+                    };
+                    oneshot_send_and_log(cfg.next, cid, "ResolveClientIdentity");
+                    return Ok(response);
                 }
+                // invalid extn_id
+                let err = tungstenite::http::response::Builder::new()
+                    .status(403)
+                    .body(Some(format!(
+                        "Invalid service handshake for extn_id={}",
+                        extn_id
+                    )))
+                    .unwrap();
+                error!("Invalid service handshake for extn_id={}", extn_id);
+                return Err(err);
             }
         }
 
@@ -486,7 +483,7 @@ impl FireboltWs {
 async fn return_invalid_format_error_message(
     req_id: String,
     state: &PlatformState,
-    connection_id: &String,
+    connection_id: &str,
 ) {
     if let Some(session) = state
         .session_state

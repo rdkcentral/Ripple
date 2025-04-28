@@ -528,7 +528,10 @@ impl MockWebSocketServer {
 
 #[cfg(test)]
 mod tests {
-    use ripple_sdk::tokio::time::{self, error::Elapsed, Duration};
+    use ripple_sdk::{
+        tokio::time::{self, error::Elapsed, Duration},
+        utils::ws_utils::WebSocketUtils,
+    };
 
     use super::*;
 
@@ -551,15 +554,11 @@ mod tests {
         server: Arc<MockWebSocketServer>,
         request: Message,
     ) -> Result<Option<Result<Message, Error>>, Elapsed> {
-        let (client, _) =
-            ripple_sdk::tokio_tungstenite::connect_async(format!("ws://0.0.0.0:{}", server.port()))
+        let (mut send, mut receive) =
+            WebSocketUtils::get_ws_stream(format!("ws://0.0.0.0:{}", server.port()).as_str(), None)
                 .await
-                .expect("Unable to connect to WS server");
-
-        let (mut send, mut receive) = client.split();
-
+                .unwrap();
         send.send(request).await.expect("Failed to send message");
-
         time::timeout(Duration::from_secs(1), receive.next()).await
     }
 
@@ -597,17 +596,6 @@ mod tests {
         assert_eq!(params.port, Some(16789));
         assert_eq!(params.path, Some("/some/path".to_owned()));
         assert_eq!(params.query_params, Some(qp));
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_start_server() {
-        let mock_data = HashMap::default();
-        let server = start_server(mock_data).await;
-
-        let _ =
-            ripple_sdk::tokio_tungstenite::connect_async(format!("ws://0.0.0.0:{}", server.port()))
-                .await
-                .expect("Unable to connect to WS server");
     }
 
     #[tokio::test(flavor = "multi_thread")]

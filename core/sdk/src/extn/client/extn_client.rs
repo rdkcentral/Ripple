@@ -69,7 +69,6 @@ use crate::utils::mock_utils::get_next_mock_response;
 /// 6. `event_processors` - Map of event processors used for Event Process handling
 ///
 
-#[repr(C)]
 #[derive(Clone, Debug)]
 pub struct ExtnClient {
     sender: ExtnSender,
@@ -267,10 +266,7 @@ impl ExtnClient {
         let path = tokio_tungstenite::tungstenite::http::Uri::builder()
             .scheme("ws")
             .authority(base_path.as_str())
-            .path_and_query(format!(
-                "/?service_handshake={}",
-                self.sender.get_cap().to_string()
-            ))
+            .path_and_query(format!("/?service_handshake={}", self.sender.get_cap()))
             .build()
             .unwrap();
 
@@ -329,7 +325,7 @@ impl ExtnClient {
                 if let Some(sender) = self
                     .get_extn_sender_with_extn_id(&message.target_id.as_ref().unwrap().to_string())
                 {
-                    let send_response = self.sender.respond(message.into(), Some(sender));
+                    let send_response = self.sender.respond(message, Some(sender));
                     trace!("fwding event result: {:?}", send_response);
                 } else {
                     error!("unable to get sender for target: {:?}", message.target_id);
@@ -451,7 +447,7 @@ impl ExtnClient {
         let req_sender = self.get_extn_sender_with_extn_id(&message.requestor.to_string());
 
         if let Ok(resp) = message.get_response(ExtnResponse::Error(RippleError::ProcessorError)) {
-            if self.sender.respond(resp.into(), req_sender).is_err() {
+            if self.sender.respond(resp, req_sender).is_err() {
                 error!("Couldnt send no processor response");
             }
         }
@@ -661,7 +657,7 @@ impl ExtnClient {
             .get_message(uuid::Uuid::new_v4().to_string(), event.clone());
         if self.sender.get_cap().is_main() && msg.requestor.is_main() {
             self.handle_message(msg);
-            return Ok(());
+            Ok(())
         } else {
             let other_sender = self.get_extn_sender_with_contract(event.get_contract());
             self.sender.send_event(event, other_sender)
@@ -2115,7 +2111,7 @@ pub mod tests {
             id: ExtnId::get_main_target("main".into()).to_string(),
             uses: Vec::new(),
             fulfills: Vec::new(),
-            config: config,
+            config,
         });
         assert_eq!(extn_client.get_bool_config("key"), expected_value);
     }
@@ -2132,7 +2128,7 @@ pub mod tests {
             id: ExtnId::get_main_target("main".into()).to_string(),
             uses: Vec::new(),
             fulfills: Vec::new(),
-            config: config,
+            config,
         });
         assert_eq!(extn_client.get_uint_config("key"), expected_value);
     }

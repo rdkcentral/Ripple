@@ -48,7 +48,6 @@ pub unsafe fn load_channel_builder(lib: &Library) -> Result<Box<ExtnChannel>, Ri
 /// # Example
 /// ```
 /// use ripple_sdk::extn::ffi::ffi_channel::ExtnChannel;
-/// use ripple_sdk::async_channel::Receiver as CReceiver;
 /// use ripple_sdk::export_extn_channel;
 /// fn start() {
 ///  // snip

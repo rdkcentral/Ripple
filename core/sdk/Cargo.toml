@@ -69,7 +69,7 @@ libloading = "0.7.4"
 async-channel = { version = "2.1.0", default-features = false }
 tree_magic_mini = { version = "3.0.3", optional = true}
 lazy_static = "1.5.0"
-tokio-tungstenite = { workspace = true, features = ["handshake"]}
+tokio-tungstenite = { workspace = true, features = ["handshake", "connect"]}
 url.workspace = true
 futures-util = { version = "0.3.28", features = ["sink", "std"], default-features = false}
 

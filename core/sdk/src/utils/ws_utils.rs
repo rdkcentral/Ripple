@@ -40,15 +40,17 @@ pub struct WebSocketConfigBuilder {
     fail_after: Option<i32>,
 }
 
-impl WebSocketConfigBuilder {
-    pub fn new() -> Self {
+impl Default for WebSocketConfigBuilder {
+    fn default() -> Self {
         Self {
             alias: None,
-            retry: None,
+            retry: Some(DEFAULT_RETRY_INTERVAL),
             fail_after: None,
         }
     }
+}
 
+impl WebSocketConfigBuilder {
     pub fn alias(mut self, alias: String) -> Self {
         self.alias = Some(alias);
         self
@@ -114,7 +116,7 @@ impl WebSocketUtils {
     > {
         info!("Broker Endpoint url {}", endpoint);
         let config = inital_config.unwrap_or_else(|| {
-            WebSocketConfigBuilder::new()
+            WebSocketConfigBuilder::default()
                 .retry(DEFAULT_RETRY_INTERVAL)
                 .build()
         });
@@ -206,17 +208,13 @@ impl WebSocketUtils {
                     break Ok(v);
                 }
                 Err(e) => {
-                    match e {
-                        // There is no need to retry if its a permission issue
-                        // This call will never succeed
-                        RippleError::Permission(
+                    if let RippleError::Permission(
+                        crate::api::firebolt::fb_capabilities::DenyReason::Unpermitted,
+                    ) = e
+                    {
+                        break Err(RippleError::Permission(
                             crate::api::firebolt::fb_capabilities::DenyReason::Unpermitted,
-                        ) => {
-                            break Err(RippleError::Permission(
-                                crate::api::firebolt::fb_capabilities::DenyReason::Unpermitted,
-                            ));
-                        }
-                        _ => {}
+                        ));
                     }
                 }
             }
@@ -270,7 +268,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_ws_stream_with_retry() {
-        let config = WebSocketConfigBuilder::new()
+        let config = WebSocketConfigBuilder::default()
             .retry(50)
             .fail_after(3)
             .build();

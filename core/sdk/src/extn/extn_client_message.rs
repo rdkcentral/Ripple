@@ -80,7 +80,6 @@ use super::extn_id::ExtnId;
 ///
 /// `payload` | [ExtnPayload]| Type of payload could be [ExtnRequest], [ExtnResponse] or [ExtnEvent]
 ///
-/// `callback` |Async Channel [async_channel::Sender<CExtnMessage>] | Usually added by `Main` to the `target` to respond back to the `requestor`|
 
 #[derive(Debug, Clone, Default)]
 pub struct ExtnMessage {
