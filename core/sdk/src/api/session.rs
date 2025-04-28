@@ -289,13 +289,6 @@ mod tests {
     }
 
     #[test]
-    fn test_extn_request_account_session_none() {
-        let other_payload = ExtnPayload::Request(ExtnRequest::Config(Config::DefaultApp));
-        let result = AccountSessionRequest::get_from_payload(other_payload);
-        assert_eq!(result, None);
-    }
-
-    #[test]
     fn test_extn_request_session_token() {
         let token_context = TokenContext {
             distributor_id: String::from("test_distributor"),

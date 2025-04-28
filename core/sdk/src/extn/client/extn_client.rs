@@ -262,11 +262,19 @@ impl ExtnClient {
     /// Called once per client initialization this is a blocking method. Use a spawned thread to call this method
     pub async fn initialize(&self, mut tr: mpsc::Receiver<ApiMessage>) {
         debug!("Starting initialize");
-
         let base_path = std::env::var("RIPPLE_SERVICE_HANDSHAKE_PATH")
-            .unwrap_or_else(|_| "ws://127.0.0.1:3474?service_handshake=".to_string());
+            .unwrap_or_else(|_| "127.0.0.1:3474".to_string());
+        let path = tokio_tungstenite::tungstenite::http::Uri::builder()
+            .scheme("ws")
+            .authority(base_path.as_str())
+            .path_and_query(format!(
+                "/?service_handshake={}",
+                self.sender.get_cap().to_string()
+            ))
+            .build()
+            .unwrap();
 
-        let path = format!("{}{}", base_path, self.sender.get_cap().to_string());
+        let path = path.to_string();
         if let Ok((mut ws_tx, mut ws_rx)) = WebSocketUtils::get_ws_stream(&path, None).await {
             tokio::pin! {
                 let read_pin = ws_rx.next();
@@ -284,8 +292,6 @@ impl ExtnClient {
                                                 error!("IEC Latency {:?}", msg);
                                             }
                                         }
-
-                                        trace!("Received message: {:?}", extn_message);
                                         self.handle_message(extn_message);
                                     } else {
                                         error!("Failed to parse message: {:?}", msg);
@@ -299,6 +305,7 @@ impl ExtnClient {
                         }
                     },
                     Some(request) = tr.recv() => {
+                        trace!("IEC send: {:?}", request.jsonrpc_msg);
                         let _feed = ws_tx.feed(Message::Text(request.jsonrpc_msg)).await;
                         let _flush = ws_tx.flush().await;
                     }
@@ -309,6 +316,7 @@ impl ExtnClient {
     }
 
     pub fn handle_message(&self, message: ExtnMessage) -> ControlFlow<()> {
+        trace!("IEC recv: {:?}", message);
         if message.payload.is_response() {
             Self::handle_single(message, self.response_processors.clone());
         } else if message.payload.is_event() {

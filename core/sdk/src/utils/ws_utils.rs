@@ -167,11 +167,8 @@ impl WebSocketUtils {
                 }
             }
             Err(e) => {
-                error!("Failed to connect to TCP port {}: {}", tcp_port, e);
-                if e.to_string().to_lowercase().contains("connection refused") {
-                    return Err(RippleError::Permission(
-                        crate::api::firebolt::fb_capabilities::DenyReason::Unpermitted,
-                    ));
+                if !e.to_string().to_lowercase().contains("connection refused") {
+                    error!("Failed to connect to TCP port {}: {}", tcp_port, e);
                 }
             }
         }
@@ -209,7 +206,6 @@ impl WebSocketUtils {
                     break Ok(v);
                 }
                 Err(e) => {
-                    error!("Websocket TCP Connection with {} failed: {}", url_path, e);
                     match e {
                         // There is no need to retry if its a permission issue
                         // This call will never succeed

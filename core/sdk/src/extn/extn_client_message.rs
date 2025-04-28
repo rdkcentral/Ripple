@@ -235,7 +235,7 @@ impl TryFrom<String> for ExtnMessage {
         if let Ok(message) = serde_json::from_str::<JsonRpcApiResponse>(&value) {
             let mut extn_message = ExtnMessage::default();
             let mut json_payload = None;
-            if let Some(method) = message.method {
+            if let Some(method) = &message.method {
                 match method.as_str() {
                     "service.request" => {
                         if let Some(params) = message.params {
@@ -260,7 +260,7 @@ impl TryFrom<String> for ExtnMessage {
                         }
                     }
                     "service.event" => {
-                        if let Some(params) = message.result {
+                        if let Some(params) = message.params {
                             if let Some(payload) = params.get("payload").cloned() {
                                 if let Ok(request) = serde_json::from_value::<ExtnEvent>(payload) {
                                     extn_message.payload = ExtnPayload::Event(request);
@@ -293,6 +293,8 @@ impl TryFrom<String> for ExtnMessage {
                             }
                         }
                     }
+                } else {
+                    error!("requestor not found in {} ", payload);
                 }
 
                 if data_is_valid {
@@ -305,6 +307,8 @@ impl TryFrom<String> for ExtnMessage {
                             }
                         }
                     }
+                } else {
+                    error!("target not found in {} ", payload);
                 }
 
                 if data_is_valid {
@@ -325,6 +329,8 @@ impl TryFrom<String> for ExtnMessage {
                     }
                 }
                 return Ok(extn_message);
+            } else {
+                error!("payload not found in {:?} ", value);
             }
         }
         Err(RippleError::ParseError)

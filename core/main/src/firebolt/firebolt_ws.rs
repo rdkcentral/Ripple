@@ -102,6 +102,7 @@ fn get_query(
     key: &'static str,
     required: bool,
 ) -> Result<Option<String>, tungstenite::handshake::server::ErrorResponse> {
+    debug!("get_query: key={}", key);
     let found_q = match req.uri().query() {
         Some(qs) => {
             let qs = querystring::querify(qs);
@@ -360,6 +361,10 @@ impl FireboltWs {
                     .await;
                 match send_result {
                     Ok(_) => {
+                        if is_service {
+                            trace!("Sent Service response {}", api_message.jsonrpc_msg);
+                            continue;
+                        }
                         platform_state
                             .metrics
                             .update_api_stage(&api_message.request_id, "response");
