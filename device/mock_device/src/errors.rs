@@ -72,7 +72,7 @@ impl Display for BootFailedError {
         let msg = match self {
             Self::BadUrlScheme => "The scheme in the URL is invalid. It must be `ws`.".to_owned(),
             Self::BadHostname => {
-                "The hostname in the URL is invalid. It must be `0.0.0.0` or `127.0.0.1`."
+                "The hostname in the URL is invalid. It must be `127.0.0.1`."
                     .to_owned()
             }
             Self::GetPlatformGatewayFailed => {

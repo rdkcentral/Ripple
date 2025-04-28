@@ -218,7 +218,7 @@ impl MockWebSocketServer {
     }
 
     async fn create_listener(port: u16) -> Result<TcpListener, MockServerWebSocketError> {
-        let addr: SocketAddr = format!("0.0.0.0:{}", port).parse().unwrap();
+        let addr: SocketAddr = format!("127.0.0.1:{}", port).parse().unwrap();
         let listener = TcpListener::bind(&addr)
             .await
             .map_err(|_| MockServerWebSocketError::CantListen)?;
@@ -536,9 +536,11 @@ mod tests {
     use super::*;
 
     async fn start_server(mock_data: MockData) -> Arc<MockWebSocketServer> {
+        let mut server_config = WsServerParameters::new();
+        server_config.port(0);
         let server = MockWebSocketServer::new(
             mock_data,
-            WsServerParameters::default(),
+            server_config,
             MockConfig::default(),
         )
         .await
@@ -555,7 +557,7 @@ mod tests {
         request: Message,
     ) -> Result<Option<Result<Message, Error>>, Elapsed> {
         let (mut send, mut receive) =
-            WebSocketUtils::get_ws_stream(format!("ws://0.0.0.0:{}", server.port()).as_str(), None)
+            WebSocketUtils::get_ws_stream(format!("ws://127.0.0.1:{}", server.port()).as_str(), None)
                 .await
                 .unwrap();
         send.send(request).await.expect("Failed to send message");

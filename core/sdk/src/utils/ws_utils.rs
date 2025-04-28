@@ -96,7 +96,7 @@ impl WebSocketUtils {
     /// ```
     /// #[tokio::main]
     /// async fn main() {
-    ///     let config = ripple_sdk::utils::ws_utils::WebSocketConfigBuilder::new()
+    ///     let config = ripple_sdk::utils::ws_utils::WebSocketConfigBuilder::default()
     ///         .alias("my_alias".to_string())
     ///         .retry(100)
     ///         .fail_after(5)
@@ -224,10 +224,10 @@ impl WebSocketUtils {
                     "Websocket TCP Connection with {} failed with retry for last {} secs in {}",
                     url_path, index, tcp_port
                 );
-                if let Some(fail) = &config.fail_after {
-                    if fail.eq(&index) {
-                        break Err(RippleError::NotAvailable);
-                    }
+            }
+            if let Some(fail) = &config.fail_after {
+                if fail.eq(&index) {
+                    break Err(RippleError::NotAvailable);
                 }
             }
             index += 1;

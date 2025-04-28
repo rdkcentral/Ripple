@@ -32,7 +32,6 @@ use ripple_sdk::{
         time::sleep,
     },
     tokio_tungstenite::tungstenite::Message,
-    utils::logger::init_logger,
 };
 use ripple_tdk::utils::test_utils::Mockable;
 
@@ -132,7 +131,6 @@ impl MockWebsocket {
         result: mpsc::Sender<bool>,
         on_close: bool,
     ) -> u32 {
-        let _ = init_logger("mock websocket tests".to_owned());
         let mut port: u32 = 34743;
 
         loop {
