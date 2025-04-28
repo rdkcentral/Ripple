@@ -75,8 +75,8 @@ impl LoadExtensionsStep {
                 // TODO Add Resolution checks later on
             })
             .collect();
+        let mut loaded_extns = Vec::new();
         unsafe {
-            let mut loaded_extns = Vec::new();
             for (extn_path, entry) in extn_paths {
                 debug!("");
                 debug!("");
@@ -104,8 +104,8 @@ impl LoadExtensionsStep {
                 warn!("No valid extensions");
             }
             info!("Total Libraries loaded={}", valid_extension_libraries);
-            return Ok(loaded_extns);
         }
+        Ok(loaded_extns)
     }
 }
 

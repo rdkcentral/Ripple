@@ -43,7 +43,6 @@ use {println as trace, println as debug, println as error};
 /// Sender also creates unique uuid to mark each requests
 ///
 
-#[repr(C)]
 #[derive(Clone, Debug)]
 pub struct ExtnSender {
     pub tx: Option<Sender<ApiMessage>>,
@@ -534,10 +533,7 @@ pub mod tests {
         }
 
         // Determine the actual sender based on the test case
-        let actual_sender_option = match other_sender_option {
-            Some(_) => Some(sender.clone().tx.unwrap()), // Replace 0 with the actual sender
-            None => None,
-        };
+        let actual_sender_option = other_sender_option.map(|_| sender.clone().tx.unwrap());
 
         // Perform the send operation
         let result = sender.send(msg, actual_sender_option);

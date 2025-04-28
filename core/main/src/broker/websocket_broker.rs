@@ -163,7 +163,7 @@ impl WSNotificationBroker {
             let alias = request_c.rule.alias.clone();
             let resp = WebSocketUtils::get_ws_stream(
                 &url,
-                Some(WebSocketConfigBuilder::new().alias(alias).build()),
+                Some(WebSocketConfigBuilder::default().alias(alias).build()),
             )
             .await;
             if resp.is_err() {

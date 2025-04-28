@@ -220,12 +220,7 @@ impl ExtnManifest {
     }
 
     pub fn get_extn_symbol(&self, id: &str) -> Option<ExtnSymbol> {
-        for extn in self.get_all_extns() {
-            if extn.id.eq(id) {
-                return Some(extn);
-            }
-        }
-        None
+        self.get_all_extns().into_iter().find(|extn| extn.id.eq(id))
     }
 }
 #[cfg(test)]
