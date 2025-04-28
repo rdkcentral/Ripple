@@ -23,7 +23,6 @@ use ripple_sdk::{
     extn::ffi::ffi_message::CExtnMessage,
     framework::bootstrap::TransientChannel,
     log::{error, info, warn},
-    manifest::device::LoadDeviceManifestStep,
     tokio::sync::mpsc::{self, Receiver, Sender},
     utils::error::RippleError,
 };
@@ -122,7 +121,6 @@ impl BootstrapState {
             error!("Error initializing manifests");
             return Err(RippleError::BootstrapError);
         };
-        LoadDeviceManifestStep::read_env_variable();
         let app_manifest_result = LoadAppLibraryStep::load_app_library();
         let extn_state = ExtnState::new(channels_state.clone(), extn_manifest.clone());
         let platform_state = PlatformState::new(
