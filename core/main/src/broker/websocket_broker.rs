@@ -161,11 +161,16 @@ impl WSNotificationBroker {
         tokio::spawn(async move {
             let app_id = request_c.get_id();
             let alias = request_c.rule.alias.clone();
-            let resp = WebSocketUtils::get_ws_stream(
-                &url,
-                Some(WebSocketConfigBuilder::default().alias(alias).build()),
-            )
-            .await;
+            #[cfg(not(test))]
+            let config = WebSocketConfigBuilder::default().alias(alias).build();
+            #[cfg(test)]
+            let config = WebSocketConfigBuilder::default()
+                .alias(alias)
+                .retry(0)
+                .fail_after(1)
+                .build();
+
+            let resp = WebSocketUtils::get_ws_stream(&url, Some(config)).await;
             if resp.is_err() {
                 error!("Error connecting to websocket broker");
                 tr.close();
