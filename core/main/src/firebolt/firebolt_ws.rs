@@ -76,7 +76,7 @@ struct ConnectionCallbackConfig {
 }
 
 impl ConnectionCallbackConfig {
-    fn is_a_valid_extn(&self, id: &str) -> Option<ExtnSymbol> {
+    fn get_extn(&self, id: &str) -> Option<ExtnSymbol> {
         for extn in &self.extns {
             if extn.id.eq(id) {
                 return Some(extn.clone());
@@ -137,7 +137,7 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
 
         if !cfg.secure {
             if let Ok(Some(extn_id)) = get_query(request, "service_handshake", false) {
-                if let Some(c) = cfg.is_a_valid_extn(&extn_id) {
+                if let Some(c) = cfg.get_extn(&extn_id) {
                     // valid extn_id
                     info!("New Service connection {:?}", extn_id);
                     let cid = ClientIdentity {
