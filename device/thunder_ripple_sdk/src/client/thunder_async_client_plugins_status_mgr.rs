@@ -23,13 +23,15 @@ use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
     chrono::{DateTime, Duration, Utc},
     framework::RippleResponse,
-    log::{error, info, warn},
+    log::{error, info},
     serde_json,
     tokio::sync::mpsc::Sender,
     utils::error::RippleError,
 };
+use strum::IntoEnumIterator;
 
 use super::thunder_async_client::{ThunderAsyncRequest, ThunderAsyncResponse};
+use super::thunder_plugin::ThunderPlugin;
 use crate::utils::get_next_id;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -428,37 +430,61 @@ impl StatusManager {
         data: &JsonRpcApiResponse,
         request: &str,
     ) {
-        let result = match &data.result {
-            Some(result) => result,
-            None => return,
+        let mut callsigns: Vec<String> = Vec::new();
+
+        let callsign = {
+            if request.contains("@") {
+                match request.split('@').last() {
+                    Some(callsign) => callsign.trim_matches(|c| c == '"' || c == '}'),
+                    // This would least likely happen because we check "@" before split request by "@",
+                    // but if it does, we can just use the request as is.
+                    None => request,
+                }
+            } else {
+                ""
+            }
         };
 
-        let callsign = match request.split('@').last() {
-            Some(callsign) => callsign.trim_matches(|c| c == '"' || c == '}'),
-            None => return,
+        if !request.contains("@") {
+            let thunder_plugins: Vec<ThunderPlugin> =
+                ThunderPlugin::iter().collect::<Vec<ThunderPlugin>>();
+            for plugin in thunder_plugins {
+                let c = plugin.to_string();
+                callsigns.push(c);
+            }
+        } else {
+            callsigns.push(callsign.to_string());
+        }
+
+        let result = match &data.result {
+            Some(result) => result,
+            None => {
+                self.on_thunder_error_response(callback, data, &callsigns[0].to_string())
+                    .await;
+                return;
+            }
         };
 
         let status_res: Vec<Status> = match serde_json::from_value(result.clone()) {
             Ok(status_res) => status_res,
             Err(_) => {
-                Self::on_thunder_error_response(self, callback, data, &callsign.to_string()).await;
+                self.on_thunder_error_response(callback, data, &callsigns[0].to_string())
+                    .await;
                 return;
             }
         };
 
+        //filtering the status_res by matching status_res.callsign with callsigns
+        let status_res: Vec<Status> = status_res
+            .into_iter()
+            .filter(|status| callsigns.contains(&status.callsign))
+            .collect();
+
         for status in status_res {
-            if status.callsign != callsign {
-                // it's not required to enforce callsign matching.  But it's good to log a warning.
-                // Already chekced the id in the request, so it's safe to ignore this.
-                warn!(
-                    "Call Sign not matching callsign from response: {:?} callsign : {:?}",
-                    status.callsign, callsign
-                );
-            }
-            self.update_status(callsign.to_string(), status.to_state());
+            self.update_status(status.callsign.to_string(), status.to_state());
 
             let (pending_requests, expired) =
-                self.retrive_pending_broker_requests(callsign.to_string());
+                self.retrive_pending_broker_requests(status.callsign.to_string());
 
             for pending_request in pending_requests {
                 if expired {
@@ -539,7 +565,7 @@ impl StatusManager {
             // handle activate response
             self.on_activate_response(sender, callback, &data, &request)
                 .await;
-        } else if request.contains("Controller.1.status@") {
+        } else if request.contains("Controller.1.status") {
             // handle status response
             self.on_status_response(sender, callback, &data, &request)
                 .await;

@@ -265,6 +265,7 @@ impl ThunderAsyncClient {
         if let Message::Text(t) = message {
             debug!("thunder_async_response: {}", t);
             let request = t.as_bytes();
+            debug!("Broker Websocket message {:?}", t);
             //check controller response or not
             if self
                 .status_manager
@@ -336,8 +337,7 @@ impl ThunderAsyncClient {
                 //send thunder plugin status check request for all plugins
                 let status_check_request = self.status_manager.generate_plugin_status_request(None);
                 {
-                    // let mut ws_tx = thunder_tx.lock().await;
-
+                    // let mut ws_tx = ws_tx_wrap.lock().await;
                     let _feed = thunder_tx
                         .feed(tokio_tungstenite::tungstenite::Message::Text(
                             status_check_request.to_string(),
