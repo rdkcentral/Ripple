@@ -265,7 +265,7 @@ impl ThunderAsyncClient {
         if let Message::Text(t) = message {
             debug!("thunder_async_response: {}", t);
             let request = t.as_bytes();
-            debug!("Broker Websocket message {:?}", t);
+
             //check controller response or not
             if self
                 .status_manager
