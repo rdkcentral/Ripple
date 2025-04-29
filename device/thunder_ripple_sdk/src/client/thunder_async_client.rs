@@ -332,7 +332,7 @@ impl ThunderAsyncClient {
 
             // Check if the plugin status check is enabled
             if status_check {
-                debug!("thunder plugin status check at broker startup");
+                debug!("thunder plugin status check at thunder async client startup");
                 //send thunder plugin status check request for all plugins
                 let status_check_request = self.status_manager.generate_plugin_status_request(None);
                 {
@@ -346,7 +346,7 @@ impl ThunderAsyncClient {
                     let _flush = thunder_tx.flush().await;
                 }
             } else {
-                debug!("thunder plugin status check at broker startup is disabled");
+                debug!("thunder plugin status check at thunder async client startup is disabled");
             }
 
             tokio::pin! {
