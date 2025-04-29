@@ -151,14 +151,14 @@ impl ExtnSender {
         other_sender: Option<Sender<ApiMessage>>,
     ) -> Result<(), RippleError> {
         if let Some(other_sender) = other_sender {
-            trace!("Sending message on the other sender");
+            trace!("Sending message on the other sender {:?}", msg);
             if let Err(e) = other_sender.try_send(msg) {
                 error!("send() error for message in other sender {}", e);
                 return Err(RippleError::SendFailure);
             }
             Ok(())
         } else if let Some(tx) = self.tx.clone() {
-            trace!("sending to main channel");
+            trace!("sending to main channel {:?}", msg);
             if let Err(e) = tx.try_send(msg) {
                 error!("send() error for message in main sender {}", e);
                 return Err(RippleError::SendFailure);
