@@ -47,10 +47,7 @@ fn gateway_default() -> String {
     String::from(GATEWAY_DEFAULT)
 }
 
-pub async fn boot_thunder(
-    ext_client: ExtnClient,
-    _plugin_param: ThunderPluginBootParam,
-) -> Option<ThunderBootstrapStateWithClient> {
+pub async fn boot_thunder(ext_client: ExtnClient) -> Option<ThunderBootstrapStateWithClient> {
     info!("Booting thunder initiated");
     let state = {
         info!("Using thunder_async_clinet");
