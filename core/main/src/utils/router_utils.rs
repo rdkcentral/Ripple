@@ -15,15 +15,32 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{ApiMessage, RpcRequest},
-    extn::{client::extn_client::ExtnClient, extn_client_message::ExtnMessage},
+    api::gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
+    extn::{
+        client::extn_client::ExtnClient,
+        extn_client_message::{ExtnMessage, ExtnResponse},
+    },
     log::trace,
 };
 
 use crate::state::ops_metrics_state::OpMetricState;
 
 pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage, client: ExtnClient) {
-    client.respond_with_api_message(extn_msg, msg);
+    if let Ok(resp) = serde_json::from_str::<JsonRpcApiResponse>(&msg.jsonrpc_msg) {
+        let response_value = if let Some(result) = resp.result {
+            result
+        } else if let Some(error) = resp.error {
+            error
+        } else {
+            // Most of handler calls return Null resulting in None
+            serde_json::Value::Null
+        };
+
+        let return_value = ExtnResponse::Value(response_value);
+        if let Ok(response) = extn_msg.get_response(return_value) {
+            client.respond_with_api_message(extn_msg, response.into());
+        }
+    }
 }
 
 pub fn get_rpc_header_with_status(request: &RpcRequest, status_code: i32) -> Option<String> {

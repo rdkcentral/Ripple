@@ -53,6 +53,8 @@ pub fn queue_mock_response(test_context: &str, response: Result<ExtnMessage, Rip
     let mock_queue = get_mock_queue();
     let mut mock_queues = mock_queue.write().unwrap();
     let queue = mock_queues.entry(test_context.to_string()).or_default();
+    // Print the size for debugging
+    println!("**** Queued mock response for context '{:?}'", response);
     queue.push_back(response);
 
     // Print the size for debugging

@@ -325,7 +325,8 @@ impl ExtnClient {
                 if let Some(sender) = self
                     .get_extn_sender_with_extn_id(&message.target_id.as_ref().unwrap().to_string())
                 {
-                    let send_response = self.sender.respond(message, Some(sender));
+                    let send_response: Result<(), RippleError> =
+                        self.sender.respond(message, Some(sender));
                     trace!("fwding event result: {:?}", send_response);
                 } else {
                     error!("unable to get sender for target: {:?}", message.target_id);
