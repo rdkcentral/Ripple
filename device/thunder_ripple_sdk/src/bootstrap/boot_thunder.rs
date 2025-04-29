@@ -17,7 +17,7 @@
 
 use crate::{
     bootstrap::setup_thunder_processors::SetupThunderProcessor,
-    client::plugin_manager::ThunderPluginBootParam,
+    //client::plugin_manager::ThunderPluginBootParam,
     client::thunder_client::ThunderClientBuilder,
     thunder_state::{
         ThunderBootstrapStateWithClient, ThunderBootstrapStateWithConfig, ThunderState,
