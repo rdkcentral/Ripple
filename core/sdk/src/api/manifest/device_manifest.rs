@@ -608,7 +608,7 @@ pub fn default_drop_on_all_tags() -> bool {
 }
 
 pub fn default_thunder_plugin_status_check_at_broker_start_up() -> bool {
-    true
+    false
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

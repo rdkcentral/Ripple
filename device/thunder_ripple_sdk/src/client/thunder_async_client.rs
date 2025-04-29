@@ -182,7 +182,7 @@ impl ThunderAsyncClient {
                 // Generate a request to check the plugin status and add it to the requests list
                 let request = self
                     .status_manager
-                    .generate_plugin_status_request(callsign.clone());
+                    .generate_plugin_status_request(Some(callsign.clone()));
                 return Ok(request.to_string());
             }
         };
@@ -308,6 +308,7 @@ impl ThunderAsyncClient {
         &mut self,
         url: &str,
         mut thunder_async_request_rx: Receiver<ThunderAsyncRequest>,
+        status_check: bool,
     ) {
         loop {
             info!("start: (re)establishing websocket connection: url={}", url);
@@ -328,6 +329,25 @@ impl ThunderAsyncClient {
             self.process_subscribe_requests(&mut thunder_tx).await;
 
             let _flush = thunder_tx.flush().await;
+
+            // Check if the plugin status check is enabled
+            if status_check {
+                debug!("thunder plugin status check at broker startup");
+                //send thunder plugin status check request for all plugins
+                let status_check_request = self.status_manager.generate_plugin_status_request(None);
+                {
+                    // let mut ws_tx = thunder_tx.lock().await;
+
+                    let _feed = thunder_tx
+                        .feed(tokio_tungstenite::tungstenite::Message::Text(
+                            status_check_request.to_string(),
+                        ))
+                        .await;
+                    let _flush = thunder_tx.flush().await;
+                }
+            } else {
+                debug!("thunder plugin status check at broker startup is disabled");
+            }
 
             tokio::pin! {
                 let subscriptions_socket = thunder_rx.next();

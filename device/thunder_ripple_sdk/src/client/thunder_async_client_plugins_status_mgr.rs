@@ -284,14 +284,18 @@ impl StatusManager {
         request
     }
 
-    pub fn generate_plugin_status_request(&self, plugin_name: String) -> String {
+    pub fn generate_plugin_status_request(&self, plugin_name: Option<String>) -> String {
         let id = get_next_id();
         let controller_call_sign = Self::get_controller_call_sign();
+        let mut method = format!("{}status", controller_call_sign);
+        if let Some(p) = plugin_name {
+            method = format!("{}status@{}", controller_call_sign, p);
+        }
 
         let request = json!({
             "jsonrpc": "2.0",
             "id": id,
-            "method": format!("{}status@{}", controller_call_sign, plugin_name),
+            "method": method,
         })
         .to_string();
         // Add this request to the inprogress_plugins_request
