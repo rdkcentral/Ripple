@@ -117,9 +117,15 @@ impl SettingsProcessor {
                         let enabled = ClosedcaptionsImpl::cc_enabled(state).await.unwrap_or(false);
                         Some(SettingValue::bool(enabled))
                     }
-                    SettingKey::AllowPersonalization => Some(SettingValue::bool(cp.enable_recommendations)),
-                    SettingKey::AllowWatchHistory => Some(SettingValue::bool(cp.remember_watched_programs)),
-                    SettingKey::ShareWatchHistory => Some(SettingValue::bool(cp.share_watch_history)),
+                    SettingKey::AllowPersonalization => {
+                        Some(SettingValue::bool(cp.enable_recommendations))
+                    }
+                    SettingKey::AllowWatchHistory => {
+                        Some(SettingValue::bool(cp.remember_watched_programs))
+                    }
+                    SettingKey::ShareWatchHistory => {
+                        Some(SettingValue::bool(cp.share_watch_history))
+                    }
                     SettingKey::DeviceName => {
                         let mut s = state.clone();
                         Some(SettingValue::string(
