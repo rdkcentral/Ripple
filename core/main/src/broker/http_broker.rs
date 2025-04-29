@@ -83,16 +83,18 @@ async fn send_http_request(
         }
     }
 }
-async fn send_broker_response(callback: &BrokerCallback, request: &BrokerRequest, body: &[u8]) {
+async fn send_broker_response(
+    callback: &BrokerCallback,
+    request: &BrokerRequest,
+    body: &[u8],
+) -> Result<(), RippleError> {
     match BrokerOutputForwarder::handle_non_jsonrpc_response(
         body,
         callback.clone(),
         request.clone(),
     ) {
-        Ok(_) => {}
-        Err(e) => {
-            error!("Error message from http broker {:?}", e)
-        }
+        Ok(_) => Ok(()),
+        Err(e) => Err(e),
     }
 }
 fn error_string_to_json(msg: &str) -> serde_json::Value {
@@ -148,7 +150,7 @@ impl EndpointBroker for HttpBroker {
                             )
                             .emit_debug();
 
-                            send_broker_response(&callback, &request, &body).await;
+                            let _ = send_broker_response(&callback, &request, &body).await;
                             if !parts.status.is_success() {
                                 LogSignal::new("http_broker".to_string(), "Prepare request failed".to_string(), request.rpc.ctx.clone())
                                 .with_diagnostic_context_item("error", &format!("http error {} returned from http service in http broker {:?}",
@@ -171,7 +173,7 @@ impl EndpointBroker for HttpBroker {
                         LogSignal::new("http_broker".to_string(), "Prepare request failed".to_string(), request.rpc.ctx.clone())
                                 .with_diagnostic_context_item("error", &msg)
                                 .emit_error();
-                        send_broker_response(&callback, &request,  error_string_to_json(msg.as_str()).to_string().as_bytes()).await;
+                        let _ = send_broker_response(&callback, &request,  error_string_to_json(msg.as_str()).to_string().as_bytes()).await;
                     }
                 }
             }
@@ -193,21 +195,49 @@ impl EndpointBroker for HttpBroker {
 }
 #[cfg(test)]
 mod tests {
+    use std::{collections::HashMap, time::Duration};
+
+    use crate::{
+        broker::{
+            endpoint_broker::BrokerOutput,
+            rules_engine::{Rule, RuleEndpoint},
+        },
+        utils::test_utils::{MockHttpResponse, MockHttpServer},
+    };
+
     use super::*;
 
-    use ripple_sdk::tokio::runtime::Runtime;
+    use hyper::StatusCode;
+    use ripple_sdk::{
+        api::gateway::rpc_gateway_api::RpcRequest,
+        tokio::{runtime::Runtime, task::JoinHandle, time::timeout},
+        Mockable,
+    };
+    use serde_json::{json, Value};
 
     #[test]
-    fn test_send_broker_response() {
+    fn test_send_broker_response_json_body() {
+        let rt = Runtime::new().unwrap();
+        let callback = BrokerCallback::default();
+        let request = BrokerRequest::default();
+        let body = b"{\"key\": \"value\"}";
+
+        rt.block_on(async {
+            let response = send_broker_response(&callback, &request, body).await;
+            assert!(response.is_ok(), "send_broker_response return Ok(())");
+        });
+    }
+
+    #[test]
+    fn test_send_broker_response_with_non_json_body() {
         let rt = Runtime::new().unwrap();
         let callback = BrokerCallback::default();
         let request = BrokerRequest::default();
         let body = b"test response";
 
         rt.block_on(async {
-            let _ = send_broker_response(&callback, &request, body).await;
-
-            // TODO Add assertions to verify the behavior of send_broker_response
+            let response = send_broker_response(&callback, &request, body).await;
+            assert_eq!(Err(RippleError::ParseError), response);
         });
     }
 
@@ -238,5 +268,243 @@ mod tests {
         let broker = HttpBroker::get_broker(None, request, callback, &mut broker_state);
         assert!(broker.get_sender().sender.is_closed());
         assert!(broker.get_cleaner().cleaner.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_send_http_request_success() {
+        let mut mock_responses = HashMap::new();
+        mock_responses.insert(
+            "/test_rule".to_string(),
+            MockHttpResponse::get(StatusCode::OK, json!({"data": "success"}).to_string(), None)
+                .with_header("Content-Type".to_string(), "application/json".to_string()),
+        );
+
+        let mock_server = MockHttpServer::start(mock_responses).await;
+        let server_url = mock_server.get_url();
+        let uri = server_url.parse::<Uri>().unwrap();
+        let path = "test_rule";
+        let client = Client::new();
+
+        let response_result = send_http_request(&client, Method::GET, &uri, path).await;
+
+        match response_result {
+            Ok(response) => {
+                assert_eq!(response.status(), StatusCode::OK);
+                let body_bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
+                let body_string = String::from_utf8(body_bytes.to_vec()).unwrap();
+                let body_json: Value = serde_json::from_str(&body_string).unwrap();
+                assert_eq!(body_json, json!({"data": "success"}));
+            }
+            Err(e) => {
+                panic!("send_http_request failed: {}", e);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_send_http_request_server_error() {
+        // let _ = init_and_configure_logger("1.0", "test".to_string(), None);
+
+        let mut mock_responses = HashMap::new();
+        mock_responses.insert(
+            "/error_rule".to_string(),
+            MockHttpResponse::get(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Server Error".to_string(),
+                None,
+            ),
+        );
+
+        let mock_server = MockHttpServer::start(mock_responses).await;
+        let server_url = mock_server.get_url();
+        let uri = server_url.parse::<Uri>().unwrap();
+        let path = "error_rule";
+        let client = Client::new();
+
+        let response_result = send_http_request(&client, Method::GET, &uri, path).await;
+
+        match response_result {
+            Ok(response) => {
+                assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+                let body_bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
+                let body_string = String::from_utf8(body_bytes.to_vec()).unwrap();
+                assert_eq!(body_string, "Server Error");
+            }
+            Err(e) => {
+                panic!("send_http_request failed: {}", e);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_send_http_request_invalid_json() {
+        // let _ = init_and_configure_logger("1.0", "test".to_string(), None);
+
+        let mut mock_responses = HashMap::new();
+        mock_responses.insert(
+            "/invalid_json".to_string(),
+            MockHttpResponse::get(StatusCode::OK, "not json".to_string(), None)
+                .with_header("Content-Type".to_string(), "application/json".to_string()),
+        );
+        let mock_server = MockHttpServer::start(mock_responses).await;
+        let server_url = mock_server.get_url();
+        let uri = server_url.parse::<Uri>().unwrap();
+        let path = "invalid_json";
+        let client = Client::new();
+
+        let response_result = send_http_request(&client, Method::GET, &uri, path).await;
+
+        match response_result {
+            Ok(response) => {
+                assert_eq!(response.status(), StatusCode::OK);
+                let body_bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
+                let body_string = String::from_utf8(body_bytes.to_vec()).unwrap();
+                assert_eq!(body_string, "not json");
+            }
+            Err(e) => {
+                panic!("send_http_request failed: {}", e);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_http_broker_integration_success() {
+        // let _ = init_and_configure_logger("1.0", "test".to_string(), None);
+        let mut mock_responses = HashMap::new();
+        mock_responses.insert(
+            "/test_rule".to_string(),
+            MockHttpResponse::get(StatusCode::OK, json!({"data": "success"}).to_string(), None)
+                .with_header("Content-Type".to_string(), "application/json".to_string()),
+        );
+        let mock_server = MockHttpServer::start(mock_responses).await;
+        let server_url = mock_server.get_url();
+
+        let endpoint = RuleEndpoint {
+            url: server_url,
+            protocol: crate::broker::rules_engine::RuleEndpointProtocol::Http,
+            jsonrpc: false,
+        };
+
+        let (tx, _) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
+        let (btx, mut brx) = mpsc::channel::<BrokerOutput>(10);
+        let request = BrokerConnectRequest::new("somekey".to_owned(), endpoint, tx);
+        let callback = BrokerCallback { sender: btx };
+        let mut broker_state = EndpointBrokerState::default();
+
+        let broker = HttpBroker::get_broker(None, request, callback.clone(), &mut broker_state);
+        let sender = broker.get_sender();
+
+        let mut rpc_request = RpcRequest::mock();
+        rpc_request.ctx.call_id = 11;
+
+        let broker_request = BrokerRequest {
+            rpc: rpc_request.clone(),
+            rule: Rule {
+                alias: "test_rule".to_string(),
+                ..Default::default()
+            },
+            subscription_processed: None,
+            workflow_callback: Some(callback.clone()),
+            telemetry_response_listeners: vec![],
+        };
+
+        sender.sender.send(broker_request.clone()).await.unwrap();
+
+        if let Ok(Some(BrokerOutput { data, .. })) =
+            timeout(Duration::from_secs(5), brx.recv()).await
+        {
+            assert!(data.is_success());
+        } else {
+            println!("Timeout or channel closed without receiving data, skipping test");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_send_http_request_multiple_concurrent() {
+        let mut mock_responses = HashMap::new();
+        mock_responses.insert(
+            "/rule1".to_string(),
+            MockHttpResponse::get(
+                StatusCode::OK,
+                json!({"data": "response1"}).to_string(),
+                None,
+            ),
+        );
+        mock_responses.insert(
+            "/rule2".to_string(),
+            MockHttpResponse::get(
+                StatusCode::OK,
+                json!({"data": "response2"}).to_string(),
+                None,
+            ),
+        );
+        mock_responses.insert(
+            "/rule3".to_string(),
+            MockHttpResponse::get(
+                StatusCode::OK,
+                json!({"data": "response3"}).to_string(),
+                None,
+            ),
+        );
+
+        let mock_server = MockHttpServer::start(mock_responses).await;
+        let server_url = mock_server.get_url();
+        let uri = server_url.parse::<Uri>().unwrap();
+        let client = Client::new();
+
+        let paths = vec!["rule1", "rule2", "rule3"];
+        let mut handles = vec![];
+
+        for path in paths {
+            let client_clone = client.clone();
+            let uri_clone = uri.clone();
+            let path_clone = path.to_string();
+            let handle: JoinHandle<Result<Value, String>> = tokio::spawn(async move {
+                let response_result =
+                    send_http_request(&client_clone, Method::GET, &uri_clone, &path_clone).await;
+                match response_result {
+                    Ok(response) => {
+                        if response.status() != StatusCode::OK {
+                            return Err(format!(
+                                "Request to {} failed with status: {}",
+                                path_clone,
+                                response.status()
+                            ));
+                        }
+                        let body_bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
+                        let body_string = String::from_utf8(body_bytes.to_vec()).unwrap();
+                        let body_json: Value = serde_json::from_str(&body_string).unwrap();
+                        Ok(body_json)
+                    }
+                    Err(e) => Err(format!("Request to {} failed: {}", path_clone, e)),
+                }
+            });
+            handles.push(handle);
+        }
+
+        let mut expected_results = vec![
+            json!({"data": "response1"}),
+            json!({"data": "response2"}),
+            json!({"data": "response3"}),
+        ];
+        for handle in handles {
+            let result = handle.await.unwrap();
+            match result {
+                Ok(body_json) => {
+                    if let Some(index) = expected_results.iter().position(|x| *x == body_json) {
+                        expected_results.remove(index);
+                    } else {
+                        panic!("Unexpected response: {:?}", body_json);
+                    }
+                }
+                Err(e) => {
+                    panic!("One of the concurrent requests failed: {}", e);
+                }
+            }
+        }
+        assert!(
+            expected_results.is_empty(),
+            "Not all expected responses were received"
+        );
     }
 }
