@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 // Copyright 2023 Comcast Cable Communications Management, LLC
 //
@@ -17,6 +17,7 @@ use std::time::Duration;
 // SPDX-License-Identifier: Apache-2.0
 //
 use futures_util::{SinkExt, StreamExt};
+use hyper::StatusCode;
 use ripple_sdk::{
     api::{
         firebolt::fb_capabilities::{
@@ -27,6 +28,7 @@ use ripple_sdk::{
     log::debug,
     tokio::{
         self,
+        io::{AsyncReadExt, AsyncWriteExt},
         net::{TcpListener, TcpStream},
         sync::mpsc::{self, Receiver},
         time::sleep,
@@ -211,5 +213,103 @@ impl MockWebsocket {
         if !on_close {
             result.send(true).await.unwrap();
         }
+    }
+}
+
+//////////// HTTP MOCK SERVER /////////////////////
+
+pub async fn handle_http_connection(
+    stream: &mut TcpStream,
+    responses: Arc<HashMap<String, MockHttpResponse>>,
+) {
+    let mut buffer = [0; 1024];
+    if let Ok(n) = stream.read(&mut buffer).await {
+        // Check if any bytes were read.
+        if n > 0 {
+            let request = String::from_utf8_lossy(&buffer[..n]);
+
+            if let Some(path) = request.split_whitespace().nth(1) {
+                if let Some(response) = responses.get(path) {
+                    let status_line = format!("HTTP/1.1 {}\r\n", response.status);
+
+                    let mut headers = String::new();
+
+                    for (key, value) in &response.headers {
+                        headers.push_str(&format!("{}: {}\r\n", key, value));
+                    }
+
+                    let full_response = format!("{}{}\r\n{}", status_line, headers, response.body);
+
+                    let _ = stream.write_all(full_response.as_bytes()).await;
+                } else {
+                    let not_found = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
+                    let _ = stream.write_all(not_found.as_bytes()).await;
+                }
+            } else {
+                let bad_request = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
+
+                let _ = stream.write_all(bad_request.as_bytes()).await;
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+#[allow(dead_code)]
+pub struct MockHttpServer {
+    port: u16,
+    responses: Arc<HashMap<String, MockHttpResponse>>,
+}
+
+impl MockHttpServer {
+    pub async fn start(responses: HashMap<String, MockHttpResponse>) -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let port = addr.port();
+        let shared_responses = Arc::new(responses);
+        let shared_listener = Arc::new(listener);
+        let shared_responses_clone_for_spawn = shared_responses.clone();
+        tokio::spawn(async move {
+            while let Ok((mut stream, _)) = shared_listener.accept().await {
+                let responses_clone = shared_responses_clone_for_spawn.clone();
+                tokio::spawn(async move {
+                    handle_http_connection(&mut stream, responses_clone).await;
+                });
+            }
+        });
+
+        MockHttpServer {
+            port,
+            responses: shared_responses.clone(),
+        }
+    }
+
+    pub fn get_url(&self) -> String {
+        format!("http://127.0.0.1:{}", self.port)
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+#[allow(dead_code)]
+pub struct MockHttpResponse {
+    status: StatusCode,
+    headers: HashMap<String, String>,
+    body: String,
+    delay: Option<u64>,
+}
+
+impl MockHttpResponse {
+    pub fn get(status: StatusCode, body: String, delay: Option<u64>) -> Self {
+        Self {
+            status,
+            headers: HashMap::new(),
+            body,
+            delay,
+        }
+    }
+
+    pub fn with_header(mut self, key: String, value: String) -> Self {
+        self.headers.insert(key, value);
+        self
     }
 }
