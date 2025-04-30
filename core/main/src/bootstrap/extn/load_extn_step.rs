@@ -118,7 +118,7 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
         let loaded_extensions = self.pre_setup(state.clone()).await?;
         for extn in loaded_extensions.iter() {
             unsafe {
-                let path =&extn.entry.path;
+                let path = &extn.entry.path;
                 let library = &extn.library;
                 info!("Starting library of path {}", path);
                 if let Ok(builder) = load_channel_builder(library) {
