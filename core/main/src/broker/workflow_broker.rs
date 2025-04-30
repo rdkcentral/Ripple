@@ -335,20 +335,15 @@ pub mod tests {
         }
     }
 
-    // <pca>
     fn load_from_string_literal(contents: String) -> Result<RuleEngine, RippleError> {
         let (_content, rule_set) = Self::load_from_content(contents)?;
         let mut rules_engine = RuleEngine::default();
         rules_engine.rules.append(rule_set);
         Ok(rules_engine.clone())
     }
-    // </pca>
 
     pub fn rule_engine() -> RuleEngine {
-        // <pca>
-        //let engine = RuleEngine::load_from_string_literal(
         let engine = load_from_string_literal(
-            // </pca>
             json!({
                     "endpoints": {
                         "workflow" : {

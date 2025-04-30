@@ -34,23 +34,19 @@ use super::rules_functions::{apply_functions, RulesFunction, RulesImport};
 
 #[derive(Debug, Deserialize, Default, Clone)]
 pub struct RuleSet {
-    // <pca>
     #[serde(default)]
     pub imports: Vec<String>,
-    // </pca>
     pub endpoints: HashMap<String, RuleEndpoint>,
     pub rules: HashMap<String, Rule>,
 }
 
 impl RuleSet {
     pub fn append(&mut self, rule_set: RuleSet) {
-        // <pca>
         for import in rule_set.imports {
             if !self.imports.contains(&import) {
                 self.imports.push(import);
             }
         }
-        // </pca>
 
         self.endpoints.extend(rule_set.endpoints);
         let rules: HashMap<String, Rule> = rule_set
@@ -141,12 +137,6 @@ pub enum RuleType {
     Endpoint,
 }
 impl Rule {
-    // <pca>
-    // fn apply_variables(&mut self, rpc_request: &RpcRequest) -> &mut Self {
-    //     self.transform.apply_variables(rpc_request);
-    //     self
-    // }
-    // </pca>
     pub fn rule_type(&self) -> RuleType {
         match self.alias.trim().to_ascii_lowercase().as_str() {
             "static" => RuleType::Static,
@@ -222,7 +212,6 @@ impl RuleTransform {
         output
     }
 
-    // <pca>
     pub fn apply_functions(&mut self, imports: &HashMap<String, RulesFunction>) {
         if let Some(transform) = self.request.take() {
             if let Ok(transformed) = apply_functions(&transform, imports) {
@@ -236,7 +225,6 @@ impl RuleTransform {
             }
         }
     }
-    // </pca>
 
     pub fn apply_variables(&mut self, rpc_request: &RpcRequest) -> &mut Self {
         if let Some(value) = self.request.take() {
@@ -245,13 +233,11 @@ impl RuleTransform {
                 .insert(self.check_and_replace(&value, rpc_request));
         }
 
-        // <pca>
         if let Some(value) = self.response.take() {
             let _ = self
                 .response
                 .insert(self.check_and_replace(&value, rpc_request));
         }
-        // </pca>
 
         if let Some(value) = self.event.take() {
             let _ = self
@@ -291,9 +277,7 @@ pub enum RuleTransformType {
 #[derive(Debug, Clone, Default)]
 pub struct RuleEngine {
     pub rules: RuleSet,
-    // <pca>
     pub functions: HashMap<String, RulesFunction>,
-    // </pca>
 }
 
 impl RuleEngine {
@@ -304,27 +288,6 @@ impl RuleEngine {
             format!("{}{}", default_path, path)
         }
     }
-
-    // <pca>
-    // pub fn load(path: &str) -> Result<RuleEngine, RippleError> {
-    //     let path = Path::new(path);
-    //     if path.exists() {
-    //         let contents = fs::read_to_string(path).unwrap();
-    //         Self::load_from_string_literal(contents)
-    //     } else {
-    //         warn!("path for the rule is invalid {}", path.display());
-    //         Err(RippleError::InvalidInput)
-    //     }
-    // }
-    // </pca>
-    // <pca>
-    // pub fn load_from_string_literal(contents: String) -> Result<RuleEngine, RippleError> {
-    //     let (_content, rule_set) = Self::load_from_content(contents)?;
-    //     let mut rules_engine = RuleEngine::default();
-    //     rules_engine.rules.append(rule_set);
-    //     Ok(rules_engine.clone())
-    // }
-    // </pca>
 
     pub fn build(extn_manifest: &ExtnManifest) -> Self {
         trace!("building rules engine {:?}", extn_manifest.rules_path);
@@ -338,10 +301,7 @@ impl RuleEngine {
                     info!("loading rules from path {}", path);
                     info!("loading rule {}", path_for_rule);
                     if let Ok((_, rule_set)) = Self::load_from_content(contents) {
-                        // <pca>
-                        //engine.rules.append(rule_set)
                         engine.add_rules(rule_set, &extn_manifest.default_path);
-                        // </pca>
                     } else {
                         warn!("invalid rule found in path {}", path)
                     }
@@ -355,7 +315,6 @@ impl RuleEngine {
         engine
     }
 
-    // <pca>
     fn load_imports(&mut self, imports: &Vec<String>, default_path: &str) {
         for import in imports {
             let path_to_import = Self::build_path(import, default_path);
@@ -387,9 +346,7 @@ impl RuleEngine {
         }
     }
 
-    //pub fn load_from_content(contents: String) -> Result<(String, RuleSet), RippleError> {
     fn load_from_content(contents: String) -> Result<(String, RuleSet), RippleError> {
-        // </pca>
         match serde_json::from_str::<RuleSet>(&contents) {
             Ok(manifest) => Ok((contents, manifest)),
             Err(err) => {
@@ -400,9 +357,7 @@ impl RuleEngine {
     }
     pub fn add_rules(&mut self, rules: RuleSet, default_path: &str) {
         self.rules.append(rules.clone());
-        // <pca>
         self.load_imports(&rules.imports, default_path);
-        // </pca>
     }
     pub fn add_rule(&mut self, rule: Rule) {
         self.rules.rules.insert(rule.alias.clone(), rule);
@@ -431,7 +386,6 @@ impl RuleEngine {
         }
     }
 
-    // <pca>
     fn apply_functions(&self, rule: &mut Rule) {
         rule.transform.apply_functions(&self.functions);
     }
@@ -439,7 +393,6 @@ impl RuleEngine {
     fn apply_variables(&self, rule: &mut Rule, rpc_request: &RpcRequest) {
         rule.transform.apply_variables(rpc_request);
     }
-    // </pca>
 
     pub fn get_rule(&self, rpc_request: &RpcRequest) -> Result<RuleRetrieved, RuleRetrievalError> {
         let method = rpc_request.method.to_lowercase();
@@ -448,15 +401,9 @@ impl RuleEngine {
          */
 
         if let Some(mut rule) = self.rules.get(&method).cloned() {
-            // <pca>
             self.apply_functions(&mut rule);
             self.apply_variables(&mut rule, rpc_request);
-            // </pca>
-            return Ok(RuleRetrieved::ExactMatch(
-                // <pca>
-                //rule.apply_variables(rpc_request).to_owned(),
-                rule.to_owned(), // </pca>
-            ));
+            return Ok(RuleRetrieved::ExactMatch(rule.to_owned()));
         } else {
             /*
              * match, for example api.v1.* as rule name and api.v1.get as method name
