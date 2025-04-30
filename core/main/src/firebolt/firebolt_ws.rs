@@ -495,7 +495,7 @@ async fn return_invalid_format_error_message(
         );
 
         let msg = serde_json::to_string(&err).unwrap();
-        let api_msg = ApiMessage::new(ApiProtocol::JsonRpc, msg, req_id.clone());
+        let api_msg = ApiMessage::new(ApiProtocol::JsonRpc, msg, req_id);
         let _ = session.send_json_rpc(api_msg).await;
     }
 }
