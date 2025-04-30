@@ -334,16 +334,8 @@ pub mod tests {
             telemetry_response_listeners: vec![],
         }
     }
-
-    fn load_from_string_literal(contents: String) -> Result<RuleEngine, RippleError> {
-        let (_content, rule_set) = Self::load_from_content(contents)?;
-        let mut rules_engine = RuleEngine::default();
-        rules_engine.rules.append(rule_set);
-        Ok(rules_engine.clone())
-    }
-
     pub fn rule_engine() -> RuleEngine {
-        let engine = load_from_string_literal(
+        let engine = RuleEngine::load_from_string_literal(
             json!({
                     "endpoints": {
                         "workflow" : {

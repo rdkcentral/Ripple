@@ -17,10 +17,7 @@
 
 use std::collections::HashMap;
 
-use ripple_sdk::{
-    log::{debug, error},
-    utils::error::RippleError,
-};
+use ripple_sdk::{log::error, utils::error::RippleError};
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -78,10 +75,10 @@ pub fn apply_functions(
     if let Some(index) = input.find(FUNCTION_PREFIX) {
         let function_start_index = index + FUNCTION_PREFIX.len();
 
-        let mut function_end_index = 0;
+        let mut function_end_index;
 
         if let Some(params_start_index) = input[function_start_index..].find('(') {
-            function_end_index = function_start_index + params_start_index + 0;
+            function_end_index = function_start_index + params_start_index;
             let mut paren_pairs = 0;
 
             // Find the end of the function. Function params could include '(', and ')'.
@@ -104,12 +101,11 @@ pub fn apply_functions(
             return Err(RippleError::ParseError);
         }
 
-        let mut function_call = input[function_start_index..function_end_index].to_string();
+        let function_call = input[function_start_index..function_end_index].to_string();
 
         if let Some(function_name_end) = function_call.find('(') {
             let function_name = &function_call[..function_name_end];
-            let mut params =
-                function_call[function_name_end + 1..function_call.len() - 1].to_string();
+            let params = function_call[function_name_end + 1..function_call.len() - 1].to_string();
 
             // Gather parameters and perform replacements
 

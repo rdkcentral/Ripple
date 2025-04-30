@@ -652,6 +652,7 @@ impl EndpointBroker for ThunderBroker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::broker::thunder_broker::tests::rules_engine::RuleTransformType;
     use crate::{
         broker::{
             endpoint_broker::{

@@ -1876,7 +1876,7 @@ mod endpoint_broker_tests {
         use crate::broker::rules::rules_engine::RuleEndpoint;
         use crate::broker::rules::rules_engine::RuleEndpointProtocol;
         use ripple_sdk::api::session::AccountSession;
-        use std::sync::atomic::Ordering;
+        use std::{collections::HashMap, sync::atomic::Ordering};
 
         fn reset_counter(value: u64) {
             ATOMIC_ID.store(value, Ordering::SeqCst);
@@ -2006,6 +2006,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2036,6 +2037,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2066,6 +2068,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2096,6 +2099,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2126,6 +2130,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2156,6 +2161,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2186,6 +2192,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2218,6 +2225,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2453,6 +2461,8 @@ mod endpoint_broker_tests {
     }
     #[cfg(test)]
     mod static_rules {
+        use std::collections::HashMap;
+
         use crate::broker::endpoint_broker::apply_response;
         use crate::broker::endpoint_broker::BrokerConnectRequest;
         use crate::broker::endpoint_broker::BrokerOutput;
@@ -2486,6 +2496,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2531,6 +2542,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2578,6 +2590,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2624,6 +2637,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2669,6 +2683,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2706,6 +2721,8 @@ mod endpoint_broker_tests {
     #[cfg(test)]
     mod provided_request {
 
+        use std::collections::HashMap;
+
         use crate::{
             broker::{
                 endpoint_broker::{EndpointBrokerState, RenderedRequest},
@@ -2724,6 +2741,7 @@ mod endpoint_broker_tests {
             let client = RippleClient::new(ChannelsState::new());
             let mut engine = RuleEngine {
                 rules: RuleSet::default(),
+                functions: HashMap::default(),
             };
             let r = Rule {
                 alias: "provided".to_owned(),
@@ -2762,6 +2780,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2772,6 +2791,8 @@ mod endpoint_broker_tests {
 
             endpoint_broker
         }
+        use std::collections::HashMap;
+
         use crate::{
             broker::{
                 endpoint_broker::{
@@ -2864,6 +2885,7 @@ mod endpoint_broker_tests {
             let client = RippleClient::new(ChannelsState::new());
             let mut engine = RuleEngine {
                 rules: RuleSet::default(),
+                functions: HashMap::default(),
             };
             let rule = Rule {
                 alias: "endpoint".to_owned(),
@@ -2894,6 +2916,7 @@ mod endpoint_broker_tests {
             let client = RippleClient::new(ChannelsState::new());
             let engine = RuleEngine {
                 rules: RuleSet::default(),
+                functions: HashMap::default(),
             };
             let under_test = EndpointBrokerState::new(OpMetricState::default(), tx, engine, client);
 
@@ -2915,6 +2938,7 @@ mod endpoint_broker_tests {
             let client = RippleClient::new(ChannelsState::new());
             let mut engine = RuleEngine {
                 rules: RuleSet::default(),
+                functions: HashMap::default(),
             };
             let rule = Rule {
                 alias: "endpoint".to_owned(),
@@ -2962,6 +2986,7 @@ mod endpoint_broker_tests {
                     tx,
                     RuleEngine {
                         rules: RuleSet::default(),
+                        functions: HashMap::default(),
                     },
                     client,
                 );
@@ -2990,6 +3015,7 @@ mod endpoint_broker_tests {
                     tx,
                     RuleEngine {
                         rules: RuleSet::default(),
+                        functions: HashMap::default(),
                     },
                     client,
                 );
@@ -3020,6 +3046,7 @@ mod endpoint_broker_tests {
                     tx,
                     RuleEngine {
                         rules: RuleSet::default(),
+                        functions: HashMap::default(),
                     },
                     client,
                 );
@@ -3056,6 +3083,7 @@ mod endpoint_broker_tests {
                     tx,
                     RuleEngine {
                         rules: RuleSet::default(),
+                        functions: HashMap::default(),
                     },
                     client,
                 );

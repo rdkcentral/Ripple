@@ -289,6 +289,23 @@ impl RuleEngine {
         }
     }
 
+    pub fn load(path: &str) -> Result<RuleEngine, RippleError> {
+        let path = Path::new(path);
+        if path.exists() {
+            let contents = fs::read_to_string(path).unwrap();
+            Self::load_from_string_literal(contents)
+        } else {
+            warn!("path for the rule is invalid {}", path.display());
+            Err(RippleError::InvalidInput)
+        }
+    }
+    pub fn load_from_string_literal(contents: String) -> Result<RuleEngine, RippleError> {
+        let (_content, rule_set) = Self::load_from_content(contents)?;
+        let mut rules_engine = RuleEngine::default();
+        rules_engine.rules.append(rule_set);
+        Ok(rules_engine.clone())
+    }
+
     pub fn build(extn_manifest: &ExtnManifest) -> Self {
         trace!("building rules engine {:?}", extn_manifest.rules_path);
         let mut engine = RuleEngine::default();
@@ -346,7 +363,7 @@ impl RuleEngine {
         }
     }
 
-    fn load_from_content(contents: String) -> Result<(String, RuleSet), RippleError> {
+    pub fn load_from_content(contents: String) -> Result<(String, RuleSet), RippleError> {
         match serde_json::from_str::<RuleSet>(&contents) {
             Ok(manifest) => Ok((contents, manifest)),
             Err(err) => {
@@ -403,7 +420,7 @@ impl RuleEngine {
         if let Some(mut rule) = self.rules.get(&method).cloned() {
             self.apply_functions(&mut rule);
             self.apply_variables(&mut rule, rpc_request);
-            return Ok(RuleRetrieved::ExactMatch(rule.to_owned()));
+            Ok(RuleRetrieved::ExactMatch(rule.to_owned()))
         } else {
             /*
              * match, for example api.v1.* as rule name and api.v1.get as method name
@@ -657,7 +674,10 @@ mod tests {
             .rules
             .insert("test.method".to_string(), rule.clone());
 
-        let rule_engine = RuleEngine { rules: rule_set };
+        let rule_engine = RuleEngine {
+            rules: rule_set,
+            functions: HashMap::default(),
+        };
 
         let rpc_request = RpcRequest {
             method: "test.method".to_string(),
@@ -687,7 +707,10 @@ mod tests {
         };
         rule_set.rules.insert("api.v1.*".to_string(), rule.clone());
 
-        let rule_engine = RuleEngine { rules: rule_set };
+        let rule_engine = RuleEngine {
+            rules: rule_set,
+            functions: HashMap::default(),
+        };
 
         let rpc_request = RpcRequest {
             method: "api.v1.get".to_string(),
@@ -711,7 +734,10 @@ mod tests {
     #[test]
     fn test_get_rule_no_match() {
         let rule_set = RuleSet::default();
-        let rule_engine = RuleEngine { rules: rule_set };
+        let rule_engine = RuleEngine {
+            rules: rule_set,
+            functions: HashMap::default(),
+        };
 
         let rpc_request = RpcRequest {
             method: "nonexistent.method".to_string(),
@@ -738,7 +764,10 @@ mod tests {
             .insert("api.v1.*".to_string(), Rule::default());
         rule_set.rules.insert("api.*".to_string(), Rule::default());
 
-        let rule_engine = RuleEngine { rules: rule_set };
+        let rule_engine = RuleEngine {
+            rules: rule_set,
+            functions: HashMap::default(),
+        };
 
         let rpc_request = RpcRequest {
             method: "api.v1.get".to_string(),
