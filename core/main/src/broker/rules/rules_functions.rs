@@ -43,17 +43,17 @@ fn build_param_list(params: &str) -> Vec<String> {
     let mut current_param = String::new();
     let mut paren_pairs = 0;
 
-    for c in params.chars() {
-        if c == '(' {
+    for character in params.chars() {
+        if character == '(' {
             paren_pairs += 1;
-        } else if c == ')' {
+        } else if character == ')' {
             paren_pairs -= 1;
-        } else if c == ',' && paren_pairs == 0 {
+        } else if character == ',' && paren_pairs == 0 {
             param_list.push(current_param.trim().to_string());
             current_param.clear();
             continue;
         }
-        current_param.push(c);
+        current_param.push(character);
     }
 
     if !current_param.is_empty() {
