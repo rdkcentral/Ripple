@@ -72,7 +72,8 @@ pub fn apply_functions(
 ) -> Result<String, RippleError> {
     const FUNCTION_PREFIX: &str = "$function.";
     let mut output = input.to_string();
-    let mut current_search_index = 0;
+
+    // Locate function call in input string
 
     if let Some(index) = input.find(FUNCTION_PREFIX) {
         let function_start_index = index + FUNCTION_PREFIX.len();
@@ -84,6 +85,7 @@ pub fn apply_functions(
             let mut paren_pairs = 0;
 
             // Find the end of the function. Function params could include '(', and ')'.
+
             while function_end_index < input.len() {
                 if input.chars().nth(function_end_index) == Some('(') {
                     paren_pairs += 1;
@@ -102,14 +104,14 @@ pub fn apply_functions(
             return Err(RippleError::ParseError);
         }
 
-        current_search_index += function_end_index;
-
         let mut function_call = input[function_start_index..function_end_index].to_string();
 
         if let Some(function_name_end) = function_call.find('(') {
             let function_name = &function_call[..function_name_end];
             let mut params =
                 function_call[function_name_end + 1..function_call.len() - 1].to_string();
+
+            // Gather parameters and perform replacements
 
             let param_list: Vec<String> = build_param_list(&params);
 
