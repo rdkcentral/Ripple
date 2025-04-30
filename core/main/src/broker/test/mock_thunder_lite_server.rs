@@ -372,7 +372,7 @@ macro_rules! process_broker_output {
             .clone()
             .rule
             .transform
-            .get_transform_data(rules_engine::RuleTransformType::Response)
+            .get_transform_data(rules::rules_engine::RuleTransformType::Response)
         {
             apply_response(filter, &rule_context_name, &mut response);
         } else if response.result.is_none() && response.error.is_none() {
@@ -398,7 +398,7 @@ macro_rules! process_broker_output_event_resposne {
             .clone()
             .rule
             .transform
-            .get_transform_data(rules_engine::RuleTransformType::Event(false))
+            .get_transform_data(rules::rules_engine::RuleTransformType::Event(false))
         {
             let broker_request_clone = $broker_request.clone();
             let result = response.clone().result.unwrap();

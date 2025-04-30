@@ -40,7 +40,7 @@ use serde_json::{json, Value};
 
 use crate::broker::{
     endpoint_broker::{self, BrokerCallback, BrokerOutput, BrokerRequest, EndpointBrokerState},
-    rules_engine::{Rule, RuleTransformType},
+    rules::rules_engine::{Rule, RuleTransformType},
     thunder_broker::ThunderBroker,
 };
 
@@ -472,7 +472,7 @@ impl UserDataMigrator {
             .transform
             .get_transform_data(RuleTransformType::Request)
         {
-            return crate::broker::rules_engine::jq_compile(
+            return crate::broker::rules::rules_engine::jq_compile(
                 data,
                 &filter,
                 format!("{}_request", method),
@@ -863,7 +863,7 @@ impl UserDataMigrator {
 
         response.data.result = Some(legacy_value.clone());
         if let Some(conversion_rule) = &config_entry.legacy_to_plugin_value_conversion {
-            let data = crate::broker::rules_engine::jq_compile(
+            let data = crate::broker::rules::rules_engine::jq_compile(
                 json!({ "value": legacy_value }),
                 &conversion_rule.conversion_rule,
                 "legacy_to_plugin_value_conversion".to_string(),

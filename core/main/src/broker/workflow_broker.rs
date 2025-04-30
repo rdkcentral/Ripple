@@ -2,9 +2,9 @@ use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerRequest, BrokerSender,
     EndpointBroker, HandleBrokerageError, BROKER_CHANNEL_BUFFER_SIZE,
 };
-use super::rules_engine::JsonDataSource;
+use super::rules::rules_engine::JsonDataSource;
 use crate::broker::endpoint_broker::{BrokerOutput, EndpointBrokerState};
-use crate::broker::rules_engine::{compose_json_values, make_name_json_safe};
+use crate::broker::rules::rules_engine::{compose_json_values, make_name_json_safe};
 use crate::state::platform_state::PlatformState;
 use futures::future::{join_all, BoxFuture};
 use futures::FutureExt;
@@ -312,7 +312,7 @@ pub mod tests {
 
     use crate::broker::{
         endpoint_broker::{BrokerCallback, BrokerRequest, EndpointBrokerState},
-        rules_engine::{JsonDataSource, Rule, RuleEngine},
+        rules::rules_engine::{JsonDataSource, Rule, RuleEngine},
     };
     pub fn broker_request(callback: BrokerCallback) -> BrokerRequest {
         let mut rule = Rule {
@@ -334,8 +334,21 @@ pub mod tests {
             telemetry_response_listeners: vec![],
         }
     }
+
+    // <pca>
+    fn load_from_string_literal(contents: String) -> Result<RuleEngine, RippleError> {
+        let (_content, rule_set) = Self::load_from_content(contents)?;
+        let mut rules_engine = RuleEngine::default();
+        rules_engine.rules.append(rule_set);
+        Ok(rules_engine.clone())
+    }
+    // </pca>
+
     pub fn rule_engine() -> RuleEngine {
-        let engine = RuleEngine::load_from_string_literal(
+        // <pca>
+        //let engine = RuleEngine::load_from_string_literal(
+        let engine = load_from_string_literal(
+            // </pca>
             json!({
                     "endpoints": {
                         "workflow" : {
