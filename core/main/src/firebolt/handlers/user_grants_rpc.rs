@@ -32,6 +32,7 @@ use ripple_sdk::{
             },
         },
         gateway::rpc_gateway_api::{AppIdentification, CallContext},
+        observability::log_signal::LogSignal,
     },
     chrono::{DateTime, Utc},
     log::debug,
@@ -213,7 +214,13 @@ impl UserGrantsServer for UserGrantsImpl {
         Ok(combined_grant_entries)
     }
 
-    async fn usergrants_grant(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
+    async fn usergrants_grant(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
+        LogSignal::new(
+            "usergrants_grant".to_string(),
+            format!("Received firebolt request: {:?}", request),
+            ctx.clone(),
+        )
+        .emit_debug();
         let result = GrantState::update_grant_as_per_policy(
             &self.platform_state,
             GrantStateModify::Grant,
@@ -223,10 +230,23 @@ impl UserGrantsServer for UserGrantsImpl {
         )
         .await;
 
+        LogSignal::new(
+            "usergrants_grant".to_string(),
+            format!("Response:{:?}", result),
+            ctx.clone(),
+        )
+        .emit_debug();
+
         result.map_err(rpc_err)
     }
 
-    async fn usergrants_deny(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
+    async fn usergrants_deny(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
+        LogSignal::new(
+            "usergrants_deny".to_string(),
+            format!("Received firebolt request: {:?}", request),
+            ctx.clone(),
+        )
+        .emit_debug();
         let result = GrantState::update_grant_as_per_policy(
             &self.platform_state,
             GrantStateModify::Deny,
@@ -235,7 +255,12 @@ impl UserGrantsServer for UserGrantsImpl {
             request.capability,
         )
         .await;
-
+        LogSignal::new(
+            "usergrants_deny".to_string(),
+            format!("Response:{:?}", result),
+            ctx.clone(),
+        )
+        .emit_debug();
         result.map_err(rpc_err)
     }
 
