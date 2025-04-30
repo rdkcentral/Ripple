@@ -126,9 +126,11 @@ impl WebSocketUtils {
         } else {
             endpoint.to_owned()
         };
-        // Only support local ws connections
-        if !url_path.starts_with("ws://127.0.0.1") && !url_path.starts_with("ws://localhost") {
-            return Err(RippleError::InvalidInput);
+        if cfg!(not(feature = "local_dev")) {
+            // Only support local ws connections
+            if !url_path.starts_with("ws://127.0.0.1") && !url_path.starts_with("ws://localhost") {
+                return Err(RippleError::InvalidInput);
+            }
         }
         let url = match url::Url::parse(&url_path) {
             Ok(parsed_url) => parsed_url,

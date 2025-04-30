@@ -198,7 +198,7 @@ impl From<ExtnMessage> for ApiMessage {
             } else {
                 chrono::Utc::now().timestamp_millis()
             },
-            "payload": match val.payload.clone() {
+            "payload": match &val.payload {
                 ExtnPayload::Request(r) => serde_json::to_value(r).unwrap(),
                 ExtnPayload::Response(r) => serde_json::to_value(r).unwrap(),
                 ExtnPayload::Event(r) => serde_json::to_value(r).unwrap(),
