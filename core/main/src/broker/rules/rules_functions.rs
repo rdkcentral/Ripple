@@ -149,3 +149,114 @@ pub fn apply_functions(
 
     Ok(output)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_param_list() {
+        let params = "param1, param2, param3";
+        let result = build_param_list(params);
+        assert_eq!(result, vec!["param1", "param2", "param3"]);
+
+        let params_with_nested = "param1, func(param2, param3), param4";
+        let result = build_param_list(params_with_nested);
+        assert_eq!(result, vec!["param1", "func(param2, param3)", "param4"]);
+    }
+
+    #[test]
+    fn test_apply_functions_simple_replacement() {
+        let mut imports = HashMap::new();
+        imports.insert(
+            "test_function".to_string(),
+            RulesFunction {
+                params: Some(vec!["param".to_string()]),
+                body: "Hello, $param!".to_string(),
+            },
+        );
+
+        let input = "$function.test_function(World)";
+        let result = apply_functions(input, &imports).unwrap();
+        assert_eq!(result, "Hello, World!");
+    }
+
+    #[test]
+    fn test_apply_functions_multiple_replacements() {
+        let mut imports = HashMap::new();
+        imports.insert(
+            "test_function".to_string(),
+            RulesFunction {
+                params: Some(vec!["param1".to_string(), "param2".to_string()]),
+                body: "$param1 and $param2".to_string(),
+            },
+        );
+
+        let input = "$function.test_function(Hello, World)";
+        let result = apply_functions(input, &imports).unwrap();
+        assert_eq!(result, "Hello and World");
+    }
+
+    #[test]
+    fn test_apply_functions_nested_function_calls() {
+        let mut imports = HashMap::new();
+        imports.insert(
+            "inner_function".to_string(),
+            RulesFunction {
+                params: Some(vec!["param".to_string()]),
+                body: "Inner $param".to_string(),
+            },
+        );
+        imports.insert(
+            "outer_function".to_string(),
+            RulesFunction {
+                params: Some(vec!["param".to_string()]),
+                body: "Outer $param".to_string(),
+            },
+        );
+
+        let input = "$function.outer_function($function.inner_function(World))";
+        let result = apply_functions(input, &imports).unwrap();
+        assert_eq!(result, "Outer Inner World");
+    }
+
+    #[test]
+    fn test_apply_functions_missing_function() {
+        let imports = HashMap::new();
+        let input = "$function.non_existent_function()";
+        let result = apply_functions(input, &imports);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_apply_functions_insufficient_parameters() {
+        let mut imports = HashMap::new();
+        imports.insert(
+            "test_function".to_string(),
+            RulesFunction {
+                params: Some(vec!["param1".to_string(), "param2".to_string()]),
+                body: "$param1 and $param2".to_string(),
+            },
+        );
+
+        let input = "$function.test_function(Hello)";
+        let result = apply_functions(input, &imports);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_apply_functions_no_parameters() {
+        let mut imports = HashMap::new();
+        imports.insert(
+            "test_function".to_string(),
+            RulesFunction {
+                params: None,
+                body: "No params needed".to_string(),
+            },
+        );
+
+        let input = "$function.test_function()";
+        let result = apply_functions(input, &imports).unwrap();
+        assert_eq!(result, "No params needed");
+    }
+}
