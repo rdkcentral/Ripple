@@ -446,9 +446,11 @@ impl ExtnClient {
 
     fn handle_no_processor_error(&self, message: ExtnMessage) {
         let req_sender = self.get_extn_sender_with_extn_id(&message.requestor.to_string());
-
         if let Ok(resp) = message.get_response(ExtnResponse::Error(RippleError::ProcessorError)) {
-            if self.sender.respond(resp, req_sender).is_err() {
+            if message.requestor.is_main() {
+                self.handle_message(resp);
+            }
+            else if self.sender.respond(resp, req_sender).is_err() {
                 error!("Couldnt send no processor response");
             }
         }
