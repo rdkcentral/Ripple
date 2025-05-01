@@ -16,8 +16,10 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 //
 // SPDX-License-Identifier: Apache-2.0
 //
+
 use futures_util::{SinkExt, StreamExt};
 use hyper::StatusCode;
+use ripple_sdk::log::{LevelFilter, Log, Metadata, Record, SetLoggerError};
 use ripple_sdk::{
     api::{
         firebolt::fb_capabilities::{
@@ -25,7 +27,7 @@ use ripple_sdk::{
         },
         gateway::rpc_gateway_api::{ApiMessage, CallContext},
     },
-    log::debug,
+    log::{self, debug},
     tokio::{
         self,
         io::{AsyncReadExt, AsyncWriteExt},
@@ -36,6 +38,7 @@ use ripple_sdk::{
     utils::logger::init_logger,
 };
 use ripple_tdk::utils::test_utils::Mockable;
+use std::sync::Mutex;
 
 use crate::state::{
     cap::cap_state::CapState, platform_state::PlatformState, session_state::Session,
@@ -312,4 +315,57 @@ impl MockHttpResponse {
         self.headers.insert(key, value);
         self
     }
+}
+
+//////////// MOCK LOGGER /////////////////////
+
+#[derive(Clone, Debug)]
+pub struct MockLogger {
+    messages: Arc<Mutex<Vec<String>>>,
+}
+
+impl MockLogger {
+    pub fn new() -> Self {
+        MockLogger {
+            messages: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    pub fn contains(&self, text: &str) -> bool {
+        let messages = self.messages.lock().unwrap();
+        messages.iter().any(|m| m.contains(text))
+    }
+
+    pub fn init() -> Result<Arc<Self>, SetLoggerError> {
+        let mock_logger = Arc::new(MockLogger::new());
+        let logger_clone_for_setup = Arc::clone(&mock_logger);
+
+        // Leak the Box to make the logger live for 'static.
+        let boxed_logger = Box::new(logger_clone_for_setup);
+        let static_logger: &'static dyn Log = Box::leak(boxed_logger);
+
+        log::set_logger(static_logger).map(|()| log::set_max_level(LevelFilter::Debug))?;
+        Ok(mock_logger)
+    }
+}
+
+impl Default for MockLogger {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Log for MockLogger {
+    fn enabled(&self, metadata: &Metadata) -> bool {
+        metadata.level() <= log::Level::Debug
+    }
+
+    fn log(&self, record: &Record) {
+        self.messages
+            .lock()
+            .unwrap()
+            .push(format!("{}", record.args()));
+    }
+
+    fn flush(&self) {}
 }
