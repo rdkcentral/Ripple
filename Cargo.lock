@@ -3022,7 +3022,6 @@ dependencies = [
 name = "ripple_sdk"
 version = "1.1.0"
 dependencies = [
- "async-channel 2.3.1",
  "async-std",
  "async-trait",
  "chrono",
