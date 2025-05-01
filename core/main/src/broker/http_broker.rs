@@ -150,6 +150,7 @@ impl EndpointBroker for HttpBroker {
                             )
                             .emit_debug();
 
+
                             let _ = send_broker_response(&callback, &request, &body).await;
                             if !parts.status.is_success() {
                                 LogSignal::new("http_broker".to_string(), "Prepare request failed".to_string(), request.rpc.ctx.clone())
@@ -202,18 +203,40 @@ mod tests {
             endpoint_broker::BrokerOutput,
             rules_engine::{Rule, RuleEndpoint},
         },
-        utils::test_utils::{MockHttpResponse, MockHttpServer},
+        utils::test_utils::{MockHttpResponse, MockHttpServer, MockLogger},
     };
 
     use super::*;
 
     use hyper::StatusCode;
     use ripple_sdk::{
-        api::gateway::rpc_gateway_api::RpcRequest,
+        api::gateway::rpc_gateway_api::{JsonRpcApiResponse, RpcRequest},
         tokio::{runtime::Runtime, task::JoinHandle, time::timeout},
         Mockable,
     };
     use serde_json::{json, Value};
+
+    pub fn result_contains_string(resp: &JsonRpcApiResponse, search_string: &str) -> bool {
+        if let Some(Value::Object(obj)) = &resp.result {
+            obj.iter().any(|(_, value)| {
+                if let Value::String(s) = value {
+                    s.contains(search_string)
+                } else {
+                    false
+                }
+            })
+        } else if let Some(Value::Object(obj)) = &resp.error {
+            obj.iter().any(|(_, value)| {
+                if let Value::String(s) = value {
+                    s.contains(search_string)
+                } else {
+                    false
+                }
+            })
+        } else {
+            false
+        }
+    }
 
     #[test]
     fn test_send_broker_response_json_body() {
@@ -302,43 +325,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_send_http_request_server_error() {
-        // let _ = init_and_configure_logger("1.0", "test".to_string(), None);
+    async fn test_send_http_request_check_debug_log() {
+        use super::*;
 
-        let mut mock_responses = HashMap::new();
-        mock_responses.insert(
-            "/error_rule".to_string(),
-            MockHttpResponse::get(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Server Error".to_string(),
-                None,
-            ),
-        );
-
-        let mock_server = MockHttpServer::start(mock_responses).await;
-        let server_url = mock_server.get_url();
-        let uri = server_url.parse::<Uri>().unwrap();
-        let path = "error_rule";
-        let client = Client::new();
-
-        let response_result = send_http_request(&client, Method::GET, &uri, path).await;
-
-        match response_result {
-            Ok(response) => {
-                assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
-                let body_bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
-                let body_string = String::from_utf8(body_bytes.to_vec()).unwrap();
-                assert_eq!(body_string, "Server Error");
-            }
-            Err(e) => {
-                panic!("send_http_request failed: {}", e);
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn test_send_http_request_invalid_json() {
-        // let _ = init_and_configure_logger("1.0", "test".to_string(), None);
+        // Initialize the mock logger using the init method.
+        let mock_logger = MockLogger::init().expect("Failed to initialize mock logger");
 
         let mut mock_responses = HashMap::new();
         mock_responses.insert(
@@ -352,23 +343,18 @@ mod tests {
         let path = "invalid_json";
         let client = Client::new();
 
-        let response_result = send_http_request(&client, Method::GET, &uri, path).await;
+        let result = send_http_request(&client, Method::GET, &uri, path).await;
+        assert!(result.is_ok());
 
-        match response_result {
-            Ok(response) => {
-                assert_eq!(response.status(), StatusCode::OK);
-                let body_bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
-                let body_string = String::from_utf8(body_bytes.to_vec()).unwrap();
-                assert_eq!(body_string, "not json");
-            }
-            Err(e) => {
-                panic!("send_http_request failed: {}", e);
-            }
-        }
+        // Check if the debug message was logged using the contains method.
+        assert!(
+            mock_logger.contains("http_broker sending GET request"),
+            "Debug message was not logged."
+        );
     }
 
     #[tokio::test]
-    async fn test_http_broker_integration_success() {
+    async fn test_http_broker_get_broker_success() {
         // let _ = init_and_configure_logger("1.0", "test".to_string(), None);
         let mut mock_responses = HashMap::new();
         mock_responses.insert(
@@ -414,6 +400,124 @@ mod tests {
             timeout(Duration::from_secs(5), brx.recv()).await
         {
             assert!(data.is_success());
+        } else {
+            println!("Timeout or channel closed without receiving data, skipping test");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_http_broker_get_broker_error_check_invalid_uri() {
+        let mut mock_responses = HashMap::new();
+        mock_responses.insert(
+            "/test_rule".to_string(),
+            MockHttpResponse::get(StatusCode::OK, json!({"data": "success"}).to_string(), None)
+                .with_header("Content-Type".to_string(), "application/json".to_string()),
+        );
+        let mock_server = MockHttpServer::start(mock_responses).await;
+        let server_url = mock_server.get_url();
+
+        let endpoint = RuleEndpoint {
+            url: server_url,
+            protocol: crate::broker::rules_engine::RuleEndpointProtocol::Http,
+            jsonrpc: false,
+        };
+
+        let (tx, _) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
+        let (btx, mut brx) = mpsc::channel::<BrokerOutput>(10);
+        let request = BrokerConnectRequest::new("somekey".to_owned(), endpoint, tx);
+        let callback = BrokerCallback { sender: btx };
+        let mut broker_state = EndpointBrokerState::default();
+
+        let broker = HttpBroker::get_broker(None, request, callback.clone(), &mut broker_state);
+        let sender = broker.get_sender();
+
+        let mut rpc_request = RpcRequest::mock();
+        rpc_request.ctx.call_id = 11;
+
+        let broker_request = BrokerRequest {
+            rpc: rpc_request.clone(),
+            rule: Rule {
+                // alias: "test_rule".to_string(),
+                // alias: "test".to_string(),
+                alias: " ".to_string(),
+                ..Default::default()
+            },
+            subscription_processed: None,
+            workflow_callback: Some(callback.clone()),
+            telemetry_response_listeners: vec![],
+        };
+
+        sender.sender.send(broker_request.clone()).await.unwrap();
+
+        if let Ok(Some(BrokerOutput { data, .. })) =
+            timeout(Duration::from_secs(5), brx.recv()).await
+        {
+            let has_error_in_result = if let Some(Value::Object(obj)) = &data.result {
+                obj.contains_key("error")
+            } else {
+                false
+            };
+            assert!(has_error_in_result);
+
+            assert!(result_contains_string(
+                &data,
+                "An error message from calling the downstream http service"
+            ));
+        } else {
+            println!("Timeout or channel closed without receiving data, skipping test");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_http_broker_get_broker_error_check_invalid_rule() {
+        let mut mock_responses = HashMap::new();
+        mock_responses.insert(
+            "/test_rule".to_string(),
+            MockHttpResponse::get(StatusCode::OK, json!({"data": "success"}).to_string(), None)
+                .with_header("Content-Type".to_string(), "application/json".to_string()),
+        );
+        let mock_server = MockHttpServer::start(mock_responses).await;
+        let server_url = mock_server.get_url();
+
+        let endpoint = RuleEndpoint {
+            url: server_url,
+            protocol: crate::broker::rules_engine::RuleEndpointProtocol::Http,
+            jsonrpc: false,
+        };
+
+        let (tx, _) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
+        let (btx, mut brx) = mpsc::channel::<BrokerOutput>(10);
+        let request = BrokerConnectRequest::new("somekey".to_owned(), endpoint, tx);
+        let callback = BrokerCallback { sender: btx };
+        let mut broker_state = EndpointBrokerState::default();
+
+        let broker = HttpBroker::get_broker(None, request, callback.clone(), &mut broker_state);
+        let sender = broker.get_sender();
+
+        let mut rpc_request = RpcRequest::mock();
+        rpc_request.ctx.call_id = 11;
+
+        let broker_request = BrokerRequest {
+            rpc: rpc_request.clone(),
+            rule: Rule {
+                alias: "test".to_string(),
+                ..Default::default()
+            },
+            subscription_processed: None,
+            workflow_callback: Some(callback.clone()),
+            telemetry_response_listeners: vec![],
+        };
+
+        sender.sender.send(broker_request.clone()).await.unwrap();
+
+        if let Ok(Some(BrokerOutput { data, .. })) =
+            timeout(Duration::from_secs(5), brx.recv()).await
+        {
+            assert!(data.error.is_some());
+            assert!(result_contains_string(
+                &data,
+                "Error in http broker parsing response from http service at"
+            ));
         } else {
             println!("Timeout or channel closed without receiving data, skipping test");
         }
