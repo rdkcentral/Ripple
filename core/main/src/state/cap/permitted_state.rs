@@ -23,7 +23,6 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        config::FEATURE_CLOUD_PERMISSIONS,
         distributor::distributor_permissions::{PermissionRequest, PermissionResponse},
         firebolt::{
             fb_capabilities::{
@@ -147,12 +146,7 @@ impl PermissionHandler {
             return Ok(());
         }
 
-        if state
-            .get_client()
-            .get_extn_client()
-            .get_features()
-            .contains(&String::from(FEATURE_CLOUD_PERMISSIONS))
-        {
+        if state.get_device_manifest().get_features().cloud_permissions {
             if allow_cached {
                 if let Some(permissions) =
                     state.cap_state.permitted_state.get_app_permissions(app_id)

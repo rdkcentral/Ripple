@@ -1,0 +1,135 @@
+{
+    "configuration": {
+      "ws_configuration": {
+        "enabled": false,
+        "gateway": "192.168.1.100:8080"
+      },
+      "internal_ws_configuration": {
+        "enabled": false,
+        "gateway": "192.168.1.101:8081"
+      },
+      "platform_parameters": {
+        "gateway": "ws://test.example.com:1234/rpc"
+      },
+      "distribution_tenant": "beta",
+      "form_factor": "tv",
+      "default_values": {
+        "country_code": "GB",
+        "language": "en",
+        "locale": "en-GB",
+        "name": "Bedroom TV",
+        "captions": {
+          "enabled": true,
+          "font_family": "sans-serif",
+          "font_size": 2,
+          "font_color": "#000000",
+          "font_edge": "raised",
+          "font_edge_color": "#FFFFFF",
+          "font_opacity": 80,
+          "background_color": "#808080",
+          "background_opacity": 50,
+          "text_align": "left",
+          "text_align_vertical": "top"
+        },
+        "voice": {
+          "enabled": true,
+          "speed": 7
+        }
+      },
+      "internal_app_id": "mock_app",
+      "model_friendly_names": {
+        "XYZ123": "SMART TV",
+        "LMN456": "RDK TV"
+      },
+      "distributor_experience_id": "9999",
+      "exclusory": {
+        "app_authorization_rules": {
+          "app_ignore_rules": {
+            "com.example.debugapp": [
+              "*"
+            ]
+          }
+        },
+        "method_ignore_rules": [
+          "player.play",
+          "player.pause",
+          "settings.get",
+          "settings.set"
+        ]
+      }
+    },
+    "capabilities": {
+      "supported": [
+        "login",
+        "launch",
+        "playback"
+      ],
+      "grantPolicies": {
+        "xrn:firebolt:capability:device:id": {
+          "use": {
+            "options": [
+              {
+                "steps": [
+                  {
+                    "capability": "xrn:firebolt:capability:usergrant:mockchallenge"
+                  }
+                ]
+              }
+            ],
+            "scope": "app",
+            "lifespan": "seconds",
+            "lifespanTtl": 100,
+            "overridable": false,
+            "persistence": "device",
+            "privacySetting": {
+              "property": "Privacy.allowWatchHistory",
+              "autoApplyPolicy": "always",
+              "updateProperty": false
+            }
+          }
+        },
+        "xrn:firebolt:capability:device:mock": {
+          "use": {
+            "options": [
+              {
+                "steps": [
+                  {
+                    "capability": "xrn:firebolt:capability:usergrant:mock"
+                  }
+                ]
+              }
+            ],
+            "scope": "app",
+            "lifespan": "seconds",
+            "lifespanTtl": 150,
+            "overridable": false,
+            "persistence": "device",
+            "privacySetting": {
+              "property": "Privacy.allowWatchHistory",
+              "autoApplyPolicy": "never",
+              "updateProperty": false
+            }
+          }
+        }
+    }
+    },
+    "lifecycle": {
+      "appReadyTimeoutMs": 15000,
+      "appFinishedTimeoutMs": 5000,
+      "maxLoadedApps": 5,
+      "minAvailableMemoryKb": 1024,
+      "prioritized": [
+        "launcher",
+        "settings"
+      ]
+    },
+    "applications": {
+      "distribution": {
+        "library": "/opt/apps/app_list.json"
+      },
+      "defaults": {
+        "main": "main",
+        "settings": "defaults"
+      }
+    }
+  }

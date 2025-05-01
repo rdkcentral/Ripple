@@ -27,22 +27,6 @@ impl LoadDeviceManifestStep {
 
         r.expect("Need valid Device Manifest")
     }
-
-    pub fn read_env_variable() {
-        let country_env = std::env::var("COUNTRY").unwrap_or_else(|_| "eu".to_string()); // Default to "US"
-        println!("COUNTRY environment variable set to : {}", country_env);
-
-        //   let device_type_env = std::env::var("DEVICE_TYPE").unwrap_or_else(|_| "TV".to_string());
-        //  println!("DEVICE_TYPE environment variable set to : {}", device_type_env);
-        match std::env::var("DEVICE_TYPE") {
-            Ok(device_type) => {
-                println!("DEVICE_TYPE environment variable set to: {}", device_type);
-            }
-            Err(_) => {
-                println!("DEVICE_TYPE environment variable is not set.");
-            }
-        }
-    }
 }
 
 type DeviceManifestLoader = Vec<fn() -> Result<(String, DeviceManifest), RippleError>>;
@@ -50,7 +34,7 @@ type DeviceManifestLoader = Vec<fn() -> Result<(String, DeviceManifest), RippleE
 fn try_manifest_files() -> Result<DeviceManifest, RippleError> {
     let dm_arr: DeviceManifestLoader = if cfg!(feature = "local_dev") {
         vec![load_from_env, load_from_home]
-    } else if cfg!(test) {
+    } else if cfg!(any(test, feature = "test")) {
         vec![load_from_env]
     } else {
         vec![load_from_etc]
