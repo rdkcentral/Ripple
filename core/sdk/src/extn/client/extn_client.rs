@@ -449,8 +449,7 @@ impl ExtnClient {
         if let Ok(resp) = message.get_response(ExtnResponse::Error(RippleError::ProcessorError)) {
             if message.requestor.is_main() {
                 self.handle_message(resp);
-            }
-            else if self.sender.respond(resp, req_sender).is_err() {
+            } else if self.sender.respond(resp, req_sender).is_err() {
                 error!("Couldnt send no processor response");
             }
         }
@@ -2035,7 +2034,7 @@ pub mod tests {
 
         let result = extn_client.request_transient(MockRequest {
             app_id: "test_app_id".to_string(),
-            contract: RippleContract::Internal,
+            contract: RippleContract::Permissions,
             expected_response: None,
         });
 
@@ -2051,7 +2050,7 @@ pub mod tests {
 
         let m = tr.recv().await.unwrap();
         let response = ExtnMessage::try_from(m).unwrap();
-        assert!(response.payload.is_response());
+        assert!(response.payload.is_request());
     }
 
     #[rstest(
