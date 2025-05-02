@@ -234,6 +234,7 @@ impl TryFrom<String> for ExtnMessage {
         if let Ok(message) = serde_json::from_str::<JsonRpcApiResponse>(&value) {
             let mut extn_message = ExtnMessage::default();
             let mut json_payload = None;
+            let mut data_is_valid = false;
             if let Some(method) = &message.method {
                 match method.as_str() {
                     "service.request" => {
@@ -242,9 +243,10 @@ impl TryFrom<String> for ExtnMessage {
                                 if let Ok(request) = serde_json::from_value::<ExtnRequest>(payload)
                                 {
                                     extn_message.payload = ExtnPayload::Request(request);
-                                    let _ = json_payload.insert(params);
+                                    data_is_valid = true;
                                 }
                             }
+                            let _ = json_payload.insert(params);
                         }
                     }
                     "service.response" => {
@@ -253,9 +255,10 @@ impl TryFrom<String> for ExtnMessage {
                                 if let Ok(request) = serde_json::from_value::<ExtnResponse>(payload)
                                 {
                                     extn_message.payload = ExtnPayload::Response(request);
-                                    let _ = json_payload.insert(params);
+                                    data_is_valid = true;
                                 }
                             }
+                            let _ = json_payload.insert(params);
                         }
                     }
                     "service.event" => {
@@ -263,9 +266,10 @@ impl TryFrom<String> for ExtnMessage {
                             if let Some(payload) = params.get("payload").cloned() {
                                 if let Ok(request) = serde_json::from_value::<ExtnEvent>(payload) {
                                     extn_message.payload = ExtnPayload::Event(request);
-                                    let _ = json_payload.insert(params);
+                                    data_is_valid = true;
                                 }
                             }
+                            let _ = json_payload.insert(params);
                         }
                     }
                     _ => {}
@@ -273,13 +277,16 @@ impl TryFrom<String> for ExtnMessage {
             }
 
             if let Some(payload) = json_payload {
-                let mut data_is_valid = false;
                 if let Some(id) = payload.get("id") {
                     if let Some(id) = id.as_str() {
-                        println!("id: {}", id);
                         extn_message.id = id.to_owned();
                         data_is_valid = true
                     }
+                }
+
+                if !data_is_valid {
+                    error!("Payload parsing failed for {} ", value);
+                    return Err(RippleError::BrokerError(extn_message.id));
                 }
 
                 if data_is_valid {
