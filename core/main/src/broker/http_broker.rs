@@ -333,14 +333,15 @@ mod tests {
 
         let mut mock_responses = HashMap::new();
         mock_responses.insert(
-            "/invalid_json".to_string(),
-            MockHttpResponse::get(StatusCode::OK, "not json".to_string(), None)
+            "/test_rule".to_string(),
+            MockHttpResponse::get(StatusCode::OK, json!({"data": "success"}).to_string(), None)
                 .with_header("Content-Type".to_string(), "application/json".to_string()),
         );
+
         let mock_server = MockHttpServer::start(mock_responses).await;
         let server_url = mock_server.get_url();
         let uri = server_url.parse::<Uri>().unwrap();
-        let path = "invalid_json";
+        let path = "test_rule";
         let client = Client::new();
 
         let result = send_http_request(&client, Method::GET, &uri, path).await;
@@ -437,8 +438,6 @@ mod tests {
         let broker_request = BrokerRequest {
             rpc: rpc_request.clone(),
             rule: Rule {
-                // alias: "test_rule".to_string(),
-                // alias: "test".to_string(),
                 alias: " ".to_string(),
                 ..Default::default()
             },
