@@ -4,8 +4,8 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches: [ "main", "1.21.rc", "1.22.rc" ]
-
+    branches: [ "main", "1.22.rc" ]
+    
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-Dwarnings"
