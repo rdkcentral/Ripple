@@ -21,10 +21,8 @@ use crate::{
     firebolt::{
         firebolt_gateway::FireboltGateway,
         handlers::{
-            accessory_rpc::AccessoryRippleProvider, account_rpc::AccountRPCProvider,
-            advertising_rpc::AdvertisingRPCProvider,
-            audio_description_rpc::AudioDescriptionRPCProvider,
-            authentication_rpc::AuthRPCProvider, capabilities_rpc::CapRPCProvider,
+            accessory_rpc::AccessoryRippleProvider, advertising_rpc::AdvertisingRPCProvider,
+            audio_description_rpc::AudioDescriptionRPCProvider, capabilities_rpc::CapRPCProvider,
             closed_captions_rpc::ClosedcaptionsRPCProvider, device_rpc::DeviceRPCProvider,
             discovery_rpc::DiscoveryRPCProvider, internal_rpc::InternalProvider,
             keyboard_rpc::KeyboardRPCProvider, lcm_rpc::LifecycleManagementProvider,
@@ -70,8 +68,6 @@ impl FireboltGatewayStep {
         let _ = methods.merge(SecureStorageRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(AdvertisingRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(DiscoveryRPCProvider::provide_with_alias(state.clone()));
-        let _ = methods.merge(AuthRPCProvider::provide_with_alias(state.clone()));
-        let _ = methods.merge(AccountRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(AudioDescriptionRPCProvider::provide_with_alias(
             state.clone(),
         ));
