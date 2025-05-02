@@ -502,13 +502,14 @@ async fn return_invalid_service_error_message(
         } else {
             Uuid::new_v4().to_string()
         };
-        let mut msg = ExtnMessage::default();
-        msg.id = id.clone();
-        msg.payload = ExtnPayload::Response(ExtnResponse::Error(e));
-        msg.requestor = ExtnId::try_from(session.get_app_id()).unwrap();
-        msg.target = RippleContract::Internal;
-        msg.target_id = None;
-        msg.ts = None;
+        let msg = ExtnMessage {
+            id: id.clone(),
+            payload: ExtnPayload::Response(ExtnResponse::Error(e)),
+            requestor: ExtnId::try_from(session.get_app_id()).unwrap(),
+            target: RippleContract::Internal,
+            target_id: None,
+            ts: None,
+        };
         let _ = session.send_json_rpc(msg.into()).await;
     }
 }
