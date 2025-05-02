@@ -33,11 +33,16 @@ use futures::StreamExt;
 use jsonrpsee::types::{error::INVALID_REQUEST_CODE, ErrorObject, ErrorResponse, Id};
 use ripple_sdk::{
     api::manifest::extn_manifest::ExtnSymbol,
-    extn::extn_client_message::ExtnMessage,
+    extn::{
+        extn_client_message::{ExtnMessage, ExtnPayload, ExtnResponse},
+        extn_id::ExtnId,
+    },
+    framework::ripple_contract::RippleContract,
     tokio_tungstenite::{
         tungstenite::{self, Message},
         WebSocketStream,
     },
+    utils::error::RippleError,
 };
 use ripple_sdk::{
     api::{
@@ -419,13 +424,16 @@ impl FireboltWs {
                         let req_id = Uuid::new_v4().to_string();
                         let req_text = String::from(msg.to_text().unwrap());
                         if is_service {
-                            if let Ok(v) = ExtnMessage::try_from(req_text.clone()) {
-                                state.get_client().get_extn_client().handle_message(v);
-                            } else {
-                                return_invalid_format_error_message(req_id, &state, &connection_id)
-                                    .await;
+                            match ExtnMessage::try_from(req_text.clone()) {
+                                Ok(v) => {
+                                    state.get_client().get_extn_client().handle_message(v);
+                                }
+                                Err(e) => {
+                                    error!("failed to parse extn message {:?}", e);
+                                    return_invalid_service_error_message(&state, &connection_id, e)
+                                        .await;
+                                }
                             }
-
                             continue;
                         }
                         let context = { rpc_context.read().unwrap().clone() };
@@ -477,6 +485,31 @@ impl FireboltWs {
         if let Err(e) = client.send_gateway_command(msg) {
             error!("Error Unregistering {:?}", e);
         }
+    }
+}
+
+async fn return_invalid_service_error_message(
+    state: &PlatformState,
+    connection_id: &str,
+    e: RippleError,
+) {
+    if let Some(session) = state
+        .session_state
+        .get_session_for_connection_id(connection_id)
+    {
+        let id = if let RippleError::BrokerError(id) = e.clone() {
+            id
+        } else {
+            Uuid::new_v4().to_string()
+        };
+        let mut msg = ExtnMessage::default();
+        msg.id = id.clone();
+        msg.payload = ExtnPayload::Response(ExtnResponse::Error(e));
+        msg.requestor = ExtnId::try_from(session.get_app_id()).unwrap();
+        msg.target = RippleContract::Internal;
+        msg.target_id = None;
+        msg.ts = None;
+        let _ = session.send_json_rpc(msg.into()).await;
     }
 }
 

@@ -583,7 +583,6 @@ impl ExtnClient {
         contract: RippleContract,
     ) -> Option<MSender<ApiMessage>> {
         let contract_str: String = contract.as_clear_string();
-        debug!("get_extn_sender_with_contract: {}", contract_str);
         let id = {
             self.contract_map
                 .read()
@@ -619,19 +618,25 @@ impl ExtnClient {
         }
     }
 
-    pub fn respond_with_api_message(&self, req: ExtnMessage, response: ApiMessage) {
+    pub fn respond_with_api_message(&self, req: ExtnMessage, response: ExtnMessage) {
         if !req.payload.is_request() {
             error!("Invalid input");
         } else {
-            let _ = self
-                .sender
-                .send(
-                    response,
-                    self.get_extn_sender_with_extn_id(&req.requestor.to_string()),
-                )
-                .map_err(|e| {
-                    error!("Error sending message {:?}", e);
-                });
+            if req.requestor.is_main() {
+                self.handle_message(response);
+            } else {
+                // if the requestor is not main then we need to send the response back to the requestor
+                // using the sender which was used to send the request
+                let _ = self
+                    .sender
+                    .send(
+                        response.into(),
+                        self.get_extn_sender_with_extn_id(&req.requestor.to_string()),
+                    )
+                    .map_err(|e| {
+                        error!("Error sending message {:?}", e);
+                    });
+            }
         }
     }
 

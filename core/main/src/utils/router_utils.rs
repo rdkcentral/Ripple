@@ -38,7 +38,7 @@ pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage, client: Extn
 
         let return_value = ExtnResponse::Value(response_value);
         if let Ok(response) = extn_msg.get_response(return_value) {
-            client.respond_with_api_message(extn_msg, response.into());
+            client.respond_with_api_message(extn_msg, response);
         }
     }
 }
