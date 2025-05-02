@@ -62,7 +62,7 @@ use super::{
     extn_broker::ExtnBroker,
     http_broker::HttpBroker,
     provider_broker_state::{ProvideBrokerState, ProviderResult},
-    rules_engine::{
+    rules::rules_engine::{
         jq_compile, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine, RuleRetrievalError,
         RuleRetrieved, RuleType,
     },
@@ -586,7 +586,7 @@ impl EndpointBrokerState {
             if let Some(filter) = rpc_request
                 .rule
                 .transform
-                .get_transform_data(super::rules_engine::RuleTransformType::Request)
+                .get_transform_data(super::rules::rules_engine::RuleTransformType::Request)
             {
                 let transformed_request_res = jq_compile(
                     last,
@@ -937,12 +937,12 @@ impl EndpointBrokerState {
 
         let rpc_request = broker_request.rpc.clone();
         match rule.rule_type() {
-            super::rules_engine::RuleType::Static => {
+            super::rules::rules_engine::RuleType::Static => {
                 let response =
                     RenderedRequest::JsonRpc(self.handle_static_request(rpc_request.clone()));
                 Ok(response)
             }
-            super::rules_engine::RuleType::Provider => {
+            super::rules::rules_engine::RuleType::Provider => {
                 let response = self.handle_provided_request(
                     &rpc_request,
                     rpc_request.ctx.call_id,
@@ -951,7 +951,7 @@ impl EndpointBrokerState {
                 );
                 Ok(response)
             }
-            super::rules_engine::RuleType::Endpoint => {
+            super::rules::rules_engine::RuleType::Endpoint => {
                 if rpc_request.is_unlisten() {
                     Ok(RenderedRequest::Unlisten(broker_request.clone()))
                 } else {
@@ -1162,7 +1162,7 @@ pub trait EndpointBroker {
             if let Some(filter) = rpc_request
                 .rule
                 .transform
-                .get_transform_data(super::rules_engine::RuleTransformType::Request)
+                .get_transform_data(super::rules::rules_engine::RuleTransformType::Request)
             {
                 let transformed_request_res = jq_compile(
                     last,
@@ -1306,7 +1306,7 @@ impl BrokerOutputForwarder {
 
                                 if let Some(filter) =
                                     broker_request.rule.transform.get_transform_data(
-                                        super::rules_engine::RuleTransformType::Event(
+                                        super::rules::rules_engine::RuleTransformType::Event(
                                             rpc_request.ctx.context.contains(&RPC_V2.into()),
                                         ),
                                     )
@@ -1428,7 +1428,7 @@ impl BrokerOutputForwarder {
                             if apply_response_using_main_req_needed {
                                 if let Some(filter) =
                                     broker_request.rule.transform.get_transform_data(
-                                        super::rules_engine::RuleTransformType::Response,
+                                        super::rules::rules_engine::RuleTransformType::Response,
                                     )
                                 {
                                     apply_response(filter, &rule_context_name, &mut response);
@@ -1561,7 +1561,7 @@ impl BrokerOutputForwarder {
         // {
         //     let mut filter = res.clone();
         //     if let Some(transform_data) = broker_request.rule.transform.get_transform_data(
-        //         super::rules_engine::RuleTransformType::Event(
+        //         super::rules::rules_engine::RuleTransformType::Event(
         //             rpc_request.ctx.context.contains(&RPC_V2.into()),
         //         ),
         //     ) {
@@ -1803,7 +1803,7 @@ fn apply_filter(broker_request: &BrokerRequest, result: &Value, rpc_request: &Rp
 #[cfg(test)]
 mod endpoint_broker_tests {
     use super::*;
-    use crate::broker::rules_engine::RuleTransform;
+    use crate::broker::rules::rules_engine::RuleTransform;
     use ripple_sdk::{tokio::sync::mpsc::channel, Mockable};
 
     #[tokio::test]
@@ -1865,7 +1865,7 @@ mod endpoint_broker_tests {
         use ripple_sdk::{tokio, tokio::sync::mpsc::channel};
 
         use crate::{
-            broker::rules_engine::{RuleEngine, RuleSet},
+            broker::rules::rules_engine::{RuleEngine, RuleSet},
             service::extn::ripple_client::RippleClient,
             state::{bootstrap_state::ChannelsState, ops_metrics_state::OpMetricState},
         };
@@ -1873,10 +1873,10 @@ mod endpoint_broker_tests {
         use super::EndpointBrokerState;
         use crate::broker::endpoint_broker::BrokerConnectRequest;
         use crate::broker::endpoint_broker::ATOMIC_ID;
-        use crate::broker::rules_engine::RuleEndpoint;
-        use crate::broker::rules_engine::RuleEndpointProtocol;
+        use crate::broker::rules::rules_engine::RuleEndpoint;
+        use crate::broker::rules::rules_engine::RuleEndpointProtocol;
         use ripple_sdk::api::session::AccountSession;
-        use std::sync::atomic::Ordering;
+        use std::{collections::HashMap, sync::atomic::Ordering};
 
         fn reset_counter(value: u64) {
             ATOMIC_ID.store(value, Ordering::SeqCst);
@@ -2006,6 +2006,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2036,6 +2037,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2066,6 +2068,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2096,6 +2099,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2126,6 +2130,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2156,6 +2161,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2186,6 +2192,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2218,6 +2225,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2453,15 +2461,17 @@ mod endpoint_broker_tests {
     }
     #[cfg(test)]
     mod static_rules {
+        use std::collections::HashMap;
+
         use crate::broker::endpoint_broker::apply_response;
         use crate::broker::endpoint_broker::BrokerConnectRequest;
         use crate::broker::endpoint_broker::BrokerOutput;
         use crate::broker::endpoint_broker::EndpointBrokerState;
-        use crate::broker::rules_engine::RuleEndpoint;
-        use crate::broker::rules_engine::RuleEndpointProtocol;
-        use crate::broker::rules_engine::RuleEngine;
-        use crate::broker::rules_engine::RuleSet;
-        use crate::broker::rules_engine::{Rule, RuleTransform};
+        use crate::broker::rules::rules_engine::RuleEndpoint;
+        use crate::broker::rules::rules_engine::RuleEndpointProtocol;
+        use crate::broker::rules::rules_engine::RuleEngine;
+        use crate::broker::rules::rules_engine::RuleSet;
+        use crate::broker::rules::rules_engine::{Rule, RuleTransform};
         use crate::service::extn::ripple_client::RippleClient;
         use crate::state::bootstrap_state::ChannelsState;
         use crate::state::ops_metrics_state::OpMetricState;
@@ -2486,6 +2496,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2531,6 +2542,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2578,6 +2590,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2624,6 +2637,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2669,6 +2683,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2706,10 +2721,12 @@ mod endpoint_broker_tests {
     #[cfg(test)]
     mod provided_request {
 
+        use std::collections::HashMap;
+
         use crate::{
             broker::{
                 endpoint_broker::{EndpointBrokerState, RenderedRequest},
-                rules_engine::{Rule, RuleEngine, RuleSet},
+                rules::rules_engine::{Rule, RuleEngine, RuleSet},
             },
             service::extn::ripple_client::RippleClient,
             state::{bootstrap_state::ChannelsState, ops_metrics_state::OpMetricState},
@@ -2724,6 +2741,7 @@ mod endpoint_broker_tests {
             let client = RippleClient::new(ChannelsState::new());
             let mut engine = RuleEngine {
                 rules: RuleSet::default(),
+                functions: HashMap::default(),
             };
             let r = Rule {
                 alias: "provided".to_owned(),
@@ -2762,6 +2780,7 @@ mod endpoint_broker_tests {
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
+                    functions: HashMap::default(),
                 },
                 client,
             );
@@ -2772,12 +2791,14 @@ mod endpoint_broker_tests {
 
             endpoint_broker
         }
+        use std::collections::HashMap;
+
         use crate::{
             broker::{
                 endpoint_broker::{
                     BrokerRequest, BrokerSender, EndpointBrokerState, HandleBrokerageError,
                 },
-                rules_engine::{Rule, RuleEngine, RuleSet},
+                rules::rules_engine::{Rule, RuleEngine, RuleSet},
             },
             service::extn::ripple_client::RippleClient,
             state::{bootstrap_state::ChannelsState, ops_metrics_state::OpMetricState},
@@ -2864,6 +2885,7 @@ mod endpoint_broker_tests {
             let client = RippleClient::new(ChannelsState::new());
             let mut engine = RuleEngine {
                 rules: RuleSet::default(),
+                functions: HashMap::default(),
             };
             let rule = Rule {
                 alias: "endpoint".to_owned(),
@@ -2894,6 +2916,7 @@ mod endpoint_broker_tests {
             let client = RippleClient::new(ChannelsState::new());
             let engine = RuleEngine {
                 rules: RuleSet::default(),
+                functions: HashMap::default(),
             };
             let under_test = EndpointBrokerState::new(OpMetricState::default(), tx, engine, client);
 
@@ -2915,6 +2938,7 @@ mod endpoint_broker_tests {
             let client = RippleClient::new(ChannelsState::new());
             let mut engine = RuleEngine {
                 rules: RuleSet::default(),
+                functions: HashMap::default(),
             };
             let rule = Rule {
                 alias: "endpoint".to_owned(),
@@ -2945,7 +2969,7 @@ mod endpoint_broker_tests {
             use crate::{
                 broker::{
                     endpoint_broker::BrokerCallback,
-                    rules_engine::{Rule, RuleSet, RuleTransform},
+                    rules::rules_engine::{Rule, RuleSet, RuleTransform},
                 },
                 state::ops_metrics_state::OpMetricState,
             };
@@ -2962,6 +2986,7 @@ mod endpoint_broker_tests {
                     tx,
                     RuleEngine {
                         rules: RuleSet::default(),
+                        functions: HashMap::default(),
                     },
                     client,
                 );
@@ -2990,6 +3015,7 @@ mod endpoint_broker_tests {
                     tx,
                     RuleEngine {
                         rules: RuleSet::default(),
+                        functions: HashMap::default(),
                     },
                     client,
                 );
@@ -3020,6 +3046,7 @@ mod endpoint_broker_tests {
                     tx,
                     RuleEngine {
                         rules: RuleSet::default(),
+                        functions: HashMap::default(),
                     },
                     client,
                 );
@@ -3056,6 +3083,7 @@ mod endpoint_broker_tests {
                     tx,
                     RuleEngine {
                         rules: RuleSet::default(),
+                        functions: HashMap::default(),
                     },
                     client,
                 );

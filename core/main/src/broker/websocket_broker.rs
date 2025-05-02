@@ -231,7 +231,7 @@ mod tests {
     use crate::{
         broker::{
             endpoint_broker::{BrokerOutput, BrokerRequest},
-            rules_engine::{Rule, RuleEndpoint, RuleTransform},
+            rules::rules_engine::{Rule, RuleEndpoint, RuleTransform},
         },
         utils::test_utils::{MockWebsocket, WSMockData},
     };
@@ -251,7 +251,7 @@ mod tests {
 
         let endpoint = RuleEndpoint {
             url: format!("ws://127.0.0.1:{}", port),
-            protocol: crate::broker::rules_engine::RuleEndpointProtocol::Websocket,
+            protocol: crate::broker::rules::rules_engine::RuleEndpointProtocol::Websocket,
             jsonrpc: false,
         };
         let (tx, _) = mpsc::channel(1);
@@ -380,7 +380,7 @@ mod tests {
 
         let endpoint = RuleEndpoint {
             url: format!("ws://127.0.0.1:{}", port),
-            protocol: crate::broker::rules_engine::RuleEndpointProtocol::Websocket,
+            protocol: crate::broker::rules::rules_engine::RuleEndpointProtocol::Websocket,
             jsonrpc: false,
         };
 
@@ -479,7 +479,7 @@ mod tests {
         let port: u32 = 34743;
         let endpoint = RuleEndpoint {
             url: format!("ws://127.0.0.1:{}", port),
-            protocol: crate::broker::rules_engine::RuleEndpointProtocol::Websocket,
+            protocol: crate::broker::rules::rules_engine::RuleEndpointProtocol::Websocket,
             jsonrpc: false,
         };
         let sender = WSNotificationBroker::start(request, callback, endpoint.get_url().clone());
