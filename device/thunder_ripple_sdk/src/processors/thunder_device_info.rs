@@ -124,7 +124,6 @@ pub struct SystemVersion {
 
 #[derive(Debug, Clone, Default)]
 pub struct CachedDeviceInfo {
-    mac_address: Option<String>,
     model: Option<String>,
     hdcp_support: Option<HashMap<HdcpProfile, bool>>,
     version: Option<FireboltSemanticVersion>,
@@ -159,15 +158,6 @@ impl CachedState {
     fn update_hdcp_support(&self, value: HashMap<HdcpProfile, bool>) {
         let mut hdcp = self.cached.write().unwrap();
         let _ = hdcp.hdcp_support.insert(value);
-    }
-
-    fn get_mac_address(&self) -> Option<String> {
-        self.cached.read().unwrap().mac_address.clone()
-    }
-
-    fn update_mac_address(&self, mac: String) {
-        let mut cached = self.cached.write().unwrap();
-        let _ = cached.mac_address.insert(mac);
     }
 
     fn get_model(&self) -> Option<String> {
@@ -328,46 +318,6 @@ impl ThunderDeviceInfoRequestProcessor {
             state: CachedState::new(state),
             streamer: DefaultExtnStreamer::new(),
         }
-    }
-
-    pub async fn get_mac(state: &ThunderState) -> String {
-        let resp = state
-            .get_thunder_client()
-            .call(DeviceCallRequest {
-                method: ThunderPlugin::System.method("getDeviceInfo"),
-                params: Some(DeviceChannelParams::Json(String::from(
-                    "{\"params\": [\"estb_mac\"]}",
-                ))),
-            })
-            .await;
-        info!("{}", resp.message);
-        let resp = resp.message.get("estb_mac");
-        if resp.is_none() {
-            return "".to_string();
-        }
-        resp.unwrap()
-            .as_str()
-            .unwrap()
-            .trim_matches('"')
-            .to_string()
-    }
-
-    async fn get_mac_address(state: &CachedState) -> String {
-        match state.get_mac_address() {
-            Some(value) => value,
-            None => {
-                let mac = Self::get_mac(&state.state).await;
-                state.update_mac_address(mac.to_string());
-                mac.to_string()
-            }
-        }
-    }
-
-    async fn mac_address(state: CachedState, req: ExtnMessage) -> bool {
-        let response: String = Self::get_mac_address(&state).await;
-        Self::respond(state.get_client(), req, ExtnResponse::String(response))
-            .await
-            .is_ok()
     }
 
     pub async fn get_serial_number(state: &ThunderState) -> String {
@@ -1004,7 +954,6 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message {
-            DeviceInfoRequest::MacAddress => Self::mac_address(state.clone(), msg).await,
             DeviceInfoRequest::Model => Self::model(state.clone(), msg).await,
             DeviceInfoRequest::Audio => Self::audio(state.clone(), msg).await,
             DeviceInfoRequest::HdcpSupport => Self::hdcp_support(state.clone(), msg).await,
