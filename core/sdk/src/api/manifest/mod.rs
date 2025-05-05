@@ -17,8 +17,15 @@
 
 pub mod app_library;
 pub mod apps;
+pub mod cascaded_device_manifest;
+pub mod cascaded_extn_manifest;
 pub mod device_manifest;
 pub mod exclusory;
 pub mod extn_manifest;
 pub mod persistent_store;
 pub mod remote_feature;
+pub mod ripple_manifest_loader;
+
+pub trait MergeConfig<T> {
+    fn merge_config(&mut self, t: T);
+}
