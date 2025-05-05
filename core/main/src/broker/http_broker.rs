@@ -214,6 +214,8 @@ mod tests {
         Mockable,
     };
 
+    //helper functions
+
     pub fn get_base_uri_from_mock_server() -> Uri {
         // Start a mock HTTP server.
         let mock_server = MockServer::start();
@@ -248,6 +250,72 @@ mod tests {
             })
         } else {
             false
+        }
+    }
+
+    async fn send_and_receive_broker_output(
+        base_uri: Uri,
+        rule_alias: &str,
+    ) -> Result<Option<BrokerOutput>, mpsc::Receiver<BrokerOutput>> {
+        let endpoint = RuleEndpoint {
+            url: base_uri.to_string(),
+            protocol: RuleEndpointProtocol::Http,
+            jsonrpc: false,
+        };
+
+        let (tx, _) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
+        let (btx, mut brx) = mpsc::channel::<BrokerOutput>(BROKER_CHANNEL_BUFFER_SIZE);
+        let request = BrokerConnectRequest::new("somekey".to_owned(), endpoint, tx);
+        let callback = BrokerCallback { sender: btx };
+        let mut broker_state = EndpointBrokerState::default();
+
+        let broker = HttpBroker::get_broker(None, request, callback.clone(), &mut broker_state);
+        let sender = broker.get_sender();
+
+        let mut rpc_request = RpcRequest::mock();
+        rpc_request.ctx.call_id = 11;
+
+        let broker_request = BrokerRequest {
+            rpc: rpc_request.clone(),
+            rule: Rule {
+                alias: rule_alias.to_string(),
+                ..Default::default()
+            },
+            subscription_processed: None,
+            workflow_callback: Some(callback.clone()),
+            telemetry_response_listeners: vec![],
+        };
+
+        sender.sender.send(broker_request).await.unwrap();
+
+        Ok(timeout(Duration::from_secs(5), brx.recv())
+            .await
+            .unwrap_or(None))
+    }
+
+    async fn assert_http_request(
+        client: &Client<HttpConnector>,
+        method: Method,
+        base_uri: &Uri,
+        path: &str,
+        expected_status: StatusCode,
+        expected_body: Option<Value>,
+    ) {
+        let response_result = send_http_request(client, method, base_uri, path).await;
+
+        match response_result {
+            Ok(response) => {
+                assert_eq!(response.status(), expected_status);
+                if let Some(expected) = expected_body {
+                    let body_bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
+                    let body_string = String::from_utf8(body_bytes.to_vec()).unwrap();
+                    let body_json: Value = serde_json::from_str(&body_string).unwrap();
+                    assert_eq!(body_json, expected);
+                }
+            }
+            Err(e) => {
+                panic!("send_http_request failed: {}", e);
+            }
         }
     }
 
@@ -310,41 +378,30 @@ mod tests {
     async fn test_send_http_request_success() {
         let base_uri = get_base_uri_from_mock_server();
         let client = Client::new();
-
-        let path = "test_rule";
-
-        let response_result = send_http_request(&client, Method::GET, &base_uri, path).await;
-
-        match response_result {
-            Ok(response) => {
-                assert_eq!(response.status(), StatusCode::OK);
-                let body_bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
-                let body_string = String::from_utf8(body_bytes.to_vec()).unwrap();
-                let body_json: Value = serde_json::from_str(&body_string).unwrap();
-                assert_eq!(body_json, json!({"data": "success"}));
-            }
-            Err(e) => {
-                panic!("send_http_request failed: {}", e);
-            }
-        }
+        assert_http_request(
+            &client,
+            Method::GET,
+            &base_uri,
+            "test_rule",
+            StatusCode::OK,
+            Some(json!({"data": "success"})),
+        )
+        .await;
     }
 
     #[tokio::test]
     async fn test_send_http_request_fail_invalid_path() {
         let base_uri = get_base_uri_from_mock_server();
         let client = Client::new();
-
-        let path = "test";
-        let response_result = send_http_request(&client, Method::GET, &base_uri, path).await;
-
-        match response_result {
-            Ok(response) => {
-                assert_eq!(response.status(), StatusCode::NOT_FOUND);
-            }
-            Err(e) => {
-                panic!("send_http_request failed: {}", e);
-            }
-        }
+        assert_http_request(
+            &client,
+            Method::GET,
+            &base_uri,
+            "test",
+            StatusCode::NOT_FOUND,
+            None,
+        )
+        .await;
     }
 
     #[tokio::test]
@@ -380,7 +437,6 @@ mod tests {
         let response_result = send_http_request(&client, Method::GET, &invalid_uri, path).await;
 
         if let Err(e) = response_result {
-            // Assert that the error string contains "invalid uri character"
             assert!(e.to_string().contains("Connection refused"));
         } else {
             panic!("Expected an error, but got success");
@@ -390,146 +446,48 @@ mod tests {
     #[tokio::test]
     async fn test_http_broker_get_broker_success() {
         let base_uri = get_base_uri_from_mock_server();
+        let output_result = send_and_receive_broker_output(base_uri, "test_rule").await;
 
-        let endpoint = RuleEndpoint {
-            url: base_uri.to_string(),
-            protocol: RuleEndpointProtocol::Http,
-            jsonrpc: false,
-        };
-
-        let (tx, _) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
-        let (btx, mut brx) = mpsc::channel::<BrokerOutput>(BROKER_CHANNEL_BUFFER_SIZE);
-        let request = BrokerConnectRequest::new("somekey".to_owned(), endpoint, tx);
-        let callback = BrokerCallback { sender: btx };
-        let mut broker_state = EndpointBrokerState::default();
-
-        let broker = HttpBroker::get_broker(None, request, callback.clone(), &mut broker_state);
-        let sender = broker.get_sender();
-
-        let mut rpc_request = RpcRequest::mock();
-        rpc_request.ctx.call_id = 11;
-
-        let broker_request = BrokerRequest {
-            rpc: rpc_request.clone(),
-            rule: Rule {
-                alias: "test_rule".to_string(),
-                ..Default::default()
-            },
-            subscription_processed: None,
-            workflow_callback: Some(callback.clone()),
-            telemetry_response_listeners: vec![],
-        };
-
-        sender.sender.send(broker_request.clone()).await.unwrap();
-
-        if let Ok(Some(BrokerOutput { data, .. })) =
-            timeout(Duration::from_secs(5), brx.recv()).await
-        {
-            assert!(data.is_success());
+        if let Ok(Some(output)) = output_result {
+            assert!(output.data.is_success());
         } else {
-            println!("Timeout or channel closed without receiving data, skipping test");
+            panic!("Timeout or channel closed without receiving data");
         }
     }
 
     #[tokio::test]
     async fn test_http_broker_get_broker_error_check_invalid_uri() {
-        let _ = get_base_uri_from_mock_server();
         let invalid_uri: Uri = "http://127.0.0.1:1234/".parse().unwrap();
+        let output_result = send_and_receive_broker_output(invalid_uri, "test_rule").await;
 
-        let endpoint = RuleEndpoint {
-            url: invalid_uri.to_string(),
-            protocol: RuleEndpointProtocol::Http,
-            jsonrpc: false,
-        };
-
-        let (tx, _) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
-        let (btx, mut brx) = mpsc::channel::<BrokerOutput>(BROKER_CHANNEL_BUFFER_SIZE);
-        let request = BrokerConnectRequest::new("somekey".to_owned(), endpoint, tx);
-        let callback = BrokerCallback { sender: btx };
-        let mut broker_state = EndpointBrokerState::default();
-
-        let broker = HttpBroker::get_broker(None, request, callback.clone(), &mut broker_state);
-        let sender = broker.get_sender();
-
-        let mut rpc_request = RpcRequest::mock();
-        rpc_request.ctx.call_id = 11;
-
-        let broker_request = BrokerRequest {
-            rpc: rpc_request.clone(),
-            rule: Rule {
-                alias: "test_rule".to_string(),
-                ..Default::default()
-            },
-            subscription_processed: None,
-            workflow_callback: Some(callback.clone()),
-            telemetry_response_listeners: vec![],
-        };
-
-        sender.sender.send(broker_request.clone()).await.unwrap();
-
-        if let Ok(Some(BrokerOutput { data, .. })) =
-            timeout(Duration::from_secs(5), brx.recv()).await
-        {
-            let has_error_in_result = if let Some(Value::Object(obj)) = &data.result {
+        if let Ok(Some(output)) = output_result {
+            let has_error_in_result = if let Some(Value::Object(obj)) = &output.data.result {
                 obj.contains_key("error")
             } else {
                 false
             };
             assert!(has_error_in_result);
-
             assert!(result_contains_string(
-                &data,
+                &output.data,
                 "An error message from calling the downstream http service"
             ));
         } else {
-            println!("Timeout or channel closed without receiving data, skipping test");
+            panic!("Timeout or channel closed without receiving data");
         }
     }
 
     #[tokio::test]
     async fn test_http_broker_get_broker_error_check_invalid_rule() {
         let base_uri = get_base_uri_from_mock_server();
+        let output_result = send_and_receive_broker_output(base_uri, "test").await;
 
-        let endpoint = RuleEndpoint {
-            url: base_uri.to_string(),
-            protocol: RuleEndpointProtocol::Http,
-            jsonrpc: false,
-        };
-
-        let (tx, _) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
-        let (btx, mut brx) = mpsc::channel::<BrokerOutput>(BROKER_CHANNEL_BUFFER_SIZE);
-        let request = BrokerConnectRequest::new("somekey".to_owned(), endpoint, tx);
-        let callback = BrokerCallback { sender: btx };
-        let mut broker_state = EndpointBrokerState::default();
-
-        let broker = HttpBroker::get_broker(None, request, callback.clone(), &mut broker_state);
-        let sender = broker.get_sender();
-
-        let mut rpc_request = RpcRequest::mock();
-        rpc_request.ctx.call_id = 11;
-
-        let broker_request = BrokerRequest {
-            rpc: rpc_request.clone(),
-            rule: Rule {
-                alias: "test".to_string(),
-                ..Default::default()
-            },
-            subscription_processed: None,
-            workflow_callback: Some(callback.clone()),
-            telemetry_response_listeners: vec![],
-        };
-
-        sender.sender.send(broker_request.clone()).await.unwrap();
-
-        if let Ok(Some(BrokerOutput { data, .. })) =
-            timeout(Duration::from_secs(5), brx.recv()).await
-        {
+        if let Ok(Some(output)) = output_result {
             assert!(result_contains_string(
-                &data,
+                &output.data,
                 "Request did not match any route or mock"
             ));
         } else {
-            println!("Timeout or channel closed without receiving data, skipping test");
+            panic!("Timeout or channel closed without receiving data");
         }
     }
 
@@ -538,7 +496,7 @@ mod tests {
         let mock_server = MockServer::start();
 
         mock_server.mock(|when, then| {
-            when.method(GET) // Use http::Method::GET for clarity
+            when.method(GET) // Use http::Method::GET
                 .path("/test_rule");
             then.status(200)
                 .header("Content-Type", "application/json")
@@ -546,48 +504,16 @@ mod tests {
         });
 
         let base_uri = mock_server.base_url().parse::<Uri>().unwrap();
+        let output_result = send_and_receive_broker_output(base_uri, "test_rule").await;
 
-        let endpoint = RuleEndpoint {
-            url: base_uri.to_string(),
-            protocol: RuleEndpointProtocol::Http,
-            jsonrpc: false,
-        };
-
-        let (tx, _) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
-        let (btx, mut brx) = mpsc::channel::<BrokerOutput>(BROKER_CHANNEL_BUFFER_SIZE);
-        let request = BrokerConnectRequest::new("somekey".to_owned(), endpoint, tx);
-        let callback = BrokerCallback { sender: btx };
-        let mut broker_state = EndpointBrokerState::default();
-
-        let broker = HttpBroker::get_broker(None, request, callback.clone(), &mut broker_state);
-        let sender = broker.get_sender();
-
-        let mut rpc_request = RpcRequest::mock();
-        rpc_request.ctx.call_id = 11;
-
-        let broker_request = BrokerRequest {
-            rpc: rpc_request.clone(),
-            rule: Rule {
-                alias: "test_rule".to_string(),
-                ..Default::default()
-            },
-            subscription_processed: None,
-            workflow_callback: Some(callback.clone()),
-            telemetry_response_listeners: vec![],
-        };
-
-        sender.sender.send(broker_request.clone()).await.unwrap();
-
-        if let Ok(Some(BrokerOutput { data, .. })) =
-            timeout(Duration::from_secs(5), brx.recv()).await
-        {
-            assert!(data.error.is_some());
+        if let Ok(Some(output)) = output_result {
+            assert!(output.data.error.is_some());
             assert!(result_contains_string(
-                &data,
+                &output.data,
                 "Error in http broker parsing response from http service at"
             ));
         } else {
-            println!("Timeout or channel closed without receiving data, skipping test");
+            panic!("Timeout or channel closed without receiving data");
         }
     }
 
