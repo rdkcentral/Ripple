@@ -16,7 +16,7 @@
 //
 
 use log::{info, warn};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::{fs, path::Path};
 
@@ -24,7 +24,7 @@ use crate::{extn::extn_id::ExtnId, utils::error::RippleError};
 
 /// Contains the default path for the manifest
 /// file extension type based on platform
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct ExtnManifest {
     pub default_path: String,
@@ -76,7 +76,7 @@ pub fn default_providers() -> Vec<String> {
     value.iter().map(|x| x.to_string()).collect()
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct ExtnResolutionEntry {
     pub capability: String,
@@ -85,7 +85,7 @@ pub struct ExtnResolutionEntry {
 }
 
 /// Contains Resolution strategies and path for the manifest.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct ExtnManifestEntry {
     pub path: String,
@@ -93,7 +93,7 @@ pub struct ExtnManifestEntry {
     pub resolution: Option<Vec<ExtnResolutionEntry>>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct ExtnSymbol {
     pub id: String,
@@ -103,7 +103,7 @@ pub struct ExtnSymbol {
 }
 
 impl ExtnSymbol {
-    fn get_launcher_capability(&self) -> Option<ExtnId> {
+    pub fn get_launcher_capability(&self) -> Option<ExtnId> {
         if let Ok(cap) = ExtnId::try_from(self.id.clone()) {
             if cap.is_launcher_channel() {
                 return Some(cap);
@@ -112,7 +112,7 @@ impl ExtnSymbol {
         None
     }
 
-    fn get_distributor_capability(&self) -> Option<ExtnId> {
+    pub fn get_distributor_capability(&self) -> Option<ExtnId> {
         if let Ok(cap) = ExtnId::try_from(self.id.clone()) {
             if cap.is_distributor_channel() {
                 return Some(cap);
@@ -212,7 +212,7 @@ impl ExtnManifest {
     }
 }
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use crate::extn::extn_id::{ExtnClassId, ExtnType};
 
     use super::*;
