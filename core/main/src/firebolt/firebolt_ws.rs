@@ -17,7 +17,7 @@
 
 use std::{
     net::SocketAddr,
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, RwLock},
 };
 
 use super::firebolt_gateway::FireboltGatewayCommand;
@@ -47,6 +47,8 @@ use ripple_sdk::{
     uuid::Uuid,
 };
 use ripple_sdk::{log::debug, tokio};
+use ssda_service::ApiGateway;
+use ssda_types::{APIGatewayServiceConnectionDisposition, ServiceId};
 use tokio_tungstenite::{
     tungstenite::{self, Message},
     WebSocketStream,
@@ -61,12 +63,16 @@ pub struct ClientIdentity {
     app_id: String,
     rpc_v2: bool,
 }
-
+#[derive(Debug, Clone)]
+struct ServiceConnection {
+    service_id: ServiceId,
+}
 struct ConnectionCallbackConfig {
     pub next: oneshot::Sender<ClientIdentity>,
     pub app_state: AppManagerState,
     pub secure: bool,
     pub internal_app_id: Option<String>,
+    pub service_connection: Arc<Mutex<Option<ServiceConnection>>>,
 }
 pub struct ConnectionCallback(ConnectionCallbackConfig);
 
@@ -122,6 +128,12 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
                 Some(a) => Some(a),
                 None => cfg.internal_app_id,
             },
+        };
+        if let Ok(APIGatewayServiceConnectionDisposition::Accept(service_id)) =
+            ApiGateway::is_apigateway_connection(request.uri())
+        {
+            let service_connection = ServiceConnection { service_id };
+            *cfg.service_connection.lock().unwrap() = Some(service_connection);
         };
         let session_id = match app_id_opt {
             Some(_) => Uuid::new_v4().to_string(),
@@ -194,34 +206,75 @@ impl FireboltWs {
         // Let's spawn the handling of each connection in a separate task.
         while let Ok((stream, client_addr)) = listener.accept().await {
             let (connect_tx, connect_rx) = oneshot::channel::<ClientIdentity>();
+            let service_connection_state = Arc::new(Mutex::new(None));
             let cfg = ConnectionCallbackConfig {
                 next: connect_tx,
                 app_state: app_state.clone(),
                 secure,
                 internal_app_id: internal_app_id.clone(),
+                service_connection: service_connection_state.clone(),
             };
             match tokio_tungstenite::accept_hdr_async(stream, ConnectionCallback(cfg)).await {
                 Err(e) => {
                     error!("websocket connection error {:?}", e);
                 }
                 Ok(ws_stream) => {
-                    trace!("websocket connection success");
-                    let state_for_connection_c = state_for_connection.clone();
-                    tokio::spawn(async move {
-                        FireboltWs::handle_connection(
-                            client_addr,
-                            ws_stream,
-                            connect_rx,
-                            state_for_connection_c.clone(),
-                            secure,
-                        )
-                        .await;
-                    });
+                    let connection = service_connection_state.clone();
+                    let service_connection_state = connection.lock().unwrap().clone();
+                    match service_connection_state {
+                        Some(service_connection) => {
+                            let service_connection = service_connection.clone();
+                            let service_id = service_connection.service_id.clone();
+
+                            info!("Service connection for service_id={:?}", service_id);
+                            let state_for_connection_c = state_for_connection.clone();
+                            tokio::spawn(async move {
+                                FireboltWs::handle_service_connection(
+                                    client_addr,
+                                    ws_stream,
+                                    connect_rx,
+                                    state_for_connection_c.clone(),
+                                    secure,
+                                )
+                                .await;
+                            });
+                        }
+                        None => {
+                            let state_for_connection_c = state_for_connection.clone();
+                            tokio::spawn(async move {
+                                FireboltWs::handle_connection(
+                                    client_addr,
+                                    ws_stream,
+                                    connect_rx,
+                                    state_for_connection_c.clone(),
+                                    secure,
+                                )
+                                .await;
+                            });
+                        }
+                    }
                 }
             }
         }
     }
-
+    async fn handle_service_connection(
+        _client_addr: SocketAddr,
+        ws_stream: WebSocketStream<TcpStream>,
+        connect_rx: oneshot::Receiver<ClientIdentity>,
+        state: PlatformState,
+        gateway_secure: bool,
+    ) {
+        info!("handle_service_connection");
+        let (mut send, mut recv) = ws_stream.split();
+        let identity = connect_rx.await.unwrap();
+        tokio::spawn(async move {
+            while let Some(api_message) = recv.next().await {
+                //nfo!("Received server request {}", api_message.jsonrpc_msg);
+                info!("Received server request {:?}", api_message);
+                send.send("item".into()).await;
+            }
+        });
+    }
     async fn handle_connection(
         _client_addr: SocketAddr,
         ws_stream: WebSocketStream<TcpStream>,
