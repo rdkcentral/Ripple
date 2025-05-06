@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::api::firebolt::fb_capabilities::{CapabilityRole, FireboltCap, FireboltPermission};
 use crate::api::gateway::rpc_gateway_api::{
     CallContext, ClientContext, JsonRpcApiResponse, RpcRequest,
 };
@@ -141,6 +142,34 @@ impl ContextAsJson for RpcRequest {
         serde_json::Value::Object(map)
     }
 }
+
+impl ContextAsJson for FireboltPermission {
+    fn as_json(&self) -> serde_json::Value {
+        let mut map = serde_json::Map::new();
+        map.insert(
+            "capability".to_string(),
+            serde_json::Value::String(self.cap.to_string()),
+        );
+        map.insert(
+            "permission".to_string(),
+            serde_json::Value::String(self.role.to_string()),
+        );
+        serde_json::Value::Object(map)
+    }
+}
+
+impl std::fmt::Display for FireboltCap {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "FireboltCap={:?}", self) // Adjust this to match your desired string representation
+    }
+}
+
+impl std::fmt::Display for CapabilityRole {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CapabilityRole={:?}", self) // Adjust this to match your desired string representation
+    }
+}
+
 impl std::fmt::Display for RpcRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "rpc_request={}", self.method)

@@ -22,6 +22,11 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+use crate::{
+    firebolt::{firebolt_gatekeeper::FireboltGatekeeper, handlers::privacy_rpc::PrivacyImpl},
+    state::{cap::cap_state::CapState, platform_state::PlatformState},
+};
+use ripple_sdk::api::observability::log_signal::LogSignal;
 use ripple_sdk::{
     api::{
         apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
@@ -59,11 +64,6 @@ use ripple_sdk::{
     utils::error::RippleError,
 };
 use serde::Deserialize;
-
-use crate::{
-    firebolt::{firebolt_gatekeeper::FireboltGatekeeper, handlers::privacy_rpc::PrivacyImpl},
-    state::{cap::cap_state::CapState, platform_state::PlatformState},
-};
 
 use super::apps::provider_broker::{ProviderBroker, ProviderBrokerRequest};
 
@@ -868,6 +868,19 @@ impl GrantState {
             cap: FireboltCap::Full(capability),
             role,
         };
+        LogSignal::new(
+            "user_grants".to_string(),
+            "update_grant_as_per_policy".into(),
+            format!("{:?}", permission),
+        )
+        .emit_debug();
+
+        // LogSignal::new(
+        //     "user_grants".to_string(),
+        //     "update_grant_as_per_policy".into(),
+        //     permission.clone(),
+        // )
+        // .emit_debug();
 
         let grant_policy =
             Self::get_grant_policy(platform_state, &permission, app_id).ok_or_else(|| {
