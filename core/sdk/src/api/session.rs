@@ -177,81 +177,10 @@ impl AccountSession {
     }
 }
 
-/**
- * https://developer.comcast.com/firebolt/core/sdk/latest/api/authentication
- */
-/*TokenType and Token are Firebolt spec types */
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
-pub enum TokenType {
-    #[serde(rename = "platform")]
-    Platform,
-    #[serde(rename = "device")]
-    Device,
-    #[serde(rename = "distributor")]
-    Distributor,
-    #[serde(rename = "root")]
-    Root,
-}
-
-impl std::fmt::Display for TokenType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TokenType::Platform => write!(f, "platform"),
-            TokenType::Device => write!(f, "device"),
-            TokenType::Distributor => write!(f, "distributor"),
-            TokenType::Root => write!(f, "root"),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct TokenContext {
-    pub distributor_id: String,
-    pub app_id: String,
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct SessionTokenRequest {
-    pub token_type: TokenType,
-    pub options: Vec<String>,
-    pub context: Option<TokenContext>,
-}
-
-impl ExtnPayloadProvider for SessionTokenRequest {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::SessionToken(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<SessionTokenRequest> {
-        if let ExtnPayload::Request(ExtnRequest::SessionToken(r)) = payload {
-            return Some(r);
-        }
-
-        None
-    }
-
-    fn get_contract(&self) -> RippleContract {
-        match self.token_type {
-            TokenType::Root => RippleContract::Session(SessionAdjective::Root),
-            TokenType::Device => RippleContract::Session(SessionAdjective::Device),
-            TokenType::Platform => RippleContract::Session(SessionAdjective::Platform),
-            TokenType::Distributor => RippleContract::Session(SessionAdjective::Distributor),
-        }
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::Session(SessionAdjective::Device)
-    }
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum SessionAdjective {
     Account,
-    Platform,
-    Device,
-    Distributor,
-    Root,
 }
 
 impl ContractAdjective for SessionAdjective {
@@ -284,30 +213,6 @@ mod tests {
         let account_session_request = AccountSessionRequest::Get;
         let contract_type: RippleContract = RippleContract::Session(SessionAdjective::Account);
         test_extn_payload_provider(account_session_request, contract_type);
-    }
-
-    #[test]
-    fn test_extn_request_session_token() {
-        let token_context = TokenContext {
-            distributor_id: String::from("test_distributor"),
-            app_id: String::from("test_app"),
-        };
-        let session_token_request = SessionTokenRequest {
-            token_type: TokenType::Device,
-            options: vec![String::from("option1"), String::from("option2")],
-            context: Some(token_context),
-        };
-
-        let contract_type: RippleContract = RippleContract::Session(SessionAdjective::Device);
-        test_extn_payload_provider(session_token_request, contract_type);
-    }
-
-    #[test]
-    fn test_extn_request_session_token_none() {
-        let other_payload =
-            ExtnPayload::Request(ExtnRequest::AccountSession(AccountSessionRequest::Get));
-        let result = SessionTokenRequest::get_from_payload(other_payload);
-        assert_eq!(result, None);
     }
 
     #[test]
@@ -373,43 +278,5 @@ mod tests {
         let deserialized: AccountSessionResponse = serde_json::from_str(&serialized).unwrap();
 
         assert_eq!(response, deserialized);
-    }
-
-    #[test]
-    fn test_token_type_display() {
-        assert_eq!(TokenType::Platform.to_string(), "platform");
-        assert_eq!(TokenType::Device.to_string(), "device");
-        assert_eq!(TokenType::Distributor.to_string(), "distributor");
-        assert_eq!(TokenType::Root.to_string(), "root");
-    }
-
-    #[test]
-    fn test_token_context_serialization() {
-        let context = TokenContext {
-            distributor_id: String::from("distributor_id"),
-            app_id: String::from("app_id"),
-        };
-
-        let serialized = serde_json::to_string(&context).unwrap();
-        let deserialized: TokenContext = serde_json::from_str(&serialized).unwrap();
-
-        assert_eq!(context, deserialized);
-    }
-
-    #[test]
-    fn test_session_token_request_serialization() {
-        let request = SessionTokenRequest {
-            token_type: TokenType::Device,
-            options: vec![String::from("option1"), String::from("option2")],
-            context: Some(TokenContext {
-                distributor_id: String::from("distributor_id"),
-                app_id: String::from("app_id"),
-            }),
-        };
-
-        let serialized = serde_json::to_string(&request).unwrap();
-        let deserialized: SessionTokenRequest = serde_json::from_str(&serialized).unwrap();
-
-        assert_eq!(request, deserialized);
     }
 }

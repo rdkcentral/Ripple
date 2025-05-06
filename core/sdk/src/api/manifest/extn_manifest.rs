@@ -71,6 +71,7 @@ pub fn default_providers() -> Vec<String> {
         "Content.requestUserInterest",
         "Content.onUserInterest",
         "IntegratedPlayer.",
+        "Keyboard.",
     ];
     value.iter().map(|x| x.to_string()).collect()
 }

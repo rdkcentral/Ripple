@@ -442,7 +442,7 @@ pub mod tests {
                     client: ExtnClient::mock(),
                     contracts: vec![
                         RippleContract::Internal,
-                        RippleContract::Session(SessionAdjective::Device),
+                        RippleContract::Session(SessionAdjective::Account),
                         RippleContract::DeviceEvents(EventAdjective::Input),
                     ],
                 },
@@ -612,7 +612,7 @@ pub mod tests {
             result,
             Some(vec![
                 RippleContract::Internal,
-                RippleContract::Session(SessionAdjective::Device),
+                RippleContract::Session(SessionAdjective::Account),
                 RippleContract::DeviceEvents(EventAdjective::Input),
             ])
         );
