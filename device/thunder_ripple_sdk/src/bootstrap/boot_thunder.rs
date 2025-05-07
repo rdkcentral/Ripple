@@ -17,23 +17,23 @@
 
 use crate::{
     bootstrap::setup_thunder_processors::SetupThunderProcessor,
-    client::plugin_manager::ThunderPluginBootParam, thunder_state::ThunderBootstrapStateWithClient,
+    //client::plugin_manager::ThunderPluginBootParam,
+    client::thunder_client::ThunderClientBuilder,
+    thunder_state::{
+        ThunderBootstrapStateWithClient, ThunderBootstrapStateWithConfig, ThunderState,
+    },
 };
 use ripple_sdk::{
-    extn::client::extn_client::ExtnClient,
+    api::config::Config,
+    extn::{
+        client::extn_client::ExtnClient,
+        extn_client_message::{ExtnMessage, ExtnResponse},
+    },
     log::{debug, error, info, warn},
     serde_json,
+    utils::error::RippleError,
 };
-
-use super::{get_config_step::ThunderGetConfigStep, setup_thunder_pool_step::ThunderPoolStep};
-use crate::client::thunder_client::ThunderClientBuilder;
-use crate::thunder_state::ThunderBootstrapStateWithConfig;
-use crate::thunder_state::ThunderState;
-use ripple_sdk::api::config::Config;
-use ripple_sdk::utils::error::RippleError;
 use serde::Deserialize;
-
-use ripple_sdk::extn::extn_client_message::{ExtnMessage, ExtnResponse};
 
 const GATEWAY_DEFAULT: &str = "ws://127.0.0.1:9998/jsonrpc";
 
@@ -47,12 +47,9 @@ fn gateway_default() -> String {
     String::from(GATEWAY_DEFAULT)
 }
 
-pub async fn boot_thunder(
-    ext_client: ExtnClient,
-    plugin_param: ThunderPluginBootParam,
-) -> Option<ThunderBootstrapStateWithClient> {
+pub async fn boot_thunder(ext_client: ExtnClient) -> Option<ThunderBootstrapStateWithClient> {
     info!("Booting thunder initiated");
-    let state = if ext_client.get_bool_config("use_with_thunder_async_client") {
+    let state = {
         info!("Using thunder_async_clinet");
         let mut extn_client = ext_client.clone();
         let mut gateway_url = match url::Url::parse(GATEWAY_DEFAULT) {
@@ -100,15 +97,8 @@ pub async fn boot_thunder(
             }) {}
         }
 
-        if let Ok(thndr_client) = ThunderClientBuilder::start_thunder_client(
-            gateway_url.clone(),
-            None,
-            None,
-            None,
-            None,
-            true,
-        )
-        .await
+        if let Ok(thndr_client) =
+            ThunderClientBuilder::start_thunder_client(gateway_url.clone()).await
         {
             let thunder_state = ThunderState::new(ext_client.clone(), thndr_client);
 
@@ -129,18 +119,9 @@ pub async fn boot_thunder(
 
             Some(thndr_boot_stateclient)
         } else {
+            error!("Unable to start_thunder_client");
             None
         }
-    } else if let Ok(state) = ThunderGetConfigStep::setup(ext_client, plugin_param).await {
-        if let Ok(state) = ThunderPoolStep::setup(state).await {
-            Some(state)
-        } else {
-            error!("Unable to connect to Thunder, error in ThunderPoolStep");
-            None
-        }
-    } else {
-        error!("Unable to connect to Thunder, error in ThunderGetConfigStep");
-        None
     };
 
     if let Some(s) = state.clone() {
