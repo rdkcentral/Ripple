@@ -279,6 +279,14 @@ impl GrantState {
             let mut grant_state = self.grant_app_map.write().unwrap();
             //Get a mutable reference to the value associated with a key, create it if it doesn't exist,
             let entries = grant_state.value.entry(app_id).or_default();
+
+            LogSignal::new(
+                "user_grants".to_string(),
+                "update_grant_entry".into(),
+                new_entry.clone(),
+            )
+            .emit_debug();
+
             if entries.contains(&new_entry) {
                 entries.remove(&new_entry);
             }
@@ -287,6 +295,12 @@ impl GrantState {
             }
             grant_state.sync();
         } else {
+            LogSignal::new(
+                "user_grants".to_string(),
+                "update_grant_entry".into(),
+                new_entry.clone(),
+            )
+            .emit_debug();
             self.add_device_entry(new_entry)
         }
     }
@@ -868,19 +882,13 @@ impl GrantState {
             cap: FireboltCap::Full(capability),
             role,
         };
+
         LogSignal::new(
             "user_grants".to_string(),
             "update_grant_as_per_policy".into(),
-            format!("{:?}", permission),
+            permission.clone(),
         )
         .emit_debug();
-
-        // LogSignal::new(
-        //     "user_grants".to_string(),
-        //     "update_grant_as_per_policy".into(),
-        //     permission.clone(),
-        // )
-        // .emit_debug();
 
         let grant_policy =
             Self::get_grant_policy(platform_state, &permission, app_id).ok_or_else(|| {
@@ -889,6 +897,14 @@ impl GrantState {
                 );
                 "There are no grant polices for the requesting cap so cant update user grant"
             })?;
+
+        LogSignal::new(
+            "user_grants".to_string(),
+            "get_grant_policy".into(),
+            grant_policy.clone(),
+        )
+        .emit_debug();
+
         if !GrantPolicyEnforcer::is_policy_valid(platform_state, &grant_policy) {
             return Err(
                 "There are no valid grant polices for the requesting cap so cant update user grant",
@@ -1133,6 +1149,14 @@ impl GrantPolicyEnforcer {
             grant_entry.status = Some(GrantStatus::Denied);
         }
         debug!("created grant_entry: {:?}", grant_entry);
+
+        LogSignal::new(
+            "user_grants".to_string(),
+            "store_user_grants".into(),
+            grant_entry.clone(),
+        )
+        .emit_debug();
+
         let grant_entry_c = grant_entry.clone();
         // let grant_entry_c = grant_entry.clone();
         // If lifespan is once then no need to store it.
@@ -1165,6 +1189,12 @@ impl GrantPolicyEnforcer {
             )
             .await;
         }
+        LogSignal::new(
+            "user_grants".to_string(),
+            "store_user_grants".into(),
+            grant_policy.clone(),
+        )
+        .emit_debug();
         ret_val
     }
 
@@ -1501,6 +1531,12 @@ impl GrantPolicyEnforcer {
             (false, true) => false,
             (false, false) => true,
         };
+        LogSignal::new(
+            "user_grants".to_string(),
+            "update_privacy_settings_with_grant".into(),
+            privacy_setting.clone(),
+        )
+        .emit_debug();
         debug!(
             "x-allow-value: {}, grant: {}, set_value: {}",
             allow_value, grant, set_value

@@ -1,10 +1,12 @@
-use std::collections::HashMap;
-
+use crate::api::device::device_user_grants_data::{
+    AutoApplyPolicy, GrantEntry, GrantLifespan, GrantPolicy, GrantPrivacySetting, GrantStatus,
+};
 use crate::api::firebolt::fb_capabilities::{CapabilityRole, FireboltCap, FireboltPermission};
 use crate::api::gateway::rpc_gateway_api::{
     CallContext, ClientContext, JsonRpcApiResponse, RpcRequest,
 };
 use crate::utils::logger::MODULE_LOG_LEVELS;
+use std::collections::HashMap;
 
 /*
 
@@ -143,6 +145,106 @@ impl ContextAsJson for RpcRequest {
     }
 }
 
+impl ContextAsJson for GrantPolicy {
+    fn as_json(&self) -> serde_json::Value {
+        let mut map = serde_json::Map::new();
+        map.insert(
+            "privacy_setting".to_string(),
+            match &self.privacy_setting {
+                Some(setting) => setting.as_json(),
+                None => serde_json::Value::Null,
+            },
+        );
+        map.insert(
+            "overridable".to_string(),
+            serde_json::Value::Bool(self.overridable),
+        );
+        serde_json::Value::Object(map)
+    }
+}
+
+impl std::fmt::Display for GrantPolicy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "GrantPolicy={:?}", self)
+    }
+}
+impl ContextAsJson for GrantPrivacySetting {
+    fn as_json(&self) -> serde_json::Value {
+        let mut map = serde_json::Map::new();
+        map.insert(
+            "property".to_string(),
+            serde_json::Value::String(self.property.to_string()),
+        );
+        map.insert(
+            "auto_apply_policy".to_string(),
+            serde_json::Value::String(self.auto_apply_policy.to_string()),
+        );
+        map.insert(
+            "update_property".to_string(),
+            serde_json::Value::Bool(self.update_property),
+        );
+        serde_json::Value::Object(map)
+    }
+}
+
+impl std::fmt::Display for GrantPrivacySetting {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "GrantPrivacySetting={:?}", self)
+    }
+}
+impl std::fmt::Display for AutoApplyPolicy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "AutoApplyPolicy={:?}", self)
+    }
+}
+
+impl ContextAsJson for GrantEntry {
+    fn as_json(&self) -> serde_json::Value {
+        let mut map = serde_json::Map::new();
+        map.insert(
+            "role".to_string(),
+            serde_json::Value::String(self.role.to_string()),
+        );
+        map.insert(
+            "capability".to_string(),
+            serde_json::Value::String(self.capability.clone()),
+        );
+        map.insert(
+            "lifespan".to_string(),
+            match &self.lifespan {
+                Some(lifespan) => serde_json::Value::String(lifespan.to_string()),
+                None => serde_json::Value::Null,
+            },
+        );
+        map.insert(
+            "status".to_string(),
+            match &self.status {
+                Some(status) => serde_json::Value::String(status.to_string()),
+                None => serde_json::Value::Null,
+            },
+        );
+        serde_json::Value::Object(map)
+    }
+}
+
+impl std::fmt::Display for GrantEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "role={}, capability={}", self.role, self.capability)
+    }
+}
+
+impl std::fmt::Display for GrantStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "GrantStatus={:?}", self)
+    }
+}
+
+impl std::fmt::Display for GrantLifespan {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "GrantLifespan={:?}", self)
+    }
+}
+
 impl ContextAsJson for FireboltPermission {
     fn as_json(&self) -> serde_json::Value {
         let mut map = serde_json::Map::new();
@@ -158,15 +260,21 @@ impl ContextAsJson for FireboltPermission {
     }
 }
 
+impl std::fmt::Display for FireboltPermission {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "capability={}, permission={}", self.cap, self.role)
+    }
+}
+
 impl std::fmt::Display for FireboltCap {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "FireboltCap={:?}", self) // Adjust this to match your desired string representation
+        write!(f, "FireboltCap={:?}", self)
     }
 }
 
 impl std::fmt::Display for CapabilityRole {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "CapabilityRole={:?}", self) // Adjust this to match your desired string representation
+        write!(f, "CapabilityRole={:?}", self)
     }
 }
 
