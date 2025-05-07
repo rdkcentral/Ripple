@@ -63,8 +63,8 @@ use super::{
     http_broker::HttpBroker,
     provider_broker_state::{ProvideBrokerState, ProviderResult},
     rules_engine::{
-        jq_compile, EventHandler, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine, RuleRetrievalError,
-        RuleRetrieved, RuleType,
+        jq_compile, EventHandler, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine,
+        RuleRetrievalError, RuleRetrieved, RuleType,
     },
     thunder_broker::ThunderBroker,
     websocket_broker::WebsocketBroker,
