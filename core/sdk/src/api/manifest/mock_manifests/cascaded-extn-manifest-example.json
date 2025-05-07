@@ -1,0 +1,68 @@
+{
+    "timeout": 10000,
+    "extns": [
+        {
+            "path": "libsocket",
+            "symbols": [
+                {
+                    "id": "ripple:channel:device:socket",
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": [
+                        "mock_libsocket_a",
+                        "mock_libsocket_b"
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "libmock",
+            "symbols": [
+                {
+                    "id": "ripple:channel:distributor:general",
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": [
+                        "libmock_a"
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "libmock_device",
+            "symbols": [
+                {
+                    "id": "ripple:channel:device:mock_device",
+                    "config": {
+                        "mock_data_file": "mock-device.json",
+                        "activate_all_plugins": "true"
+                    },
+                    "uses": [
+                        "config"
+                    ],
+                    "fulfills": []
+                },
+                {
+                    "id": "ripple:extn:jsonrpsee:mock_device",
+                    "uses": [
+                        "ripple:channel:device:mock_device"
+                    ],
+                    "fulfills": [
+                        "json_rpsee"
+                    ]
+                }
+            ]
+        }
+    ],
+    "required_contracts": [
+        "mock_val_a",
+        "mock_val_b"
+    ],
+    "rpc_aliases": {
+        "device.model": [
+            "mock.model"
+        ]
+    }
+}

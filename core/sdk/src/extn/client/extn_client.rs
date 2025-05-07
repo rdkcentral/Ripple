@@ -36,14 +36,8 @@ use tokio::sync::{
 
 use crate::{
     api::{
-        context::{
-            ActivationStatus, RippleContext, RippleContextUpdateRequest, RippleContextUpdateType,
-        },
-        device::{
-            device_info_request::DeviceInfoRequest,
-            device_request::{InternetConnectionStatus, TimeZone},
-        },
-        firebolt::fb_metrics::MetricsContext,
+        context::{ActivationStatus, RippleContext, RippleContextUpdateRequest},
+        device::device_request::{InternetConnectionStatus, TimeZone},
         manifest::extn_manifest::ExtnSymbol,
     },
     extn::{
@@ -358,15 +352,6 @@ impl ExtnClient {
         let current_cap = self.sender.get_cap();
         if !current_cap.is_main() {
             error!("Updating context is not allowed outside main");
-            return;
-        }
-        if let RippleContextUpdateRequest::RefreshContext(refresh_context) = &request {
-            if let Some(RippleContextUpdateType::InternetConnectionChanged) = refresh_context {
-                let resp = self.request_transient(DeviceInfoRequest::InternetConnectionStatus);
-                if let Err(_err) = resp {
-                    error!("Error in starting internet monitoring");
-                }
-            }
             return;
         }
         // Main's Extn client will receive Context events and if it results in changing any of its
@@ -1000,11 +985,6 @@ impl ExtnClient {
         let ripple_context = self.ripple_context.read().unwrap();
         ripple_context.features.clone()
     }
-
-    pub fn get_metrics_context(&self) -> Option<MetricsContext> {
-        let ripple_context = self.ripple_context.read().unwrap();
-        ripple_context.metrics_context.clone()
-    }
 }
 
 #[cfg(test)]
@@ -1332,7 +1312,7 @@ pub mod tests {
             ExtnSymbol {
                 id: "id".to_string(),
                 uses: Vec::new(),
-                fulfills: vec![RippleContract::Session(SessionAdjective::Device).as_clear_string()],
+                fulfills: vec![RippleContract::Session(SessionAdjective::Account).as_clear_string()],
                 config: None,
             },
             s,
@@ -1353,7 +1333,7 @@ pub mod tests {
         let extn_client = ExtnClient::new(mock_rx, mock_sender);
         let mut processor = MockEventProcessor::new_v1(
             extn_client.clone(),
-            vec![RippleContract::Session(SessionAdjective::Device)],
+            vec![RippleContract::Session(SessionAdjective::Account)],
         );
 
         add_vec_stream_processor(
@@ -1391,7 +1371,7 @@ pub mod tests {
             extn_client.clone(),
             vec![
                 RippleContract::Internal,
-                RippleContract::Session(SessionAdjective::Device),
+                RippleContract::Session(SessionAdjective::Account),
             ],
         );
 
@@ -2533,27 +2513,6 @@ pub mod tests {
         // Check if get_activation_status returns None after resetting activation status
         let activation_status_after_reset = extn_client.get_activation_status();
         assert_eq!(activation_status_after_reset, None);
-    }
-
-    #[rstest(
-        connectivity,
-        expected_result,
-        case(InternetConnectionStatus::FullyConnected, true),
-        case(InternetConnectionStatus::LimitedInternet, true),
-        case(InternetConnectionStatus::NoInternet, false),
-        case(InternetConnectionStatus::CaptivePortal, false)
-    )]
-    #[tokio::test]
-    async fn test_has_internet(connectivity: InternetConnectionStatus, expected_result: bool) {
-        let extn_client = ExtnClient::mock();
-        extn_client
-            .ripple_context
-            .write()
-            .unwrap()
-            .internet_connectivity = Some(connectivity);
-
-        let has_internet = extn_client.has_internet();
-        assert_eq!(has_internet, expected_result);
     }
 
     #[tokio::test]

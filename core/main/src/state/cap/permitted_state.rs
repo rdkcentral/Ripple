@@ -23,7 +23,6 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        config::FEATURE_CLOUD_PERMISSIONS,
         distributor::distributor_permissions::{PermissionRequest, PermissionResponse},
         firebolt::{
             fb_capabilities::{
@@ -147,12 +146,7 @@ impl PermissionHandler {
             return Ok(());
         }
 
-        if state
-            .get_client()
-            .get_extn_client()
-            .get_features()
-            .contains(&String::from(FEATURE_CLOUD_PERMISSIONS))
-        {
+        if state.get_device_manifest().get_features().cloud_permissions {
             if allow_cached {
                 if let Some(permissions) =
                     state.cap_state.permitted_state.get_app_permissions(app_id)
@@ -297,6 +291,17 @@ impl PermissionHandler {
         state: &PlatformState,
         app_id: &String,
     ) -> Result<(), RippleError> {
+        // Needs permissions
+        if let Some(ex) = state.get_device_manifest().configuration.exclusory {
+            if ex
+                .app_authorization_rules
+                .app_ignore_rules
+                .contains_key(app_id.to_lowercase().as_str())
+            {
+                return Ok(());
+            }
+        }
+
         // This call should hit the server and fetch permissions for the app.
         // Local cache will be updated with the fetched permissions
         let has_stored = state

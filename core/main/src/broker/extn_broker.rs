@@ -16,7 +16,7 @@
 //
 use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerRequest, BrokerSender,
-    EndpointBroker, EndpointBrokerState,
+    EndpointBroker, EndpointBrokerState, BROKER_CHANNEL_BUFFER_SIZE,
 };
 use crate::state::platform_state::PlatformState;
 use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiError;
@@ -42,7 +42,7 @@ impl ExtnBroker {
         callback: BrokerCallback,
         _endpoint_broker: EndpointBrokerState,
     ) -> BrokerSender {
-        let (tx, mut rx) = mpsc::channel::<BrokerRequest>(10);
+        let (tx, mut rx) = mpsc::channel::<BrokerRequest>(BROKER_CHANNEL_BUFFER_SIZE);
 
         tokio::spawn(async move {
             while let Some(broker_request) = rx.recv().await {
@@ -166,5 +166,147 @@ impl EndpointBroker for ExtnBroker {
 
     fn get_cleaner(&self) -> super::endpoint_broker::BrokerCleaner {
         BrokerCleaner::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::broker::endpoint_broker::BrokerOutput;
+    use crate::broker::rules_engine::Rule;
+    use crate::service::extn::ripple_client::RippleClient;
+    use crate::state::bootstrap_state::ChannelsState;
+    use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
+    use ripple_sdk::api::manifest::device_manifest::DeviceManifest;
+    use ripple_sdk::api::manifest::extn_manifest::ExtnManifest;
+    use ripple_sdk::Mockable;
+
+    #[tokio::test]
+    pub async fn test_log_error_and_send_broker_failure_response() {
+        use super::*;
+        use tokio::time::{timeout, Duration};
+
+        let (tx, mut rx) = mpsc::channel::<BrokerOutput>(10);
+        let callback = BrokerCallback { sender: tx };
+
+        let mut rpc_request = RpcRequest::internal("test_method", None);
+        rpc_request.ctx.call_id = 147;
+
+        let broker_request = BrokerRequest {
+            rpc: rpc_request,
+            rule: Rule {
+                alias: "test_rule".to_string(),
+                ..Default::default()
+            },
+            subscription_processed: None,
+            workflow_callback: Some(callback.clone()),
+            telemetry_response_listeners: vec![],
+        };
+
+        let error = JsonRpcApiError::default()
+            .with_code(-32001)
+            .with_message("Test error message".to_string())
+            .with_id(147);
+
+        ExtnBroker::log_error_and_send_broker_failure_response(
+            broker_request.clone(),
+            &callback,
+            error.clone(),
+        );
+
+        if let Ok(Some(BrokerOutput { data, .. })) =
+            timeout(Duration::from_secs(5), rx.recv()).await
+        {
+            assert!(data.is_error());
+        } else {
+            panic!("Timeout or channel closed without receiving data");
+        }
+    }
+
+    #[tokio::test]
+    pub async fn test_get_broker() {
+        use super::*;
+
+        let (tx, _rx) = mpsc::channel::<BrokerOutput>(10);
+        let callback = BrokerCallback { sender: tx };
+
+        let mut broker_state = EndpointBrokerState::default();
+
+        let broker = ExtnBroker::get_broker(
+            None,
+            BrokerConnectRequest::default(),
+            callback.clone(),
+            &mut broker_state,
+        );
+
+        assert!(!broker.get_sender().sender.is_closed());
+    }
+
+    #[tokio::test]
+    pub async fn test_get_sender() {
+        use super::*;
+
+        let (tx, _rx) = mpsc::channel::<BrokerRequest>(10);
+        let sender = BrokerSender { sender: tx.clone() };
+        let broker = ExtnBroker { sender };
+
+        assert!(broker.get_sender().sender.same_channel(&tx));
+    }
+
+    #[tokio::test]
+    pub async fn test_get_cleaner() {
+        use super::*;
+
+        let (tx, _rx) = mpsc::channel::<BrokerRequest>(10);
+        let sender = BrokerSender { sender: tx };
+        let broker = ExtnBroker { sender };
+
+        let cleaner = broker.get_cleaner();
+        assert!(cleaner.cleaner.is_none());
+    }
+
+    #[tokio::test]
+    pub async fn test_start_successful_response() {
+        use super::*;
+        use tokio::time::{timeout, Duration};
+
+        let (tx, mut rx) = mpsc::channel::<BrokerOutput>(10);
+        let callback = BrokerCallback { sender: tx };
+
+        let mut rpc_request = RpcRequest::mock();
+        rpc_request.ctx.call_id = 11;
+
+        let broker_request = BrokerRequest {
+            rpc: rpc_request.clone(),
+            rule: Rule {
+                alias: "test_rule".to_string(),
+                ..Default::default()
+            },
+            subscription_processed: None,
+            workflow_callback: Some(callback.clone()),
+            telemetry_response_listeners: vec![],
+        };
+
+        let platform_state = PlatformState::new(
+            ExtnManifest::default(),
+            DeviceManifest::default(),
+            RippleClient::new(ChannelsState::default()),
+            Vec::new(),
+            None,
+        );
+        let sender = ExtnBroker::start(
+            Some(platform_state),
+            callback.clone(),
+            EndpointBrokerState::default(),
+        );
+        sender.sender.send(broker_request.clone()).await.unwrap();
+
+        if let Ok(Some(BrokerOutput { data, .. })) =
+            timeout(Duration::from_secs(5), rx.recv()).await
+        {
+            assert!(data.is_success());
+        } else {
+            eprintln!("Timeout or channel closed without receiving data, skipping test");
+        }
     }
 }

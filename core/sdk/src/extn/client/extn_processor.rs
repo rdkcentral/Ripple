@@ -192,12 +192,8 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
         false
     }
 
-    fn has_internet(&self) -> bool {
-        self.get_client().has_internet()
-    }
-
-    fn check_prerequisties(prereq: &Prerequisites, client: &ExtnClient) -> bool {
-        match (prereq.need_internet, client.has_internet()) {
+    fn check_prerequisties(prereq: &Prerequisites, _client: &ExtnClient) -> bool {
+        match (prereq.need_internet, false) {
             (true, true) | (false, _) => true,
             (true, false) => false,
         }
@@ -446,7 +442,7 @@ pub mod tests {
                     client: ExtnClient::mock(),
                     contracts: vec![
                         RippleContract::Internal,
-                        RippleContract::Session(SessionAdjective::Device),
+                        RippleContract::Session(SessionAdjective::Account),
                         RippleContract::DeviceEvents(EventAdjective::Input),
                     ],
                 },
@@ -590,13 +586,6 @@ pub mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_state() {
-        let mock_event_processor = MockEventProcessor::new();
-        let state = mock_event_processor.get_state();
-        assert!(!state.client.has_internet());
-    }
-
-    #[tokio::test]
     async fn test_receiver() {
         let mut mock_event_processor = MockEventProcessor::new();
         let mut receiver = mock_event_processor.receiver();
@@ -623,7 +612,7 @@ pub mod tests {
             result,
             Some(vec![
                 RippleContract::Internal,
-                RippleContract::Session(SessionAdjective::Device),
+                RippleContract::Session(SessionAdjective::Account),
                 RippleContract::DeviceEvents(EventAdjective::Input),
             ])
         );

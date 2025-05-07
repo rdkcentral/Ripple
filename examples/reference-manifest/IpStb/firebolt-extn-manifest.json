@@ -25,10 +25,7 @@
                         "app_events",
                         "input.device_events",
                         "voice_guidance.device_events",
-                        "internet.device_events",
-                        "audio.device_events",
-                        "system_power_state.device_events",
-                        "time_zone.device_events"
+                        "audio.device_events"
                     ]
                 }
             ]
@@ -63,13 +60,9 @@
                         "permissions",
                         "account.session",
                         "device.session",
-                        "distributor.session",
-                        "platform.session",
                         "root.session",
                         "secure.storage",
                         "advertising",
-                        "media_events",
-                        "discovery",
                         "behavior_metrics"
                     ]
                 }
@@ -88,15 +81,16 @@
         "remote_accessory",
         "secure.storage",
         "privacy_settings",
-        "metrics",
         "account.session",
         "device.session",
-        "distributor.session",
         "behavior_metrics"
     ],
     "rpc_aliases": {
         "device.model": [
             "custom.model"
         ]
-    }
+    },
+    "rules_path": [
+        "/etc/ripple.common.rules.json"
+    ]
 }

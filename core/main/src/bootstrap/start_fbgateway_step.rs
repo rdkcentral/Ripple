@@ -21,15 +21,12 @@ use crate::{
     firebolt::{
         firebolt_gateway::FireboltGateway,
         handlers::{
-            accessory_rpc::AccessoryRippleProvider, account_rpc::AccountRPCProvider,
-            advertising_rpc::AdvertisingRPCProvider,
-            audio_description_rpc::AudioDescriptionRPCProvider,
-            authentication_rpc::AuthRPCProvider, capabilities_rpc::CapRPCProvider,
+            accessory_rpc::AccessoryRippleProvider, advertising_rpc::AdvertisingRPCProvider,
+            audio_description_rpc::AudioDescriptionRPCProvider, capabilities_rpc::CapRPCProvider,
             closed_captions_rpc::ClosedcaptionsRPCProvider, device_rpc::DeviceRPCProvider,
-            discovery_rpc::DiscoveryRPCProvider, keyboard_rpc::KeyboardRPCProvider,
-            lcm_rpc::LifecycleManagementProvider, lifecycle_rpc::LifecycleRippleProvider,
-            localization_rpc::LocalizationRPCProvider,
-            metrics_management_rpc::MetricsManagementProvider, metrics_rpc::MetricsRPCProvider,
+            discovery_rpc::DiscoveryRPCProvider, internal_rpc::InternalProvider,
+            keyboard_rpc::KeyboardRPCProvider, lcm_rpc::LifecycleManagementProvider,
+            lifecycle_rpc::LifecycleRippleProvider, localization_rpc::LocalizationRPCProvider,
             parameters_rpc::ParametersRPCProvider, privacy_rpc::PrivacyProvider,
             profile_rpc::ProfileRPCProvider, provider_registrar::ProviderRegistrar,
             second_screen_rpc::SecondScreenRPCProvider,
@@ -58,7 +55,13 @@ impl FireboltGatewayStep {
         let _ = methods.merge(WifiRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(LifecycleRippleProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(CapRPCProvider::provide_with_alias(state.clone()));
-        let _ = methods.merge(KeyboardRPCProvider::provide_with_alias(state.clone()));
+
+        if !state.open_rpc_state.is_provider_enabled("Keyboard.") {
+            // Use built-in provider support if Keyboard APIs are not included in the
+            // manifest/defaults.
+            let _ = methods.merge(KeyboardRPCProvider::provide_with_alias(state.clone()));
+        }
+
         let _ = methods.merge(ClosedcaptionsRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(VoiceguidanceRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(LocalizationRPCProvider::provide_with_alias(state.clone()));
@@ -70,14 +73,11 @@ impl FireboltGatewayStep {
         let _ = methods.merge(ParametersRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(SecureStorageRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(AdvertisingRPCProvider::provide_with_alias(state.clone()));
-        let _ = methods.merge(MetricsRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(DiscoveryRPCProvider::provide_with_alias(state.clone()));
-        let _ = methods.merge(AuthRPCProvider::provide_with_alias(state.clone()));
-        let _ = methods.merge(AccountRPCProvider::provide_with_alias(state.clone()));
-        let _ = methods.merge(MetricsManagementProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(AudioDescriptionRPCProvider::provide_with_alias(
             state.clone(),
         ));
+        let _ = methods.merge(InternalProvider::provide_with_alias(state.clone()));
 
         // LCM Api(s) not required for internal launcher
         if !state.has_internal_launcher() {

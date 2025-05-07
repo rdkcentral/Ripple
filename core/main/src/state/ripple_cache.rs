@@ -20,8 +20,6 @@ use ripple_sdk::api::{
     distributor::distributor_privacy::PrivacySettingsData, storage_property::StorageProperty,
 };
 
-use super::platform_state::PlatformState;
-
 #[derive(Debug, Clone, Default)]
 pub struct RippleCache {
     // Cache for privacy settings
@@ -41,19 +39,11 @@ impl RippleCache {
         }
     }
 
-    pub fn update_cached_bool_storage_property(
-        &self,
-        platform_state: &PlatformState,
-        property: &StorageProperty,
-        value: bool,
-    ) {
+    pub fn update_cached_bool_storage_property(&self, property: &StorageProperty, value: bool) {
         if property.is_a_privacy_setting_property() {
             // update the privacy setting property in cache
             let mut cache = self.privacy_settings_cache.write().unwrap();
             property.set_privacy_setting_value(&mut cache, value);
-            platform_state
-                .metrics
-                .update_data_governance_tags(platform_state, &cache);
         }
     }
 }

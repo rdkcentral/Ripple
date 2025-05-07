@@ -28,7 +28,7 @@ use std::collections::HashMap;
 
 use super::device_request::{
     AudioProfile, DeviceRequest, HDCPStatus, HdcpProfile, HdrProfile, InternetConnectionStatus,
-    OnInternetConnectedRequest, PowerState, TimeZone,
+    PowerState, TimeZone,
 };
 
 pub const DEVICE_INFO_AUTHORIZED: &str = "device_info_authorized";
@@ -38,25 +38,18 @@ pub const DEVICE_NETWORK_STATUS_AUTHORIZED: &str = "network_status_authorized";
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum DeviceInfoRequest {
-    MacAddress,
     Model,
     FirmwareInfo,
     HdcpSupport,
     HdcpStatus,
     Audio,
     AvailableMemory,
-    OnInternetConnected(OnInternetConnectedRequest),
     InternetConnectionStatus,
     VoiceGuidanceEnabled,
     SetVoiceGuidanceEnabled(bool),
     VoiceGuidanceSpeed,
     SetVoiceGuidanceSpeed(f32),
-    GetTimezoneWithOffset,
-    FullCapabilities(Vec<String>),
     PowerState,
-    SerialNumber,
-    StartMonitoringInternetChanges(u32),
-    StopMonitoringInternetChanges,
     PlatformBuildInfo,
 }
 
@@ -106,6 +99,15 @@ pub struct FirmwareInfo {
     pub version: FireboltSemanticVersion,
 }
 
+impl From<FireboltSemanticVersion> for FirmwareInfo {
+    fn from(version: FireboltSemanticVersion) -> Self {
+        FirmwareInfo {
+            name: "rdk".into(),
+            version,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum DeviceResponse {
     CustomError(String),
@@ -113,7 +115,6 @@ pub enum DeviceResponse {
     HdcpSupportResponse(HashMap<HdcpProfile, bool>),
     HdcpStatusResponse(HDCPStatus),
     FirmwareInfo(FirmwareInfo),
-    FullCapabilities(DeviceCapabilities),
     InternetConnectionStatus(InternetConnectionStatus),
     PowerState(PowerState),
     TimeZone(TimeZone),
@@ -174,7 +175,7 @@ mod tests {
     #[test]
     fn test_extn_request_device_info_request() {
         let contract_type: RippleContract = RippleContract::DeviceInfo;
-        test_extn_payload_provider(DeviceInfoRequest::MacAddress, contract_type);
+        test_extn_payload_provider(DeviceInfoRequest::Model, contract_type);
     }
 
     #[test]
