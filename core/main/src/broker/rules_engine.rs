@@ -160,7 +160,7 @@ impl Rule {
         self.filter = Some(filter);
         self
     }
-    pub fn with_event_handler(&mut self, event_handler: String) -> &mut Self {
+    pub fn with_event_handler(&mut self, event_handler: EventHandler) -> &mut Self {
         self.event_handler = Some(event_handler);
         self
     }
