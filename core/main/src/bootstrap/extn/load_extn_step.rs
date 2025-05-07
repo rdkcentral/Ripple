@@ -78,6 +78,17 @@ impl LoadExtensionsStep {
         let mut loaded_extns = Vec::new();
         unsafe {
             for (extn_path, entry) in extn_paths {
+                // ignore the extension if it contains libeos_distributor.dylib or libbadger.dylib
+
+                if extn_path.contains("libeos_distributor.dylib")  {
+                    debug!("******** Ignoring libeos_distributor.dylib");
+                    continue;
+                }
+
+                if extn_path.contains("libbadger.dylib") {
+                    debug!("******** Ignoring libbadger.dylib");
+                    continue;
+                }
                 debug!("");
                 debug!("");
                 debug!(
@@ -119,6 +130,15 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
         for extn in loaded_extensions.iter() {
             unsafe {
                 let path = &extn.entry.path;
+                // ignore the extension if it contains libeos_distributor or libbadger
+                if path.contains("libeos_distributor") {
+                    debug!("******** Ignoring libeos_distributor in setup");
+                    continue;
+                }
+                if path.contains("libbadger") {
+                    debug!("******** Ignoring libbadger in setup");
+                    continue;
+                }
                 let library = &extn.library;
                 info!("Starting library of path {}", path);
                 if let Ok(builder) = load_channel_builder(library) {

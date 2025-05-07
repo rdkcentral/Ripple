@@ -101,12 +101,13 @@ impl WebSocketUtils {
     ///         .retry(100)
     ///         .fail_after(5)
     ///         .build();
-    ///     let result = ripple_sdk::utils::ws_utils::WebSocketUtils::get_ws_stream("ws://127.0.0.1:0", Some(config)).await;
+    ///     let result = ripple_sdk::utils::ws_utils::WebSocketUtils::get_ws_stream("ws://127.0.0.1:0", Some(config), None).await;
     /// }
     /// ```
     pub async fn get_ws_stream(
         endpoint: &str,
         inital_config: Option<WebSocketConfig>,
+        is_local_dev: Option<bool>
     ) -> Result<
         (
             SplitSink<WebSocketStream<TcpStream>, Message>,
@@ -126,11 +127,26 @@ impl WebSocketUtils {
         } else {
             endpoint.to_owned()
         };
-        if cfg!(not(feature = "local_dev")) {
+        let mut local_dev = false;
+        if let Some(is_local_dev) = is_local_dev {
+            if is_local_dev {
+                println!("***** 1059 local_dev feature is enabled *****");
+                local_dev = true;
+            };
+        };
+
+
+        if cfg!(not(feature = "local_dev")) && !local_dev  {
             // Only support local ws connections
+
+            println!("***** local_dev feature is NOT enabled *****");
             if !url_path.starts_with("ws://127.0.0.1") && !url_path.starts_with("ws://localhost") {
                 return Err(RippleError::InvalidInput);
             }
+        } else {
+            
+            // In local_dev mode, allow connections to any host
+            println!("***** local_dev feature is enabled *****");
         }
         let url = match url::Url::parse(&url_path) {
             Ok(parsed_url) => parsed_url,

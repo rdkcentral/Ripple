@@ -229,6 +229,7 @@ impl TryFrom<String> for ExtnMessage {
     type Error = RippleError;
     fn try_from(value: String) -> Result<Self, Self::Error> {
         if let Ok(message) = serde_json::from_str::<JsonRpcApiResponse>(&value) {
+            println!("Parsed message: {:#?}", message);
             let mut extn_message = ExtnMessage::default();
             let mut json_payload = None;
             let mut data_is_valid = false;

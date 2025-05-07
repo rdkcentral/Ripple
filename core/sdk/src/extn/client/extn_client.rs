@@ -160,7 +160,7 @@ impl ExtnClient {
 
         contracts_supported.iter().for_each(|contract| {
             let processor_string: String = contract.as_clear_string();
-            info!("adding request processor {}", processor_string);
+            println!("adding request processor {}", processor_string);
             add_stream_processor(
                 processor_string,
                 processor.sender(),
@@ -260,9 +260,11 @@ impl ExtnClient {
 
     /// Called once per client initialization this is a blocking method. Use a spawned thread to call this method
     pub async fn initialize(&self, mut tr: mpsc::Receiver<ApiMessage>) {
-        debug!("Starting initialize");
+        println!("Starting initialize");
         let base_path = std::env::var("RIPPLE_SERVICE_HANDSHAKE_PATH")
             .unwrap_or_else(|_| "127.0.0.1:3474".to_string());
+
+        println!("**** base_path: {:?}", base_path);
         let path = tokio_tungstenite::tungstenite::http::Uri::builder()
             .scheme("ws")
             .authority(base_path.as_str())
@@ -271,7 +273,7 @@ impl ExtnClient {
             .unwrap();
 
         let path = path.to_string();
-        if let Ok((mut ws_tx, mut ws_rx)) = WebSocketUtils::get_ws_stream(&path, None).await {
+        if let Ok((mut ws_tx, mut ws_rx)) = WebSocketUtils::get_ws_stream(&path, None, None).await {
             tokio::pin! {
                 let read_pin = ws_rx.next();
             }
@@ -288,6 +290,7 @@ impl ExtnClient {
                                                 error!("IEC Latency {:?}", msg);
                                             }
                                         }
+                                        println!("IEC recv message ID {:?}", self.sender.get_cap());
                                         self.handle_message(extn_message);
                                     } else {
                                         error!("Failed to parse message: {:?}", msg);
@@ -355,6 +358,7 @@ impl ExtnClient {
             let current_cap = self.sender.get_cap();
             let target_contract = message.clone().target;
             if current_cap.is_main() {
+                println!("*** Id is main {:?}", current_cap);
                 if let Some(request) =
                     RippleContextUpdateRequest::is_ripple_context_update(&message.payload)
                 {
@@ -364,6 +368,7 @@ impl ExtnClient {
                 // for eg an extension has a RPC Method provider and also a channel to process the
                 // requests this below impl will take care of sending the data back to the Extension
                 else if let Some(extn_id) = target_contract.is_extn_provider() {
+                    println!("ID is provider {:?}", extn_id);
                     if let Some(s) = self.get_extn_sender_with_extn_id(&extn_id) {
                         let new_message = message.clone();
                         tokio::spawn(async move {
@@ -381,6 +386,7 @@ impl ExtnClient {
                     self.get_extn_sender_with_contract(target_contract.clone())
                 {
                     let new_message = message.clone();
+                    println!("**** forward request base on contract");
 
                     tokio::spawn(async move {
                         if let Err(e) = sender.try_send(new_message.into()) {

@@ -81,5 +81,5 @@ futures-util = { version = "0.3.28", features = ["sink", "std"], default-feature
 
 [dev-dependencies]
 
-ripple_sdk = { path = "../../core/sdk", features = ["tdk"] }
+ripple_sdk = { path = "../../core/sdk", features = ["tdk", "local_dev"] }
 rstest = "0.18.2"

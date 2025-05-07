@@ -212,7 +212,7 @@ impl ThunderBroker {
         let broker_for_cleanup = thunder_broker.clone();
         let broker_for_reconnect = thunder_broker.clone();
         tokio::spawn(async move {
-            let resp = WebSocketUtils::get_ws_stream(&endpoint.get_url(), None).await;
+            let resp = WebSocketUtils::get_ws_stream(&endpoint.get_url(), None, None).await;
             if resp.is_err() {
                 error!("FATAL error Thunder URL badly configured.");
                 // This stops the Server

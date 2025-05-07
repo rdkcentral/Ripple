@@ -76,6 +76,7 @@ impl ThunderClientPool {
                 None,
                 false,
                 status_check,
+                None
             )
             .await;
             if let Ok(c) = client {
@@ -143,6 +144,7 @@ impl ThunderClientPool {
                                 pool.clients.get(index).map(|x| x.client.clone()),
                                 false,
                                 status_check,
+                                None
                             )
                             .await;
                             if let Ok(client) = client {
