@@ -19,9 +19,11 @@ use ripple_sdk::{
     async_trait::async_trait, framework::bootstrap::Bootstep, tokio, utils::error::RippleError,
 };
 
+use crate::firebolt::handlers::audio_description_rpc;
 use crate::state::bootstrap_state::BootstrapState;
 
 use crate::firebolt::firebolt_ws::FireboltWs;
+use crate::state::openrpc_state::ApiSurface;
 
 pub struct StartWsStep;
 
@@ -37,19 +39,38 @@ impl Bootstep<BootstrapState> for StartWsStep {
         let ws_enabled = manifest.get_web_socket_enabled();
         let internal_ws_enabled = manifest.get_internal_ws_enabled();
         let iai_c = iai.clone();
+
         if ws_enabled {
+            let api_gateway_state_ws = state.platform_state.services_gateway_api.clone();
             let ws_addr = manifest.get_ws_gateway_host();
             let state_for_ws = state.platform_state.clone();
+
             tokio::spawn(async move {
-                FireboltWs::start(ws_addr.as_str(), state_for_ws, true, iai.clone()).await;
+                FireboltWs::start(
+                    ws_addr.as_str(),
+                    state_for_ws,
+                    true,
+                    iai.clone(),
+                    api_gateway_state_ws,
+                )
+                .await;
             });
         }
 
         if internal_ws_enabled {
+            let api_gateway_state_internal_ws = state.platform_state.services_gateway_api.clone();
+
             let ws_addr = manifest.get_internal_gateway_host();
             let state_for_ws = state.platform_state;
             tokio::spawn(async move {
-                FireboltWs::start(ws_addr.as_str(), state_for_ws, false, iai_c).await;
+                FireboltWs::start(
+                    ws_addr.as_str(),
+                    state_for_ws,
+                    false,
+                    iai_c,
+                    api_gateway_state_internal_ws,
+                )
+                .await;
             });
         }
 

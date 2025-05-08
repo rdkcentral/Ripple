@@ -17,7 +17,7 @@
 
 use std::{
     net::SocketAddr,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, RwLock},
 };
 
 use super::firebolt_gateway::FireboltGatewayCommand;
@@ -28,8 +28,12 @@ use crate::{
         session_state::Session,
     },
 };
-use futures::SinkExt;
 use futures::StreamExt;
+use futures::{
+    stream::{SplitSink, SplitStream},
+    SinkExt,
+};
+use hyper::client::service;
 use jsonrpsee::types::{error::INVALID_REQUEST_CODE, ErrorObject, ErrorResponse, Id};
 use ripple_sdk::{
     api::{
@@ -41,14 +45,14 @@ use ripple_sdk::{
     log::{error, info, trace},
     tokio::{
         net::{TcpListener, TcpStream},
-        sync::{mpsc, oneshot},
+        sync::{mpsc, oneshot, Mutex},
     },
     utils::channel_utils::oneshot_send_and_log,
     uuid::Uuid,
 };
 use ripple_sdk::{log::debug, tokio};
 use ssda_service::ApiGateway;
-use ssda_types::{APIGatewayServiceConnectionDisposition, ServiceId};
+use ssda_types::{APIGatewayServiceConnectionDisposition, ApiGatewayServer, ServiceId};
 use tokio_tungstenite::{
     tungstenite::{self, Message},
     WebSocketStream,
@@ -72,7 +76,7 @@ struct ConnectionCallbackConfig {
     pub app_state: AppManagerState,
     pub secure: bool,
     pub internal_app_id: Option<String>,
-    pub service_connection: Arc<Mutex<Option<ServiceConnection>>>,
+    pub service_connection: Arc<std::sync::Mutex<Option<ServiceConnection>>>,
 }
 pub struct ConnectionCallback(ConnectionCallbackConfig);
 
@@ -196,6 +200,7 @@ impl FireboltWs {
         state: PlatformState,
         secure: bool,
         internal_app_id: Option<String>,
+        service_manager: Arc<Mutex<Box<dyn ApiGatewayServer + Send + Sync>>>,
     ) {
         // Create the event loop and TCP listener we'll accept connections on.
         let try_socket = TcpListener::bind(&server_addr).await; //create the server on the address
@@ -204,9 +209,12 @@ impl FireboltWs {
         let state_for_connection = state.clone();
         let app_state = state.app_manager_state.clone();
         // Let's spawn the handling of each connection in a separate task.
+
         while let Ok((stream, client_addr)) = listener.accept().await {
             let (connect_tx, connect_rx) = oneshot::channel::<ClientIdentity>();
-            let service_connection_state = Arc::new(Mutex::new(None));
+            let service_manager_clone = Arc::clone(&service_manager);
+            let service_connection_state = Arc::new(std::sync::Mutex::new(None));
+            let service_manager_for_connection = service_manager_clone.clone();
             let cfg = ConnectionCallbackConfig {
                 next: connect_tx,
                 app_state: app_state.clone(),
@@ -219,8 +227,11 @@ impl FireboltWs {
                     error!("websocket connection error {:?}", e);
                 }
                 Ok(ws_stream) => {
+                    // let (mut send , mut recv) = ws_stream.split();;
+                    //let c = send;
                     let connection = service_connection_state.clone();
                     let service_connection_state = connection.lock().unwrap().clone();
+
                     match service_connection_state {
                         Some(service_connection) => {
                             let service_connection = service_connection.clone();
@@ -230,7 +241,10 @@ impl FireboltWs {
                             let state_for_connection_c = state_for_connection.clone();
                             tokio::spawn(async move {
                                 FireboltWs::handle_service_connection(
-                                    client_addr,
+                                    service_id,
+                                    // send,
+                                    // recv,
+                                    service_manager_clone,
                                     ws_stream,
                                     connect_rx,
                                     state_for_connection_c.clone(),
@@ -258,22 +272,23 @@ impl FireboltWs {
         }
     }
     async fn handle_service_connection(
-        _client_addr: SocketAddr,
+        service_id: ServiceId,
+        //send: SplitSink<WebSocketStream<TcpStream>, Message>,
+        //recv: SplitStream<WebSocketStream<TcpStream>>,
+        service_manager: Arc<Mutex<Box<dyn ApiGatewayServer + Send + Sync>>>,
         ws_stream: WebSocketStream<TcpStream>,
         connect_rx: oneshot::Receiver<ClientIdentity>,
         state: PlatformState,
         gateway_secure: bool,
     ) {
         info!("handle_service_connection");
-        let (mut send, mut recv) = ws_stream.split();
+        //let (mut send, mut recv) = ws_stream.split();
         let identity = connect_rx.await.unwrap();
-        tokio::spawn(async move {
-            while let Some(api_message) = recv.next().await {
-                //nfo!("Received server request {}", api_message.jsonrpc_msg);
-                info!("Received server request {:?}", api_message);
-                send.send("item".into()).await;
-            }
-        });
+        {
+            let mut guard = service_manager.lock().await;
+            let mut instance = guard.as_mut();
+            guard.service_connect(service_id, ws_stream).await.unwrap();
+        }
     }
     async fn handle_connection(
         _client_addr: SocketAddr,

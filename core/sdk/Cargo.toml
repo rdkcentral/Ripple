@@ -69,6 +69,10 @@ libloading = "0.7.4"
 async-channel = { version = "2.1.0", default-features = false }
 tree_magic_mini = { version = "3.0.3", optional = true}
 lazy_static = "1.5.0"
+jaq-interpret = { version = "1.5.0", default-features = false }
+jaq-parse = { version = "1.0.2", default-features = false }
+jaq-core = "1.5.0"
+jaq-std = { version = "1.5.1", default-features = false }
 
 [dev-dependencies]
 ripple_sdk = { path = ".", features=["tdk"]}

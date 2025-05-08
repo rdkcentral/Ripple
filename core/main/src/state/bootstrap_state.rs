@@ -15,17 +15,25 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
 use ripple_sdk::{
-    api::{apps::AppRequest, manifest::ripple_manifest_loader::RippleManifestLoader},
+    api::{
+        apps::AppRequest,
+        manifest::ripple_manifest_loader::RippleManifestLoader,
+        rules_engine::{RuleEngine, RuleEngineProvider},
+    },
     async_channel::{unbounded, Receiver as CReceiver, Sender as CSender},
     extn::ffi::ffi_message::CExtnMessage,
     framework::bootstrap::TransientChannel,
     log::{error, info, warn},
-    tokio::sync::mpsc::{self, Receiver, Sender},
+    tokio::{
+        self,
+        sync::mpsc::{self, Receiver, Sender},
+    },
     utils::error::RippleError,
 };
+use ssda_types::ApiGatewayServer;
 
 use crate::{
     bootstrap::manifest::apps::LoadAppLibraryStep,
@@ -105,7 +113,7 @@ impl Default for ChannelsState {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct BootstrapState {
     pub start_time: Instant,
     pub platform_state: PlatformState,
@@ -123,12 +131,23 @@ impl BootstrapState {
         };
         let app_manifest_result = LoadAppLibraryStep::load_app_library();
         let extn_state = ExtnState::new(channels_state.clone(), extn_manifest.clone());
+        let rules_engine: Arc<tokio::sync::RwLock<Box<dyn RuleEngineProvider + Send + Sync>>> =
+            Arc::new(tokio::sync::RwLock::new(Box::new(RuleEngine::build(
+                &extn_manifest,
+            ))));
+        let api_gateway_state: Arc<tokio::sync::Mutex<Box<dyn ApiGatewayServer + Send + Sync>>> =
+            Arc::new(tokio::sync::Mutex::new(Box::new(
+                ssda_service::ApiGateway::new(rules_engine.clone()),
+            )));
+
         let platform_state = PlatformState::new(
             extn_manifest,
             device_manifest,
             client,
             app_manifest_result,
             ripple_version_from_etc(),
+            api_gateway_state.clone(),
+            rules_engine.clone(),
         );
 
         fn ripple_version_from_etc() -> Option<String> {
@@ -159,6 +178,7 @@ impl BootstrapState {
             warn!("error reading versions from {}", version_file_name,);
             None
         }
+
         Ok(BootstrapState {
             start_time: Instant::now(),
             platform_state,

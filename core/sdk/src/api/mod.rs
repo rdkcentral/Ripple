@@ -25,6 +25,7 @@ pub mod default_storage_properties;
 pub mod device;
 pub mod manifest;
 pub mod ripple_cache;
+pub mod rules_engine;
 pub mod session;
 pub mod settings;
 pub mod status_update;
