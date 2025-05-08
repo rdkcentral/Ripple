@@ -210,6 +210,18 @@ impl ExtnManifest {
     pub fn has_rpc_override_method(&self, method: &str) -> Option<String> {
         self.rpc_overrides.get(method).cloned()
     }
+
+    pub fn get_all_extns(&self) -> Vec<ExtnSymbol> {
+        let mut all_extns = vec![];
+        for extn in self.extns.clone() {
+            all_extns.extend(extn.symbols);
+        }
+        all_extns
+    }
+
+    pub fn get_extn_symbol(&self, id: &str) -> Option<ExtnSymbol> {
+        self.get_all_extns().into_iter().find(|extn| extn.id.eq(id))
+    }
 }
 #[cfg(test)]
 pub(crate) mod tests {

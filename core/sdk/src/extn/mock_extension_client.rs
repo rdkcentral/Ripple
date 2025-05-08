@@ -2,12 +2,10 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 
 use crate::{
-    async_channel::{unbounded, Sender},
     extn::{
-        client::{extn_client::ExtnClient, extn_sender::ExtnSender},
+        client::extn_client::ExtnClient,
         extn_client_message::{ExtnMessage, ExtnPayload, ExtnRequest},
         extn_id::{ExtnClassId, ExtnId},
-        ffi::ffi_message::CExtnMessage,
     },
     framework::ripple_contract::RippleContract,
     uuid::Uuid,
@@ -134,7 +132,6 @@ macro_rules! create_processor {
             ) {
                 let mut main = $crate::extn::mock_extension_client::MockExtnClient::main();
                 let (cli, extn_rx) = $proc_ty::add(&mut main);
-                $crate::extn::mock_extension_client::MockExtnClient::start(main.clone());
                 (main, cli, extn_rx)
             }
         }
@@ -162,43 +159,16 @@ impl<T> MockProcessorClient<T> {
 pub struct MockExtnClient {}
 
 impl MockExtnClient {
-    pub fn client(response_sender: Sender<CExtnMessage>) -> ExtnClient {
-        let (_, ignore) = unbounded();
-        ExtnClient::new(
-            ignore,
-            ExtnSender::new(
-                response_sender,
-                ExtnId::new_channel(ExtnClassId::Internal, "test".into()),
-                Vec::new(),
-                Vec::new(),
-                None,
-            ),
-        )
+    pub fn client() -> ExtnClient {
+        ExtnClient::new_main()
     }
 
     pub fn main() -> ExtnClient {
-        let (main_s, main_r) = async_channel::unbounded();
-        ExtnClient::new(
-            main_r,
-            ExtnSender::new(
-                main_s,
-                ExtnId::get_main_target(String::from("main")),
-                Vec::new(),
-                Vec::new(),
-                None,
-            ),
-        )
-    }
-
-    pub fn start(client: ExtnClient) {
-        tokio::spawn(async move {
-            client.initialize().await;
-        });
+        ExtnClient::new_main()
     }
 
     pub fn req(contract: RippleContract, req: ExtnRequest) -> ExtnMessage {
         ExtnMessage {
-            callback: None,
             id: Uuid::new_v4().to_string(),
             payload: ExtnPayload::Request(req),
             requestor: ExtnId::new_channel(ExtnClassId::Internal, "test".into()),

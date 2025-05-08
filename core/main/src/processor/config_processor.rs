@@ -100,12 +100,6 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
             Config::DefaultLanguage => ExtnResponse::Config(ConfigResponse::String(
                 device_manifest.configuration.default_values.language,
             )),
-            Config::AllDefaultApps => ExtnResponse::Config(ConfigResponse::AllApps(
-                state.app_library_state.get_all_apps(),
-            )),
-            Config::DefaultApp => {
-                ExtnResponse::DefaultApp(state.app_library_state.get_default_app().unwrap())
-            }
             Config::SavedDir => {
                 ExtnResponse::String(device_manifest.configuration.saved_dir.clone())
             }

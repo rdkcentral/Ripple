@@ -62,7 +62,7 @@ impl Session {
         Err(RippleError::SendFailure)
     }
 
-    fn get_app_id(&self) -> String {
+    pub fn get_app_id(&self) -> String {
         self.data.app_id.clone()
     }
 }

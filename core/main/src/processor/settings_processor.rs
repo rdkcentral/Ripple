@@ -106,22 +106,27 @@ impl SettingsProcessor {
         {
             let mut settings = HashMap::default();
             for sk in request.keys.clone() {
-                use SettingKey::*;
                 let val = match sk {
-                    VoiceGuidanceEnabled => {
+                    SettingKey::VoiceGuidanceEnabled => {
                         let enabled = voice_guidance_settings_enabled(state)
                             .await
                             .unwrap_or(false);
                         Some(SettingValue::bool(enabled))
                     }
-                    ClosedCaptions => {
+                    SettingKey::ClosedCaptions => {
                         let enabled = ClosedcaptionsImpl::cc_enabled(state).await.unwrap_or(false);
                         Some(SettingValue::bool(enabled))
                     }
-                    AllowPersonalization => Some(SettingValue::bool(cp.enable_recommendations)),
-                    AllowWatchHistory => Some(SettingValue::bool(cp.remember_watched_programs)),
-                    ShareWatchHistory => Some(SettingValue::bool(cp.share_watch_history)),
-                    DeviceName => {
+                    SettingKey::AllowPersonalization => {
+                        Some(SettingValue::bool(cp.enable_recommendations))
+                    }
+                    SettingKey::AllowWatchHistory => {
+                        Some(SettingValue::bool(cp.remember_watched_programs))
+                    }
+                    SettingKey::ShareWatchHistory => {
+                        Some(SettingValue::bool(cp.share_watch_history))
+                    }
+                    SettingKey::DeviceName => {
                         let mut s = state.clone();
                         Some(SettingValue::string(
                             broker_utils::BrokerUtils::process_internal_main_request(
@@ -134,8 +139,8 @@ impl SettingsProcessor {
                             .to_string(),
                         ))
                     }
-                    PowerSaving => Some(SettingValue::bool(true)),
-                    LegacyMiniGuide => Some(SettingValue::bool(false)),
+                    SettingKey::PowerSaving => Some(SettingValue::bool(true)),
+                    SettingKey::LegacyMiniGuide => Some(SettingValue::bool(false)),
                 };
 
                 if let Some(v) = val {

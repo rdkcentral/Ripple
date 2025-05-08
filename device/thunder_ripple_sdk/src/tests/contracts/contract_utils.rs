@@ -19,15 +19,10 @@ use pact_consumer::mock_server::StartMockServerAsync;
 use pact_consumer::prelude::PactBuilder;
 use pact_consumer::prelude::PactBuilderAsync;
 use pact_consumer::prelude::ValidatingMockServer;
-use ripple_sdk::async_channel::Receiver;
-use ripple_sdk::async_channel::Sender;
-use ripple_sdk::extn::client::extn_client::ExtnClient;
-use ripple_sdk::extn::client::extn_sender::ExtnSender;
 use ripple_sdk::extn::extn_client_message::ExtnMessage;
 use ripple_sdk::extn::extn_client_message::ExtnPayload;
 use ripple_sdk::extn::extn_id::ExtnClassId;
 use ripple_sdk::extn::extn_id::ExtnId;
-use ripple_sdk::extn::ffi::ffi_message::CExtnMessage;
 use ripple_sdk::framework::ripple_contract::RippleContract;
 use std::collections::HashMap;
 
@@ -195,29 +190,12 @@ pub async fn get_pact_mock_server(async_build: PactBuilderAsync) -> Box<dyn Vali
         .await
 }
 
-pub fn get_extn_client(s: Sender<CExtnMessage>, r: Receiver<CExtnMessage>) -> ExtnClient {
-    // Creating extn client which will send back the data to the receiver(instead of callback)
-    let option_map: Option<HashMap<String, String>> = Some(HashMap::new());
-
-    ExtnClient::new(
-        r,
-        ExtnSender::new(
-            s,
-            ExtnId::new_channel(ExtnClassId::Device, "pact".into()),
-            Vec::new(),
-            Vec::new(),
-            option_map,
-        ),
-    )
-}
-
 pub fn get_mock_server_url(mock_server: Box<dyn ValidatingMockServer>) -> url::Url {
     url::Url::parse(mock_server.path("/jsonrpc").as_str()).unwrap()
 }
 
 pub fn get_extn_msg(payload: ExtnPayload) -> ExtnMessage {
     ExtnMessage {
-        callback: None,
         id: "SomeId".into(),
         payload,
         requestor: ExtnId::new_channel(ExtnClassId::Device, "pact".into()),

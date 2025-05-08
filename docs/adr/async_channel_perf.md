@@ -19,7 +19,7 @@ __**Proposed**__
 
 `Crossbeam`: [Rust crate](https://docs.rs/crossbeam/latest/crossbeam/index.html) which support MPMC but with synchronous support.
 
-`Async Channel`: [Rust crate](https://docs.rs/async-channel/latest/async_channel/) which support MPMC but with asynchronous support.
+`Async Channel`: [Rust crate](https://docs.rs/async-channel/latest/async_channel/) which support MPMC but with asynchronous support. 
 
 `Tokio Runtime` : [Tokio Runtime](https://docs.rs/tokio/latest/tokio/runtime/index.html) is a asynchronous scheduler which performs series of async tasks through concept called green threads. In Ripple we use Tokio runtime in `Main` and in `Extensions`. 
 

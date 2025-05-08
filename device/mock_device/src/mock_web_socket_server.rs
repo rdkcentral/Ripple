@@ -32,14 +32,14 @@ use ripple_sdk::{
         net::{TcpListener, TcpStream},
         sync::Mutex,
     },
+    tokio_tungstenite::{
+        accept_hdr_async,
+        tungstenite::{handshake, Error, Message, Result},
+        WebSocketStream,
+    },
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tokio_tungstenite::{
-    accept_hdr_async,
-    tungstenite::{handshake, Error, Message, Result},
-    WebSocketStream,
-};
 
 use crate::{
     errors::MockServerWebSocketError,
@@ -218,7 +218,7 @@ impl MockWebSocketServer {
     }
 
     async fn create_listener(port: u16) -> Result<TcpListener, MockServerWebSocketError> {
-        let addr: SocketAddr = format!("0.0.0.0:{}", port).parse().unwrap();
+        let addr: SocketAddr = format!("127.0.0.1:{}", port).parse().unwrap();
         let listener = TcpListener::bind(&addr)
             .await
             .map_err(|_| MockServerWebSocketError::CantListen)?;
@@ -505,7 +505,7 @@ impl MockWebSocketServer {
         Ok(())
     }
 
-    pub async fn emit_event(self: Arc<Self>, event: &Value, delay: u64) {
+    pub async fn emit_event(&self, event: &Value, delay: u64) {
         let mut peers = self.connected_peer_sinks.lock().await;
         let event_value = event.to_string();
         let mut new_peers = HashMap::new();
@@ -528,19 +528,20 @@ impl MockWebSocketServer {
 
 #[cfg(test)]
 mod tests {
-    use ripple_sdk::tokio::time::{self, error::Elapsed, Duration};
+    use ripple_sdk::{
+        tokio::time::{self, error::Elapsed, Duration},
+        utils::ws_utils::WebSocketUtils,
+    };
 
     use super::*;
 
     async fn start_server(mock_data: MockData) -> Arc<MockWebSocketServer> {
-        let server = MockWebSocketServer::new(
-            mock_data,
-            WsServerParameters::default(),
-            MockConfig::default(),
-        )
-        .await
-        .expect("Unable to start server")
-        .into_arc();
+        let mut server_config = WsServerParameters::new();
+        server_config.port(0);
+        let server = MockWebSocketServer::new(mock_data, server_config, MockConfig::default())
+            .await
+            .expect("Unable to start server")
+            .into_arc();
 
         tokio::spawn(server.clone().start_server());
 
@@ -551,15 +552,13 @@ mod tests {
         server: Arc<MockWebSocketServer>,
         request: Message,
     ) -> Result<Option<Result<Message, Error>>, Elapsed> {
-        let (client, _) =
-            tokio_tungstenite::connect_async(format!("ws://0.0.0.0:{}", server.port()))
-                .await
-                .expect("Unable to connect to WS server");
-
-        let (mut send, mut receive) = client.split();
-
+        let (mut send, mut receive) = WebSocketUtils::get_ws_stream(
+            format!("ws://127.0.0.1:{}", server.port()).as_str(),
+            None,
+        )
+        .await
+        .unwrap();
         send.send(request).await.expect("Failed to send message");
-
         time::timeout(Duration::from_secs(1), receive.next()).await
     }
 
@@ -597,16 +596,6 @@ mod tests {
         assert_eq!(params.port, Some(16789));
         assert_eq!(params.path, Some("/some/path".to_owned()));
         assert_eq!(params.query_params, Some(qp));
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_start_server() {
-        let mock_data = HashMap::default();
-        let server = start_server(mock_data).await;
-
-        let _ = tokio_tungstenite::connect_async(format!("ws://0.0.0.0:{}", server.port()))
-            .await
-            .expect("Unable to connect to WS server");
     }
 
     #[tokio::test(flavor = "multi_thread")]

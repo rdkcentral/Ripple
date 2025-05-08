@@ -15,24 +15,32 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::thread;
+
 use ripple_sdk::{
-    api::firebolt::fb_openrpc::OpenRPCParser,
+    api::manifest::extn_manifest::ExtnManifestEntry,
     async_trait::async_trait,
-    extn::{
-        client::extn_sender::ExtnSender,
-        extn_id::ExtnId,
-        ffi::{ffi_channel::load_channel_builder, ffi_jsonrpsee::load_jsonrpsee_methods},
-    },
+    extn::ffi::ffi_channel::load_channel_builder,
     framework::bootstrap::Bootstep,
-    log::{debug, error, info},
+    log::{debug, info, warn},
     utils::error::RippleError,
 };
 
-use crate::state::{
-    bootstrap_state::{BootstrapState, ChannelsState},
-    extn_state::PreLoadedExtnChannel,
-};
-use jsonrpsee::core::server::rpc_module::Methods;
+use crate::state::bootstrap_state::BootstrapState;
+use ripple_sdk::libloading::Library;
+use std::ffi::OsStr;
+
+#[derive(Debug)]
+pub struct LoadedLibrary {
+    pub library: Library,
+    pub entry: ExtnManifestEntry,
+}
+
+impl LoadedLibrary {
+    pub fn new(library: Library, entry: ExtnManifestEntry) -> LoadedLibrary {
+        LoadedLibrary { library, entry }
+    }
+}
 
 /// Actual bootstep which loads the extensions into the ExtnState.
 /// Currently this step loads
@@ -40,117 +48,85 @@ use jsonrpsee::core::server::rpc_module::Methods;
 /// 2. Device Extensions
 pub struct LoadExtensionsStep;
 
+impl LoadExtensionsStep {
+    unsafe fn load_extension_library<P: AsRef<OsStr>>(
+        filename: P,
+        entry: ExtnManifestEntry,
+    ) -> Option<LoadedLibrary> {
+        match Library::new(&filename) {
+            Ok(library) => Some(LoadedLibrary::new(library, entry)),
+            Err(err) => {
+                debug!("Extn not found: {:?}", err);
+                None
+            }
+        }
+    }
+
+    async fn pre_setup(&self, state: BootstrapState) -> Result<Vec<LoadedLibrary>, RippleError> {
+        debug!("Starting Extension Library step");
+        let manifest = state.platform_state.get_manifest();
+        let default_path = manifest.default_path;
+        let default_extn = manifest.default_extension;
+        let extn_paths: Vec<(String, ExtnManifestEntry)> = manifest
+            .extns
+            .into_iter()
+            .map(|f| {
+                (f.get_path(&default_path, &default_extn), f)
+                // TODO Add Resolution checks later on
+            })
+            .collect();
+        let mut loaded_extns = Vec::new();
+        unsafe {
+            for (extn_path, entry) in extn_paths {
+                debug!("");
+                debug!("");
+                debug!(
+                    "******************Loading {}************************",
+                    extn_path
+                );
+                let r = Self::load_extension_library(extn_path.clone(), entry);
+                match r {
+                    Some(loaded_extn) => {
+                        info!("Adding {}", loaded_extn.entry.path);
+                        loaded_extns.push(loaded_extn);
+                    }
+                    None => warn!(
+                        "file={} doesnt contain a valid extension library",
+                        extn_path
+                    ),
+                }
+                debug!("-------------------------------------------------");
+                debug!("");
+                debug!("");
+            }
+            let valid_extension_libraries = loaded_extns.len();
+            if valid_extension_libraries == 0 {
+                warn!("No valid extensions");
+            }
+            info!("Total Libraries loaded={}", valid_extension_libraries);
+        }
+        Ok(loaded_extns)
+    }
+}
+
 #[async_trait]
 impl Bootstep<BootstrapState> for LoadExtensionsStep {
     fn get_name(&self) -> String {
         "LoadExtensionsStep".into()
     }
     async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
-        let loaded_extensions = state.extn_state.loaded_libraries.read().unwrap();
-        let mut deferred_channels: Vec<PreLoadedExtnChannel> = Vec::new();
-        let mut device_channels: Vec<PreLoadedExtnChannel> = Vec::new();
-        let mut jsonrpsee_extns: Methods = Methods::new();
-        let mut open_rpcs: Vec<OpenRPCParser> = Vec::new();
-        let main_sender = state.extn_state.clone().get_sender();
+        let loaded_extensions = self.pre_setup(state.clone()).await?;
         for extn in loaded_extensions.iter() {
             unsafe {
-                let path = extn.entry.path.clone();
+                let path = &extn.entry.path;
                 let library = &extn.library;
-                info!(
-                    "path {} with # of symbols {}",
-                    path,
-                    extn.metadata.symbols.len()
-                );
-                let channels = extn.get_channels();
-                let extensions = extn.get_extns();
-                for channel in channels {
-                    debug!("loading channel builder for {}", channel.id);
-                    if let Ok(extn_id) = ExtnId::try_from(channel.id.clone()) {
-                        if let Ok(builder) = load_channel_builder(library) {
-                            debug!("building channel {}", channel.id);
-                            if let Ok(extn_channel) = (builder.build)(extn_id.to_string()) {
-                                let preloaded_channel = PreLoadedExtnChannel {
-                                    channel: extn_channel,
-                                    extn_id: extn_id.clone(),
-                                    symbol: channel.clone(),
-                                };
-                                if extn_id.is_device_channel() {
-                                    device_channels.push(preloaded_channel);
-                                } else {
-                                    deferred_channels.push(preloaded_channel);
-                                }
-                                if let Some(open_rpc) = (builder.get_extended_capabilities)() {
-                                    match serde_json::from_str(&open_rpc) {
-                                        Ok(v) => open_rpcs.push(v),
-                                        Err(e) => error!("{}", e.to_string()),
-                                    }
-                                } else {
-                                    info!("Channel: No extended capabilities");
-                                }
-                            } else {
-                                error!("invalid channel builder in {}", path);
-                                return Err(RippleError::BootstrapError);
-                            }
-                        } else {
-                            error!("failed loading builder in {}", path);
-                            return Err(RippleError::BootstrapError);
-                        }
-                    } else {
-                        error!("invalid extn manifest entry for extn_id");
-                        return Err(RippleError::BootstrapError);
-                    }
-                }
-                for extension in extensions {
-                    debug!("loading extension {}", extension.id);
-                    if let Ok(extn_id) = ExtnId::try_from(extension.id.clone()) {
-                        let builder = load_jsonrpsee_methods(library);
-                        if let Some(builder) = builder {
-                            let (_tx, tr) = ChannelsState::get_iec_channel();
-                            let extn_sender = ExtnSender::new(
-                                main_sender.clone(),
-                                extn_id,
-                                extension.uses,
-                                extension.fulfills,
-                                extension.config,
-                            );
-                            if let Some(open_rpc) = (builder.get_extended_capabilities)() {
-                                match serde_json::from_str(&open_rpc) {
-                                    Ok(v) => open_rpcs.push(v),
-                                    Err(e) => error!("{}", e.to_string()),
-                                }
-                            } else {
-                                info!("No extended capabilities");
-                            }
-
-                            let _ = jsonrpsee_extns.merge((builder.build)(extn_sender, tr));
-                        }
-                    }
+                info!("Starting library of path {}", path);
+                if let Ok(builder) = load_channel_builder(library) {
+                    thread::spawn(move || {
+                        (builder.start)();
+                    });
                 }
             }
-        }
-
-        {
-            let mut device_channel_state = state.extn_state.device_channels.write().unwrap();
-            info!("{} Device channels extension loaded", device_channels.len());
-            let _ = device_channel_state.extend(device_channels);
-        }
-
-        {
-            let mut deferred_channel_state = state.extn_state.deferred_channels.write().unwrap();
-            info!(
-                "{} Deferred channels extension loaded",
-                deferred_channels.len()
-            );
-            let _ = deferred_channel_state.extend(deferred_channels);
-        }
-
-        state.extn_state.extend_methods(jsonrpsee_extns);
-
-        for open_rpc in open_rpcs {
-            state
-                .platform_state
-                .open_rpc_state
-                .add_open_rpc(open_rpc.into());
         }
 
         Ok(())

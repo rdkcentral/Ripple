@@ -31,7 +31,6 @@ jsonrpsee = { workspace = true, features = ["macros", "jsonrpsee-core"] }
 ripple_sdk.workspace = true
 serde_json.workspace = true
 serde.workspace = true
-tokio-tungstenite = { workspace = true, features = ["native-tls", "connect"] }
 url.workspace = true
 
 

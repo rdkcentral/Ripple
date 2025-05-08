@@ -644,8 +644,7 @@ pub mod tests {
     #[rstest(exp_resp, case(Some(ExtnResponse::Boolean(true))))]
     #[tokio::test(flavor = "multi_thread")]
     async fn test_request_processor_run(exp_resp: Option<ExtnResponse>) {
-        let (mock_sender, receiver) = ExtnSender::mock();
-        let mut extn_client = ExtnClient::new(receiver, mock_sender.clone());
+        let mut extn_client = ExtnClient::new_main();
         let processor = MockRequestProcessor {
             state: MockState {
                 client: extn_client.clone(),
@@ -655,11 +654,6 @@ pub mod tests {
         };
 
         extn_client.add_request_processor(processor);
-        let extn_client_for_thread = extn_client.clone();
-
-        tokio::spawn(async move {
-            extn_client_for_thread.clone().initialize().await;
-        });
 
         let response = extn_client
             .request(MockRequest {
@@ -677,7 +671,6 @@ pub mod tests {
                     target: RippleContract::Internal,
                     target_id: None,
                     payload: ExtnPayload::Response(exp_resp.clone().unwrap()),
-                    callback: None,
                     ts: Some(Utc::now().timestamp_millis()),
                 };
 
@@ -685,11 +678,6 @@ pub mod tests {
                 assert_eq!(actual_response.requestor, expected_message.requestor);
                 assert_eq!(actual_response.target, expected_message.target);
                 assert_eq!(actual_response.target_id, expected_message.target_id);
-
-                assert_eq!(
-                    actual_response.callback.is_some(),
-                    expected_message.callback.is_some()
-                );
                 assert!(actual_response.ts.is_some());
             }
             Err(_) => {
@@ -713,8 +701,8 @@ pub mod tests {
     )]
     #[tokio::test]
     async fn test_event_processor_run(exp_resp: Option<ExtnResponse>) {
-        let (mock_sender, mock_rx) = ExtnSender::mock();
-        let mut extn_client = ExtnClient::new(mock_rx, mock_sender.clone());
+        let (mock_sender, _mock_rx) = ExtnSender::mock();
+        let mut extn_client = ExtnClient::new_main();
         let processor = MockEventProcessor {
             state: MockState {
                 client: extn_client.clone(),
@@ -724,22 +712,21 @@ pub mod tests {
         };
 
         extn_client.add_event_processor(processor);
-        let extn_client_for_thread = extn_client.clone();
 
         extn_client.clone().add_sender(
-            ExtnId::get_main_target("main".into()),
+            ExtnId::get_main_target("main".into()).to_string(),
             ExtnSymbol {
                 id: "id".to_string(),
                 uses: vec!["uses".to_string()],
                 fulfills: Vec::new(),
                 config: None,
             },
-            mock_sender.tx,
+            mock_sender.tx.unwrap(),
         );
 
-        tokio::spawn(async move {
-            extn_client_for_thread.initialize().await;
-        });
+        // tokio::spawn(async move {
+        //     extn_client_for_thread.initialize().await;
+        // });
 
         let response = extn_client.event(MockEvent {
             event_name: "test_event".to_string(),

@@ -18,7 +18,6 @@
 pub mod app_events_processor;
 pub mod authorized_info_processor;
 pub mod config_processor;
-pub mod exn_status_processor;
 pub mod keyboard_processor;
 pub mod lifecycle_management_processor;
 pub mod main_context_processor;

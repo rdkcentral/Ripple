@@ -46,7 +46,7 @@ use crate::broker::{
 
 use futures::stream::SplitSink;
 use futures_util::SinkExt;
-use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
+use ripple_sdk::tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 
 // TBD get the storage dir from manifest or other Ripple config file
 const RIPPLE_STORAGE_DIR: &str = "/opt/persistent/ripple";

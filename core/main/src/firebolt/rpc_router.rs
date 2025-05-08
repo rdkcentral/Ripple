@@ -238,8 +238,9 @@ impl RpcRouter {
         )
         .emit_debug();
         tokio::spawn(async move {
+            let client = platform_state.get_client().get_extn_client();
             if let Ok(msg) = resolve_route(&mut platform_state, methods, resources, req).await {
-                return_extn_response(msg, extn_msg);
+                return_extn_response(msg, extn_msg, client);
             }
         });
     }

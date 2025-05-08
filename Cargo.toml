@@ -21,11 +21,7 @@ members = [
     "core/tdk",
     "device/thunder_ripple_sdk",
     "core/main",
-    "device/thunder",
     "device/mock_device",
-    "distributor/general",
-    "examples/rpc_extn",
-    "examples/tm_extn",
     "openrpc_validator"]
 
 [workspace.package]

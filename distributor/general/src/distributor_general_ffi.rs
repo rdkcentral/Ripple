@@ -18,7 +18,7 @@
 use ripple_sdk::{
     api::{config::Config, status_update::ExtnStatus, storage_property::StorageAdjective},
     async_channel::Receiver as CReceiver,
-    export_channel_builder, export_extn_metadata,
+    export_extn_channel, export_extn_metadata,
     extn::{
         client::{extn_client::ExtnClient, extn_sender::ExtnSender},
         extn_client_message::ExtnResponse,
@@ -112,7 +112,7 @@ fn get_extended_capabilities() -> Option<String> {
     None
 }
 
-fn init_extn_builder() -> ExtnChannelBuilder {
+fn init_extn_channel() -> ExtnChannelBuilder {
     ExtnChannelBuilder {
         get_extended_capabilities,
         build,
@@ -120,4 +120,4 @@ fn init_extn_builder() -> ExtnChannelBuilder {
     }
 }
 
-export_channel_builder!(ExtnChannelBuilder, init_extn_builder);
+export_extn_channel!(ExtnChannelBuilder, init_extn_channel);
