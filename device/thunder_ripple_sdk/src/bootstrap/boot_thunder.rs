@@ -49,6 +49,13 @@ pub async fn boot_thunder(
     device_manifest: &DeviceManifest,
 ) -> Option<ThunderBootstrapStateWithClient> {
     info!("Booting thunder initiated");
+    let mut status_check = true;
+
+    if let Some(status) = ext_client.get_config("thunder_plugin_status_check_at_broker_start_up") {
+        if let Ok(s) = status.parse() {
+            status_check = s;
+        }
+    };
     let state = if ext_client.get_bool_config("use_with_thunder_async_client") {
         info!("Using thunder_async_clinet");
         let mut gateway_url = match url::Url::parse(GATEWAY_DEFAULT) {
@@ -94,6 +101,7 @@ pub async fn boot_thunder(
             None,
             None,
             true,
+            status_check,
         )
         .await
         {
