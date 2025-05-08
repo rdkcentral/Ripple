@@ -705,14 +705,14 @@ impl EndpointBrokerState {
             telemetry_response_listeners,
         )
     }
-    pub fn build_thunder_endpoint(&mut self) {
+    pub fn build_thunder_endpoint(&mut self, ps: Option<PlatformState>) {
         if let Some(endpoint) = self.rule_engine.rules.endpoints.get("thunder").cloned() {
             let request = BrokerConnectRequest::new(
                 "thunder".to_owned(),
                 endpoint.clone(),
                 self.reconnect_tx.clone(),
             );
-            self.build_endpoint(None, request);
+            self.build_endpoint(ps, request);
         }
     }
 
@@ -758,7 +758,7 @@ impl EndpointBrokerState {
             }
             RuleEndpointProtocol::Thunder => {
                 let thunder_broker =
-                    ThunderBroker::get_broker(None, request, self.callback.clone(), self);
+                    ThunderBroker::get_broker(ps, request, self.callback.clone(), self);
                 (
                     thunder_broker.get_sender(),
                     Some(thunder_broker.get_cleaner()),
