@@ -215,7 +215,8 @@ impl PlatformState {
         rpc_request: impl ExtnPayloadProvider,
     ) -> Result<ExtnMessage, RippleError> {
         self.get_client()
-            .send_extn_request(rpc_request.to_owned())
+            .get_extn_client()
+            .main_internal_request(rpc_request.to_owned())
             .await
     }
 }

@@ -42,7 +42,7 @@ use {println as trace, println as debug, println as error};
 #[repr(C)]
 #[derive(Clone, Debug)]
 pub struct ExtnSender {
-    pub tx: Sender<ApiMessage>,
+    pub tx: Option<Sender<ApiMessage>>,
     pub id: ExtnId,
     pub permitted: Vec<String>,
     pub fulfills: Vec<String>,
@@ -55,11 +55,23 @@ impl ExtnSender {
     }
 
     pub fn new_main() -> Self {
-        todo!()
+        ExtnSender { 
+            tx: None, 
+            id: ExtnId::get_main_target("main".to_owned()), 
+            permitted: Vec::default(), 
+            fulfills: Vec::default(), 
+            config: None 
+        }
     }
     
-    pub fn new_extn(_symbol: ExtnSymbol) -> Self {
-        todo!()
+    pub fn new_extn(tx:Sender<ApiMessage>, symbol: ExtnSymbol) -> Self {
+        ExtnSender {
+            tx: Some(tx),
+            id: ExtnId::try_from(symbol.id.clone()).unwrap(),
+            permitted: symbol.uses.clone(),
+            fulfills: symbol.fulfills.clone(),
+            config: symbol.config.clone()
+        }
     }
 
     pub fn check_contract_permission(&self, contract: RippleContract) -> bool {
@@ -89,6 +101,17 @@ impl ExtnSender {
         None
     }
 
+    pub fn get_message(&self, id:String, payload: impl ExtnPayloadProvider) -> ExtnMessage {
+        ExtnMessage {
+            requestor: self.id.clone(),
+            payload: payload.get_extn_payload(),
+            id,
+            target: payload.get_contract(),
+            target_id: None,
+            ts: Some(Utc::now().timestamp_millis()),
+        }
+    }
+
     pub fn send_request(
         &self,
         id: String,
@@ -105,14 +128,7 @@ impl ExtnSender {
             return Err(RippleError::InvalidAccess);
         }
         // let c_request = p.into();
-        let msg = ExtnMessage {
-            requestor: self.id.clone(),
-            payload: payload.get_extn_payload(),
-            id,
-            target: payload.get_contract(),
-            target_id: None,
-            ts: Some(Utc::now().timestamp_millis()),
-        };
+        let msg = self.get_message(id, payload);
         self.send(msg.into(), other_sender)
     }
 
@@ -122,38 +138,8 @@ impl ExtnSender {
         other_sender: Option<Sender<ApiMessage>>,
     ) -> Result<(), RippleError> {
         let id = uuid::Uuid::new_v4().to_string();
-        let msg = ExtnMessage {
-            requestor: self.id.clone(),
-            payload: payload.get_extn_payload(),
-            id,
-            target: payload.get_contract().into(),
-            target_id: None,
-            ts: Some(Utc::now().timestamp_millis()),
-        };
+        let msg = self.get_message(id, payload);
         self.respond(msg, other_sender)
-    }
-
-    pub fn forward_event(
-        &self,
-        target_id: &str,
-        payload: impl ExtnPayloadProvider,
-    ) -> Result<(), RippleError> {
-        // Check if sender has permission to forward the payload
-        let permitted = self.check_contract_permission(payload.get_contract());
-        if permitted || self.get_cap().is_main() {
-            let id = uuid::Uuid::new_v4().to_string();
-            let msg = ExtnMessage {
-                requestor: self.id.clone(),
-                payload: payload.get_extn_payload(),
-                id,
-                target: payload.get_contract(),
-                target_id: None,
-                ts: Some(Utc::now().timestamp_millis()),
-            };
-            self.respond(msg.into(), None)
-        } else {
-            Err(RippleError::InvalidAccess)
-        }
     }
 
     pub fn send(
@@ -168,15 +154,15 @@ impl ExtnSender {
                 return Err(RippleError::SendFailure);
             }
             Ok(())
-        } else {
-            let tx = self.tx.clone();
-            //tokio::spawn(async move {
+        } else if let Some(tx) = self.tx.clone(){
             trace!("sending to main channel");
             if let Err(e) = tx.try_send(msg) {
                 error!("send() error for message in main sender {}", e);
                 return Err(RippleError::SendFailure);
             }
             Ok(())
+        } else {
+            Err(RippleError::SenderMissing)
         }
     }
 
@@ -192,8 +178,7 @@ impl ExtnSender {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::{api::device::device_info_request::DeviceInfoRequest, extn::extn_id::ExtnClassId};
-    use async_channel::{unbounded, Receiver as CReceiver, Sender};
+    use crate::{api::device::device_info_request::DeviceInfoRequest, extn::extn_id::ExtnClassId, utils::logger::init_and_configure_logger};
     use rstest::rstest;
     use tokio::sync::mpsc;
     use std::collections::HashMap;
@@ -228,8 +213,7 @@ pub mod tests {
     #[cfg(test)]
     impl Mockable for ExtnSender {
         fn mock() -> (Self, mpsc::Receiver<ApiMessage>) {
-            let (tx1, rx1) = mpsc::channel(2);
-            (ExtnSenderBuilder::new(tx1).build().0, rx1)
+            ExtnSenderBuilder::new().build()
         }
 
         fn mock_with_params(
@@ -238,17 +222,12 @@ pub mod tests {
             fulfills: Vec<String>,
             config: Option<HashMap<String, String>>,
         ) -> (Self, mpsc::Receiver<ApiMessage>) {
-            let (tx, rx) = mpsc::channel(2);
-            (
-                ExtnSenderBuilder::new(tx)
-                    .id(id)
-                    .context(context)
-                    .fulfills(fulfills)
-                    .config(config)
-                    .build()
-                    .0,
-                rx,
-            )
+            ExtnSenderBuilder::new()
+                .id(id)
+                .context(context)
+                .fulfills(fulfills)
+                .config(config)
+                .build()
         }
 
         fn mock_extn(
@@ -258,7 +237,8 @@ pub mod tests {
             config: Option<HashMap<String, String>>,
             main_sender: mpsc::Sender<ApiMessage>,
         ) -> (Self, mpsc::Sender<ApiMessage>, mpsc::Receiver<ApiMessage>) {
-            let (extn_sender, tx, rx) = ExtnSenderBuilder::new(main_sender.clone())
+            let (tx,rx) = mpsc::channel(2);
+            let (extn_sender, _tr) = ExtnSenderBuilder::new()
                 .main_sender(main_sender)
                 .id(id)
                 .context(context)
@@ -271,7 +251,6 @@ pub mod tests {
 
     #[cfg(test)]
     pub struct ExtnSenderBuilder {
-        main_sender: mpsc::Sender<ApiMessage>,
         id: ExtnId,
         context: Vec<String>,
         fulfills: Vec<String>,
@@ -280,9 +259,8 @@ pub mod tests {
 
     #[cfg(test)]
     impl ExtnSenderBuilder {
-        fn new(main_sender: mpsc::Sender<ApiMessage>) -> Self {
+        fn new() -> Self {
             ExtnSenderBuilder {
-                main_sender,
                 id: ExtnId::get_main_target("main".into()),
                 context: Vec::new(),
                 fulfills: Vec::new(),
@@ -290,8 +268,7 @@ pub mod tests {
             }
         }
 
-        fn main_sender(mut self, main_sender: mpsc::Sender<ApiMessage>) -> Self {
-            self.main_sender = main_sender;
+        fn main_sender(self, _main_sender: mpsc::Sender<ApiMessage>) -> Self {
             self
         }
 
@@ -315,17 +292,16 @@ pub mod tests {
             self
         }
 
-        fn build(self) -> (ExtnSender, mpsc::Sender<ApiMessage>, mpsc::Receiver<ApiMessage>) {
+        fn build(self) -> (ExtnSender, mpsc::Receiver<ApiMessage>) {
             let (tx, rx) = mpsc::channel(2);
             (
                 ExtnSender {
-                    tx:tx.clone(),
+                    tx:Some(tx.clone()),
                     id: self.id,
                     permitted: self.context,
                     fulfills: self.fulfills,
                     config: self.config,
                 },
-                tx,
                 rx,
             )
         }
@@ -469,7 +445,7 @@ pub mod tests {
         let result = sender.send_request(
             "some_id".to_string(),
             DeviceInfoRequest::Model.clone(),
-            Some(sender.tx.clone())
+            Some(sender.clone().tx.unwrap())
         );
 
         if permitted_req {
@@ -508,7 +484,7 @@ pub mod tests {
             Some(HashMap::new()),
         );
 
-        let result = sender.send_event(DeviceInfoRequest::Model, Some(sender.tx.clone()));
+        let result = sender.send_event(DeviceInfoRequest::Model, Some(sender.clone().tx.unwrap()));
 
         assert!(result.is_ok());
         if let Some(m) = rx.recv().await {
@@ -528,33 +504,13 @@ pub mod tests {
         };
     }
 
-    #[rstest(id, extn_id, permitted,fulfills, exp_resp,
-        case("ext_id", ExtnId::get_main_target("main".into()), vec!["context".to_string()], vec!["fulfills".to_string()],  Ok(())),
-        case("non_ext_id", ExtnId::get_main_target("main".into()), vec!["context".to_string()], vec!["fulfills".to_string()], Ok(())),    
-        case("non_ext_id", ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
-        vec!["config".to_string()],
-        vec!["device_info".to_string()], Err(RippleError::InvalidAccess))
-    )]
-    async fn test_forward_event(
-        id: &str,
-        extn_id: ExtnId,
-        permitted: Vec<String>,
-        fulfills: Vec<String>,
-        exp_resp: RippleResponse,
-    ) {
-        let (sender, _mock_rx) =
-            ExtnSender::mock_with_params(extn_id, permitted, fulfills, Some(HashMap::new()));
-        let actual_response = sender.forward_event(id, DeviceInfoRequest::Model);
-        assert_eq!(actual_response, exp_resp);
-    }
-
     #[rstest]
     #[case(None, false)]
     #[case(None, true)]
     #[case(Some(0), false)] // 0 is a placeholder; we'll replace it with the actual sender inside the test
     #[case(Some(0), true)]
     async fn test_send(#[case] other_sender_option: Option<u8>, #[case] drop_rx: bool) {
-        let (sender, mut rx) = ExtnSender::mock();
+        let (sender, rx) = ExtnSender::mock();
 
         // Wrap rx in an Option to conditionally take it for dropping
         let mut rx_option = Some(rx);
@@ -578,7 +534,7 @@ pub mod tests {
 
         // Determine the actual sender based on the test case
         let actual_sender_option = match other_sender_option {
-            Some(_) => Some(sender.tx.clone()), // Replace 0 with the actual sender
+            Some(_) => Some(sender.clone().tx.unwrap()), // Replace 0 with the actual sender
             None => None,
         };
 
@@ -617,12 +573,16 @@ pub mod tests {
     }
 
     #[rstest]
-    #[case(Some(0), false)]
-    #[case(None, false)]
-    #[case(Some(0), true)]
-    #[case(None, true)]
-    async fn test_respond(#[case] other_sender_option: Option<u8>, #[case] drop_rx: bool) {
-        let (sender, rx) = ExtnSender::mock();
+    #[case(false)]
+    #[case(true)]
+    async fn test_respond(#[case] drop_rx: bool) {
+        let _ = init_and_configure_logger("some", "test".to_owned(), None);
+        let (sender, rx) = ExtnSender::mock_with_params(
+            ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
+            vec!["device_info".to_owned()],
+            Vec::new(),
+            None
+        );
 
         // Wrap rx in an Option to conditionally take it for dropping
         let mut rx_option = Some(rx);
@@ -642,14 +602,8 @@ pub mod tests {
             let _dropped = rx_option.take(); // This takes rx out of the Option, effectively dropping it
         }
 
-        // Create optional other_sender based on the test case
-        let actual_other_sender_option = match other_sender_option {
-            Some(_) => Some(sender.tx.clone()), // Replace 0 with the actual sender
-            None => None,
-        };
-
         // Perform the respond operation
-        let result = sender.respond(msg, actual_other_sender_option);
+        let result = sender.respond(msg, None);
 
         // Assert based on the expected outcome
         if drop_rx {
@@ -660,6 +614,7 @@ pub mod tests {
                 result
             );
         } else {
+            assert!(rx_option.is_some(), "RX is not removed");
             // Expecting success when the receiver is not dropped
             assert!(result.is_ok(), "Expected Ok, got {:?}", result);
             // Use rx_option here to attempt receiving, since rx might have been taken above

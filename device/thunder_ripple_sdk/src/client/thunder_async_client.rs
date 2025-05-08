@@ -305,7 +305,7 @@ impl ThunderAsyncClient {
                 {
                     // let mut ws_tx = ws_tx_wrap.lock().await;
                     let _feed = thunder_tx
-                        .feed(tokio_tungstenite::tungstenite::Message::Text(
+                        .feed(Message::Text(
                             status_check_request.to_string(),
                         ))
                         .await;

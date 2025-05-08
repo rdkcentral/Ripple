@@ -44,7 +44,7 @@ use ripple_sdk::{framework::bootstrap::Bootstep, utils::error::RippleError};
 pub struct FireboltGatewayStep;
 
 impl FireboltGatewayStep {
-    async fn init_handlers(&self, state: PlatformState, extn_methods: Methods) -> Methods {
+    async fn init_handlers(&self, state: PlatformState) -> Methods {
         let mut methods = Methods::new();
 
         // TODO: Ultimately this may be able to register all providers below, for now just does
@@ -83,7 +83,6 @@ impl FireboltGatewayStep {
         if !state.has_internal_launcher() {
             let _ = methods.merge(LifecycleManagementProvider::provide_with_alias(state));
         }
-        let _ = methods.merge(extn_methods);
         methods
     }
 }
@@ -97,8 +96,7 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
     async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
         let methods = self
             .init_handlers(
-                state.platform_state.clone(),
-                state.extn_state.get_extn_methods(),
+                state.platform_state.clone()
             )
             .await;
         let gateway = FireboltGateway::new(state.clone(), methods);

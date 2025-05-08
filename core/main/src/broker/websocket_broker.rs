@@ -52,6 +52,7 @@ impl WebsocketBroker {
                 let resp = WebSocketUtils::get_ws_stream(&endpoint.get_url(), None).await;
                 if resp.is_err() {
                     error!("Error connecting to websocket broker");
+                    tr.close();
                     return false;
                 }
                 let (mut ws_tx, mut ws_rx) = resp.unwrap();
@@ -167,6 +168,7 @@ impl WSNotificationBroker {
             .await;
             if resp.is_err() {
                 error!("Error connecting to websocket broker");
+                tr.close();
                 return;
             }
             let (mut ws_tx, mut ws_rx) = resp.unwrap();
@@ -247,7 +249,7 @@ mod tests {
         },
         utils::test_utils::{MockWebsocket, WSMockData},
     };
-    use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
+    use ripple_sdk::{api::gateway::rpc_gateway_api::RpcRequest, utils::logger::init_logger};
     use serde_json::json;
 
     use super::*;
@@ -471,6 +473,7 @@ mod tests {
 
     #[tokio::test]
     async fn ws_notification_broker_start_test_connection_error() {
+        let _ = init_logger("ws tests".to_owned());
         let (sender, mut rec) = mpsc::channel(1);
         let callback = BrokerCallback { sender };
 
@@ -494,9 +497,7 @@ mod tests {
             protocol: crate::broker::rules_engine::RuleEndpointProtocol::Websocket,
             jsonrpc: false,
         };
-        let sender = WSNotificationBroker::start(request, callback, endpoint.get_url().clone());
-        sender.send("test".to_owned()).await.unwrap();
-        let v = tokio::time::timeout(Duration::from_secs(2), rec.recv()).await;
-        assert!(v.is_err());
+        let _ = WSNotificationBroker::start(request, callback, endpoint.get_url().clone());
+        assert!(rec.recv().await.is_none());
     }
 }
