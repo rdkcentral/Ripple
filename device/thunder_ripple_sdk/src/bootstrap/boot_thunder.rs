@@ -130,13 +130,6 @@ pub async fn boot_thunder(
         } else {
             None
         }
-    } else if let Ok(state) = ThunderGetConfigStep::setup(ext_client, plugin_param).await {
-        if let Ok(state) = ThunderPoolStep::setup(state, status_check).await {
-            Some(state)
-        } else {
-            error!("Unable to connect to Thunder, error in ThunderPoolStep");
-            None
-        }
     } else {
         error!("Unable to connect to Thunder, error in ThunderGetConfigStep");
         None
