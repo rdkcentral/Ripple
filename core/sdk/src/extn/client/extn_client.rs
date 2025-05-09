@@ -1312,7 +1312,7 @@ pub mod tests {
             ExtnSymbol {
                 id: "id".to_string(),
                 uses: Vec::new(),
-                fulfills: vec![RippleContract::Session(SessionAdjective::Device).as_clear_string()],
+                fulfills: vec![RippleContract::Session(SessionAdjective::Account).as_clear_string()],
                 config: None,
             },
             s,
@@ -1333,7 +1333,7 @@ pub mod tests {
         let extn_client = ExtnClient::new(mock_rx, mock_sender);
         let mut processor = MockEventProcessor::new_v1(
             extn_client.clone(),
-            vec![RippleContract::Session(SessionAdjective::Device)],
+            vec![RippleContract::Session(SessionAdjective::Account)],
         );
 
         add_vec_stream_processor(
@@ -1371,7 +1371,7 @@ pub mod tests {
             extn_client.clone(),
             vec![
                 RippleContract::Internal,
-                RippleContract::Session(SessionAdjective::Device),
+                RippleContract::Session(SessionAdjective::Account),
             ],
         );
 
