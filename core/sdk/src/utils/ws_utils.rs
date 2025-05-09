@@ -130,7 +130,6 @@ impl WebSocketUtils {
         let mut local_dev = false;
         if let Some(is_local_dev) = is_local_dev {
             if is_local_dev {
-                println!("***** 415 local_dev feature is enabled *****");
                 local_dev = true;
             };
         };
