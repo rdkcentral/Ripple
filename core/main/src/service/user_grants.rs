@@ -22,6 +22,12 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+use crate::{
+    firebolt::{firebolt_gatekeeper::FireboltGatekeeper, handlers::privacy_rpc::PrivacyImpl},
+    state::{cap::cap_state::CapState, platform_state::PlatformState},
+};
+use ripple_sdk::api::gateway::rpc_gateway_api::CallContext;
+use ripple_sdk::api::observability::log_signal::LogSignal;
 use ripple_sdk::{
     api::{
         apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
@@ -59,11 +65,6 @@ use ripple_sdk::{
     utils::error::RippleError,
 };
 use serde::Deserialize;
-
-use crate::{
-    firebolt::{firebolt_gatekeeper::FireboltGatekeeper, handlers::privacy_rpc::PrivacyImpl},
-    state::{cap::cap_state::CapState, platform_state::PlatformState},
-};
 
 use super::apps::provider_broker::{ProviderBroker, ProviderBrokerRequest};
 
@@ -279,6 +280,7 @@ impl GrantState {
             let mut grant_state = self.grant_app_map.write().unwrap();
             //Get a mutable reference to the value associated with a key, create it if it doesn't exist,
             let entries = grant_state.value.entry(app_id).or_default();
+
             if entries.contains(&new_entry) {
                 entries.remove(&new_entry);
             }
@@ -856,18 +858,53 @@ impl GrantState {
             None
         }
     }
-    pub async fn update_grant_as_per_policy(
+
+    pub async fn update_grant(
         platform_state: &PlatformState,
         granted: GrantStateModify,
         app_id: &Option<String>,
-        // permission: &FireboltPermission,
         role: CapabilityRole,
         capability: String,
+        ctx: CallContext,
+    ) -> Result<(), &'static str> {
+        let result = Self::update_grant_as_per_policy(
+            platform_state,
+            granted,
+            app_id,
+            role,
+            capability,
+            ctx.clone(),
+        )
+        .await;
+        LogSignal::new(
+            "user_grants".to_string(),
+            format!("update_grant_as_per_policy Response:{:?}", result),
+            ctx.clone(),
+        )
+        .emit_debug();
+        result
+    }
+
+    async fn update_grant_as_per_policy(
+        platform_state: &PlatformState,
+        granted: GrantStateModify,
+        app_id: &Option<String>,
+        role: CapabilityRole,
+        capability: String,
+        ctx: CallContext,
     ) -> Result<(), &'static str> {
         let permission = FireboltPermission {
             cap: FireboltCap::Full(capability),
             role,
         };
+        LogSignal::new(
+            "user_grants".to_string(),
+            "update_grant_as_per_policy".into(),
+            ctx.clone(),
+        )
+        .with_diagnostic_context_item("FireboltCap", &format!("{:?}", permission.cap))
+        .with_diagnostic_context_item("CapabilityRole", &format!("{:?}", permission.role))
+        .emit_debug();
 
         let grant_policy =
             Self::get_grant_policy(platform_state, &permission, app_id).ok_or_else(|| {
@@ -876,6 +913,7 @@ impl GrantState {
                 );
                 "There are no grant polices for the requesting cap so cant update user grant"
             })?;
+
         if !GrantPolicyEnforcer::is_policy_valid(platform_state, &grant_policy) {
             return Err(
                 "There are no valid grant polices for the requesting cap so cant update user grant",
@@ -887,9 +925,6 @@ impl GrantState {
             error!("Grant policy scope and request scope doesn't match!");
             return Err("Grant policy scope and request scope doesn't match!");
         }
-        // let result = match granted {
-        //     GrantStateModify::Grant =
-        // };
         if granted != GrantStateModify::Clear {
             let result = match granted {
                 GrantStateModify::Grant => Ok(()),
@@ -1120,6 +1155,7 @@ impl GrantPolicyEnforcer {
             grant_entry.status = Some(GrantStatus::Denied);
         }
         debug!("created grant_entry: {:?}", grant_entry);
+
         let grant_entry_c = grant_entry.clone();
         // let grant_entry_c = grant_entry.clone();
         // If lifespan is once then no need to store it.
