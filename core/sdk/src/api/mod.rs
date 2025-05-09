@@ -41,12 +41,15 @@ pub mod gateway {
 
 pub mod distributor {
     pub mod distributor_permissions;
+    pub mod distributor_platform;
     pub mod distributor_privacy;
+    pub mod distributor_token;
     pub mod distributor_usergrants;
 }
 
 pub mod firebolt {
     pub mod fb_advertising;
+    pub mod fb_authentication;
     pub mod fb_capabilities;
     pub mod fb_discovery;
     pub mod fb_general;

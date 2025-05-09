@@ -16,7 +16,10 @@
 //
 
 use ripple_sdk::{
-    api::{config::Config, status_update::ExtnStatus, storage_property::StorageAdjective},
+    api::{
+        config::Config, session::SessionAdjective, status_update::ExtnStatus,
+        storage_property::StorageAdjective,
+    },
     async_channel::Receiver as CReceiver,
     export_channel_builder, export_extn_metadata,
     extn::{
@@ -37,9 +40,13 @@ use ripple_sdk::{
 };
 
 use crate::{
+    general_distributor_token_processor::DistributorTokenProcessor,
+    general_paltform_token_processor::PlatformTokenProcessor,
     general_permission_processor::DistributorPermissionProcessor,
     general_privacy_processor::DistributorPrivacyProcessor,
     general_securestorage_processor::DistributorSecureStorageProcessor,
+    general_session_processor::DistributorSessionProcessor,
+    general_token_processor::GeneralTokenProcessor,
 };
 
 fn init_library() -> CExtnMetadata {
@@ -49,8 +56,13 @@ fn init_library() -> CExtnMetadata {
         ExtnId::new_channel(ExtnClassId::Distributor, "general".into()),
         ContractFulfiller::new(vec![
             RippleContract::Permissions,
+            RippleContract::Session(SessionAdjective::Account),
             RippleContract::Storage(StorageAdjective::Secure),
             RippleContract::Storage(StorageAdjective::PrivacyCloud),
+            RippleContract::Session(SessionAdjective::Root),
+            RippleContract::Session(SessionAdjective::Device),
+            RippleContract::Session(SessionAdjective::Distributor),
+            RippleContract::Session(SessionAdjective::Platform),
         ]),
         Version::new(1, 1, 0),
     );
@@ -79,11 +91,18 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
                         client.clone(),
                         value.clone(),
                     ));
+                    client.add_request_processor(DistributorSessionProcessor::new(
+                        client.clone(),
+                        value,
+                    ));
                 }
             }
 
             client.add_request_processor(DistributorPermissionProcessor::new(client.clone()));
             client.add_request_processor(DistributorSecureStorageProcessor::new(client.clone()));
+            client.add_request_processor(GeneralTokenProcessor::new(client.clone()));
+            client.add_request_processor(DistributorTokenProcessor::new(client.clone()));
+            client.add_request_processor(PlatformTokenProcessor::new(client.clone()));
 
             // Lets Main know that the distributor channel is ready
             let _ = client.event(ExtnStatus::Ready);

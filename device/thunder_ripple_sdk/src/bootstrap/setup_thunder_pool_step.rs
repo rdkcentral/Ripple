@@ -39,7 +39,6 @@ impl ThunderPoolStep {
 
     pub async fn setup(
         state: ThunderBootstrapStateWithConfig,
-        status_check: bool,
     ) -> Result<ThunderBootstrapStateWithClient, RippleError> {
         let url = state.url.clone();
         let thunder_connection_state = state.thunder_connection_state.clone();
@@ -53,13 +52,7 @@ impl ThunderPoolStep {
 
         let controller_pool = ripple_sdk::tokio::time::timeout(
             Duration::from_secs(10),
-            ThunderClientPool::start(
-                url.clone(),
-                None,
-                thunder_connection_state.clone(),
-                1,
-                status_check,
-            ),
+            ThunderClientPool::start(url.clone(), None, thunder_connection_state.clone(), 1),
         )
         .await;
 
@@ -118,7 +111,6 @@ impl ThunderPoolStep {
             Some(plugin_manager_tx),
             thunder_connection_state.clone(),
             pool_size - 1,
-            status_check,
         )
         .await;
 

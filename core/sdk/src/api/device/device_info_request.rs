@@ -38,6 +38,7 @@ pub const DEVICE_NETWORK_STATUS_AUTHORIZED: &str = "network_status_authorized";
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum DeviceInfoRequest {
+    MacAddress,
     Model,
     FirmwareInfo,
     HdcpSupport,
@@ -175,7 +176,7 @@ mod tests {
     #[test]
     fn test_extn_request_device_info_request() {
         let contract_type: RippleContract = RippleContract::DeviceInfo;
-        test_extn_payload_provider(DeviceInfoRequest::Model, contract_type);
+        test_extn_payload_provider(DeviceInfoRequest::MacAddress, contract_type);
     }
 
     #[test]

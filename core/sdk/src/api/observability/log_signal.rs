@@ -76,6 +76,10 @@ impl ContextAsJson for CallContext {
             "cid".to_string(),
             serde_json::Value::String(self.cid.clone().unwrap_or_default()),
         );
+        map.insert(
+            "gateway_secure".to_string(),
+            serde_json::Value::Bool(self.gateway_secure),
+        );
         serde_json::Value::Object(map)
     }
 }
@@ -128,15 +132,10 @@ impl ContextAsJson for RpcRequest {
             "method".to_string(),
             serde_json::Value::String(self.method.clone()),
         );
-        let mut params: Vec<serde_json::Value> =
-            serde_json::from_str(&self.params_json).unwrap_or_default();
-        //remove the "gateway_secure" field
-        for param in params.iter_mut() {
-            if let Some(obj) = param.as_object_mut() {
-                obj.remove("gateway_secure");
-            }
-        }
-        map.insert("params".to_string(), serde_json::Value::Array(params));
+        map.insert(
+            "params".to_string(),
+            serde_json::Value::String(self.params_json.clone()),
+        );
         map.insert("call_context".to_string(), self.ctx.as_json());
         serde_json::Value::Object(map)
     }
@@ -193,13 +192,7 @@ impl<T: std::fmt::Display + ContextAsJson> LogSignal<T> {
         let log_levels = MODULE_LOG_LEVELS.read().unwrap();
         if let Some(log_level) = log_levels.get("ripple_sdk::api::observability::log_signal") {
             let target = "ripple_sdk::api::observability::log_signal";
-
-            // For readability, strip any redundant backslashes due to diagnostic_context
-            // that contains serialized Value::Object types.
-            let message = serde_json::Value::from(self)
-                .to_string()
-                .replace("\\\\", "");
-
+            let message = serde_json::Value::from(self).to_string();
             match log_level {
                 log::LevelFilter::Error if log::log_enabled!(log::Level::Error) => {
                     log::error!(target: target, "{}", message);

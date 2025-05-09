@@ -53,6 +53,8 @@ const KEY_FIREBOLT_DEVICE_UID: &str = "fireboltDeviceUid";
 
 #[rpc(server)]
 pub trait Device {
+    #[method(name = "device.id")]
+    async fn id(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "device.uid")]
     async fn uid(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "device.onNameChanged")]
@@ -77,6 +79,7 @@ pub trait Device {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
+
     #[method(name = "device.type")]
     async fn typ(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "device.audio")]
@@ -87,10 +90,50 @@ pub trait Device {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
+    #[method(name = "device.distributor")]
+    async fn distributor(&self, ctx: CallContext) -> RpcResult<String>;
+
     #[method(name = "device.platform")]
     async fn platform(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "device.version")]
     async fn version(&self, ctx: CallContext) -> RpcResult<DeviceVersionResponse>;
+}
+
+pub fn filter_mac(mac_address: String) -> String {
+    let filtered = mac_address.replace(':', "");
+    if filtered.len() != 12 || !filtered.chars().all(|c| c.is_ascii_hexdigit()) {
+        error!("Invalid MAC address format for mac{}", mac_address);
+    }
+    filtered
+}
+
+pub async fn get_device_id(state: &PlatformState) -> RpcResult<String> {
+    if let Some(session) = state.session_state.get_account_session() {
+        return Ok(session.device_id);
+    }
+    match get_ll_mac_addr(state.clone()).await {
+        Ok(device_id) => Ok(device_id),
+        Err(_) => Err(rpc_err("parse error")),
+    }
+}
+
+pub async fn get_ll_mac_addr(state: PlatformState) -> RpcResult<String> {
+    let resp = state
+        .get_client()
+        .send_extn_request(DeviceInfoRequest::MacAddress)
+        .await;
+
+    match resp {
+        Ok(response) => match response.payload.extract() {
+            Some(ExtnResponse::String(value)) => Ok(filter_mac(value)),
+            _ => Err(jsonrpsee::core::Error::Custom(String::from(
+                "device.info.mac_address error",
+            ))),
+        },
+        Err(_e) => Err(jsonrpsee::core::Error::Custom(String::from(
+            "device.info.mac_address error",
+        ))),
+    }
 }
 
 #[derive(Debug)]
@@ -134,6 +177,10 @@ impl DeviceServer for DeviceImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         rpc_add_event_listener(&self.state, ctx, request, EVENT_DEVICE_DEVICE_NAME_CHANGED).await
+    }
+
+    async fn id(&self, _ctx: CallContext) -> RpcResult<String> {
+        get_device_id(&self.state).await
     }
 
     async fn uid(&self, ctx: CallContext) -> RpcResult<String> {
@@ -296,6 +343,16 @@ impl DeviceServer for DeviceImpl {
             listening: listen,
             event: AUDIO_CHANGED_EVENT.to_string(),
         })
+    }
+
+    async fn distributor(&self, _ctx: CallContext) -> RpcResult<String> {
+        if let Some(session) = self.state.session_state.get_account_session() {
+            Ok(session.id)
+        } else {
+            Err(jsonrpsee::core::Error::Custom(String::from(
+                "Account session is not available",
+            )))
+        }
     }
 }
 

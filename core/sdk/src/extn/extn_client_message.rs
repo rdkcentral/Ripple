@@ -40,10 +40,13 @@ use crate::{
         },
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
+            distributor_platform::PlatformTokenRequest,
             distributor_privacy::{PrivacyCloudRequest, PrivacySettingsStoreRequest},
+            distributor_token::DistributorTokenRequest,
             distributor_usergrants::UserGrantsCloudStoreRequest,
         },
         firebolt::{
+            fb_authentication::TokenResult,
             fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
             fb_lifecycle_management::LifecycleManagementRequest,
             fb_pin::{PinChallengeRequestWithContext, PinChallengeResponse},
@@ -52,7 +55,7 @@ use crate::{
         },
         gateway::rpc_gateway_api::RpcRequest,
         manifest::device_manifest::AppLibraryEntry,
-        session::{AccountSessionRequest, AccountSessionResponse},
+        session::{AccountSessionRequest, AccountSessionResponse, SessionTokenRequest},
         settings::{SettingValue, SettingsRequest},
         status_update::ExtnStatus,
         storage_property::StorageManagerRequest,
@@ -291,6 +294,7 @@ pub enum ExtnRequest {
     Keyboard(KeyboardSessionRequest),
     Permission(PermissionRequest),
     AccountSession(AccountSessionRequest),
+    SessionToken(SessionTokenRequest),
     SecureStorage(SecureStorageRequest),
     PrivacySettings(PrivacyCloudRequest),
     StorageManager(StorageManagerRequest),
@@ -300,6 +304,8 @@ pub enum ExtnRequest {
     PrivacySettingsStore(PrivacySettingsStoreRequest),
     AuthorizedInfo(CapsRequest),
     OperationalMetricsRequest(OperationalMetricRequest),
+    PlatformToken(PlatformTokenRequest),
+    DistributorToken(DistributorTokenRequest),
     Context(RippleContextUpdateRequest),
 }
 
@@ -340,6 +346,7 @@ pub enum ExtnResponse {
     StorageData(StorageData),
     NetworkResponse(NetworkResponse),
     TimezoneWithOffset(String, i64),
+    Token(TokenResult),
     DefaultApp(AppLibraryEntry),
     Settings(HashMap<String, SettingValue>),
     BoolMap(HashMap<String, bool>),

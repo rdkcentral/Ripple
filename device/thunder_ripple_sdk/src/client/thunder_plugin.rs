@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::fmt;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use ThunderPluginConfig as Cfg;
@@ -55,29 +54,6 @@ const TTS_CFG: Cfg = Cfg::new("org.rdk.TextToSpeech", false, true);
 const TELEMETRY_CFG: Cfg = Cfg::new("org.rdk.Telemetry", false, false);
 const ANALYTICS_CFG: Cfg = Cfg::new("org.rdk.Analytics", false, false);
 const USER_SETTINGS_CFG: Cfg = Cfg::new("org.rdk.UserSettings", false, false);
-
-impl fmt::Display for ThunderPlugin {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ThunderPlugin::Controller => write!(f, "Controller"),
-            ThunderPlugin::DeviceInfo => write!(f, "DeviceInfo"),
-            ThunderPlugin::DisplaySettings => write!(f, "org.rdk.DisplaySettings"),
-            ThunderPlugin::HdcpProfile => write!(f, "org.rdk.HdcpProfile"),
-            ThunderPlugin::LocationSync => write!(f, "LocationSync"),
-            ThunderPlugin::Network => write!(f, "org.rdk.Network"),
-            ThunderPlugin::RemoteControl => write!(f, "org.rdk.RemoteControl"),
-            ThunderPlugin::PersistentStorage => write!(f, "org.rdk.PersistentStore"),
-            ThunderPlugin::System => write!(f, "org.rdk.System"),
-            ThunderPlugin::Wifi => write!(f, "org.rdk.Wifi"),
-            ThunderPlugin::TextToSpeech => write!(f, "org.rdk.TextToSpeech"),
-            ThunderPlugin::Hdcp => write!(f, "org.rdk.HdcpProfile"),
-            ThunderPlugin::Telemetry => write!(f, "org.rdk.Telemetry"),
-            ThunderPlugin::Analytics => write!(f, "org.rdk.Analytics"),
-            ThunderPlugin::UserSettings => write!(f, "org.rdk.UserSettings"),
-            ThunderPlugin::RDKShell => write!(f, "org.rdk.RDKShell"),
-        }
-    }
-}
 
 impl ThunderPlugin {
     pub fn cfg(&self) -> Cfg {

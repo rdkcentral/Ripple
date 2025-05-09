@@ -190,11 +190,7 @@ impl ThunderBroker {
         });
     }
 
-    fn start(
-        request: BrokerConnectRequest,
-        callback: BrokerCallback,
-        platform_state: Option<PlatformState>,
-    ) -> Self {
+    fn start(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
         let endpoint = request.endpoint.clone();
         let (broker_request_tx, mut broker_request_rx) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
         let (c_tx, mut c_tr) = mpsc::channel(2);
@@ -227,30 +223,6 @@ impl ThunderBroker {
                     ))
                     .await;
                 let _flush = ws_tx.flush().await;
-            }
-            if let Some(ps) = platform_state {
-                if ps
-                    .get_device_manifest()
-                    .get_features()
-                    .thunder_plugin_status_check_at_broker_start_up
-                {
-                    debug!("thunder plugin status check at broker startup");
-                    //send thunder plugin status check request for all plugin
-                    let status_check_request =
-                        broker_c.status_manager.generate_plugin_status_request(None);
-                    {
-                        let mut ws_tx = ws_tx_wrap.lock().await;
-
-                        let _feed = ws_tx
-                            .feed(tokio_tungstenite::tungstenite::Message::Text(
-                                status_check_request.to_string(),
-                            ))
-                            .await;
-                        let _flush = ws_tx.flush().await;
-                    }
-                } else {
-                    debug!("thunder plugin status check at broker startup is disabled");
-                }
             }
             tokio::pin! {
                 let read = ws_rx.next();
@@ -529,7 +501,7 @@ impl ThunderBroker {
                 // PluginState is not available with StateManager,  create an internal thunder request to activate the plugin
                 let request = self
                     .status_manager
-                    .generate_plugin_status_request(Some(callsign.clone()));
+                    .generate_plugin_status_request(callsign.clone());
                 requests.push(request.to_string());
                 return Ok(requests);
             }
@@ -567,12 +539,12 @@ impl ThunderBroker {
 
 impl EndpointBroker for ThunderBroker {
     fn get_broker(
-        ps: Option<PlatformState>,
+        _ps: Option<PlatformState>,
         request: BrokerConnectRequest,
         callback: BrokerCallback,
         _broker_state: &mut EndpointBrokerState,
     ) -> Self {
-        Self::start(request, callback, ps)
+        Self::start(request, callback)
     }
 
     fn get_sender(&self) -> BrokerSender {

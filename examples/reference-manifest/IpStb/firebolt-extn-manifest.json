@@ -25,7 +25,8 @@
                         "app_events",
                         "input.device_events",
                         "voice_guidance.device_events",
-                        "audio.device_events"
+                        
+                        "audio.device_events",
                     ]
                 }
             ]
@@ -60,6 +61,8 @@
                         "permissions",
                         "account.session",
                         "device.session",
+                        "distributor.session",
+                        "platform.session",
                         "root.session",
                         "secure.storage",
                         "advertising",
@@ -83,6 +86,7 @@
         "privacy_settings",
         "account.session",
         "device.session",
+        "distributor.session",
         "behavior_metrics"
     ],
     "rpc_aliases": {
@@ -92,5 +96,5 @@
     },
     "rules_path": [
         "/etc/ripple.common.rules.json"
-    ]
+]
 }
