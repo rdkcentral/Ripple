@@ -32,7 +32,6 @@ use ripple_sdk::{
             },
         },
         gateway::rpc_gateway_api::{AppIdentification, CallContext},
-        observability::log_signal::LogSignal,
     },
     chrono::{DateTime, Utc},
     log::debug,
@@ -215,65 +214,41 @@ impl UserGrantsServer for UserGrantsImpl {
     }
 
     async fn usergrants_grant(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
-        LogSignal::new(
-            "usergrants_grant".to_string(),
-            format!("Received firebolt request: {:?}", request),
-            ctx.clone(),
-        )
-        .emit_debug();
-        let result = GrantState::update_grant_as_per_policy(
+        let result = GrantState::update_grant(
             &self.platform_state,
             GrantStateModify::Grant,
             &request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
+            ctx,
         )
         .await;
-
-        LogSignal::new(
-            "usergrants_grant".to_string(),
-            format!("Response:{:?}", result),
-            ctx.clone(),
-        )
-        .emit_debug();
-
         result.map_err(rpc_err)
     }
 
     async fn usergrants_deny(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
-        LogSignal::new(
-            "usergrants_deny".to_string(),
-            format!("Received firebolt request: {:?}", request),
-            ctx.clone(),
-        )
-        .emit_debug();
-        let result = GrantState::update_grant_as_per_policy(
+        let result = GrantState::update_grant(
             &self.platform_state,
             GrantStateModify::Deny,
             &request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
+            ctx,
         )
         .await;
-        LogSignal::new(
-            "usergrants_deny".to_string(),
-            format!("Response:{:?}", result),
-            ctx.clone(),
-        )
-        .emit_debug();
         result.map_err(rpc_err)
     }
 
-    async fn usergrants_clear(&self, _ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
-        let result = GrantState::update_grant_as_per_policy(
+    async fn usergrants_clear(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
+        let result = GrantState::update_grant(
             &self.platform_state,
             GrantStateModify::Clear,
             &request.options.and_then(|x| x.app_id),
             request.role,
             request.capability,
+            ctx,
         )
         .await;
-
         result.map_err(rpc_err)
     }
     async fn usergrants_request(

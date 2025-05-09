@@ -26,6 +26,7 @@ use crate::{
     firebolt::{firebolt_gatekeeper::FireboltGatekeeper, handlers::privacy_rpc::PrivacyImpl},
     state::{cap::cap_state::CapState, platform_state::PlatformState},
 };
+use ripple_sdk::api::gateway::rpc_gateway_api::CallContext;
 use ripple_sdk::api::observability::log_signal::LogSignal;
 use ripple_sdk::{
     api::{
@@ -280,13 +281,6 @@ impl GrantState {
             //Get a mutable reference to the value associated with a key, create it if it doesn't exist,
             let entries = grant_state.value.entry(app_id).or_default();
 
-            LogSignal::new(
-                "user_grants".to_string(),
-                "update_grant_entry".into(),
-                new_entry.clone(),
-            )
-            .emit_debug();
-
             if entries.contains(&new_entry) {
                 entries.remove(&new_entry);
             }
@@ -295,12 +289,6 @@ impl GrantState {
             }
             grant_state.sync();
         } else {
-            LogSignal::new(
-                "user_grants".to_string(),
-                "update_grant_entry".into(),
-                new_entry.clone(),
-            )
-            .emit_debug();
             self.add_device_entry(new_entry)
         }
     }
@@ -870,24 +858,52 @@ impl GrantState {
             None
         }
     }
-    pub async fn update_grant_as_per_policy(
+
+    pub async fn update_grant(
         platform_state: &PlatformState,
         granted: GrantStateModify,
         app_id: &Option<String>,
-        // permission: &FireboltPermission,
         role: CapabilityRole,
         capability: String,
+        ctx: CallContext,
+    ) -> Result<(), &'static str> {
+        let result = Self::update_grant_as_per_policy(
+            platform_state,
+            granted,
+            app_id,
+            role,
+            capability,
+            ctx.clone(),
+        )
+        .await;
+        LogSignal::new(
+            "user_grants".to_string(),
+            format!("update_grant_as_per_policy Response:{:?}", result),
+            ctx.clone(),
+        )
+        .emit_debug();
+        return result;
+    }
+
+    async fn update_grant_as_per_policy(
+        platform_state: &PlatformState,
+        granted: GrantStateModify,
+        app_id: &Option<String>,
+        role: CapabilityRole,
+        capability: String,
+        ctx: CallContext,
     ) -> Result<(), &'static str> {
         let permission = FireboltPermission {
             cap: FireboltCap::Full(capability),
             role,
         };
-
         LogSignal::new(
             "user_grants".to_string(),
             "update_grant_as_per_policy".into(),
-            permission.clone(),
+            ctx.clone(),
         )
+        .with_diagnostic_context_item("FireboltCap", &format!("{:?}", permission.cap))
+        .with_diagnostic_context_item("CapabilityRole", &format!("{:?}", permission.role))
         .emit_debug();
 
         let grant_policy =
@@ -897,13 +913,6 @@ impl GrantState {
                 );
                 "There are no grant polices for the requesting cap so cant update user grant"
             })?;
-
-        LogSignal::new(
-            "user_grants".to_string(),
-            "get_grant_policy".into(),
-            grant_policy.clone(),
-        )
-        .emit_debug();
 
         if !GrantPolicyEnforcer::is_policy_valid(platform_state, &grant_policy) {
             return Err(
@@ -916,9 +925,6 @@ impl GrantState {
             error!("Grant policy scope and request scope doesn't match!");
             return Err("Grant policy scope and request scope doesn't match!");
         }
-        // let result = match granted {
-        //     GrantStateModify::Grant =
-        // };
         if granted != GrantStateModify::Clear {
             let result = match granted {
                 GrantStateModify::Grant => Ok(()),
@@ -1150,13 +1156,6 @@ impl GrantPolicyEnforcer {
         }
         debug!("created grant_entry: {:?}", grant_entry);
 
-        LogSignal::new(
-            "user_grants".to_string(),
-            "store_user_grants".into(),
-            grant_entry.clone(),
-        )
-        .emit_debug();
-
         let grant_entry_c = grant_entry.clone();
         // let grant_entry_c = grant_entry.clone();
         // If lifespan is once then no need to store it.
@@ -1189,12 +1188,6 @@ impl GrantPolicyEnforcer {
             )
             .await;
         }
-        LogSignal::new(
-            "user_grants".to_string(),
-            "store_user_grants".into(),
-            grant_policy.clone(),
-        )
-        .emit_debug();
         ret_val
     }
 
@@ -1531,12 +1524,6 @@ impl GrantPolicyEnforcer {
             (false, true) => false,
             (false, false) => true,
         };
-        LogSignal::new(
-            "user_grants".to_string(),
-            "update_privacy_settings_with_grant".into(),
-            privacy_setting.clone(),
-        )
-        .emit_debug();
         debug!(
             "x-allow-value: {}, grant: {}, set_value: {}",
             allow_value, grant, set_value
