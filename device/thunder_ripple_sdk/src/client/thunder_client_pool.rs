@@ -61,6 +61,7 @@ impl ThunderClientPool {
         plugin_manager_tx: Option<mpsc::Sender<PluginManagerCommand>>,
         thunder_connection_state: Option<Arc<ThunderConnectionState>>,
         size: u32,
+        status_check: bool,
     ) -> Result<ThunderClient, RippleError> {
         debug!("Starting a Thunder connection pool of size {}", size);
         let (s, mut r) = mpsc::channel::<ThunderPoolCommand>(32);
@@ -74,6 +75,7 @@ impl ThunderClientPool {
                 thunder_connection_state.clone(),
                 None,
                 false,
+                status_check,
             )
             .await;
             if let Ok(c) = client {
@@ -140,6 +142,7 @@ impl ThunderClientPool {
                                 thunder_connection_state.clone(),
                                 pool.clients.get(index).map(|x| x.client.clone()),
                                 false,
+                                status_check,
                             )
                             .await;
                             if let Ok(client) = client {
@@ -269,6 +272,7 @@ mod tests {
             Some(tx),
             Some(Arc::new(ThunderConnectionState::new())),
             4,
+            false,
         )
         .await;
         assert!(client.is_ok());
