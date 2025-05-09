@@ -766,6 +766,7 @@ impl EndpointBrokerState {
     fn build_endpoint(&mut self, ps: Option<PlatformState>, request: BrokerConnectRequest) {
         let endpoint = request.endpoint.clone();
         let key = request.key.clone();
+        info!("Building endpoint {:?} using key {}", endpoint, key);
         let (broker, cleaner) = match endpoint.protocol {
             RuleEndpointProtocol::Http => (
                 HttpBroker::get_broker(None, request, self.callback.clone(), self).get_sender(),
@@ -793,8 +794,12 @@ impl EndpointBrokerState {
                 None,
             ),
             RuleEndpointProtocol::Service => {
-                let service_broker = ServiceBroker::new(ps.clone());
-                (service_broker.get_sender(), None)
+                let service_broker =
+                    ServiceBroker::get_broker(ps, request, self.callback.clone(), self);
+                (
+                    service_broker.get_sender(),
+                    Some(service_broker.get_cleaner()),
+                )
             }
         };
         self.add_endpoint(key, broker);
@@ -899,16 +904,23 @@ impl EndpointBrokerState {
         .with_diagnostic_context_item("workflow", &workflow_callback.is_some().to_string())
         .emit_debug();
 
-        self.handle_brokerage_workflow(
-            rpc_request,
-            extn_message,
-            workflow_callback,
-            permissions,
-            session,
-            telemetry_response_listeners,
-        )
-        .await
-        .is_ok()
+        match self
+            .handle_brokerage_workflow(
+                rpc_request,
+                extn_message,
+                workflow_callback,
+                permissions,
+                session,
+                telemetry_response_listeners,
+            )
+            .await
+        {
+            Ok(yay) => true,
+            Err(e) => {
+                error!("Error in brokerage {:?}", e);
+                return false;
+            }
+        }
     }
 
     fn get_endpoint(

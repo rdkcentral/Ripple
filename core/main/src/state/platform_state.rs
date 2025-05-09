@@ -37,7 +37,7 @@ use ripple_sdk::{
     utils::error::RippleError,
     uuid::Uuid,
 };
-use ssda_types::ApiGatewayServer;
+use ssda_types::gateway::ApiGatewayServer;
 use std::{collections::HashMap, fmt, sync::Arc};
 
 use crate::{

@@ -52,7 +52,8 @@ use ripple_sdk::{
 };
 use ripple_sdk::{log::debug, tokio};
 use ssda_service::ApiGateway;
-use ssda_types::{APIGatewayServiceConnectionDisposition, ApiGatewayServer, ServiceId};
+use ssda_types::gateway::{APIGatewayServiceConnectionDisposition, ApiGatewayServer};
+use ssda_types::ServiceId;
 use tokio_tungstenite::{
     tungstenite::{self, Message},
     WebSocketStream,
@@ -231,6 +232,7 @@ impl FireboltWs {
                     //let c = send;
                     let connection = service_connection_state.clone();
                     let service_connection_state = connection.lock().unwrap().clone();
+                    //let service_connections = service_connection_state.clone();
 
                     match service_connection_state {
                         Some(service_connection) => {
