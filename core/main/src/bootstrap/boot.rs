@@ -60,6 +60,7 @@ pub async fn boot(state: BootstrapState) -> RippleResponse {
     execute_step(StartWsStep, &bootstrap).await?;
     execute_step(StartCommunicationBroker, &bootstrap).await?;
     execute_step(SetupExtnClientStep, &bootstrap).await?;
+    #[cfg(not(feature = "service"))]
     execute_step(LoadExtensionsStep, &bootstrap).await?;
     execute_step(StartAppManagerStep, &bootstrap).await?;
     execute_step(StartOtherBrokers, &bootstrap).await?;

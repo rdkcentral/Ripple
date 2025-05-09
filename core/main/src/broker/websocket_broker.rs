@@ -49,7 +49,7 @@ impl WebsocketBroker {
         let broker = BrokerSender { sender: tx };
         tokio::spawn(async move {
             if endpoint.jsonrpc {
-                let resp = WebSocketUtils::get_ws_stream(&endpoint.get_url(), None).await;
+                let resp = WebSocketUtils::get_ws_stream(&endpoint.get_url(), None, None).await;
                 if resp.is_err() {
                     error!("Error connecting to websocket broker");
                     tr.close();
@@ -170,7 +170,7 @@ impl WSNotificationBroker {
                 .fail_after(1)
                 .build();
 
-            let resp = WebSocketUtils::get_ws_stream(&url, Some(config)).await;
+            let resp = WebSocketUtils::get_ws_stream(&url, Some(config), None).await;
             if resp.is_err() {
                 error!("Error connecting to websocket broker");
                 tr.close();

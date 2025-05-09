@@ -47,6 +47,7 @@ pub async fn boot_thunder(
     ext_client: ExtnClient,
     _plugin_param: ThunderPluginBootParam,
     device_manifest: &DeviceManifest,
+    local_dev: Option<bool>    
 ) -> Option<ThunderBootstrapStateWithClient> {
     info!("Booting thunder initiated");
     let state = if ext_client.get_bool_config("use_with_thunder_async_client") {
@@ -94,6 +95,7 @@ pub async fn boot_thunder(
             None,
             None,
             true,
+            local_dev
         )
         .await
         {

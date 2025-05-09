@@ -67,11 +67,12 @@ impl ThunderClientManager {
         request_tr: Receiver<ThunderAsyncRequest>,
         mut response_tr: Receiver<ThunderAsyncResponse>,
         thndr_endpoint_url: String,
+        local_dev: Option<bool>,
     ) {
         if let Some(ref thunder_async_client) = client.thunder_async_client {
             let mut tac = thunder_async_client.clone();
             tokio::spawn(async move {
-                tac.start(&thndr_endpoint_url, request_tr).await;
+                tac.start(&thndr_endpoint_url, request_tr, local_dev).await;
             });
         }
 
@@ -808,6 +809,7 @@ impl ThunderClientBuilder {
         thunder_connection_state: Option<Arc<ThunderConnectionState>>,
         existing_client: Option<ThunderClient>,
         use_thunderasync_client: bool,
+        local_dev: Option<bool>,
     ) -> Result<ThunderClient, RippleError> {
         if !use_thunderasync_client {
             Self::start_thunderpool_client(
@@ -842,6 +844,7 @@ impl ThunderClientBuilder {
                 broker_rx,
                 resp_rx,
                 url.to_string(),
+                local_dev
             );
             Ok(thunder_client)
         }

@@ -107,6 +107,7 @@ impl WebSocketUtils {
     pub async fn get_ws_stream(
         endpoint: &str,
         inital_config: Option<WebSocketConfig>,
+        is_local_dev: Option<bool>,
     ) -> Result<
         (
             SplitSink<WebSocketStream<TcpStream>, Message>,
@@ -126,7 +127,14 @@ impl WebSocketUtils {
         } else {
             endpoint.to_owned()
         };
-        if cfg!(not(feature = "local_dev")) {
+        let mut local_dev = false;
+        if let Some(is_local_dev) = is_local_dev {
+            if is_local_dev {
+                println!("***** 415 local_dev feature is enabled *****");
+                local_dev = true;
+            };
+        };
+        if cfg!(not(feature = "local_dev")) && !local_dev {
             // Only support local ws connections
             if !url_path.starts_with("ws://127.0.0.1") && !url_path.starts_with("ws://localhost") {
                 return Err(RippleError::InvalidInput);

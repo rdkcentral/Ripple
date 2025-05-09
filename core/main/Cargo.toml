@@ -43,6 +43,8 @@ contract_tests = [
     "websocket_contract_tests",
 ]
 tdk=[]
+service = []
+
 [dependencies]
 base64.workspace = true
 ripple_sdk = { workspace = true, features = ["full"] }
