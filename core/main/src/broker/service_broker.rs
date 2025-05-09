@@ -3,14 +3,14 @@ use std::sync::Arc;
 use futures_channel::oneshot;
 use ripple_sdk::{
     api::rules_engine::RuleEngineProvider,
-    log::info,
+    log::{error, info},
     tokio::{
         self,
         sync::mpsc::{self, Sender},
     },
     utils::rpc_utils,
 };
-use ssda_types::gateway::ServiceRequest;
+use ssda_types::gateway::{ServiceRequest, ServiceResponse};
 use ssda_types::ServiceRequestId;
 use tokio_tungstenite::tungstenite::http::request;
 
@@ -52,16 +52,33 @@ impl EndpointBroker for ServiceBroker {
                         .await
                         .get_sender();
                     use tokio::sync::oneshot;
-                    let (tx, rx) = oneshot::channel();
+                    let (oneshot_tx, mut oneshot_rx) = oneshot::channel::<ServiceResponse>();
                     let service_request = ServiceRequest {
                         request_id: ServiceRequestId {
                             request_id: request.get_id(),
                         },
                         payload: request.rpc.clone(),
-                        respond_to: tx,
+                        respond_to: oneshot_tx,
                     };
 
-                    services_tx.send(service_request).await.unwrap();
+                    services_tx.try_send(service_request).unwrap();
+
+                    match oneshot_rx.await {
+                        Ok(response) => {
+                            info!("ServiceBroker received response: {:?}", response);
+                            //let _ = request.respond(response);
+                        }
+                        Err(e) => {
+                            error!("ServiceBroker failed to receive response {}", e);
+                            // let _ = request.respond(ripple_sdk::api::rpc_utils::ErrorResponse {
+                            //     error: ripple_sdk::api::rpc_utils::Error {
+                            //         code: -32603,
+                            //         message: "Failed to receive response".to_string(),
+                            //         data: None,
+                            //     },
+                            // });
+                        }
+                    }
                     info!("ServiceBroker received request: {:?}", request);
                 }
             });
