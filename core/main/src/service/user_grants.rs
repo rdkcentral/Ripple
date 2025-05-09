@@ -882,7 +882,7 @@ impl GrantState {
             ctx.clone(),
         )
         .emit_debug();
-        return result;
+        result
     }
 
     async fn update_grant_as_per_policy(
