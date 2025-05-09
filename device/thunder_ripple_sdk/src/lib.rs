@@ -62,6 +62,8 @@ pub mod tests {
         pub mod thunder_controller_pacts;
         pub mod thunder_device_info_pacts;
         pub mod thunder_persistent_store_pacts;
+        pub mod thunder_text_track;
+        pub mod thunder_user_settings;
     }
     pub mod mock_thunder_controller;
     pub mod thunder_client_pool_test_utility;
