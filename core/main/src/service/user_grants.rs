@@ -878,7 +878,7 @@ impl GrantState {
         .await;
         LogSignal::new(
             "user_grants".to_string(),
-            format!("update_grant_as_per_policy Response:{:?}", result),
+            format!("update_grant_as_per_policy Response result:{:?}", result),
             ctx.clone(),
         )
         .emit_debug();
@@ -902,8 +902,8 @@ impl GrantState {
             "update_grant_as_per_policy".into(),
             ctx.clone(),
         )
-        .with_diagnostic_context_item("FireboltCap", &format!("{:?}", permission.cap))
-        .with_diagnostic_context_item("CapabilityRole", &format!("{:?}", permission.role))
+        .with_diagnostic_context_item("fireboltcap", &format!("{:?}", permission.cap))
+        .with_diagnostic_context_item("capabilityrole", &format!("{:?}", permission.role))
         .emit_debug();
 
         let grant_policy =
@@ -996,6 +996,23 @@ impl GrantState {
                 .await;
             }
         }
+
+        LogSignal::new(
+            "user_grants".to_string(),
+            "update_grant_as_per_policy".into(),
+            ctx.clone(),
+        )
+        .with_diagnostic_context_item("lifespan", &format!("{:?}", grant_policy.lifespan))
+        .with_diagnostic_context_item("grantscope", &format!("{:?}", grant_policy.scope))
+        .with_diagnostic_context_item("lifespan_ttl", &format!("{:?}", grant_policy.lifespan_ttl))
+        .with_diagnostic_context_item("persistence", &format!("{:?}", grant_policy.persistence))
+        .with_diagnostic_context_item(
+            "privacy_setting",
+            &format!("{:?}", grant_policy.privacy_setting),
+        )
+        .with_diagnostic_context_item("options", &format!("{:?}", grant_policy.options))
+        .emit_debug();
+
         Ok(())
     }
 }
