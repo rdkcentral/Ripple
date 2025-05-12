@@ -14,19 +14,21 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
-
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::JsonRpcApiResponse,
     chrono::{DateTime, Duration, Utc},
-    log::{error, info, warn},
+    log::{error, info},
     utils::error::RippleError,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::{
+    collections::HashMap,
+    fmt,
+    sync::{Arc, RwLock},
+};
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 
 use crate::broker::endpoint_broker::{
     BrokerCallback, BrokerRequest, BrokerSender, EndpointBrokerState,
@@ -40,6 +42,47 @@ const DEFAULT_PLUGIN_ACTIVATION_TIMEOUT: i64 = 8;
 // const STATE_CHANGE_EVENT_METHOD: &str = "client.events.1.statechange";
 
 const STATE_CHANGE_EVENT_METHOD: &str = "thunder.Broker.Controller.events.statechange";
+
+#[derive(Debug, EnumIter)]
+pub enum ThunderPlugin {
+    Controller,
+    DeviceInfo,
+    DisplaySettings,
+    HdcpProfile,
+    LocationSync,
+    Network,
+    RemoteControl,
+    PersistentStorage,
+    System,
+    Wifi,
+    TextToSpeech,
+    Hdcp,
+    Telemetry,
+    Analytics,
+    UserSettings,
+}
+
+impl fmt::Display for ThunderPlugin {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ThunderPlugin::Controller => write!(f, "Controller"),
+            ThunderPlugin::DeviceInfo => write!(f, "DeviceInfo"),
+            ThunderPlugin::DisplaySettings => write!(f, "org.rdk.DisplaySettings"),
+            ThunderPlugin::HdcpProfile => write!(f, "org.rdk.HdcpProfile"),
+            ThunderPlugin::LocationSync => write!(f, "LocationSync"),
+            ThunderPlugin::Network => write!(f, "org.rdk.Network"),
+            ThunderPlugin::RemoteControl => write!(f, "org.rdk.RemoteControl"),
+            ThunderPlugin::PersistentStorage => write!(f, "org.rdk.PersistentStore"),
+            ThunderPlugin::System => write!(f, "org.rdk.System"),
+            ThunderPlugin::Wifi => write!(f, "org.rdk.Wifi"),
+            ThunderPlugin::TextToSpeech => write!(f, "org.rdk.TextToSpeech"),
+            ThunderPlugin::Hdcp => write!(f, "org.rdk.HdcpProfile"),
+            ThunderPlugin::Telemetry => write!(f, "org.rdk.Telemetry"),
+            ThunderPlugin::Analytics => write!(f, "org.rdk.Analytics"),
+            ThunderPlugin::UserSettings => write!(f, "org.rdk.UserSettings"),
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Deserialize)]
 pub struct Status {
@@ -246,14 +289,18 @@ impl StatusManager {
         request
     }
 
-    pub fn generate_plugin_status_request(&self, plugin_name: String) -> String {
+    pub fn generate_plugin_status_request(&self, plugin_name: Option<String>) -> String {
         let id = EndpointBrokerState::get_next_id();
         let controller_call_sign = Self::get_controller_call_sign();
+        let mut method = format!("{}status", controller_call_sign);
+        if let Some(p) = plugin_name {
+            method = format!("{}status@{}", controller_call_sign, p);
+        }
 
         let request = json!({
             "jsonrpc": "2.0",
             "id": id,
-            "method": format!("{}status@{}", controller_call_sign, plugin_name),
+            "method": method,
         })
         .to_string();
         // Add this request to the inprogress_plugins_request
@@ -387,15 +434,36 @@ impl StatusManager {
         data: &JsonRpcApiResponse,
         request: &str,
     ) {
-        let callsign = match request.split('@').last() {
-            Some(callsign) => callsign.trim_matches(|c| c == '"' || c == '}'),
-            None => "",
+        let mut callsigns: Vec<String> = Vec::new();
+
+        let callsign = {
+            if request.contains("@") {
+                match request.split('@').last() {
+                    Some(callsign) => callsign.trim_matches(|c| c == '"' || c == '}'),
+                    // This would least likely happen because we check "@" before split request by "@",
+                    // but if it does, we can just use the request as is.
+                    None => request,
+                }
+            } else {
+                ""
+            }
         };
+
+        if !request.contains("@") {
+            let thunder_plugins: Vec<ThunderPlugin> =
+                ThunderPlugin::iter().collect::<Vec<ThunderPlugin>>();
+            for plugin in thunder_plugins {
+                let c = plugin.to_string();
+                callsigns.push(c);
+            }
+        } else {
+            callsigns.push(callsign.to_string());
+        }
 
         let result = match &data.result {
             Some(result) => result,
             None => {
-                self.on_thunder_error_response(callback, data, &callsign.to_string())
+                self.on_thunder_error_response(callback, data, &callsigns[0].to_string())
                     .await;
                 return;
             }
@@ -404,25 +472,23 @@ impl StatusManager {
         let status_res: Vec<Status> = match serde_json::from_value(result.clone()) {
             Ok(status_res) => status_res,
             Err(_) => {
-                self.on_thunder_error_response(callback, data, &callsign.to_string())
+                self.on_thunder_error_response(callback, data, &callsigns[0].to_string())
                     .await;
                 return;
             }
         };
 
+        //filtering the status_res by matching status_res.callsign with callsigns
+        let status_res: Vec<Status> = status_res
+            .into_iter()
+            .filter(|status| callsigns.contains(&status.callsign))
+            .collect();
+
         for status in status_res {
-            if status.callsign != callsign {
-                // it's not required to enforce callsign matching.  But it's good to log a warning.
-                // Already chekced the id in the request, so it's safe to ignore this.
-                warn!(
-                    "Call Sign not matching callsign from response: {:?} callsign : {:?}",
-                    status.callsign, callsign
-                );
-            }
-            self.update_status(callsign.to_string(), status.to_state());
+            self.update_status(status.callsign.to_string(), status.to_state());
 
             let (pending_requests, expired) =
-                self.retrive_pending_broker_requests(callsign.to_string());
+                self.retrive_pending_broker_requests(status.callsign.to_string());
 
             for pending_request in pending_requests {
                 if expired {
@@ -503,7 +569,7 @@ impl StatusManager {
             // handle activate response
             self.on_activate_response(sender, callback, &data, &request)
                 .await;
-        } else if request.contains("Controller.1.status@") {
+        } else if request.contains("Controller.1.status") {
             // handle status response
             self.on_status_response(sender, callback, &data, &request)
                 .await;
