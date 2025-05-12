@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use futures_channel::oneshot;
 use ripple_sdk::{
-    api::rules_engine::RuleEngineProvider,
+    api::{gateway::rpc_gateway_api::JsonRpcApiResponse, rules_engine::RuleEngineProvider},
     log::{error, info},
     tokio::{
         self,
@@ -17,8 +17,7 @@ use tokio_tungstenite::tungstenite::http::request;
 use crate::state::platform_state::{self, PlatformState};
 
 use super::endpoint_broker::{
-    BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerRequest, BrokerSender,
-    EndpointBroker, EndpointBrokerState, BROKER_CHANNEL_BUFFER_SIZE,
+    BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerRequest, BrokerSender, EndpointBroker, EndpointBrokerState, BROKER_CHANNEL_BUFFER_SIZE
 };
 
 pub struct ServiceBroker {
@@ -29,6 +28,19 @@ pub struct ServiceBroker {
     broker_sender: BrokerSender,
     cleaner: BrokerCleaner,
 }
+async fn send_broker_response(callback: &BrokerCallback, request: &BrokerRequest, body: &[u8]) {
+    match BrokerOutputForwarder::handle_non_jsonrpc_response(
+        body,
+        callback.clone(),
+        request.clone(),
+    ) {
+        Ok(_) => {}
+        Err(e) => {
+            error!("Error message from http broker {:?}", e)
+        }
+    }
+}
+
 
 impl ServiceBroker {}
 impl EndpointBroker for ServiceBroker {
@@ -42,7 +54,7 @@ impl EndpointBroker for ServiceBroker {
         // let endpoint = request.endpoint.clone();
         let (tx, mut tr) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
         let broker_sender = BrokerSender { sender: tx };
-
+        let callback = broker_callback.clone();
         if let Some(platform_state) = ps.clone() {
             tokio::spawn(async move {
                 while let Some(request) = tr.recv().await {
@@ -66,7 +78,8 @@ impl EndpointBroker for ServiceBroker {
                     match oneshot_rx.await {
                         Ok(response) => {
                             info!("ServiceBroker received response: {:?}", response);
-                            //let _ = request.respond(response);
+                            <ServiceBroker as EndpointBroker>::send_broker_success_response(&callback, response.into());
+                           
                         }
                         Err(e) => {
                             error!("ServiceBroker failed to receive response {}", e);
@@ -79,7 +92,7 @@ impl EndpointBroker for ServiceBroker {
                             // });
                         }
                     }
-                    info!("ServiceBroker received request: {:?}", request);
+                    
                 }
             });
         } else {
