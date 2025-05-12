@@ -279,15 +279,7 @@ impl<'de> Deserialize<'de> for ThunderAllTimezonesResponse {
                 &mut timezones,
                 String::from(""),
                 zones,
-                vec![
-                    "Etc",
-                    "Utc",
-                    "America",
-                    "Australia",
-                    "Africa",
-                    "Europe",
-                    "Pacific",
-                ],
+                vec!["Etc", "Utc", "America"],
             );
         }
         Ok(ThunderAllTimezonesResponse { timezones })
@@ -664,11 +656,32 @@ impl ThunderDeviceInfoRequestProcessor {
     async fn get_all_timezones(
         state: &ThunderState,
     ) -> Result<ThunderAllTimezonesResponse, RippleError> {
+        let params = Some(DeviceChannelParams::Json(
+            json!({
+                "timeZones": [
+                    "America/New_York",
+                    "America/Los_Angeles",
+                    "America/Chicago",
+                    "America/Denver",
+                    "America/Phoenix",
+                    "America/Detroit",
+                    "America/Indianapolis",
+                    "America/Anchorage",
+                    "America/Honolulu",
+                    "America/Toronto",
+                    "America/Vancouver",
+                    "Etc/UTC",
+                    "GMT",
+                ]
+            })
+            .to_string(),
+        ));
+
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::System.method("getTimeZones"),
-                params: None,
+                params,
             })
             .await;
         if check_thunder_response_success(&response) {
