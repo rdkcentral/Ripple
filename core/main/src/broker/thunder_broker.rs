@@ -79,7 +79,7 @@ impl CompositeRequest {
 }
 
 impl ThunderBroker {
-    fn new(
+    pub fn new(
         sender: BrokerSender,
         subscription_map: Arc<RwLock<BrokerSubMap>>,
         cleaner: BrokerCleaner,
@@ -442,7 +442,7 @@ impl ThunderBroker {
             .and_then(|data| data.id)
     }
 
-    fn get_callsign_and_method_from_alias(alias: &str) -> (String, Option<&str>) {
+    pub fn get_callsign_and_method_from_alias(alias: &str) -> (String, Option<&str>) {
         let mut collection: Vec<&str> = alias.split('.').collect();
         let method = collection.pop();
 
@@ -456,7 +456,7 @@ impl ThunderBroker {
         let callsign = collection.join(".");
         (callsign, method)
     }
-    fn unsubscribe(&self, request: &BrokerRequest) -> Option<BrokerRequest> {
+    pub fn unsubscribe(&self, request: &BrokerRequest) -> Option<BrokerRequest> {
         let mut sub_map = self.subscription_map.write().unwrap();
         trace!(
             "Unsubscribing a listen request for session id: {:?}",
@@ -477,7 +477,7 @@ impl ThunderBroker {
         existing_request
     }
 
-    fn subscribe(&self, request: &BrokerRequest) -> Option<BrokerRequest> {
+    pub fn subscribe(&self, request: &BrokerRequest) -> Option<BrokerRequest> {
         let mut sub_map = self.subscription_map.write().unwrap();
         let app_id = &request.rpc.ctx.session_id;
         let method = &request.rpc.ctx.method;

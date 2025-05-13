@@ -15,22 +15,43 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use super::{
+    endpoint_broker::{
+        BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutput, BrokerRequest,
+        BrokerSender, BrokerSubMap, EndpointBroker, ATOMIC_ID,
+    },
+    thunder_broker::ThunderBroker,
+};
+
 use crate::state::platform_state::PlatformState;
+use crate::tokio::sync::Mutex;
 use futures::stream::{SplitSink, SplitStream};
+use futures::SinkExt;
 use futures_util::StreamExt;
 use jsonrpsee::core::RpcResult;
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::{CallContext, JsonRpcApiError, RpcRequest},
-    log::{error, info},
+    log::{error, info, trace},
     tokio::{self, net::TcpStream},
     utils::rpc_utils::extract_tcp_port,
 };
+
+use serde_json::json;
 use serde_json::Value;
+use std::sync::Arc;
+use std::sync::{atomic::Ordering, RwLock};
 use std::time::Duration;
+
+use ripple_sdk::tokio::sync::mpsc;
+
 use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
 
-pub struct BrokerUtils;
+use thunder_ripple_sdk::client::{
+    device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
+    thunder_plugin::ThunderPlugin,
+};
 
+pub struct BrokerUtils;
 impl BrokerUtils {
     pub async fn get_ws_broker(
         endpoint: &str,
@@ -122,5 +143,218 @@ impl BrokerUtils {
                 .with_message(format!("failed to get {} : {}", method, e))
                 .into()),
         }
+    }
+
+    async fn register_custom_callback(
+        broker: &ThunderBroker,
+        request_id: u64,
+    ) -> tokio::sync::mpsc::Receiver<BrokerOutput> {
+        let (response_tx, response_rx) = mpsc::channel(10);
+        // Register custom callback to handle the response
+        broker
+            .register_custom_callback(
+                request_id,
+                BrokerCallback {
+                    sender: response_tx,
+                },
+            )
+            .await;
+        response_rx
+    }
+
+    fn get_next_id() -> u64 {
+        ATOMIC_ID.fetch_add(1, Ordering::SeqCst)
+    }
+
+    async fn send_thunder_request(
+        &self,
+        ws_tx: &Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
+        request: &str,
+    ) -> Result<(), ()> {
+        let mut ws_tx = ws_tx.lock().await;
+        if let Err(e) = ws_tx.feed(Message::Text(request.to_string())).await {
+            error!("Failed to send Thunder request: {}", e);
+            return Err(());
+        }
+        if let Err(e) = ws_tx.flush().await {
+            error!("Failed to flush Thunder request: {}", e);
+            return Err(());
+        }
+        Ok(())
+    }
+
+    //fn new_subscribe(request: &BrokerRequest) {}
+
+    fn get_callsign_and_method_from_alias(alias: &str) -> (String, Option<&str>) {
+        let mut collection: Vec<&str> = alias.split('.').collect();
+        let method = collection.pop();
+
+        // Check if the second-to-last element is a digit (version number)
+        if let Some(&version) = collection.last() {
+            if version.chars().all(char::is_numeric) {
+                collection.pop(); // Remove the version number
+            }
+        }
+
+        let callsign = collection.join(".");
+        (callsign, method)
+    }
+
+    pub async fn handle_subscribe(
+        broker_request: BrokerRequest,
+        connection_req: BrokerConnectRequest,
+        callback: BrokerCallback,
+    ) {
+        let mut requests = Vec::new();
+        let endpoint = connection_req.endpoint.clone();
+        let (response_tx, response_rx) = mpsc::channel::<BrokerRequest>(10);
+        let (c_tx, mut c_tr) = mpsc::channel(2);
+
+        let subscription_map: Arc<RwLock<BrokerSubMap>> =
+            Arc::new(RwLock::new(connection_req.sub_map.clone()));
+
+        let alias = broker_request.rule.alias.clone();
+        let (callsign, method) = Self::get_callsign_and_method_from_alias(alias.as_str().clone());
+
+        let broker_sender = BrokerSender {
+            sender: response_tx,
+        };
+        let cleaner = BrokerCleaner {
+            cleaner: Some(c_tx.clone()),
+        };
+
+        let thunder_broker = ThunderBroker::new(broker_sender, subscription_map, cleaner, callback);
+
+        tokio::spawn(async move {
+            let (ws_tx, mut ws_rx) = BrokerUtils::get_ws_broker(&endpoint.get_url(), None).await;
+            let id = broker_request.rpc.ctx.call_id;
+
+            if broker_request.rpc.is_subscription() && !broker_request.rpc.is_unlisten() {
+                let listen = broker_request.rpc.is_listening();
+                if let Some(sub_req) = thunder_broker.subscribe(&broker_request) {
+                    requests.push(
+                        json!({
+                            "jsonrpc": "2.0",
+                            "id": sub_req.rpc.ctx.call_id,
+                            "method": format!("{}.unregister", callsign),
+                            "params": {
+                                "event": method,
+                                "id": format!("{}", sub_req.rpc.ctx.call_id)
+                            }
+                        })
+                        .to_string(),
+                    )
+                }
+                if listen {
+                    requests.push(
+                        json!({
+                            "jsonrpc": "2.0",
+                            "id": id,
+                            "method": format!("{}.register", callsign),
+                            "params": json!({
+                                "event": method,
+                                "id": format!("{}", id)
+                            })
+                        })
+                        .to_string(),
+                    )
+                }
+            } else if broker_request.rpc.is_unlisten() {
+                if let Some(cleanup) = thunder_broker.unsubscribe(&broker_request) {
+                    trace!(
+                        "Unregistering thunder listener for call_id {} and method {}",
+                        cleanup.rpc.ctx.call_id,
+                        method.unwrap()
+                    );
+                    requests.push(
+                        json!({
+                            "jsonrpc": "2.0",
+                            "id": cleanup.rpc.ctx.call_id,
+                            "method": format!("{}.unregister", callsign),
+                            "params": {
+                                "event": method,
+                                "id": format!("{}", cleanup.rpc.ctx.call_id)
+                            }
+                        })
+                        .to_string(),
+                    )
+                }
+            } else {
+                match ThunderBroker::update_request(&broker_request) {
+                    Ok(request) => requests.push(request),
+                    Err(e) => error!("Failed to update request: {}", e),
+                }
+            }
+
+            let ws_tx = Arc::new(Mutex::new(ws_tx));
+
+            for r in requests {
+                if let Err(_) = BrokerUtils.send_thunder_request(&ws_tx, &r).await {
+                    error!("Failed to send subscription request for {}", callsign);
+                }
+            }
+
+            tokio::pin! {
+                let read = ws_rx.next();
+            }
+
+            // loop {
+            //     tokio::select! {
+
+            //         Some(value) = &mut read => {
+            //             /* receive response here */
+            //             match value {
+            //                 Ok(v) => {
+
+            //                     if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
+            //                         debug!("Broker Websocket message {:?}", t);
+
+            //                         if broker_c.status_manager.is_controller_response(broker_c.get_sender(), broker_c.get_default_callback(), t.as_bytes()).await {
+            //                             broker_c.status_manager.handle_controller_response(broker_c.get_sender(), broker_c.get_default_callback(), t.as_bytes()).await;
+            //                         }
+            //                         else {
+            //                             // send the incoming text without context back to the sender
+            //                             let id = Self::get_id_from_result(t.as_bytes());
+            //                             let composite_resp_params = Self::get_composite_response_params_by_id(broker_c.clone(), id).await;
+            //                             let _ = Self::handle_jsonrpc_response(t.as_bytes(),broker_c.get_broker_callback(id).await, composite_resp_params);
+            //                         };
+            //                     }
+            //                 },
+            //                 Err(e) => {
+            //                     error!("Broker Websocket error on read {:?}", e);
+            //                     // Time to reconnect Thunder with existing subscription
+            //                     break;
+            //                 }
+
+            // while let Some(msg) = ws_rx.next().await {
+            //     match msg {
+            //         Ok(Message::Text(text)) => {
+            //             trace!("Received message: {}", text);
+            //             if let Ok(value) = serde_json::from_str::<Value>(&text) {
+            //                 if let Err(e) = thunder_broker.handle_response(value).await {
+            //                     error!("Failed to handle response: {}", e);
+            //                 }
+            //             } else {
+            //                 error!("Failed to parse message as JSON: {}", text);
+            //             }
+            //         }
+            //         Ok(Message::Close(_)) => {
+            //             info!("WebSocket connection closed");
+            //             break;
+            //         }
+            //         Err(e) => {
+            //             error!("WebSocket error: {}", e);
+            //             break;
+            //         }
+            //         _ => {
+            //             trace!("Received non-text WebSocket message");
+            //         }
+            //     }
+            // }
+
+            // if let Err(e) = c_tr.recv().await {
+            //     error!("Error receiving cleanup signal: {}", e);
+            // }
+        });
     }
 }
