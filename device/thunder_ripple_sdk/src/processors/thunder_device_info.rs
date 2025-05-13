@@ -279,15 +279,7 @@ impl<'de> Deserialize<'de> for ThunderAllTimezonesResponse {
                 &mut timezones,
                 String::from(""),
                 zones,
-                vec![
-                    "Etc",
-                    "Utc",
-                    "America",
-                    "Australia",
-                    "Africa",
-                    "Europe",
-                    "Pacific",
-                ],
+                vec!["Etc", "Utc", "America"],
             );
         }
         Ok(ThunderAllTimezonesResponse { timezones })
@@ -643,32 +635,52 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     pub async fn get_timezone_and_offset(state: &ThunderState) -> Option<TimeZone> {
-        let timezone_result = ThunderDeviceInfoRequestProcessor::get_timezone_value(state).await;
-        let timezones_result = ThunderDeviceInfoRequestProcessor::get_all_timezones(state).await;
+        // Get the current timezone
+        let Ok(timezone) = ThunderDeviceInfoRequestProcessor::get_timezone_value(state).await
+        else {
+            return None;
+        };
 
-        if let (Ok(timezone), Ok(timezones)) = (timezone_result, timezones_result) {
-            let timezone = TimeZone {
-                time_zone: timezone.clone(),
-                offset: timezones.get_offset(&timezone),
-            };
-            let timezone_c = timezone.clone();
-            let _ = state
-                .get_client()
-                .request_transient(RippleContextUpdateRequest::TimeZone(timezone_c));
-            Some(timezone)
-        } else {
-            None
-        }
+        // Get all timezones (including the specific one we need)
+        let Ok(timezones) =
+            ThunderDeviceInfoRequestProcessor::get_all_timezones(state, &timezone).await
+        else {
+            return None;
+        };
+
+        // Create the TimeZone object
+        let timezone_obj = TimeZone {
+            time_zone: timezone.clone(),
+            offset: timezones.get_offset(&timezone),
+        };
+
+        // Update client with timezone info
+        let _ = state
+            .get_client()
+            .request_transient(RippleContextUpdateRequest::TimeZone(timezone_obj.clone()));
+
+        Some(timezone_obj)
     }
 
     async fn get_all_timezones(
         state: &ThunderState,
+        timezone: &str,
     ) -> Result<ThunderAllTimezonesResponse, RippleError> {
+        let params = Some(DeviceChannelParams::Json(
+            json!({
+                "timeZones": [
+                    timezone,
+                    "Etc/UTC",
+                ]
+            })
+            .to_string(),
+        ));
+
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::System.method("getTimeZones"),
-                params: None,
+                params,
             })
             .await;
         if check_thunder_response_success(&response) {
