@@ -140,7 +140,7 @@ impl ThunderBroker {
         custom_callback_list.remove(&id);
     }
 
-    async fn get_broker_callback(&self, id: Option<u64>) -> BrokerCallback {
+    pub async fn get_broker_callback(&self, id: Option<u64>) -> BrokerCallback {
         if id.is_none() {
             return self.default_callback.clone();
         }
@@ -409,7 +409,7 @@ impl ThunderBroker {
         new_response
     }
 
-    async fn get_composite_response_params_by_id(
+    pub async fn get_composite_response_params_by_id(
         broker: ThunderBroker,
         id: Option<u64>,
     ) -> Option<Value> {
@@ -436,7 +436,7 @@ impl ThunderBroker {
         new_param
     }
 
-    fn get_id_from_result(result: &[u8]) -> Option<u64> {
+    pub fn get_id_from_result(result: &[u8]) -> Option<u64> {
         serde_json::from_slice::<JsonRpcApiResponse>(result)
             .ok()
             .and_then(|data| data.id)

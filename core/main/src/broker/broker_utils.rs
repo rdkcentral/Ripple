@@ -17,8 +17,8 @@
 
 use super::{
     endpoint_broker::{
-        BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutput, BrokerRequest,
-        BrokerSender, BrokerSubMap, EndpointBroker, ATOMIC_ID,
+        BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerRequest, BrokerSender,
+        BrokerSubMap, EndpointBroker,
     },
     thunder_broker::ThunderBroker,
 };
@@ -39,17 +39,32 @@ use ripple_sdk::{
 use serde_json::json;
 use serde_json::Value;
 use std::sync::Arc;
-use std::sync::{atomic::Ordering, RwLock};
+use std::sync::RwLock;
 use std::time::Duration;
 
 use ripple_sdk::tokio::sync::mpsc;
 
 use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
 
-use thunder_ripple_sdk::client::{
-    device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
-    thunder_plugin::ThunderPlugin,
-};
+// use thunder_ripple_sdk::client::{
+//     device_operator::{DeviceCallRequest, DeviceChannelParams, DeviceOperator},
+//     thunder_plugin::ThunderPlugin,
+// };
+
+fn get_callsign_and_method_from_alias(alias: &str) -> (String, Option<String>) {
+    let mut collection: Vec<&str> = alias.split('.').collect();
+    let method = collection.pop();
+
+    // Check if the second-to-last element is a digit (version number)
+    if let Some(&version) = collection.last() {
+        if version.chars().all(char::is_numeric) {
+            collection.pop(); // Remove the version number
+        }
+    }
+
+    let callsign = collection.join(".");
+    (callsign, method.map(|m| m.to_string()))
+}
 
 pub struct BrokerUtils;
 impl BrokerUtils {
@@ -145,26 +160,26 @@ impl BrokerUtils {
         }
     }
 
-    async fn register_custom_callback(
-        broker: &ThunderBroker,
-        request_id: u64,
-    ) -> tokio::sync::mpsc::Receiver<BrokerOutput> {
-        let (response_tx, response_rx) = mpsc::channel(10);
-        // Register custom callback to handle the response
-        broker
-            .register_custom_callback(
-                request_id,
-                BrokerCallback {
-                    sender: response_tx,
-                },
-            )
-            .await;
-        response_rx
-    }
+    // async fn register_custom_callback(
+    //     broker: &ThunderBroker,
+    //     request_id: u64,
+    // ) -> tokio::sync::mpsc::Receiver<BrokerOutput> {
+    //     let (response_tx, response_rx) = mpsc::channel(10);
+    //     // Register custom callback to handle the response
+    //     broker
+    //         .register_custom_callback(
+    //             request_id,
+    //             BrokerCallback {
+    //                 sender: response_tx,
+    //             },
+    //         )
+    //         .await;
+    //     response_rx
+    // }
 
-    fn get_next_id() -> u64 {
-        ATOMIC_ID.fetch_add(1, Ordering::SeqCst)
-    }
+    // fn get_next_id() -> u64 {
+    //     ATOMIC_ID.fetch_add(1, Ordering::SeqCst)
+    // }
 
     async fn send_thunder_request(
         &self,
@@ -183,23 +198,6 @@ impl BrokerUtils {
         Ok(())
     }
 
-    //fn new_subscribe(request: &BrokerRequest) {}
-
-    fn get_callsign_and_method_from_alias(alias: &str) -> (String, Option<&str>) {
-        let mut collection: Vec<&str> = alias.split('.').collect();
-        let method = collection.pop();
-
-        // Check if the second-to-last element is a digit (version number)
-        if let Some(&version) = collection.last() {
-            if version.chars().all(char::is_numeric) {
-                collection.pop(); // Remove the version number
-            }
-        }
-
-        let callsign = collection.join(".");
-        (callsign, method)
-    }
-
     pub async fn handle_subscribe(
         broker_request: BrokerRequest,
         connection_req: BrokerConnectRequest,
@@ -207,14 +205,15 @@ impl BrokerUtils {
     ) {
         let mut requests = Vec::new();
         let endpoint = connection_req.endpoint.clone();
-        let (response_tx, response_rx) = mpsc::channel::<BrokerRequest>(10);
-        let (c_tx, mut c_tr) = mpsc::channel(2);
+        let (response_tx, _response_rx) = mpsc::channel::<BrokerRequest>(10);
+        let (c_tx, _c_tr) = mpsc::channel(2);
 
         let subscription_map: Arc<RwLock<BrokerSubMap>> =
             Arc::new(RwLock::new(connection_req.sub_map.clone()));
 
         let alias = broker_request.rule.alias.clone();
-        let (callsign, method) = Self::get_callsign_and_method_from_alias(alias.as_str().clone());
+        let (callsign, method) = get_callsign_and_method_from_alias(&alias);
+        let method = method.clone();
 
         let broker_sender = BrokerSender {
             sender: response_tx,
@@ -264,7 +263,7 @@ impl BrokerUtils {
                     trace!(
                         "Unregistering thunder listener for call_id {} and method {}",
                         cleanup.rpc.ctx.call_id,
-                        method.unwrap()
+                        method.clone().unwrap()
                     );
                     requests.push(
                         json!({
@@ -298,63 +297,35 @@ impl BrokerUtils {
                 let read = ws_rx.next();
             }
 
-            // loop {
-            //     tokio::select! {
-
-            //         Some(value) = &mut read => {
-            //             /* receive response here */
-            //             match value {
-            //                 Ok(v) => {
-
-            //                     if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
-            //                         debug!("Broker Websocket message {:?}", t);
-
-            //                         if broker_c.status_manager.is_controller_response(broker_c.get_sender(), broker_c.get_default_callback(), t.as_bytes()).await {
-            //                             broker_c.status_manager.handle_controller_response(broker_c.get_sender(), broker_c.get_default_callback(), t.as_bytes()).await;
-            //                         }
-            //                         else {
-            //                             // send the incoming text without context back to the sender
-            //                             let id = Self::get_id_from_result(t.as_bytes());
-            //                             let composite_resp_params = Self::get_composite_response_params_by_id(broker_c.clone(), id).await;
-            //                             let _ = Self::handle_jsonrpc_response(t.as_bytes(),broker_c.get_broker_callback(id).await, composite_resp_params);
-            //                         };
-            //                     }
-            //                 },
-            //                 Err(e) => {
-            //                     error!("Broker Websocket error on read {:?}", e);
-            //                     // Time to reconnect Thunder with existing subscription
-            //                     break;
-            //                 }
-
-            // while let Some(msg) = ws_rx.next().await {
-            //     match msg {
-            //         Ok(Message::Text(text)) => {
-            //             trace!("Received message: {}", text);
-            //             if let Ok(value) = serde_json::from_str::<Value>(&text) {
-            //                 if let Err(e) = thunder_broker.handle_response(value).await {
-            //                     error!("Failed to handle response: {}", e);
-            //                 }
-            //             } else {
-            //                 error!("Failed to parse message as JSON: {}", text);
-            //             }
-            //         }
-            //         Ok(Message::Close(_)) => {
-            //             info!("WebSocket connection closed");
-            //             break;
-            //         }
-            //         Err(e) => {
-            //             error!("WebSocket error: {}", e);
-            //             break;
-            //         }
-            //         _ => {
-            //             trace!("Received non-text WebSocket message");
-            //         }
-            //     }
-            // }
-
-            // if let Err(e) = c_tr.recv().await {
-            //     error!("Error receiving cleanup signal: {}", e);
-            // }
+            loop {
+                tokio::select! {
+                    Some(msg) = read.as_mut() => {
+                        match msg {
+                            Ok(Message::Text(ref text)) => {
+                                trace!("Received message: {}", text);
+                                let id = ThunderBroker::get_id_from_result(text.as_bytes());
+                                        let composite_resp_params = ThunderBroker::get_composite_response_params_by_id(thunder_broker.clone(), id).await;
+                                        if let Ok(Message::Text(t)) = msg {
+                                            let _ = ThunderBroker::handle_jsonrpc_response(t.clone().as_bytes(), thunder_broker.clone().get_broker_callback(id).await, composite_resp_params);
+                                        }
+                            }
+                            Ok(Message::Close(_)) => {
+                                info!("WebSocket connection closed");
+                                break;
+                            }
+                            Err(e) => {
+                                error!("WebSocket error: {}", e);
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+                    else => {
+                        trace!("No more messages from WebSocket");
+                        break;
+                    }
+                }
+            }
         });
     }
 }
