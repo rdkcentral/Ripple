@@ -288,7 +288,7 @@ impl BrokerUtils {
             let ws_tx = Arc::new(Mutex::new(ws_tx));
 
             for r in requests {
-                if let Err(_) = BrokerUtils.send_thunder_request(&ws_tx, &r).await {
+                if BrokerUtils.send_thunder_request(&ws_tx, &r).await.is_err() {
                     error!("Failed to send subscription request for {}", callsign);
                 }
             }
