@@ -88,7 +88,7 @@ After creating and importing a function definition file, defined functions can b
 }
 ```
 
-Here, functions are used for both the `request` and `response` transforms. In the first case, `.value` is passed into `territory_firebolt2thunder`. If `.value` equalled "CA", after function execution the `request` transform would become:
+Here, functions are used for both the `request` and `response` transforms. In the first case, `.value` is passed into `territory_firebolt2thunder`. If `.value` equalled "AK", after function execution the `request` transform would become:
 
 ```
 "request": "\"USA\""
