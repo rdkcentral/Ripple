@@ -272,7 +272,7 @@ async fn handle_service_register_request(v: &Value, clients: &Clients, client_id
             let _ = tx.send(Message::Close(None)).await;
         }
 
-        send_response(&v, response_value, clients, client_id).await;
+        send_response(v, response_value, clients, client_id).await;
     } else {
         println!("[AppGW] Invalid register request: no service_id provided");
         let error_response_value = json!({
@@ -281,7 +281,7 @@ async fn handle_service_register_request(v: &Value, clients: &Clients, client_id
                 "message": "Invalid params: no service_id provided"
             }
         });
-        send_response(&v, error_response_value, clients, client_id).await;
+        send_response(v, error_response_value, clients, client_id).await;
     }
 }
 /// Handles a service unregister request by updating the client's service information.
@@ -318,7 +318,7 @@ async fn handle_service_unregister_request(v: &Value, clients: &Clients, client_
         }
     };
     // Lock is dropped here before calling send_response
-    send_response(&v, response_value, clients, client_id).await;
+    send_response(v, response_value, clients, client_id).await;
 }
 /// Handles a service response for either an aggregate or direct request.
 ///

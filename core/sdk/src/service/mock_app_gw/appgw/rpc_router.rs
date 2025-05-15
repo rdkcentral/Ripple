@@ -76,10 +76,10 @@ async fn handle_aggregate_call(
     pending: &PendingMap,
     sender_id: &str,
 ) {
-    let id = match parse_request_id(&v).await {
+    let id = match parse_request_id(v).await {
         Some(id) => id,
         None => {
-            send_invalid_id_error(&v, clients, sender_id).await;
+            send_invalid_id_error(v, clients, sender_id).await;
             return;
         }
     };
@@ -123,10 +123,10 @@ async fn handle_direct_or_internal_call(
     internal_api_map: Arc<HashMap<String, Value>>,
     service_rules: &HashMap<String, String>,
 ) {
-    let id = match parse_request_id(&v).await {
+    let id = match parse_request_id(v).await {
         Some(id) => id,
         None => {
-            send_invalid_id_error(&v, clients, sender_id).await;
+            send_invalid_id_error(v, clients, sender_id).await;
             return;
         }
     };
