@@ -43,7 +43,6 @@ contract_tests = [
     "websocket_contract_tests",
 ]
 tdk=[]
-service = []
 
 [dependencies]
 base64.workspace = true

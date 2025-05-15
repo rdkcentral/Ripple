@@ -271,7 +271,7 @@ impl ExtnClient {
             .unwrap();
 
         let path = path.to_string();
-        if let Ok((mut ws_tx, mut ws_rx)) = WebSocketUtils::get_ws_stream(&path, None, None).await {
+        if let Ok((mut ws_tx, mut ws_rx)) = WebSocketUtils::get_ws_stream(&path, None).await {
             tokio::pin! {
                 let read_pin = ws_rx.next();
             }

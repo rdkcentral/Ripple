@@ -272,11 +272,10 @@ impl ThunderAsyncClient {
         &mut self,
         url: &str,
         mut thunder_async_request_rx: Receiver<ThunderAsyncRequest>,
-        local_dev: Option<bool>,
     ) {
         loop {
             info!("start: (re)establishing websocket connection: url={}", url);
-            let resp = WebSocketUtils::get_ws_stream(url, None, local_dev).await;
+            let resp = WebSocketUtils::get_ws_stream(url, None).await;
             if resp.is_err() {
                 error!("FATAL ERROR Thunder URL badly configured.");
                 break;

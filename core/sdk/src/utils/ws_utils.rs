@@ -106,8 +106,7 @@ impl WebSocketUtils {
     /// ```
     pub async fn get_ws_stream(
         endpoint: &str,
-        inital_config: Option<WebSocketConfig>,
-        is_local_dev: Option<bool>,
+        inital_config: Option<WebSocketConfig>
     ) -> Result<
         (
             SplitSink<WebSocketStream<TcpStream>, Message>,
@@ -127,12 +126,10 @@ impl WebSocketUtils {
         } else {
             endpoint.to_owned()
         };
-        let mut local_dev = false;
-        if let Some(is_local_dev) = is_local_dev {
-            if is_local_dev {
-                local_dev = true;
-            };
-        };
+        let local_dev = std::env::var("local_dev")
+        .ok()
+        .and_then(|s| s.parse::<bool>().ok())
+        .unwrap_or(false);
         if cfg!(not(feature = "local_dev")) && !local_dev {
             // Only support local ws connections
             if !url_path.starts_with("ws://127.0.0.1") && !url_path.starts_with("ws://localhost") {

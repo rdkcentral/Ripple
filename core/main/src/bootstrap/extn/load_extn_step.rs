@@ -48,7 +48,7 @@ impl LoadedLibrary {
 /// 2. Device Extensions
 pub struct LoadExtensionsStep;
 
-#[cfg(not(feature = "service"))]
+
 impl LoadExtensionsStep {
     unsafe fn load_extension_library<P: AsRef<OsStr>>(
         filename: P,
@@ -112,7 +112,6 @@ impl LoadExtensionsStep {
 }
 
 #[async_trait]
-#[cfg(not(feature = "service"))]
 impl Bootstep<BootstrapState> for LoadExtensionsStep {
     fn get_name(&self) -> String {
         "LoadExtensionsStep".into()
