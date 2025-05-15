@@ -67,6 +67,8 @@ jaq-interpret = { version = "1.5.0", default-features = false }
 jaq-parse = { version = "1.0.2", default-features = false }
 jaq-core = "1.5.0"
 jaq-std = { version = "1.5.1", default-features = false }
+strum = { version = "0.24", default-features = false }
+strum_macros = "0.24"
 
 openrpc_validator = { path = "../../openrpc_validator" }
 proc-macro2.workspace = true
