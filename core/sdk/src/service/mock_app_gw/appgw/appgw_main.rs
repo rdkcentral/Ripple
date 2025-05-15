@@ -29,7 +29,7 @@ use tokio::{net::TcpListener, sync::Mutex};
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 use uuid::Uuid;
 
-const APPGW_BIND_ADDRESS: &str = "127.0.0.1:1234";
+const APPGW_BIND_ADDRESS: &str = "127.0.0.1:3474";
 
 /// Starts the Mock Application Gateway (AppGW) service.
 ///

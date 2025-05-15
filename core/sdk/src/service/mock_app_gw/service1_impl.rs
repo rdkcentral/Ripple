@@ -24,7 +24,7 @@ use crate::service_trait::Service;
 
 // Define the service ID as a constant
 const SERVICE1_ID: &str = "mock:service:appgw:service1";
-const APPGW_WS_URL: &str = "ws://127.0.0.1:1234";
+const APPGW_WS_URL: &str = "127.0.0.1:3474";
 
 pub struct MockService {
     id: String,

@@ -154,17 +154,24 @@ pub trait Service: Send + Sync + 'static {
 async fn establish_connection_to_appgw_with_backoff(
     url: &str,
 ) -> WebSocketStream<MaybeTlsStream<TcpStream>> {
+    let path = tokio_tungstenite::tungstenite::http::Uri::builder()
+        .scheme("ws")
+        .authority(url)
+        .path_and_query(format!("/?service_handshake={}", 9999))
+        .build()
+        .unwrap();
+
     let mut backoff = 1;
     loop {
-        match connect_async(url).await {
+        match connect_async(path.clone()).await {
             Ok((stream, _)) => {
-                println!("[Service] Connected to AppGW at {url}");
+                println!("[Service] Connected to AppGW at {path}");
                 return stream;
             }
             Err(e) => {
                 eprintln!(
                     "[Service] Failed to connect to {}: {e}. Retrying in {}s...",
-                    url, backoff
+                    path, backoff
                 );
                 sleep(Duration::from_secs(backoff)).await;
                 backoff = (backoff * 2).min(30); // cap wait at 30s

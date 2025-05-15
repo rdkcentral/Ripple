@@ -22,7 +22,7 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static REQ_ID_COUNTER: AtomicU64 = AtomicU64::new(5000);
-const APPGW_WS_URL: &str = "ws://127.0.0.1:1234";
+const APPGW_WS_URL: &str = "ws://127.0.0.1:3474";
 
 pub async fn start_test_cli() {
     let (ws_stream, _) = connect_async(APPGW_WS_URL)

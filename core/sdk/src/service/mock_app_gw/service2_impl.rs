@@ -22,7 +22,7 @@ use tokio_tungstenite::tungstenite::Message;
 
 use crate::service_trait::Service;
 
-const APPGW_WS_URL: &str = "ws://127.0.0.1:1234";
+const APPGW_WS_URL: &str = "127.0.0.1:3474";
 
 struct Service2;
 
