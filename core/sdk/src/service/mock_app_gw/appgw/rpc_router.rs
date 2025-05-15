@@ -42,7 +42,7 @@ struct CleanupError {
 }
 
 pub async fn handle_jsonrpc_request(
-    v: Value,
+    v: &Value,
     clients: &Clients,
     pending: &PendingMap,
     routed: &RoutedMap,
@@ -70,7 +70,12 @@ pub async fn handle_jsonrpc_request(
     }
 }
 
-async fn handle_aggregate_call(v: Value, clients: &Clients, pending: &PendingMap, sender_id: &str) {
+async fn handle_aggregate_call(
+    v: &Value,
+    clients: &Clients,
+    pending: &PendingMap,
+    sender_id: &str,
+) {
     let id = match parse_request_id(&v).await {
         Some(id) => id,
         None => {
@@ -111,7 +116,7 @@ async fn handle_aggregate_call(v: Value, clients: &Clients, pending: &PendingMap
 }
 
 async fn handle_direct_or_internal_call(
-    v: Value,
+    v: &Value,
     clients: &Clients,
     routed: &RoutedMap,
     sender_id: &str,
@@ -273,7 +278,7 @@ fn match_service_rules(method: &str, service_rules: &HashMap<String, String>) ->
 }
 
 async fn route_to_service(
-    v: Value,
+    v: &Value,
     clients: &Clients,
     routed: &RoutedMap,
     sender_id: &str,
@@ -349,6 +354,13 @@ async fn route_to_service(
             },
         })
         .await;
+    }
+}
+
+/// Helper to send an internal API response if the request has an "id".
+pub async fn send_response(v: &Value, resp: Value, clients: &Clients, client_id: &str) {
+    if let Some(id) = v["id"].as_u64() {
+        send_internal_api_response(id, &resp, clients, client_id).await;
     }
 }
 

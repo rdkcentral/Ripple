@@ -16,7 +16,7 @@
 //
 use super::{
     internal_api_config::{load_internal_api_map, load_service_rules},
-    rpc_router::handle_jsonrpc_request,
+    rpc_router::{handle_jsonrpc_request, send_response},
     types::{ClientInfo, Clients, PendingAggregate, PendingMap, RoutedMap, RoutedRequest},
 };
 
@@ -117,7 +117,7 @@ async fn handle_client_connection(
         println!("[AppGW] Received Message from {}: {:#?}", client_id, msg);
         if let Ok(v) = serde_json::from_str::<Value>(&msg) {
             process_client_request(
-                v,
+                &v,
                 &clients,
                 &pending,
                 &routed,
@@ -179,7 +179,7 @@ async fn add_client_to_registry(clients: &Clients, tx: mpsc::Sender<Message>) ->
 /// - `service_rules`: A map of service routing rules used to route client requests.
 ///
 async fn process_client_request(
-    v: Value,
+    v: &Value,
     clients: &Clients,
     pending: &PendingMap,
     routed: &RoutedMap,
@@ -190,7 +190,7 @@ async fn process_client_request(
     if v["method"] == "register" {
         handle_service_register_request(v, clients, client_id).await;
     } else if v["method"] == "unregister" {
-        handle_service_unregister_request(clients, client_id).await;
+        handle_service_unregister_request(v, clients, client_id).await;
     } else if v.get("method").is_some() {
         handle_jsonrpc_request(
             v,
@@ -222,40 +222,66 @@ async fn process_client_request(
 ///   - The old client associated with the `service_id` is removed from the `clients` map.
 ///   - The old client's connection is cleaned up.
 /// - The new client is registered with the `service_id` and marked as a service.
-async fn handle_service_register_request(v: Value, clients: &Clients, client_id: &str) {
+async fn handle_service_register_request(v: &Value, clients: &Clients, client_id: &str) {
     if let Some(sid) = v["params"]["service_id"].as_str() {
-        let mut map = clients.lock().await;
+        let (response_value, old_client_tx) = {
+            let mut map = clients.lock().await;
 
-        // Check if the `service_id` is already in use
-        let old_client = map
-            .iter()
-            .find(|(_, c)| c.service_id.as_deref() == Some(sid))
-            .map(|(id, _)| id.clone());
+            // Check if the `service_id` is already in use
+            let old_client = map
+                .iter()
+                .find(|(_, c)| c.service_id.as_deref() == Some(sid))
+                .map(|(id, _)| id.clone());
 
-        if let Some(old_client_id) = old_client {
-            // Remove the old client associated with the `service_id`
-            println!(
-                "[AppGW] Service ID {} is already in use by client {}. Cleaning up old client.",
-                sid, old_client_id
-            );
+            let old_client_tx = old_client
+                .as_ref()
+                .and_then(|id| map.get(id).map(|c| c.tx.clone()));
 
-            // Optionally, clean up the old client's connection (e.g., send a disconnect message)
-            // Note: This assumes the old client's `tx` is still valid.
-            if let Some(old_client_info) = map.get(&old_client_id) {
-                let _ = old_client_info.tx.send(Message::Close(None)).await;
+            if let Some(ref old_client_id) = old_client {
+                println!(
+                    "[AppGW] Service ID {} is already in use by client {}. Cleaning up old client.",
+                    sid, old_client_id
+                );
+                map.remove(old_client_id);
             }
 
-            map.remove(&old_client_id);
+            // Register the new client with the `service_id`
+            let response_value = if let Some(client_info) = map.get_mut(client_id) {
+                client_info.service_id = Some(sid.to_string());
+                client_info.is_service = true;
+                println!("[AppGW] Client {} registered as service {}", client_id, sid);
+                json!({
+                    "result": {
+                        "status": "success"
+                    }
+                })
+            } else {
+                println!("[AppGW] Client {} not found in map", client_id);
+                json!({
+                    "error": {
+                        "code": -32602,
+                        "message": "Invalid service_id provided"
+                    }
+                })
+            };
+            (response_value, old_client_tx)
+        };
+
+        // Now, outside the lock, optionally send a disconnect message to the old client
+        if let Some(tx) = old_client_tx {
+            let _ = tx.send(Message::Close(None)).await;
         }
 
-        // Register the new client with the `service_id`
-        if let Some(client_info) = map.get_mut(client_id) {
-            client_info.service_id = Some(sid.to_string());
-            client_info.is_service = true;
-            println!("[AppGW] Client {} registered as service {}", client_id, sid);
-        } else {
-            println!("[AppGW] Client {} not found in map", client_id);
-        }
+        send_response(&v, response_value, clients, client_id).await;
+    } else {
+        println!("[AppGW] Invalid register request: no service_id provided");
+        let error_response_value = json!({
+            "error": {
+                "code": -32602,
+                "message": "Invalid params: no service_id provided"
+            }
+        });
+        send_response(&v, error_response_value, clients, client_id).await;
     }
 }
 /// Handles a service unregister request by updating the client's service information.
@@ -266,17 +292,33 @@ async fn handle_service_register_request(v: Value, clients: &Clients, client_id:
 /// # Parameters
 /// - `clients`: A reference to the `Clients` map, which stores information about connected clients.
 /// - `client_id`: The identifier of the client requesting to unregister.
-async fn handle_service_unregister_request(clients: &Clients, client_id: &str) {
+async fn handle_service_unregister_request(v: &Value, clients: &Clients, client_id: &str) {
     println!("[AppGW] Client {} requested unregister", client_id);
 
-    let mut map = clients.lock().await;
-    if let Some(client_info) = map.get_mut(client_id) {
-        client_info.service_id = None;
-        client_info.is_service = false;
-        println!("[AppGW] Client {} unregistered as a service", client_id);
-    } else {
-        println!("[AppGW] Client {} not found in map", client_id);
-    }
+    // Gather response while holding the lock, but call send_response after releasing it
+    let response_value = {
+        let mut map = clients.lock().await;
+        if let Some(client_info) = map.get_mut(client_id) {
+            client_info.service_id = None;
+            client_info.is_service = false;
+            println!("[AppGW] Client {} unregistered as a service", client_id);
+            json!({
+                "result": {
+                    "status": "success"
+                }
+            })
+        } else {
+            println!("[AppGW] Client {} not found in map", client_id);
+            json!({
+                "error": {
+                    "code": -32602,
+                    "message": "Invalid client_id provided"
+                }
+            })
+        }
+    };
+    // Lock is dropped here before calling send_response
+    send_response(&v, response_value, clients, client_id).await;
 }
 /// Handles a service response for either an aggregate or direct request.
 ///
@@ -292,7 +334,7 @@ async fn handle_service_unregister_request(clients: &Clients, client_id: &str) {
 /// - `client_id`: The identifier of the client that initiated the request.
 ///
 async fn handle_service_response(
-    v: Value,
+    v: &Value,
     clients: &Clients,
     pending: &PendingMap,
     routed: &RoutedMap,
@@ -328,7 +370,7 @@ async fn handle_service_response(
 /// - `client_id`: The identifier of the client that initiated the aggregate request.
 ///
 async fn process_aggregate_response(
-    v: Value,
+    v: &Value,
     clients: &Clients,
     tracker: &mut PendingAggregate,
     client_id: &str,
@@ -389,7 +431,7 @@ async fn process_aggregate_response(
 /// - `client_id`: The identifier of the client that initiated the request.
 ///
 async fn process_direct_response(
-    v: Value,
+    v: &Value,
     clients: &Clients,
     routed_req: RoutedRequest,
     client_id: &str,

@@ -69,6 +69,11 @@ impl MockService {
         &self,
         request: Value,
     ) -> Result<(), tokio_tungstenite::tungstenite::Error> {
+        println!(
+            "[{}] Sending request to AppGW: {}",
+            self.service_id(),
+            request
+        );
         if let Some(sender) = self.get_sender() {
             sender
                 .send(Message::Text(request.to_string()))
