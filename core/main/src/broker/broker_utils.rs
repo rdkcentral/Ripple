@@ -15,8 +15,15 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use super::{
+    endpoint_broker::{BrokerCallback, BrokerOutput, ATOMIC_ID},
+    thunder_broker::ThunderBroker,
+};
 use crate::state::platform_state::PlatformState;
+use crate::tokio::sync::mpsc;
+use crate::tokio::sync::Mutex;
 use futures::stream::{SplitSink, SplitStream};
+use futures::SinkExt;
 use futures_util::StreamExt;
 use jsonrpsee::core::RpcResult;
 use ripple_sdk::{
@@ -25,9 +32,49 @@ use ripple_sdk::{
     tokio::{self, net::TcpStream},
     utils::rpc_utils::extract_tcp_port,
 };
-use serde_json::Value;
-use std::time::Duration;
+use serde_json::{json, Value};
+use std::{
+    sync::{atomic::Ordering, Arc},
+    time::Duration,
+};
 use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
+
+fn get_next_id() -> u64 {
+    ATOMIC_ID.fetch_add(1, Ordering::SeqCst)
+}
+
+async fn register_custom_callback(
+    broker: &ThunderBroker,
+    request_id: u64,
+) -> tokio::sync::mpsc::Receiver<BrokerOutput> {
+    let (response_tx, response_rx) = mpsc::channel(1);
+    // Register custom callback to handle the response
+    broker
+        .register_custom_callback(
+            request_id,
+            BrokerCallback {
+                sender: response_tx,
+            },
+        )
+        .await;
+    response_rx
+}
+
+async fn send_thunder_request(
+    ws_tx: &Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
+    request: &str,
+) -> Result<(), ()> {
+    let mut ws_tx = ws_tx.lock().await;
+    if let Err(e) = ws_tx.feed(Message::Text(request.to_string())).await {
+        error!("Failed to send Thunder request: {}", e);
+        return Err(());
+    }
+    if let Err(e) = ws_tx.flush().await {
+        error!("Failed to flush Thunder request: {}", e);
+        return Err(());
+    }
+    Ok(())
+}
 
 pub struct BrokerUtils;
 
@@ -123,4 +170,85 @@ impl BrokerUtils {
                 .into()),
         }
     }
+
+    pub async fn ripple_main_thunder_req_handler(
+        rpc_req: RpcRequest,
+        broker: &ThunderBroker,
+        ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
+    ) {
+        // create the unique request id for each request.
+        let request_id = get_next_id();
+
+        let mut response_rx = register_custom_callback(broker, request_id).await;
+
+        // create the request to the legacy storage
+        let thunder_request = json!({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": rpc_req.method,
+            "params": if rpc_req.params_json.is_empty() {
+                json!({})
+            } else {
+                serde_json::from_str(&rpc_req.params_json).unwrap_or(json!({}))
+            },
+        })
+        .to_string();
+
+        info!(
+            "ripple main to thunder sending request : {:?}",
+            thunder_request
+        );
+
+        // send the request to the legacy storage
+        if let Err(e) = send_thunder_request(&ws_tx, &thunder_request).await {
+            error!("Failed to send ripple main to thunder request: {:?}", e);
+            broker.unregister_custom_callback(request_id).await;
+            return;
+        }
+
+        // Wait asynchronously for the response from ThunderBroker
+        if let Some(response) = response_rx.recv().await {
+            info!(
+                "Received response for request_id {}: {:?}",
+                request_id, response
+            );
+            println!("@@@NNA....received thunder response : {:?}", response);
+            // You can add further processing of the response here if needed
+        } else {
+            error!(
+                "No response received for request_id {}: channel closed",
+                request_id
+            );
+        }
+
+        // Unregister the callback after receiving the response
+        broker.unregister_custom_callback(request_id).await;
+    }
 }
+
+// #[cfg(test)]
+// mod tests {
+//     use crate::{broker::{endpoint_broker::{BrokerConnectRequest, EndpointBrokerState}, rules_engine::RuleEndpoint}, utils::test_utils::{MockWebsocket, WSMockData}};
+
+//     use super::*;
+
+//     async fn get_thunderbroker(
+//         tx: mpsc::Sender<bool>,
+//         send_data: Vec<WSMockData>,
+//         sender: mpsc::Sender<BrokerOutput>,
+//         on_close: bool,
+//     ) -> ThunderBroker {
+//         // setup mock websocket server
+//         let port = MockWebsocket::start(send_data, Vec::new(), tx, on_close).await;
+
+//         let endpoint = RuleEndpoint {
+//             url: format!("ws://127.0.0.1:{}", port),
+//             protocol: crate::broker::rules_engine::RuleEndpointProtocol::Websocket,
+//             jsonrpc: false,
+//         };
+//         let (tx, _) = mpsc::channel(1);
+//         let request = BrokerConnectRequest::new("somekey".to_owned(), endpoint, tx);
+//         let callback = BrokerCallback { sender };
+//         ThunderBroker::new(None, request, callback, &mut EndpointBrokerState::default())
+//     }
+// }
