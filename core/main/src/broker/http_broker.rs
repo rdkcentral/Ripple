@@ -19,62 +19,86 @@ use std::vec;
 
 use hyper::{client::HttpConnector, Body, Client, Method, Request, Response, Uri};
 use ripple_sdk::{
-    api::{gateway::rpc_gateway_api::JsonRpcApiError, observability::log_signal::LogSignal},
+    api::observability::log_signal::LogSignal,
     log::{debug, error},
     tokio::{self, sync::mpsc},
     utils::error::RippleError,
 };
+use serde_json::Value;
 
 use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerRequest,
     BrokerSender, EndpointBroker, EndpointBrokerState, BROKER_CHANNEL_BUFFER_SIZE,
 };
-use crate::state::platform_state::PlatformState;
+use crate::{
+    broker::rules_engine::{jq_compile, RuleTransformType},
+    state::platform_state::PlatformState,
+};
 use tokio_tungstenite::tungstenite::http::uri::InvalidUri;
 
 pub struct HttpBroker {
     sender: BrokerSender,
     cleaner: BrokerCleaner,
 }
-/*
-
-*/
 
 async fn send_http_request(
     client: &Client<HttpConnector>,
-    method: Method,
     uri: &Uri,
-    path: &str,
+    broker_request: BrokerRequest,
 ) -> Result<Response<Body>, RippleError> {
-    /*
-    TODO? we may need to support body for POST request in the future
-    */
-    let http_request = Request::new(Body::empty());
-    let (mut parts, _) = http_request.into_parts();
-    //TODO, need to refactor to support other methods
-    parts.method = method.clone();
-    /*
-    mix endpoint url with method
-    */
+    let mut method = Method::GET;
+    let mut body = Body::empty();
 
-    let uri: Uri = format!("{}{}", uri, path)
+    // A rule with a request transform defined indicates that the request is a POST, where
+    // the request transform is the body of the request. Otherwise, it is a GET request.
+
+    if let Some(request_transform) = broker_request
+        .rule
+        .transform
+        .get_transform_data(RuleTransformType::Request)
+    {
+        method = Method::POST;
+
+        let transform_params =
+            match serde_json::from_str::<Vec<Value>>(&broker_request.rpc.params_json) {
+                Ok(mut params) => {
+                    if params.len() > 1 {
+                        params.pop().unwrap()
+                    } else {
+                        Value::Null
+                    }
+                }
+                Err(e) => {
+                    error!(
+                        "send_http_request: Error in http broker parsing request params: e={:?}",
+                        e
+                    );
+                    Value::Null
+                }
+            };
+
+        let body_val = jq_compile(
+            transform_params,
+            &request_transform,
+            format!("{}_http_post", broker_request.rpc.ctx.method),
+        )?;
+
+        body = Body::from(body_val.to_string());
+        println!("*** _DEBUG: body={:?}", body);
+    }
+
+    let uri: Uri = format!("{}{}", uri, broker_request.rule.alias)
         .parse()
         .map_err(|e: InvalidUri| RippleError::BrokerError(e.to_string()))?;
-    let new_request = Request::builder()
+
+    debug!("http_broker sending {} request={}", method, uri,);
+
+    let http_request = Request::builder()
         .uri(uri)
-        .body(Body::empty())
+        .method(method)
+        .body(body)
         .map_err(|e| RippleError::BrokerError(e.to_string()))?;
-    let (uri_parts, _) = new_request.into_parts();
 
-    parts.uri = uri_parts.uri;
-
-    let http_request = Request::from_parts(parts, Body::empty());
-
-    debug!(
-        "http_broker sending {} request={}",
-        method,
-        http_request.uri(),
-    );
     match client.request(http_request).await {
         Ok(v) => Ok(v),
         Err(e) => {
@@ -83,6 +107,7 @@ async fn send_http_request(
         }
     }
 }
+
 async fn send_broker_response(
     callback: &BrokerCallback,
     request: &BrokerRequest,
@@ -128,45 +153,37 @@ impl EndpointBroker for HttpBroker {
         let client = Client::new();
 
         let _ =  endpoint.get_url().parse().map_err(|e| error!("broker url {:?} in endpoint is invalid, cannot start http broker. error={}",endpoint,e) ).map(|uri| tokio::spawn(async move {
-            while let Some(request) = tr.recv().await {
+            while let Some(mut request) = tr.recv().await {
                 LogSignal::new("http_broker".to_string(), format!("received request - start processing request={:?}", request), request.rpc.ctx.clone())
                     .with_diagnostic_context_item("rule_alias", request.rule.alias.as_str()).emit_debug();
-                match send_http_request(&client, Method::GET, &uri, &request.clone().rule.alias)
+
+                match send_http_request(&client, &uri, request.clone())
                     .await
                 {
                     Ok(response) => {
+                        LogSignal::new(
+                            "http_broker".to_string(),
+                            format!("received response={:?} to request: {:?} using rule={:?}", response, request, request.rule),
+                            request.rpc.ctx.clone(),
+                        )
+                        .emit_debug();
+
                         let (parts, body) = response.into_parts();
                         let body = body_to_bytes(body).await;
-                        let mut request = request;
+
                         if let Ok(json_str) = serde_json::from_slice::<serde_json::Value>(&body).map(|v| vec![v])
                             .and_then(|v| serde_json::to_string(&v))
                         {
                             request.rpc.params_json = json_str;
-                            let response = Self::update_request(&request);
-                            LogSignal::new(
-                                "http_broker".to_string(),
-                                format!("received response={:?} to request: {:?} using rule={:?}", response, request, request.rule),
-                                request.rpc.ctx.clone(),
-                            )
-                            .emit_debug();
+                        }
 
+                        send_broker_response(&callback, &request, &body).await.ok();
 
-                            let _ = send_broker_response(&callback, &request, &body).await;
-                            if !parts.status.is_success() {
-                                LogSignal::new("http_broker".to_string(), "Prepare request failed".to_string(), request.rpc.ctx.clone())
-                                .with_diagnostic_context_item("error", &format!("http error {} returned from http service in http broker {:?}",
-                                    parts.status, body))
-                                .emit_error();
-                            }
-                        } else {
-                            let msg = format!("Error in http broker parsing response from http service at {}. status={:?}",uri, parts.status);
+                        if !parts.status.is_success() {
                             LogSignal::new("http_broker".to_string(), "Prepare request failed".to_string(), request.rpc.ctx.clone())
-                                .with_diagnostic_context_item("error", &msg)
-                                .emit_error();
-                            Self::send_broker_failure_response(&callback,
-                                JsonRpcApiError::default()
-                                .with_id(request.rpc.ctx.call_id)
-                                .with_message(msg.to_string()).into());
+                            .with_diagnostic_context_item("error", &format!("http error {} returned from http service in http broker {:?}",
+                                parts.status, body))
+                            .emit_error();
                         }
                     }
                     Err(err) => {

@@ -856,7 +856,7 @@ impl EndpointBrokerState {
     ) -> Result<RuleRetrieved, RuleRetrievalError> {
         self.rule_engine.get_rule(rpc_request)
     }
-    /// Main handler method whcih checks for brokerage and then sends the request for
+    /// Main handler method which checks for brokerage and then sends the request for
     /// asynchronous processing
     pub fn handle_brokerage(
         &self,
@@ -1140,27 +1140,29 @@ pub trait EndpointBroker {
 
     /// Adds BrokerContext to a given request used by the Broker Implementations
     /// just before sending the data through the protocol
-    fn update_request(rpc_request: &BrokerRequest) -> Result<String, RippleError> {
-        let v = Self::apply_request_rule(rpc_request)?;
+    fn update_request(broker_request: &BrokerRequest) -> Result<String, RippleError> {
+        let v = Self::apply_request_rule(broker_request)?;
         trace!("transformed request {:?}", v);
-        let id = rpc_request.rpc.ctx.call_id;
-        let method = rpc_request.rule.alias.clone();
-        if let Value::Null = v {
-            Ok(json!({
+        let id = broker_request.rpc.ctx.call_id;
+        let method = broker_request.rule.alias.clone();
+        let rpc_request_str = if let Value::Null = v {
+            json!({
                 "jsonrpc": "2.0",
                 "id": id,
                 "method": method
             })
-            .to_string())
+            .to_string()
         } else {
-            Ok(json!({
+            json!({
                 "jsonrpc": "2.0",
                 "id": id,
                 "method": method,
                 "params": v
             })
-            .to_string())
-        }
+            .to_string()
+        };
+
+        Ok(rpc_request_str)
     }
 
     /// Generic method which takes the given parameters from RPC request and adds rules using rule engine
@@ -1648,12 +1650,19 @@ impl BrokerOutputForwarder {
         } else {
             None
         };
-        let parse_result = serde_json::from_slice::<Value>(data);
-        debug!("parse result {:?}", parse_result);
-        if parse_result.is_err() {
-            return Err(RippleError::ParseError);
-        }
-        let result = Some(parse_result.unwrap());
+
+        let result = if data.len() > 0 {
+            match serde_json::from_slice::<Value>(data) {
+                Ok(v) => Some(v),
+                Err(e) => {
+                    error!("handle_non_jsonrpc_response: Error parsing data: e={:?}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         debug!("result {:?}", result);
         // build JsonRpcApiResponse
         let data = JsonRpcApiResponse {
