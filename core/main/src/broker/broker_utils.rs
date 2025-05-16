@@ -173,13 +173,13 @@ impl BrokerUtils {
 
     pub async fn ripple_main_thunder_req_handler(
         rpc_req: RpcRequest,
-        broker: &ThunderBroker,
+        broker: Arc<ThunderBroker>,
         ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
     ) {
         // create the unique request id for each request.
         let request_id = get_next_id();
 
-        let mut response_rx = register_custom_callback(broker, request_id).await;
+        let mut response_rx = register_custom_callback(&broker, request_id).await;
 
         // create the request to the legacy storage
         let thunder_request = json!({
@@ -206,29 +206,36 @@ impl BrokerUtils {
             return;
         }
 
-        // Wait asynchronously for the response from ThunderBroker
-        if let Some(response) = response_rx.recv().await {
-            info!(
-                "Received response for request_id {}: {:?}",
-                request_id, response
-            );
-            println!("@@@NNA....received thunder response : {:?}", response);
-            // You can add further processing of the response here if needed
-        } else {
-            error!(
-                "No response received for request_id {}: channel closed",
-                request_id
-            );
-        }
+        let broker_clone = Arc::clone(&broker);
+        tokio::spawn(async move {
+            // Wait asynchronously for the response from ThunderBroker
+            if let Some(response) = response_rx.recv().await {
+                info!(
+                    "Received response for request_id {}: {:?}",
+                    request_id, response
+                );
+            } else {
+                error!(
+                    "No response received for request_id {}: channel closed",
+                    request_id
+                );
+            }
 
-        // Unregister the callback after receiving the response
-        broker.unregister_custom_callback(request_id).await;
+            // Unregister the callback after receiving the response
+            broker_clone.unregister_custom_callback(request_id).await;
+        });
     }
 }
 
 // #[cfg(test)]
 // mod tests {
-//     use crate::{broker::{endpoint_broker::{BrokerConnectRequest, EndpointBrokerState}, rules_engine::RuleEndpoint}, utils::test_utils::{MockWebsocket, WSMockData}};
+//     use crate::{
+//         broker::{
+//             endpoint_broker::{BrokerConnectRequest, EndpointBrokerState},
+//             rules_engine::RuleEndpoint,
+//         },
+//         utils::test_utils::{MockWebsocket, WSMockData},
+//     };
 
 //     use super::*;
 
@@ -249,6 +256,17 @@ impl BrokerUtils {
 //         let (tx, _) = mpsc::channel(1);
 //         let request = BrokerConnectRequest::new("somekey".to_owned(), endpoint, tx);
 //         let callback = BrokerCallback { sender };
-//         ThunderBroker::new(None, request, callback, &mut EndpointBrokerState::default())
+//         let thunderbroker = ThunderBroker {
+//             sender,
+//             subscription_map: Default::default(),
+//             cleaner: Default::default(),
+//             status_manager: Default::default(),
+//             default_callback: Default::default(),
+//             data_migrator: Default::default(),
+//             custom_callback_list: Default::default(),
+//             composite_request_list: Default::default(),
+//             composite_request_purge_started: Default::default(),
+//         };
+//         thunderbroker
 //     }
 // }
