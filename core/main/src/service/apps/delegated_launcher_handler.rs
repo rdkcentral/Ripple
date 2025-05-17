@@ -141,6 +141,20 @@ impl AppManagerState2_0 {
         let mut apps = self.apps.write().unwrap();
         let _ = apps.insert(app_id, app);
     }
+
+    pub fn get_app_id_from_session_id(&self, session_id: &str) -> Option<String> {
+        if let Some((_, app)) = self
+            .apps
+            .read()
+            .unwrap()
+            .iter()
+            .find(|(_, app)| app.current_session.app_instance_id.eq(session_id))
+        {
+            Some(app.app_id.clone())
+        } else {
+            None
+        }
+    }
 }
 
 impl AppManagerState {
