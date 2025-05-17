@@ -23,12 +23,12 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        apps::{AppError, AppManagerResponse, AppMethod, AppSession, StateChange},
+        apps::{AppError, AppManagerResponse, AppMethod, AppSession, AppSession2_0, StateChange},
         device::{device_user_grants_data::EvaluateAt, entertainment_data::NavigationIntent},
         firebolt::{
             fb_capabilities::{DenyReason, DenyReasonWithCap, FireboltPermission},
             fb_discovery::DISCOVERY_EVENT_ON_NAVIGATE_TO,
-            fb_lifecycle::LifecycleState,
+            fb_lifecycle::{LifecycleState, LifecycleState2_0, LifecycleStateChangeEvent},
             fb_lifecycle_management::{
                 CompletedSessionResponse, PendingSessionResponse, SessionResponse,
                 LCM_EVENT_ON_SESSION_TRANSITION_CANCELED,
@@ -101,6 +101,13 @@ pub struct App {
     pub is_app_init_params_invoked: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct App2_0 {
+    pub app_id: String,
+    pub current_session: AppSession2_0,
+    // TBD: Add other fields as needed based on the requirements of App2.0
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct AppManagerState {
     apps: Arc<RwLock<HashMap<String, App>>>,
@@ -112,6 +119,28 @@ pub struct AppManagerState {
     // This is a map <app_id, app_migrated_state>
     migrated_apps: Arc<RwLock<HashMap<String, Vec<String>>>>,
     migrated_apps_persist_path: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct AppManagerState2_0 {
+    apps: Arc<RwLock<HashMap<String, App2_0>>>,
+}
+
+impl AppManagerState2_0 {
+    pub fn new() -> Self {
+        AppManagerState2_0 {
+            apps: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    pub fn get(&self, app_id: &str) -> Option<App2_0> {
+        self.apps.read().unwrap().get(app_id).cloned()
+    }
+
+    pub fn insert(&self, app_id: String, app: App2_0) {
+        let mut apps = self.apps.write().unwrap();
+        let _ = apps.insert(app_id, app);
+    }
 }
 
 impl AppManagerState {
@@ -395,8 +424,52 @@ impl DelegatedLauncherHandler {
             timer_map: HashMap::new(),
         }
     }
+    /// Creates and store a new App2_0 session in the platform state.
+    fn create_new_app_session(&self, event: LifecycleStateChangeEvent) {
+        let LifecycleStateChangeEvent {
+            app_id,
+            app_instance_id,
+            navigation_intent,
+            ..
+        } = event;
+
+        let mut session = AppSession2_0::new(app_id.clone(), app_instance_id);
+        if let Some(intent) = navigation_intent {
+            session.set_navigation_intent(intent);
+        }
+        self.platform_state.lifecycle2_app_state.insert(
+            app_id.clone(),
+            App2_0 {
+                app_id,
+                current_session: session,
+            },
+        );
+    }
+
+    async fn on_app_lifecycle_state_changed(&self, event: LifecycleStateChangeEvent) {
+        // if the event contains new state as LOADING  then create a new session
+        match event.new_state {
+            LifecycleState2_0::Loading => {
+                self.create_new_app_session(event);
+            }
+            _ => {}
+        }
+    }
+
+    async fn set_up_lifecycle_manager_listener(&mut self) {
+        // TBD: Add the logic to set up the lifecycle manager listener
+    }
 
     pub async fn start(&mut self) {
+        if self
+            .platform_state
+            .get_device_manifest()
+            .get_lifecycle_configuration()
+            .is_app_lifecycle_2_enabled()
+        {
+            self.set_up_lifecycle_manager_listener().await;
+        }
+
         while let Some(data) = self.app_mgr_req_rx.recv().await {
             // App request
             debug!("DelegatedLauncherHandler: App request: data={:?}", data);

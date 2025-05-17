@@ -24,8 +24,12 @@ use ripple_sdk::{
         firebolt::{
             fb_general::{ListenRequest, ListenerResponse},
             fb_lifecycle::{
-                CloseRequest, LIFECYCLE_EVENT_ON_BACKGROUND, LIFECYCLE_EVENT_ON_FOREGROUND,
-                LIFECYCLE_EVENT_ON_INACTIVE, LIFECYCLE_EVENT_ON_SUSPENDED,
+                CloseRequest, LIFECYCLE_EVENT_ON_ACTIVATE, LIFECYCLE_EVENT_ON_BACKGROUND,
+                LIFECYCLE_EVENT_ON_DESTROY, LIFECYCLE_EVENT_ON_FOREGROUND,
+                LIFECYCLE_EVENT_ON_HIBERNATE, LIFECYCLE_EVENT_ON_INACTIVE,
+                LIFECYCLE_EVENT_ON_PAUSE, LIFECYCLE_EVENT_ON_RESTORE, LIFECYCLE_EVENT_ON_RESUME,
+                LIFECYCLE_EVENT_ON_START, LIFECYCLE_EVENT_ON_START_SUSPEND,
+                LIFECYCLE_EVENT_ON_SUSPEND, LIFECYCLE_EVENT_ON_SUSPENDED,
                 LIFECYCLE_EVENT_ON_UNLOADING,
             },
         },
@@ -81,6 +85,70 @@ pub trait Lifecycle {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
+
+    // Additional lifecycle2.0 listeners
+    #[method(name = "lifecycle.onStart")]
+    async fn on_start(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
+
+    #[method(name = "lifecycle.onStartSuspend")]
+    async fn on_start_suspend(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
+
+    #[method(name = "lifecycle.onPause")]
+    async fn on_pause(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
+
+    #[method(name = "lifecycle.onActivate")]
+    async fn on_activate(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
+
+    #[method(name = "lifecycle.onSuspend")]
+    async fn on_suspend(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
+
+    #[method(name = "lifecycle.onResume")]
+    async fn on_resume(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
+
+    #[method(name = "lifecycle.onHibernate")]
+    async fn on_hibernate(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
+
+    #[method(name = "lifecycle.onRestore")]
+    async fn on_restore(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
+
+    #[method(name = "lifecycle.onDestroy")]
+    async fn on_destroy(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
 }
 
 pub struct LifecycleImpl {
@@ -107,6 +175,18 @@ impl LifecycleImpl {
 #[async_trait]
 impl LifecycleServer for LifecycleImpl {
     async fn ready(&self, ctx: CallContext) -> RpcResult<()> {
+        if self
+            .platform_state
+            .get_device_manifest()
+            .get_lifecycle_configuration()
+            .is_app_lifecycle_2_enabled()
+        {
+            // This call is not expected at this point when lifecycle 2.0 is enabled
+            // A JQ Rule should be responsible for invoking the LifecycleManager AppReady method
+            return Err(rpc_err(
+                "Invalid call to lifecycle.ready handler method in 2.0. A JQ Rule should be used instead",
+            ));
+        }
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
 
         let app_request = AppRequest::new(AppMethod::Ready(ctx.app_id), app_resp_tx);
@@ -225,6 +305,81 @@ impl LifecycleServer for LifecycleImpl {
     ) -> RpcResult<ListenerResponse> {
         self.listen(ctx, request, LIFECYCLE_EVENT_ON_UNLOADING)
             .await
+    }
+
+    // Additional lifecycle2.0 listeners
+    async fn on_start(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        self.listen(ctx, request, LIFECYCLE_EVENT_ON_START).await
+    }
+
+    async fn on_start_suspend(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        self.listen(ctx, request, LIFECYCLE_EVENT_ON_START_SUSPEND)
+            .await
+    }
+
+    async fn on_pause(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        self.listen(ctx, request, LIFECYCLE_EVENT_ON_PAUSE).await
+    }
+
+    async fn on_activate(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        self.listen(ctx, request, LIFECYCLE_EVENT_ON_ACTIVATE).await
+    }
+
+    async fn on_suspend(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        self.listen(ctx, request, LIFECYCLE_EVENT_ON_SUSPEND).await
+    }
+
+    async fn on_resume(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        self.listen(ctx, request, LIFECYCLE_EVENT_ON_RESUME).await
+    }
+
+    async fn on_hibernate(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        self.listen(ctx, request, LIFECYCLE_EVENT_ON_HIBERNATE)
+            .await
+    }
+
+    async fn on_restore(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        self.listen(ctx, request, LIFECYCLE_EVENT_ON_RESTORE).await
+    }
+
+    async fn on_destroy(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        self.listen(ctx, request, LIFECYCLE_EVENT_ON_DESTROY).await
     }
 }
 
