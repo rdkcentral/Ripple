@@ -46,6 +46,25 @@ pub struct AppSession {
     pub launch: AppLaunchInfo,
 }
 
+#[derive(Debug, Clone)]
+pub struct AppSession2_0 {
+    pub app_id: String,
+    pub app_instance_id: String,
+    pub navigation_intent: Option<String>,
+}
+impl AppSession2_0 {
+    pub fn new(app_id: String, app_instance_id: String) -> Self {
+        AppSession2_0 {
+            app_id,
+            app_instance_id,
+            navigation_intent: None,
+        }
+    }
+    pub fn set_navigation_intent(&mut self, intent: String) {
+        self.navigation_intent = Some(intent);
+    }
+}
+
 impl AppSession {
     pub fn update_intent(&mut self, intent: NavigationIntent) {
         let _ = self.launch.intent.insert(intent);

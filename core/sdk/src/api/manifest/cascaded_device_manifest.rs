@@ -714,6 +714,7 @@ pub struct CascadedLifecycleConfiguration {
     pub prioritized: Option<Vec<String>>,
     pub emit_app_init_events_enabled: Option<bool>,
     pub emit_navigate_on_activate: Option<bool>,
+    pub app_lifecycle_2_enabled: Option<bool>,
 }
 
 impl MergeConfig<CascadedLifecycleConfiguration> for LifecycleConfiguration {
@@ -738,6 +739,9 @@ impl MergeConfig<CascadedLifecycleConfiguration> for LifecycleConfiguration {
         }
         if let Some(cas_emit_navigate_on_activate) = cascaded.emit_navigate_on_activate {
             self.emit_navigate_on_activate = cas_emit_navigate_on_activate
+        }
+        if let Some(cas_app_lifecycle_2_enabled) = cascaded.app_lifecycle_2_enabled {
+            self.app_lifecycle_2_enabled = cas_app_lifecycle_2_enabled
         }
     }
 }
@@ -1184,7 +1188,8 @@ mod tests {
                 min_available_memory_kb: 1024,
                 prioritized,
                 emit_app_init_events_enabled: false,
-                emit_navigate_on_activate: false
+                emit_navigate_on_activate: false,
+                app_lifecycle_2_enabled: false,
             }
         );
     }
