@@ -28,7 +28,10 @@ use ripple_sdk::{
         firebolt::{
             fb_capabilities::{DenyReason, DenyReasonWithCap, FireboltPermission},
             fb_discovery::DISCOVERY_EVENT_ON_NAVIGATE_TO,
-            fb_lifecycle::{LifecycleState, LifecycleState2_0, LifecycleStateChangeEvent},
+            fb_lifecycle::{
+                Lifecycle2_0AppEvent, Lifecycle2_0AppEventData, LifecycleManagerState,
+                LifecycleState, LifecycleStateChangeEvent,
+            },
             fb_lifecycle_management::{
                 CompletedSessionResponse, PendingSessionResponse, SessionResponse,
                 LCM_EVENT_ON_SESSION_TRANSITION_CANCELED,
@@ -103,9 +106,11 @@ pub struct App {
 
 #[derive(Debug, Clone)]
 pub struct App2_0 {
+    // Ripple currently only manages the session ID (app_instance_id) for App Lifecycle 2.0.
+    // No additional business logic is implemented.
+    // Extend this structure as more AI 2.0-specific features are added.
     pub app_id: String,
     pub current_session: AppSession2_0,
-    // TBD: Add other fields as needed based on the requirements of App2.0
 }
 
 #[derive(Debug, Clone, Default)]
@@ -123,6 +128,9 @@ pub struct AppManagerState {
 
 #[derive(Debug, Clone, Default)]
 pub struct AppManagerState2_0 {
+    // Ripple currently only manages the session ID (app_instance_id) for App Lifecycle 2.0.
+    // No additional business logic is implemented.
+    // Extend this structure as more AI 2.0-specific features are added.
     apps: Arc<RwLock<HashMap<String, App2_0>>>,
 }
 
@@ -140,6 +148,11 @@ impl AppManagerState2_0 {
     pub fn insert(&self, app_id: String, app: App2_0) {
         let mut apps = self.apps.write().unwrap();
         let _ = apps.insert(app_id, app);
+    }
+
+    pub fn remove(&self, app_id: &str) -> Option<App2_0> {
+        let mut apps = self.apps.write().unwrap();
+        apps.remove(app_id)
     }
 
     pub fn get_app_id_from_session_id(&self, session_id: &str) -> Option<String> {
@@ -438,7 +451,8 @@ impl DelegatedLauncherHandler {
             timer_map: HashMap::new(),
         }
     }
-    /// Creates and store a new App2_0 session in the platform state.
+
+    #[allow(dead_code)]
     fn create_new_app_session(&self, event: LifecycleStateChangeEvent) {
         let LifecycleStateChangeEvent {
             app_id,
@@ -460,13 +474,102 @@ impl DelegatedLauncherHandler {
         );
     }
 
+    #[allow(dead_code)]
+    async fn emit_lifecycle_app_event(
+        &self,
+        app_id: &str,
+        event_ctor: fn(Lifecycle2_0AppEventData) -> Lifecycle2_0AppEvent,
+        old_state: LifecycleManagerState,
+        new_state: LifecycleManagerState,
+        source: Option<String>,
+    ) {
+        let event = event_ctor(Lifecycle2_0AppEventData {
+            state: old_state.into(),
+            previous: new_state.into(),
+            source,
+        });
+        AppEvents::emit_to_app(
+            &self.platform_state,
+            app_id.to_string(),
+            event.as_event_name(),
+            &event.as_event_data_json().unwrap_or_default(),
+        )
+        .await;
+    }
+
+    #[allow(dead_code)]
     async fn on_app_lifecycle_state_changed(&self, event: LifecycleStateChangeEvent) {
-        // if the event contains new state as LOADING  then create a new session
-        match event.new_state {
-            LifecycleState2_0::Loading => {
+        let LifecycleStateChangeEvent {
+            app_id,
+            old_state,
+            new_state,
+            ..
+        } = event.clone();
+
+        use Lifecycle2_0AppEvent::*;
+        use LifecycleManagerState::*;
+
+        match (old_state.clone(), new_state.clone()) {
+            (_, Loading) => {
                 self.create_new_app_session(event);
             }
-            _ => {}
+            (_, Initializing) => {
+                // Ripple does not maintain the state of the app in the AppManagerState2_0
+                // Update the navigation intent
+                if let Some(intent) = event.navigation_intent {
+                    // Get the App2_0 instance, update its session, and re-insert it
+                    if let Some(mut app) = self.platform_state.lifecycle2_app_state.get(&app_id) {
+                        app.current_session.set_navigation_intent(intent);
+                        self.platform_state
+                            .lifecycle2_app_state
+                            .insert(app_id.clone(), app);
+                    }
+                }
+            }
+            (Initializing, Paused) => {
+                self.emit_lifecycle_app_event(&app_id, OnStart, old_state, new_state, None)
+                    .await;
+            }
+            (Initializing, Suspended) => {
+                self.emit_lifecycle_app_event(&app_id, OnStartSuspend, old_state, new_state, None)
+                    .await;
+            }
+            (Paused, Active) => {
+                self.emit_lifecycle_app_event(&app_id, OnActivate, old_state, new_state, None)
+                    .await;
+            }
+            (Active, Paused) => {
+                self.emit_lifecycle_app_event(&app_id, OnPause, old_state, new_state, None)
+                    .await;
+            }
+            (Paused, Suspended) => {
+                self.emit_lifecycle_app_event(&app_id, OnSuspend, old_state, new_state, None)
+                    .await;
+            }
+            (Suspended, Paused) => {
+                self.emit_lifecycle_app_event(&app_id, OnResume, old_state, new_state, None)
+                    .await;
+            }
+            (Suspended, Hibernated) => {
+                self.emit_lifecycle_app_event(&app_id, OnHibernate, old_state, new_state, None)
+                    .await;
+            }
+            (Hibernated, Suspended) => {
+                self.emit_lifecycle_app_event(&app_id, OnRestore, old_state, new_state, None)
+                    .await;
+            }
+            (Paused, Terminating) => {
+                // Clean up the app session and the emit onDestroy app event.
+                self.platform_state.lifecycle2_app_state.remove(&app_id);
+                self.emit_lifecycle_app_event(&app_id, OnDestroy, old_state, new_state, None)
+                    .await;
+            }
+            _ => {
+                debug!(
+                "on_app_lifecycle_state_changed : Unhandled state transition in Ripple: {:?} -> {:?}",
+                old_state.as_string(), new_state.as_string()
+            );
+            }
         }
     }
 

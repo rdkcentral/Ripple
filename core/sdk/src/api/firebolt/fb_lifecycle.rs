@@ -84,8 +84,23 @@ impl LifecycleState {
         }
     }
 }
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LifecycleStateChangeEvent {
+    pub app_id: String,
+    pub app_instance_id: String,
+    pub old_state: LifecycleManagerState,
+    pub new_state: LifecycleManagerState,
+    //#[serde(skip_serializing_if = "Option::is_none")]
+    pub navigation_intent: Option<String>,
+}
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Deserialize, Debug, Clone)]
+pub struct CloseRequest {
+    pub reason: CloseReason,
+}
+
+#[derive(Debug, PartialEq, Serialize, Clone)]
 pub enum AppLifecycleState2_0 {
     #[serde(rename = "initializing")]
     Initializing,
@@ -97,14 +112,71 @@ pub enum AppLifecycleState2_0 {
     Suspended,
     #[serde(rename = "hibernated")]
     Hibernated,
+    #[serde(rename = "terminating")]
+    Terminating,
+    #[serde(rename = "unknown")]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Lifecycle2_0AppEventData {
+    pub state: AppLifecycleState2_0,    // The application lifecycle state
+    pub previous: AppLifecycleState2_0, // The application lifecycle state
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>, // The source of the lifecycle change. "voice" or "remote"
+}
+
+#[derive(Debug, Clone)]
+pub enum Lifecycle2_0AppEvent {
+    OnStart(Lifecycle2_0AppEventData),
+    OnStartSuspend(Lifecycle2_0AppEventData),
+    OnPause(Lifecycle2_0AppEventData),
+    OnActivate(Lifecycle2_0AppEventData),
+    OnSuspend(Lifecycle2_0AppEventData),
+    OnResume(Lifecycle2_0AppEventData),
+    OnHibernate(Lifecycle2_0AppEventData),
+    OnRestore(Lifecycle2_0AppEventData),
+    OnDestroy(Lifecycle2_0AppEventData),
+}
+
+impl Lifecycle2_0AppEvent {
+    pub fn as_event_name(&self) -> &'static str {
+        match self {
+            Lifecycle2_0AppEvent::OnStart(_) => LIFECYCLE_EVENT_ON_START,
+            Lifecycle2_0AppEvent::OnStartSuspend(_) => LIFECYCLE_EVENT_ON_START_SUSPEND,
+            Lifecycle2_0AppEvent::OnPause(_) => LIFECYCLE_EVENT_ON_PAUSE,
+            Lifecycle2_0AppEvent::OnActivate(_) => LIFECYCLE_EVENT_ON_ACTIVATE,
+            Lifecycle2_0AppEvent::OnSuspend(_) => LIFECYCLE_EVENT_ON_SUSPEND,
+            Lifecycle2_0AppEvent::OnResume(_) => LIFECYCLE_EVENT_ON_RESUME,
+            Lifecycle2_0AppEvent::OnHibernate(_) => LIFECYCLE_EVENT_ON_HIBERNATE,
+            Lifecycle2_0AppEvent::OnRestore(_) => LIFECYCLE_EVENT_ON_RESTORE,
+            Lifecycle2_0AppEvent::OnDestroy(_) => LIFECYCLE_EVENT_ON_DESTROY,
+        }
+    }
+    pub fn as_event_data_json(&self) -> Result<serde_json::Value, serde_json::Error> {
+        let data = match self {
+            Lifecycle2_0AppEvent::OnStart(d)
+            | Lifecycle2_0AppEvent::OnStartSuspend(d)
+            | Lifecycle2_0AppEvent::OnPause(d)
+            | Lifecycle2_0AppEvent::OnActivate(d)
+            | Lifecycle2_0AppEvent::OnSuspend(d)
+            | Lifecycle2_0AppEvent::OnResume(d)
+            | Lifecycle2_0AppEvent::OnHibernate(d)
+            | Lifecycle2_0AppEvent::OnRestore(d)
+            | Lifecycle2_0AppEvent::OnDestroy(d) => d,
+        };
+        serde_json::to_value(data)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
-pub enum LifecycleState2_0 {
+pub enum LifecycleManagerState {
     #[serde(rename = "LOADING")]
     Loading,
     #[serde(rename = "INITIALIZING")]
     Initializing,
+    #[serde(rename = "PAUSED")]
+    Paused,
     #[serde(rename = "RUNREQUESTED")]
     RunRequested,
     #[serde(rename = "RUNNING")]
@@ -133,40 +205,40 @@ pub enum LifecycleState2_0 {
     Terminating,
 }
 
-impl LifecycleState2_0 {
-    pub fn as_string(&self) -> &'static str {
-        match self {
-            LifecycleState2_0::Loading => "LOADING",
-            LifecycleState2_0::Initializing => "INITIALIZING",
-            LifecycleState2_0::RunRequested => "RUNREQUESTED",
-            LifecycleState2_0::Running => "RUNNING",
-            LifecycleState2_0::ActivateRequested => "ACTIVATEREQUESTED",
-            LifecycleState2_0::Active => "ACTIVE",
-            LifecycleState2_0::DeactivateRequested => "DEACTIVATEREQUESTED",
-            LifecycleState2_0::SuspendRequested => "SUSPENDREQUESTED",
-            LifecycleState2_0::Suspended => "SUSPENDED",
-            LifecycleState2_0::ResumeRequested => "RESUMEREQUESTED",
-            LifecycleState2_0::HibernateRequested => "HIBERNATEREQUESTED",
-            LifecycleState2_0::Hibernated => "HIBERNATED",
-            LifecycleState2_0::WakeRequested => "WAKEREQUESTED",
-            LifecycleState2_0::TerminateRequested => "TERMINATEREQUESTED",
-            LifecycleState2_0::Terminating => "TERMINATING",
+impl From<LifecycleManagerState> for AppLifecycleState2_0 {
+    fn from(value: LifecycleManagerState) -> Self {
+        match value {
+            LifecycleManagerState::Initializing => AppLifecycleState2_0::Initializing,
+            LifecycleManagerState::Paused => AppLifecycleState2_0::Paused,
+            LifecycleManagerState::Active => AppLifecycleState2_0::Active,
+            LifecycleManagerState::Suspended => AppLifecycleState2_0::Suspended,
+            LifecycleManagerState::Hibernated => AppLifecycleState2_0::Hibernated,
+            LifecycleManagerState::Terminating => AppLifecycleState2_0::Terminating,
+            _ => AppLifecycleState2_0::Unknown,
         }
     }
 }
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LifecycleStateChangeEvent {
-    pub app_id: String,
-    pub app_instance_id: String,
-    pub old_state: LifecycleState2_0,
-    pub new_state: LifecycleState2_0,
-    //#[serde(skip_serializing_if = "Option::is_none")]
-    pub navigation_intent: Option<String>,
-}
-#[derive(Deserialize, Debug, Clone)]
-pub struct CloseRequest {
-    pub reason: CloseReason,
+impl LifecycleManagerState {
+    pub fn as_string(&self) -> &'static str {
+        match self {
+            LifecycleManagerState::Loading => "LOADING",
+            LifecycleManagerState::Initializing => "INITIALIZING",
+            LifecycleManagerState::Paused => "PAUSED",
+            LifecycleManagerState::RunRequested => "RUNREQUESTED",
+            LifecycleManagerState::Running => "RUNNING",
+            LifecycleManagerState::ActivateRequested => "ACTIVATEREQUESTED",
+            LifecycleManagerState::Active => "ACTIVE",
+            LifecycleManagerState::DeactivateRequested => "DEACTIVATEREQUESTED",
+            LifecycleManagerState::SuspendRequested => "SUSPENDREQUESTED",
+            LifecycleManagerState::Suspended => "SUSPENDED",
+            LifecycleManagerState::ResumeRequested => "RESUMEREQUESTED",
+            LifecycleManagerState::HibernateRequested => "HIBERNATEREQUESTED",
+            LifecycleManagerState::Hibernated => "HIBERNATED",
+            LifecycleManagerState::WakeRequested => "WAKEREQUESTED",
+            LifecycleManagerState::TerminateRequested => "TERMINATEREQUESTED",
+            LifecycleManagerState::Terminating => "TERMINATING",
+        }
+    }
 }
 
 #[cfg(test)]
@@ -245,34 +317,43 @@ mod tests {
     fn test_lifecycle_state2_0_deserialization() {
         use serde_json::json;
 
-        fn check(s: &str, expected: LifecycleState2_0) {
+        fn check(s: &str, expected: LifecycleManagerState) {
             let v = json!(s);
-            let deserialized: LifecycleState2_0 = serde_json::from_value(v).unwrap();
+            let deserialized: LifecycleManagerState = serde_json::from_value(v).unwrap();
             assert_eq!(deserialized, expected);
         }
 
-        check("LOADING", LifecycleState2_0::Loading);
-        check("INITIALIZING", LifecycleState2_0::Initializing);
-        check("RUNREQUESTED", LifecycleState2_0::RunRequested);
-        check("RUNNING", LifecycleState2_0::Running);
-        check("ACTIVATEREQUESTED", LifecycleState2_0::ActivateRequested);
-        check("ACTIVE", LifecycleState2_0::Active);
+        check("LOADING", LifecycleManagerState::Loading);
+        check("INITIALIZING", LifecycleManagerState::Initializing);
+        check("RUNREQUESTED", LifecycleManagerState::RunRequested);
+        check("RUNNING", LifecycleManagerState::Running);
+        check(
+            "ACTIVATEREQUESTED",
+            LifecycleManagerState::ActivateRequested,
+        );
+        check("ACTIVE", LifecycleManagerState::Active);
         check(
             "DEACTIVATEREQUESTED",
-            LifecycleState2_0::DeactivateRequested,
+            LifecycleManagerState::DeactivateRequested,
         );
-        check("SUSPENDREQUESTED", LifecycleState2_0::SuspendRequested);
-        check("SUSPENDED", LifecycleState2_0::Suspended);
-        check("RESUMEREQUESTED", LifecycleState2_0::ResumeRequested);
-        check("HIBERNATEREQUESTED", LifecycleState2_0::HibernateRequested);
-        check("HIBERNATED", LifecycleState2_0::Hibernated);
-        check("WAKEREQUESTED", LifecycleState2_0::WakeRequested);
-        check("TERMINATEREQUESTED", LifecycleState2_0::TerminateRequested);
-        check("TERMINATING", LifecycleState2_0::Terminating);
+        check("SUSPENDREQUESTED", LifecycleManagerState::SuspendRequested);
+        check("SUSPENDED", LifecycleManagerState::Suspended);
+        check("RESUMEREQUESTED", LifecycleManagerState::ResumeRequested);
+        check(
+            "HIBERNATEREQUESTED",
+            LifecycleManagerState::HibernateRequested,
+        );
+        check("HIBERNATED", LifecycleManagerState::Hibernated);
+        check("WAKEREQUESTED", LifecycleManagerState::WakeRequested);
+        check(
+            "TERMINATEREQUESTED",
+            LifecycleManagerState::TerminateRequested,
+        );
+        check("TERMINATING", LifecycleManagerState::Terminating);
 
         // Negative case: should fail to deserialize
         let invalid = serde_json::json!("RUN_REQUESTED");
-        assert!(serde_json::from_value::<LifecycleState2_0>(invalid).is_err());
+        assert!(serde_json::from_value::<LifecycleManagerState>(invalid).is_err());
     }
     #[test]
     fn test_lifecycle_state_change_event_deserialization() {
@@ -290,8 +371,8 @@ mod tests {
 
         assert_eq!(event.app_id, "test_app");
         assert_eq!(event.app_instance_id, "instance_123");
-        assert_eq!(event.old_state, LifecycleState2_0::Running);
-        assert_eq!(event.new_state, LifecycleState2_0::Suspended);
+        assert_eq!(event.old_state, LifecycleManagerState::Running);
+        assert_eq!(event.new_state, LifecycleManagerState::Suspended);
         assert_eq!(event.navigation_intent, Some("some_intent".to_string()));
     }
 }
