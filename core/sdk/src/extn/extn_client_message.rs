@@ -504,7 +504,7 @@ pub enum ExtnResponse {
     TimezoneWithOffset(String, i64),
     DefaultApp(AppLibraryEntry),
     Settings(HashMap<String, SettingValue>),
-    BoolMap(HashMap<String, bool>)
+    BoolMap(HashMap<String, bool>),
 }
 
 impl ExtnPayloadProvider for ExtnResponse {

@@ -38,7 +38,7 @@ use ripple_sdk::{
 
 use crate::{
     general_permission_processor::DistributorPermissionProcessor,
-    general_privacy_processor::DistributorPrivacyProcessor
+    general_privacy_processor::DistributorPrivacyProcessor,
 };
 
 fn init_library() -> CExtnMetadata {
