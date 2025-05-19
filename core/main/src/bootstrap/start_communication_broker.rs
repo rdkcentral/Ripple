@@ -67,9 +67,7 @@ impl Bootstep<BootstrapState> for StartOtherBrokers {
         }
         // Setup the endpoints from the manifests
         let mut endpoint_state = ps.clone().endpoint_state;
-        endpoint_state
-            .build_other_endpoints(ps.clone(), ps.session_state.get_account_session())
-            .await;
+        endpoint_state.build_other_endpoints(ps.clone(), ps.session_state.get_account_session());
         Ok(())
     }
 }

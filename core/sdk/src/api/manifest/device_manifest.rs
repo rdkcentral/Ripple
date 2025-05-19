@@ -546,6 +546,8 @@ pub struct RippleFeatures {
     pub intent_validation: IntentValidation,
     #[serde(default = "default_cloud_permissions")]
     pub cloud_permissions: bool,
+    #[serde(default = "default_thunder_plugin_status_check_at_broker_start_up")]
+    pub thunder_plugin_status_check_at_broker_start_up: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -579,6 +581,8 @@ impl Default for RippleFeatures {
             privacy_settings_storage_type: default_privacy_settings_storage_type(),
             intent_validation: default_intent_validation(),
             cloud_permissions: default_cloud_permissions(),
+            thunder_plugin_status_check_at_broker_start_up:
+                default_thunder_plugin_status_check_at_broker_start_up(),
         }
     }
 }
@@ -600,6 +604,10 @@ pub fn default_enforcement_value() -> bool {
 }
 
 pub fn default_drop_on_all_tags() -> bool {
+    true
+}
+
+pub fn default_thunder_plugin_status_check_at_broker_start_up() -> bool {
     true
 }
 
@@ -888,6 +896,7 @@ pub(crate) mod tests {
                         privacy_settings_storage_type: PrivacySettingsStorageType::Local,
                         intent_validation: IntentValidation::Fail,
                         cloud_permissions: true,
+                        thunder_plugin_status_check_at_broker_start_up: true,
                     },
                     internal_app_id: Some("test".to_string()),
                     saved_dir: "/opt/persistent/ripple".to_string(),
@@ -1048,6 +1057,7 @@ pub(crate) mod tests {
                 privacy_settings_storage_type: PrivacySettingsStorageType::Local,
                 intent_validation: IntentValidation::Fail,
                 cloud_permissions: true,
+                thunder_plugin_status_check_at_broker_start_up: true
             }
         );
     }

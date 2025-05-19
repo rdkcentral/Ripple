@@ -14,8 +14,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-
-mod distributor_general_ffi;
-mod general_permission_processor;
-mod general_privacy_processor;
-mod general_securestorage_processor;
+pub mod appgw;
+pub mod service1_impl;
+pub mod service2_impl;
+pub mod service_trait;
+pub mod test_cli_impl;
