@@ -574,7 +574,7 @@ impl DelegatedLauncherHandler {
     }
 
     async fn set_up_lifecycle_manager_listener(&mut self) {
-        // TBD: Add the logic to set up the lifecycle manager listener
+        // RPPL-3205: Add the logic to set up the lifecycle manager listener
     }
 
     pub async fn start(&mut self) {

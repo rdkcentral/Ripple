@@ -171,36 +171,20 @@ impl Lifecycle2_0AppEvent {
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 pub enum LifecycleManagerState {
+    #[serde(rename = "UNLOADED")]
+    Unloaded,
     #[serde(rename = "LOADING")]
     Loading,
     #[serde(rename = "INITIALIZING")]
     Initializing,
     #[serde(rename = "PAUSED")]
     Paused,
-    #[serde(rename = "RUNREQUESTED")]
-    RunRequested,
-    #[serde(rename = "RUNNING")]
-    Running,
-    #[serde(rename = "ACTIVATEREQUESTED")]
-    ActivateRequested,
     #[serde(rename = "ACTIVE")]
     Active,
-    #[serde(rename = "DEACTIVATEREQUESTED")]
-    DeactivateRequested,
-    #[serde(rename = "SUSPENDREQUESTED")]
-    SuspendRequested,
     #[serde(rename = "SUSPENDED")]
     Suspended,
-    #[serde(rename = "RESUMEREQUESTED")]
-    ResumeRequested,
-    #[serde(rename = "HIBERNATEREQUESTED")]
-    HibernateRequested,
     #[serde(rename = "HIBERNATED")]
     Hibernated,
-    #[serde(rename = "WAKEREQUESTED")]
-    WakeRequested,
-    #[serde(rename = "TERMINATEREQUESTED")]
-    TerminateRequested,
     #[serde(rename = "TERMINATING")]
     Terminating,
 }
@@ -221,22 +205,14 @@ impl From<LifecycleManagerState> for AppLifecycleState2_0 {
 impl LifecycleManagerState {
     pub fn as_string(&self) -> &'static str {
         match self {
-            LifecycleManagerState::Loading => "LOADING",
-            LifecycleManagerState::Initializing => "INITIALIZING",
-            LifecycleManagerState::Paused => "PAUSED",
-            LifecycleManagerState::RunRequested => "RUNREQUESTED",
-            LifecycleManagerState::Running => "RUNNING",
-            LifecycleManagerState::ActivateRequested => "ACTIVATEREQUESTED",
-            LifecycleManagerState::Active => "ACTIVE",
-            LifecycleManagerState::DeactivateRequested => "DEACTIVATEREQUESTED",
-            LifecycleManagerState::SuspendRequested => "SUSPENDREQUESTED",
-            LifecycleManagerState::Suspended => "SUSPENDED",
-            LifecycleManagerState::ResumeRequested => "RESUMEREQUESTED",
-            LifecycleManagerState::HibernateRequested => "HIBERNATEREQUESTED",
-            LifecycleManagerState::Hibernated => "HIBERNATED",
-            LifecycleManagerState::WakeRequested => "WAKEREQUESTED",
-            LifecycleManagerState::TerminateRequested => "TERMINATEREQUESTED",
-            LifecycleManagerState::Terminating => "TERMINATING",
+            LifecycleManagerState::Unloaded => "unloaded",
+            LifecycleManagerState::Loading => "loading",
+            LifecycleManagerState::Initializing => "initializing",
+            LifecycleManagerState::Paused => "paused",
+            LifecycleManagerState::Active => "active",
+            LifecycleManagerState::Suspended => "suspended",
+            LifecycleManagerState::Hibernated => "hibernated",
+            LifecycleManagerState::Terminating => "terminating",
         }
     }
 }
@@ -325,34 +301,13 @@ mod tests {
 
         check("LOADING", LifecycleManagerState::Loading);
         check("INITIALIZING", LifecycleManagerState::Initializing);
-        check("RUNREQUESTED", LifecycleManagerState::RunRequested);
-        check("RUNNING", LifecycleManagerState::Running);
-        check(
-            "ACTIVATEREQUESTED",
-            LifecycleManagerState::ActivateRequested,
-        );
         check("ACTIVE", LifecycleManagerState::Active);
-        check(
-            "DEACTIVATEREQUESTED",
-            LifecycleManagerState::DeactivateRequested,
-        );
-        check("SUSPENDREQUESTED", LifecycleManagerState::SuspendRequested);
         check("SUSPENDED", LifecycleManagerState::Suspended);
-        check("RESUMEREQUESTED", LifecycleManagerState::ResumeRequested);
-        check(
-            "HIBERNATEREQUESTED",
-            LifecycleManagerState::HibernateRequested,
-        );
         check("HIBERNATED", LifecycleManagerState::Hibernated);
-        check("WAKEREQUESTED", LifecycleManagerState::WakeRequested);
-        check(
-            "TERMINATEREQUESTED",
-            LifecycleManagerState::TerminateRequested,
-        );
         check("TERMINATING", LifecycleManagerState::Terminating);
 
         // Negative case: should fail to deserialize
-        let invalid = serde_json::json!("RUN_REQUESTED");
+        let invalid = serde_json::json!("RUNNING");
         assert!(serde_json::from_value::<LifecycleManagerState>(invalid).is_err());
     }
     #[test]
@@ -362,7 +317,7 @@ mod tests {
         let json_data = json!({
             "appId": "test_app",
             "appInstanceId": "instance_123",
-            "oldState": "RUNNING",
+            "oldState": "INITIALIZING",
             "newState": "SUSPENDED",
             "navigationIntent": "some_intent"
         });
@@ -371,7 +326,7 @@ mod tests {
 
         assert_eq!(event.app_id, "test_app");
         assert_eq!(event.app_instance_id, "instance_123");
-        assert_eq!(event.old_state, LifecycleManagerState::Running);
+        assert_eq!(event.old_state, LifecycleManagerState::Initializing);
         assert_eq!(event.new_state, LifecycleManagerState::Suspended);
         assert_eq!(event.navigation_intent, Some("some_intent".to_string()));
     }
