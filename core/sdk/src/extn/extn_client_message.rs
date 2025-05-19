@@ -47,7 +47,6 @@ use crate::{
             fb_keyboard::{KeyboardSessionRequest, KeyboardSessionResponse},
             fb_lifecycle_management::LifecycleManagementRequest,
             fb_pin::{PinChallengeRequestWithContext, PinChallengeResponse},
-            fb_secure_storage::{SecureStorageRequest, SecureStorageResponse},
             fb_telemetry::{OperationalMetricRequest, TelemetryPayload},
         },
         gateway::rpc_gateway_api::{ApiMessage, ApiProtocol, JsonRpcApiResponse, RpcRequest},
@@ -455,7 +454,6 @@ pub enum ExtnRequest {
     Keyboard(KeyboardSessionRequest),
     Permission(PermissionRequest),
     AccountSession(AccountSessionRequest),
-    SecureStorage(SecureStorageRequest),
     PrivacySettings(PrivacyCloudRequest),
     StorageManager(StorageManagerRequest),
     Settings(SettingsRequest),
@@ -506,8 +504,7 @@ pub enum ExtnResponse {
     TimezoneWithOffset(String, i64),
     DefaultApp(AppLibraryEntry),
     Settings(HashMap<String, SettingValue>),
-    BoolMap(HashMap<String, bool>),
-    SecureStorage(SecureStorageResponse),
+    BoolMap(HashMap<String, bool>)
 }
 
 impl ExtnPayloadProvider for ExtnResponse {
