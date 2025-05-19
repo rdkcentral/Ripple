@@ -19,7 +19,7 @@ use std::vec;
 
 use hyper::{client::HttpConnector, Body, Client, Method, Request, Response, Uri};
 use ripple_sdk::{
-    api::observability::log_signal::LogSignal,
+    api::{gateway::rpc_gateway_api::JsonRpcApiError, observability::log_signal::LogSignal},
     log::{debug, error},
     tokio::{self, sync::mpsc},
     utils::error::RippleError,
@@ -84,7 +84,6 @@ async fn send_http_request(
         )?;
 
         body = Body::from(body_val.to_string());
-        println!("*** _DEBUG: body={:?}", body);
     }
 
     let uri: Uri = format!("{}{}", uri, broker_request.rule.alias)
@@ -171,13 +170,25 @@ impl EndpointBroker for HttpBroker {
                         let (parts, body) = response.into_parts();
                         let body = body_to_bytes(body).await;
 
-                        if let Ok(json_str) = serde_json::from_slice::<serde_json::Value>(&body).map(|v| vec![v])
+                        if body.len() > 0 {
+                            if let Ok(json_str) = serde_json::from_slice::<serde_json::Value>(&body).map(|v| vec![v])
                             .and_then(|v| serde_json::to_string(&v))
-                        {
-                            request.rpc.params_json = json_str;
+                            {
+                                request.rpc.params_json = json_str;
+                                send_broker_response(&callback, &request, &body).await.ok();
+                            } else {
+                                let msg = format!("Error in http broker parsing response from http service at {}. status={:?}",uri, parts.status);
+                                LogSignal::new("http_broker".to_string(), "Prepare request failed".to_string(), request.rpc.ctx.clone())
+                                    .with_diagnostic_context_item("error", &msg)
+                                    .emit_error();
+                                Self::send_broker_failure_response(&callback,
+                                    JsonRpcApiError::default()
+                                    .with_id(request.rpc.ctx.call_id)
+                                    .with_message(msg.to_string()).into());
+                            }
+                        } else {
+                            send_broker_response(&callback, &request, &body).await.ok();
                         }
-
-                        send_broker_response(&callback, &request, &body).await.ok();
 
                         if !parts.status.is_success() {
                             LogSignal::new("http_broker".to_string(), "Prepare request failed".to_string(), request.rpc.ctx.clone())
@@ -214,7 +225,7 @@ impl EndpointBroker for HttpBroker {
 #[cfg(test)]
 mod tests {
     use httpmock::prelude::*;
-    use hyper::{Client, Method, StatusCode, Uri};
+    use hyper::{Client, StatusCode, Uri};
     use serde_json::{json, Value};
     use std::time::Duration;
 
@@ -310,29 +321,17 @@ mod tests {
             .unwrap_or(None))
     }
 
-    async fn assert_http_request(
-        client: &Client<HttpConnector>,
-        method: Method,
-        base_uri: &Uri,
-        path: &str,
-        expected_status: StatusCode,
-        expected_body: Option<Value>,
-    ) {
-        let response_result = send_http_request(client, method, base_uri, path).await;
-
-        match response_result {
-            Ok(response) => {
-                assert_eq!(response.status(), expected_status);
-                if let Some(expected) = expected_body {
-                    let body_bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
-                    let body_string = String::from_utf8(body_bytes.to_vec()).unwrap();
-                    let body_json: Value = serde_json::from_str(&body_string).unwrap();
-                    assert_eq!(body_json, expected);
-                }
-            }
-            Err(e) => {
-                panic!("send_http_request failed: {}", e);
-            }
+    fn get_mock_broker_request(path: &str) -> BrokerRequest {
+        BrokerRequest {
+            rpc: RpcRequest::mock(),
+            rule: Rule {
+                alias: path.to_string(),
+                endpoint: Some("http".to_string()),
+                ..Default::default()
+            },
+            subscription_processed: None,
+            workflow_callback: None,
+            telemetry_response_listeners: vec![],
         }
     }
 
@@ -389,75 +388,6 @@ mod tests {
         let broker = HttpBroker::get_broker(None, request, callback, &mut broker_state);
         assert!(broker.get_sender().sender.is_closed());
         assert!(broker.get_cleaner().cleaner.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_send_http_request_success() {
-        let base_uri = get_base_uri_from_mock_server();
-        let client = Client::new();
-        assert_http_request(
-            &client,
-            Method::GET,
-            &base_uri,
-            "test_rule",
-            StatusCode::OK,
-            Some(json!({"data": "success"})),
-        )
-        .await;
-    }
-
-    #[tokio::test]
-    async fn test_send_http_request_fail_invalid_path() {
-        let base_uri = get_base_uri_from_mock_server();
-        let client = Client::new();
-        assert_http_request(
-            &client,
-            Method::GET,
-            &base_uri,
-            "test",
-            StatusCode::NOT_FOUND,
-            None,
-        )
-        .await;
-    }
-
-    #[tokio::test]
-    async fn test_send_http_request_fail_invalid_path_with_spaces() {
-        let base_uri = get_base_uri_from_mock_server();
-        let client = Client::new();
-
-        let path = " "; //This would fail Request::builder() spaces not allowed in URL
-        let response_result = send_http_request(&client, Method::GET, &base_uri, path).await;
-        assert!(response_result.is_err());
-
-        if let Err(RippleError::BrokerError(err_msg)) = response_result {
-            assert!(
-                err_msg.contains("invalid uri character"),
-                "Error message should indicate invalid URI character"
-            );
-        } else {
-            panic!(
-                "Expected RippleError::BrokerError, got {:?}",
-                response_result
-            );
-        }
-    }
-
-    #[tokio::test]
-    async fn test_send_http_request_fail_invalid_uri() {
-        let _ = get_base_uri_from_mock_server();
-        let client = Client::new();
-
-        let invalid_uri: Uri = "http://127.0.0.1:1234/".parse().unwrap();
-        let path = "test_rule";
-
-        let response_result = send_http_request(&client, Method::GET, &invalid_uri, path).await;
-
-        if let Err(e) = response_result {
-            assert!(e.to_string().contains("Connection refused"));
-        } else {
-            panic!("Expected an error, but got success");
-        }
     }
 
     #[tokio::test]
@@ -565,22 +495,27 @@ mod tests {
         let base_uri = mock_server.base_url().parse::<Uri>().unwrap();
         let client = Client::new();
 
-        let paths = vec!["test_rule1", "test_rule2", "test_rule3"];
+        let broker_requests = vec![
+            get_mock_broker_request("test_rule1"),
+            get_mock_broker_request("test_rule2"),
+            get_mock_broker_request("test_rule3"),
+        ];
+
         let mut handles = vec![];
 
-        for path in paths {
+        for broker_request in broker_requests {
             let client_clone = client.clone();
             let uri_clone = base_uri.clone();
-            let path_clone = path.to_string();
+            let broker_request_clone = broker_request.clone();
             let handle: JoinHandle<Result<Value, String>> = tokio::spawn(async move {
                 let response_result =
-                    send_http_request(&client_clone, Method::GET, &uri_clone, &path_clone).await;
+                    send_http_request(&client_clone, &uri_clone, broker_request).await;
                 match response_result {
                     Ok(response) => {
                         if response.status() != StatusCode::OK {
                             return Err(format!(
                                 "Request to {} failed with status: {}",
-                                path_clone,
+                                broker_request_clone.rule.alias,
                                 response.status()
                             ));
                         }
@@ -589,7 +524,10 @@ mod tests {
                         let body_json: Value = serde_json::from_str(&body_string).unwrap();
                         Ok(body_json)
                     }
-                    Err(e) => Err(format!("Request to {} failed: {}", path_clone, e)),
+                    Err(e) => Err(format!(
+                        "Request to {} failed: {}",
+                        broker_request_clone.rule.alias, e
+                    )),
                 }
             });
             handles.push(handle);
@@ -619,5 +557,93 @@ mod tests {
             expected_results.is_empty(),
             "Not all expected responses were received"
         );
+    }
+
+    #[tokio::test]
+    async fn test_send_http_request_invalid_uri() {
+        let client = Client::new();
+        let mut rule = Rule::default();
+        rule.alias = "invalid uri %".to_string(); // Invalid URI character
+
+        let broker_request = BrokerRequest {
+            rpc: RpcRequest::mock(),
+            rule,
+            subscription_processed: None,
+            workflow_callback: None,
+            telemetry_response_listeners: vec![],
+        };
+
+        let base_uri: Uri = "http://localhost:1234/".parse().unwrap();
+        let result = send_http_request(&client, &base_uri, broker_request).await;
+        assert!(matches!(result, Err(RippleError::BrokerError(_))));
+    }
+
+    #[tokio::test]
+    async fn test_send_http_request_server_error() {
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(GET).path("/test_rule_error");
+            then.status(500)
+                .header("Content-Type", "application/json")
+                .json_body(json!({"error": "server error"}));
+        });
+
+        let base_uri = mock_server.base_url().parse::<Uri>().unwrap();
+        let mut rule = Rule::default();
+        rule.alias = "test_rule_error".to_string();
+
+        let broker_request = BrokerRequest {
+            rpc: RpcRequest::mock(),
+            rule,
+            subscription_processed: None,
+            workflow_callback: None,
+            telemetry_response_listeners: vec![],
+        };
+
+        let client = Client::new();
+        let response = send_http_request(&client, &base_uri, broker_request)
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+        let body_bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body_json: Value = serde_json::from_slice(&body_bytes).unwrap();
+        assert_eq!(body_json, json!({"error": "server error"}));
+    }
+
+    #[tokio::test]
+    async fn test_send_http_request_empty_params_json() {
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(GET).path("/test_rule_empty");
+            then.status(200)
+                .header("Content-Type", "application/json")
+                .json_body(json!({"ok": true}));
+        });
+
+        let base_uri = mock_server.base_url().parse::<Uri>().unwrap();
+        let mut rule = Rule::default();
+        rule.alias = "test_rule_empty".to_string();
+
+        let mut rpc = RpcRequest::mock();
+        rpc.params_json = "".to_string();
+
+        let broker_request = BrokerRequest {
+            rpc,
+            rule,
+            subscription_processed: None,
+            workflow_callback: None,
+            telemetry_response_listeners: vec![],
+        };
+
+        let client = Client::new();
+        let response = send_http_request(&client, &base_uri, broker_request)
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body_bytes = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body_json: Value = serde_json::from_slice(&body_bytes).unwrap();
+        assert_eq!(body_json, json!({"ok": true}));
     }
 }

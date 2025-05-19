@@ -1656,7 +1656,7 @@ impl BrokerOutputForwarder {
                 Ok(v) => Some(v),
                 Err(e) => {
                     error!("handle_non_jsonrpc_response: Error parsing data: e={:?}", e);
-                    None
+                    return Err(RippleError::ParseError);
                 }
             }
         } else {
