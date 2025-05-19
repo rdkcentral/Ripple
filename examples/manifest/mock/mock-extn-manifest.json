@@ -40,7 +40,6 @@
                     "fulfills": [
                         "permissions",
                         "account.session",
-                        "secure.storage",
                         "advertising",
                         "privacy_cloud.storage",
                         "session.token",
