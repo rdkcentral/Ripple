@@ -1651,7 +1651,7 @@ impl BrokerOutputForwarder {
             None
         };
 
-        let result = if data.len() > 0 {
+        let result = if !data.is_empty() {
             match serde_json::from_slice::<Value>(data) {
                 Ok(v) => Some(v),
                 Err(e) => {

@@ -170,7 +170,7 @@ impl EndpointBroker for HttpBroker {
                         let (parts, body) = response.into_parts();
                         let body = body_to_bytes(body).await;
 
-                        if body.len() > 0 {
+                        if !body.is_empty() {
                             if let Ok(json_str) = serde_json::from_slice::<serde_json::Value>(&body).map(|v| vec![v])
                             .and_then(|v| serde_json::to_string(&v))
                             {
@@ -562,8 +562,10 @@ mod tests {
     #[tokio::test]
     async fn test_send_http_request_invalid_uri() {
         let client = Client::new();
-        let mut rule = Rule::default();
-        rule.alias = "invalid uri %".to_string(); // Invalid URI character
+        let rule = Rule {
+            alias: "invalid uri %".to_string(), // Invalid URI character
+            ..Default::default()
+        };
 
         let broker_request = BrokerRequest {
             rpc: RpcRequest::mock(),
@@ -589,8 +591,11 @@ mod tests {
         });
 
         let base_uri = mock_server.base_url().parse::<Uri>().unwrap();
-        let mut rule = Rule::default();
-        rule.alias = "test_rule_error".to_string();
+
+        let rule = Rule {
+            alias: "test_rule_error".to_string(),
+            ..Default::default()
+        };
 
         let broker_request = BrokerRequest {
             rpc: RpcRequest::mock(),
@@ -622,8 +627,11 @@ mod tests {
         });
 
         let base_uri = mock_server.base_url().parse::<Uri>().unwrap();
-        let mut rule = Rule::default();
-        rule.alias = "test_rule_empty".to_string();
+
+        let rule = Rule {
+            alias: "test_rule_empty".to_string(),
+            ..Default::default()
+        };
 
         let mut rpc = RpcRequest::mock();
         rpc.params_json = "".to_string();
