@@ -28,12 +28,9 @@ use crate::{
         session_state::Session,
     },
 };
+use futures::SinkExt;
 use futures::StreamExt;
-use futures::{
-    stream::{SplitSink, SplitStream},
-    SinkExt,
-};
-use hyper::client::service;
+
 use jsonrpsee::types::{error::INVALID_REQUEST_CODE, ErrorObject, ErrorResponse, Id};
 use ripple_sdk::{
     api::{
@@ -42,7 +39,7 @@ use ripple_sdk::{
         },
         observability::log_signal::LogSignal,
     },
-    log::{error, info, trace},
+    log::{error, info},
     tokio::{
         net::{TcpListener, TcpStream},
         sync::{mpsc, oneshot, Mutex},
@@ -215,7 +212,6 @@ impl FireboltWs {
             let (connect_tx, connect_rx) = oneshot::channel::<ClientIdentity>();
             let service_manager_clone = Arc::clone(&service_manager);
             let service_connection_state = Arc::new(std::sync::Mutex::new(None));
-            let service_manager_for_connection = service_manager_clone.clone();
             let cfg = ConnectionCallbackConfig {
                 next: connect_tx,
                 app_state: app_state.clone(),
@@ -240,17 +236,11 @@ impl FireboltWs {
                             let service_id = service_connection.service_id.clone();
 
                             info!("Service connection for service_id={:?}", service_id);
-                            let state_for_connection_c = state_for_connection.clone();
                             tokio::spawn(async move {
                                 FireboltWs::handle_service_connection(
                                     service_id,
-                                    // send,
-                                    // recv,
                                     service_manager_clone,
                                     ws_stream,
-                                    connect_rx,
-                                    state_for_connection_c.clone(),
-                                    secure,
                                 )
                                 .await;
                             });
@@ -275,20 +265,12 @@ impl FireboltWs {
     }
     async fn handle_service_connection(
         service_id: ServiceId,
-        //send: SplitSink<WebSocketStream<TcpStream>, Message>,
-        //recv: SplitStream<WebSocketStream<TcpStream>>,
         service_manager: Arc<Mutex<Box<dyn ApiGatewayServer + Send + Sync>>>,
         ws_stream: WebSocketStream<TcpStream>,
-        connect_rx: oneshot::Receiver<ClientIdentity>,
-        state: PlatformState,
-        gateway_secure: bool,
     ) {
         info!("handle_service_connection");
-        //let (mut send, mut recv) = ws_stream.split();
-        let identity = connect_rx.await.unwrap();
         {
             let mut guard = service_manager.lock().await;
-            let mut instance = guard.as_mut();
             guard.service_connect(service_id, ws_stream).await.unwrap();
         }
     }

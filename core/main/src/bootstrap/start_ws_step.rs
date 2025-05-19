@@ -19,11 +19,9 @@ use ripple_sdk::{
     async_trait::async_trait, framework::bootstrap::Bootstep, tokio, utils::error::RippleError,
 };
 
-use crate::firebolt::handlers::audio_description_rpc;
 use crate::state::bootstrap_state::BootstrapState;
 
 use crate::firebolt::firebolt_ws::FireboltWs;
-use crate::state::openrpc_state::ApiSurface;
 
 pub struct StartWsStep;
 

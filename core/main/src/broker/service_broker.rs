@@ -1,24 +1,18 @@
-use std::sync::Arc;
-
-use futures_channel::oneshot;
 use ripple_sdk::{
-    api::{gateway::rpc_gateway_api::JsonRpcApiResponse, rules_engine::RuleEngineProvider},
+    api::gateway::rpc_gateway_api::{JsonRpcApiError, JsonRpcApiResponse},
     log::{error, info},
-    tokio::{
-        self,
-        sync::mpsc::{self, Sender},
-    },
-    utils::rpc_utils,
+    tokio::sync::mpsc,
 };
-use ssda_types::gateway::{ServiceRequest, ServiceResponse};
+use ssda_types::gateway::{ServiceRoutingRequest, ServiceRoutingResponse};
 use ssda_types::ServiceRequestId;
-use tokio_tungstenite::tungstenite::http::request;
 
-use crate::state::platform_state::{self, PlatformState};
+use crate::state::platform_state::PlatformState;
 
 use super::endpoint_broker::{
-    BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerRequest, BrokerSender, EndpointBroker, EndpointBrokerState, BROKER_CHANNEL_BUFFER_SIZE
+    BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerRequest,
+    BrokerSender, EndpointBroker, EndpointBrokerState, BROKER_CHANNEL_BUFFER_SIZE,
 };
+use ripple_sdk::tokio;
 
 pub struct ServiceBroker {
     platform_state: Option<PlatformState>,
@@ -41,7 +35,6 @@ async fn send_broker_response(callback: &BrokerCallback, request: &BrokerRequest
     }
 }
 
-
 impl ServiceBroker {}
 impl EndpointBroker for ServiceBroker {
     fn get_broker(
@@ -58,16 +51,18 @@ impl EndpointBroker for ServiceBroker {
         if let Some(platform_state) = ps.clone() {
             tokio::spawn(async move {
                 while let Some(request) = tr.recv().await {
+                    info!("ServiceBroker received request: {:?}", request);
                     let services_tx = platform_state
                         .services_gateway_api
                         .lock()
                         .await
                         .get_sender();
                     use tokio::sync::oneshot;
-                    let (oneshot_tx, mut oneshot_rx) = oneshot::channel::<ServiceResponse>();
-                    let service_request = ServiceRequest {
+
+                    let (oneshot_tx, oneshot_rx) = oneshot::channel::<ServiceRoutingResponse>();
+                    let service_request = ServiceRoutingRequest {
                         request_id: ServiceRequestId {
-                            request_id: request.get_id(),
+                            request_id: request.rpc.ctx.call_id,
                         },
                         payload: request.rpc.clone(),
                         respond_to: oneshot_tx,
@@ -78,21 +73,33 @@ impl EndpointBroker for ServiceBroker {
                     match oneshot_rx.await {
                         Ok(response) => {
                             info!("ServiceBroker received response: {:?}", response);
-                            <ServiceBroker as EndpointBroker>::send_broker_success_response(&callback, response.into());
-                           
+                            match response {
+                                ServiceRoutingResponse::Error(e) => {
+                                    error!("ServiceBroker received error response: {:?}", e);
+                                    let err = JsonRpcApiError::default()
+                                        .with_id(e.request_id.request_id)
+                                        .with_message(e.error)
+                                        .to_response();
+                                    send_broker_response(&callback, &request, &err.as_bytes())
+                                        .await;
+                                }
+                                ServiceRoutingResponse::Success(response) => {
+                                    info!(
+                                        "ServiceBroker received success response: {:?}",
+                                        response
+                                    );
+                                    let win = JsonRpcApiResponse::default()
+                                        .with_id(response.request_id.request_id)
+                                        .with_result(Some(response.response))
+                                        .as_bytes();
+                                    send_broker_response(&callback, &request, &win).await;
+                                }
+                            }
                         }
                         Err(e) => {
                             error!("ServiceBroker failed to receive response {}", e);
-                            // let _ = request.respond(ripple_sdk::api::rpc_utils::ErrorResponse {
-                            //     error: ripple_sdk::api::rpc_utils::Error {
-                            //         code: -32603,
-                            //         message: "Failed to receive response".to_string(),
-                            //         data: None,
-                            //     },
-                            // });
                         }
                     }
-                    
                 }
             });
         } else {

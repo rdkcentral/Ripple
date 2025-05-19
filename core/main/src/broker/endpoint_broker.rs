@@ -56,9 +56,7 @@ use crate::{
     firebolt::firebolt_gateway::JsonRpcError,
     service::extn::ripple_client::RippleClient,
     state::{
-        ops_metrics_state::OpMetricState,
-        platform_state::{self, PlatformState},
-        session_state::Session,
+        ops_metrics_state::OpMetricState, platform_state::PlatformState, session_state::Session,
     },
     utils::router_utils::{
         add_telemetry_status_code, capture_stage, get_rpc_header, return_extn_response,
@@ -915,10 +913,10 @@ impl EndpointBrokerState {
             )
             .await
         {
-            Ok(yay) => true,
+            Ok(_yay) => true,
             Err(e) => {
                 error!("Error in brokerage {:?}", e);
-                return false;
+                false
             }
         }
     }
