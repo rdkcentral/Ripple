@@ -299,7 +299,7 @@ impl FireboltWs {
         let app_id_c = app_id.clone();
         let session_id_c = identity.session_id.clone();
 
-        let connection_id = identity.session_id.clone();
+        let connection_id = Uuid::new_v4().to_string();
 
         let connection_id_c = connection_id.clone();
         let mut is_service = false;
@@ -421,6 +421,7 @@ impl FireboltWs {
             match msg {
                 Ok(msg) => {
                     if msg.is_text() && !msg.is_empty() {
+                        debug!("Received JsonRpc Request {}", msg);
                         let req_id = Uuid::new_v4().to_string();
                         let req_text = String::from(msg.to_text().unwrap());
                         if is_service {
