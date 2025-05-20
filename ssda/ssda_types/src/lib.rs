@@ -3,6 +3,7 @@ use std::sync::Arc;
 use futures_util::{SinkExt, StreamExt};
 use gateway::ServiceRoutingRequest;
 use ripple_sdk::api::rules_engine::{Rule, RuleTransform};
+use ripple_sdk::log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 
 use service::{
@@ -21,18 +22,7 @@ will wrap the request with metadata, and dispatch the request to the handler ser
 a response from the service, the API Gateway will translate the service response (using the rules engine)
 into a Firebolt compatible (success or failure) result.
 
-# Services
-Services are standalone processes (programs) that service requests from the API gateway. Services
-inform the API gateway about which firebolt methods the Service supports, allowing the API gateway
-to know which method(s) to route to which services. Workflow rules can run across multiple services,
-with the API Gateway orchestrating the workflow, and performing any composition of outputs
-Services must implement ServiceRequestHandler, which is ssthe interface that the APIGatewayClient uses
-to interact with services (request processing, state changes, etc.
-
-# API Gateway Client
-
-The API Gateway Client is responsible for abstracting the interaction between the Service and the API Gateway,
-inclding: Transport, connection management, authentication, and calling the Service via the the Service's
+# Servicesprintln
 ServiceRequestHandler. This design is motivated by the need to free the Service from as much connection oriented
 detail and let the developer focus on business logic. The API Gateway client is instanced as a crate that can be
 consumed by a service at the highest possible level of abstraction (and ease of use) - it should only requuire a bit of
@@ -603,13 +593,12 @@ impl WebsocketAPIGatewayClient {
         let registration_request = APIGatewayServiceRegistrationRequest {
             firebolt_handlers: registration.get_rule_registrations(),
         };
-
-        tx.send(Message::Text(
-            serde_json::to_string(&APIClientMessages::Register(registration_request.clone()))
-                .unwrap(),
-        ))
-        .await
-        .unwrap();
+        let msg = serde_json::to_string(&APIClientMessages::Register(registration_request.clone()));
+        if let Ok(msg) = msg {
+            let _ = tx.send(Message::Text(msg)).await;
+        } else {
+            error!("websocket: Failed to serialize registration request");
+        }
 
         while let Some(message) = rx.next().await {
             match message {
@@ -618,58 +607,48 @@ impl WebsocketAPIGatewayClient {
                     attempt to marshal the message into a ServiceRequest
                     if it fails, log the error and continue
                     */
-                    println!("websocket: Received message via websocket: {:?}", msg);
+                    info!("websocket: Received message via websocket: {:?}", msg);
                     let msg = msg.into_text().unwrap_or_default();
                     if let Ok(request) = serde_json::from_str::<APIClientMessages>(&msg) {
                         match request {
                             APIClientMessages::Register(registration_request) => {
-                                println!(
-                                    "Received registration request: {:?}",
-                                    registration_request
-                                );
+                                info!("Received registration request: {:?}", registration_request);
                             }
                             APIClientMessages::Registered(registration_request) => {
-                                println!(
-                                    "Received registered response: {:?}",
-                                    registration_request
-                                );
+                                info!("Received registered response: {:?}", registration_request);
                                 handler.on_connected();
                             }
                             APIClientMessages::Error(error) => {
-                                println!("Received error: {:?}", error);
+                                info!("Received error: {:?}", error);
                             }
                             APIClientMessages::Unregister(service_id) => {
-                                println!("Received unregister request: {:?}", service_id);
+                                info!("Received unregister request: {:?}", service_id);
                             }
                             APIClientMessages::ServiceCall(service_call) => {
-                                println!("Received service call: {:?}", service_call);
+                                info!("Received service call: {:?}", service_call);
                                 match handler.handle_request(service_call) {
                                     Ok(response) => {
                                         let response =
                                             APIClientMessages::ServiceCallSuccessResponse(response);
                                         // Send the response back to the client
-
-                                        if let Err(e) = tx
-                                            .send(Message::Text(
-                                                serde_json::to_string(&response).unwrap(),
-                                            ))
-                                            .await
-                                        {
-                                            eprintln!("Error sending message: {:?}", e);
+                                        let response = serde_json::to_string(&response);
+                                        if let Ok(response) = response {
+                                            let _ = tx.send(Message::Text(response.clone())).await;
+                                            debug!("Sending response: {:?}", response);
+                                        } else {
+                                            error!("Failed to serialize response");
                                         }
                                     }
                                     Err(e) => {
                                         // Handle error response
-                                        eprintln!("Error handling request: {:?}", e);
+                                        error!("Error handling request: {:?}", e);
                                         let error_response =
                                             APIClientMessages::ServiceCallErrorResponse(e);
-                                        if let Err(e) = tx
-                                            .send(Message::Text(
-                                                serde_json::to_string(&error_response).unwrap(),
-                                            ))
-                                            .await
-                                        {
-                                            eprintln!("Error sending message: {:?}", e);
+                                        let error_response = serde_json::to_string(&error_response);
+                                        if let Ok(error_response) = error_response {
+                                            let _ = tx
+                                                .send(Message::Text(error_response.clone()))
+                                                .await;
                                         }
                                     }
                                 }
@@ -677,11 +656,11 @@ impl WebsocketAPIGatewayClient {
                             _ => {}
                         }
                     } else {
-                        println!(" I don't understand this message: {:?}", msg);
+                        error!(" I don't understand this message: {:?}", msg);
                     }
                 }
                 Err(err) => {
-                    eprintln!("Error receiving message: {:?}", err);
+                    error!("Error receiving message: {:?}", err);
                     // Handle the error (e.g., log it, retry, etc.)
                     // You might want to break the loop or handle reconnection logic here
                     // break;
@@ -704,7 +683,7 @@ impl WebsocketAPIGatewayClient {
                 Self::handle_messages(yay.0, handler, registration).await;
             }
             Err(lame) => {
-                eprintln!("Error connecting to WebSocket: {:?}", lame);
+                error!("Error connecting to WebSocket: {:?}", lame);
             }
         }
         Ok(())
@@ -724,7 +703,7 @@ impl APIGatewayClient for WebsocketAPIGatewayClient {
     }
 
     async fn start(&self) {
-        println!("starting websocket client");
+        info!("starting websocket client");
         self.connect().await.unwrap();
         self.handler.on_connected();
     }

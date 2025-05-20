@@ -123,11 +123,17 @@ impl ApiGateway {
                         */
                         if let Some(service) = services_2_rxs.read().await.get(&service_id) {
                             let (send, receive) = oneshot::channel::<WebsocketServiceResponse>();
-                            let payload = request.payload.clone();
+                            let method = request.payload.method.clone();
+                            let payload = serde_json::to_value(request.payload.clone());
+                            if payload.is_err() {
+                                error!("Failed to serialize payload: {:?}", payload);
+                                continue;
+                            }
+                            let payload = payload.unwrap();
                             let websocket_request = WebsocketServiceRequest {
-                                method: payload.method.clone(),
+                                method,
                                 request_id: request.request_id.clone(),
-                                payload: serde_json::to_value(payload).unwrap(),
+                                payload,
                                 respond_to: send,
                             };
                             let _ = service.send(websocket_request).await;
@@ -327,31 +333,38 @@ impl ApiGateway {
 
                         let response: APIGatewayServiceRegistrationResponse = registration.into();
                         let response = APIClientMessages::Registered(response);
-                        let _ = tx
-                            .send(Message::Text(serde_json::to_string(&response).unwrap()))
-                            .await;
+                        let msg = serde_json::to_string(&response);
+                        match msg {
+                            Ok(msg) => {
+                                let _ = tx.send(Message::Text(msg.clone())).await;
+                                info!("Sending registration response: {:?}", msg);
+                            }
+                            Err(e) => {
+                                error!("Failed to serialize registration response: {:?}", e);
+                            }
+                        }
+
                         info!("Sent registration response: {:?}", response)
                     }
                     APIGatewayClientState::Failed(e) => {
                         error!("Failed to classify message {} err {},{}", msg, E, e);
 
                         let _ = tx.send(Message::Close(None)).await;
-                        tx.close().await.unwrap();
+                        let _ = tx.close().await;
                     }
                     APIGatewayClientState::Closed => {
                         info!("Client closed connection");
                         Self::handle_unregister(service_id, methods_2_services, rule_engine).await;
-                        tx.close().await.unwrap();
+                        let _ = tx.close().await;
                     }
                     APIGatewayClientState::Message(request_id, msg) => {
                         info!(
                             "got msg from websocket:  {} for request {:?}",
                             msg, request_id
                         );
-                        bridge_tx
+                        let _ = bridge_tx
                             .send(WebsocketServiceResponse::Success(request_id, msg))
-                            .await
-                            .unwrap();
+                            .await;
                     }
                     APIGatewayClientState::ServiceCallFailed(id, error) => {
                         info!("Service call failed: {:?}", error);
@@ -362,7 +375,7 @@ impl ApiGateway {
                     _ => {
                         info!("handle_message: Unknown message type: {:?}", msg);
                         let _ = tx.send(Message::Close(None)).await;
-                        tx.close().await.unwrap();
+                        let _ = tx.close().await;
                     }
                 }
             }
@@ -374,9 +387,9 @@ impl ApiGateway {
                 info!("Unregistering service: {:?}", service_id);
 
                 Self::handle_unregister(service_id, methods_2_services, rule_engine.clone()).await;
-                services_2_rxes.write().await.remove(service_id).unwrap();
+                let _ = services_2_rxes.write().await.remove(service_id);
 
-                tx.close().await.unwrap();
+                let _ = tx.close().await;
             }
         }
     }
@@ -431,9 +444,17 @@ impl ApiGateway {
                             payload: request.payload.clone(),
                         }
                      );
-                     let service_call = serde_json::to_string(&service_call).unwrap();
-                     websocket_tx.send(Message::Text(service_call)).await.unwrap();
-
+                     match serde_json::to_string(&service_call) {
+                            Ok(service_call) => {
+                                let _ = websocket_tx.send(Message::Text(service_call)).await;
+                            }
+                            Err(e) => {
+                                error!("Failed to serialize service call: {:?}", e);
+                                let fail = WebsocketServiceResponse::Error(request.request_id, e.to_string());
+                                let _ = bridge_tx.send(fail).await;
+                                continue;
+                            }
+                     }
                 }
                 Some(bridge_message) = bridge_rx.recv() => {
                     info!("Received message from bridge: {:?}", bridge_message);
@@ -456,11 +477,10 @@ impl ApiGateway {
                         methods_2_services.clone(),
                         rule_engine.clone(),
                     ).await;
-                    service_2_rxes
+                    let _ = service_2_rxes
                         .write()
                         .await
-                        .remove(&service_id)
-                        .unwrap();
+                        .remove(&service_id);
                     break Ok(());
                 }
             }
