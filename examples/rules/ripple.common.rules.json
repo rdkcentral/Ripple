@@ -191,7 +191,9 @@
     },
     "device.onHdrChanged": {
       "alias": "org.rdk.HdcpProfile.onDisplayConnectionChanged",
-      "event_handler": "device.hdr"
+      "event_handler": {
+        "method": "device.hdr"
+      }
     },
     "device.onScreenResolutionChanged": {
       "alias": "org.rdk.DisplaySettings.resolutionChanged",
@@ -216,7 +218,9 @@
     },
     "device.onVideoResolutionChanged": {
       "alias": "org.rdk.DisplaySettings.resolutionChanged",
-      "event_handler": "device.videoResolution"
+      "event_handler": {
+        "method": "device.videoResolution"
+      }
     },
     "voiceguidance.setEnabled": {
       "alias": "org.rdk.TextToSpeech.enabletts",
@@ -233,7 +237,9 @@
     },
     "voiceguidance.onEnabledChanged": {
       "alias": "org.rdk.TextToSpeech.onttsstatechanged",
-      "event_handler": "voiceguidance.enabled"
+      "event_handler": {
+        "method": "voiceguidance.enabled"
+      }
     },
     "voiceguidance.setSpeed": {
       "alias": "org.rdk.TextToSpeech.setttsconfiguration",
@@ -250,7 +256,9 @@
     },
     "voiceguidance.onSpeedChanged": {
       "alias": "org.rdk.TextToSpeech.onvoicechanged",
-      "event_handler": "voiceguidance.speed"
+      "event_handler": {
+        "method": "voiceguidance.speed"
+      }
     },
     "accessibility.voiceGuidance": {
       "alias": "workflow",
@@ -288,7 +296,9 @@
     },
     "accessibility.onVoiceGuidanceSettingsChanged": {
       "alias": "org.rdk.TextToSpeech.onttsstatechanged",
-      "event_handler": "accessibility.voiceGuidanceSettings"
+      "event_handler": {
+        "method": "accessibility.voiceGuidanceSettings"
+      }
     },
     "audiodescriptions.enabled": {
       "alias": "org.rdk.UserSettings.getAudioDescription",
