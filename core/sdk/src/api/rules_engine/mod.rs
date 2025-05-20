@@ -356,7 +356,10 @@ impl RuleEngine {
         }
     }
 
-    pub fn get_rule(&self, rpc_request: &RpcRequest) -> Result<RuleRetrieved, RuleRetrievalError> {
+    pub fn retrieve_rule(
+        &self,
+        rpc_request: &RpcRequest,
+    ) -> Result<RuleRetrieved, RuleRetrievalError> {
         let method = rpc_request.method.to_lowercase();
         /*
         match directly from method name
@@ -374,7 +377,7 @@ impl RuleEngine {
         }
     }
 
-    pub fn get_rule_by_method(&self, method: &str) -> Option<Rule> {
+    pub fn retrieve_rule_by_method(&self, method: &str) -> Option<Rule> {
         self.rules.rules.get(&method.to_lowercase()).cloned()
     }
 }
@@ -553,10 +556,10 @@ impl RuleEngineProvider for RuleEngine {
         }
     }
     fn get_rule(&self, rpc_request: &RpcRequest) -> Result<RuleRetrieved, RuleRetrievalError> {
-        self.get_rule(rpc_request)
+        self.retrieve_rule(rpc_request)
     }
     fn get_rule_by_method(&self, method: &str) -> Option<Rule> {
-        self.get_rule_by_method(method)
+        self.retrieve_rule_by_method(method)
     }
     fn get_rules(&self) -> RuleSet {
         self.rules.clone()
