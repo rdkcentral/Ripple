@@ -75,6 +75,7 @@ jaq-interpret = { version = "1.5.0", default-features = false }
 jaq-parse = { version = "1.0.2", default-features = false }
 jaq-core = "1.5.0"
 jaq-std = { version = "1.5.1", default-features = false }
+mockall = "0.13.1"
 
 [dev-dependencies]
 ripple_sdk = { path = ".", features=["tdk"]}

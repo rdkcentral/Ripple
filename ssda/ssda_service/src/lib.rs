@@ -560,3 +560,161 @@ impl ApiGatewayServer for ApiGateway {
         self.broker_sender.clone()
     }
 }
+/*
+write unit tests for ApiGateway
+*/
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use mockall::predicate::eq;
+
+    use std::sync::Arc;
+
+    use ripple_sdk::api::rules_engine::MockRuleEngineProvider;
+
+    use ssda_types::service::{
+        APIClientMessages, APIGatewayServiceRegistrationRequest,
+        FireboltMethodHandlerAPIRegistration,
+    };
+    use ssda_types::{JqRule, ServiceId};
+    use tokio::sync::RwLock;
+
+    fn make_registration(method: &str) -> APIGatewayServiceRegistrationRequest {
+        APIGatewayServiceRegistrationRequest {
+            firebolt_handlers: vec![FireboltMethodHandlerAPIRegistration {
+                firebolt_method: method.to_string(),
+                jq_rule: Some(JqRule {
+                    alias: "foo".to_string(),
+                    rule: ".foo".to_string(),
+                }),
+            }],
+        }
+    }
+
+    #[tokio::test]
+    async fn test_service_map_add_and_get() {
+        let mut map = ServiceMap::new();
+        let service_id = ServiceId::new("svc1".to_string());
+        let reg = FireboltMethodHandlerAPIRegistration {
+            firebolt_method: "foo.bar".to_string(),
+            jq_rule: None,
+        };
+        map.add_service(service_id.clone(), vec![reg.clone()]);
+        let regs = map.get_registrations(&service_id);
+        assert_eq!(regs.len(), 1);
+        assert_eq!(regs[0].firebolt_method, "foo.bar");
+    }
+
+    #[tokio::test]
+    async fn test_service_map_remove() {
+        let mut map = ServiceMap::new();
+        let service_id = ServiceId::new("svc2".to_string());
+        let reg = FireboltMethodHandlerAPIRegistration {
+            firebolt_method: "foo.baz".to_string(),
+            jq_rule: None,
+        };
+        map.add_service(service_id.clone(), vec![reg]);
+        map.remove_service(&service_id);
+        let regs = map.get_registrations(&service_id);
+        assert!(regs.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_service_map_get_service_for_method() {
+        let mut map = ServiceMap::new();
+        let service_id = ServiceId::new("svc3".to_string());
+        let reg = FireboltMethodHandlerAPIRegistration {
+            firebolt_method: "foo.qux".to_string(),
+            jq_rule: None,
+        };
+        map.add_service(service_id.clone(), vec![reg.clone()]);
+        let found = map.get_service_for_method("foo.qux");
+        assert!(found.is_some());
+        let (sid, r) = found.unwrap();
+        assert_eq!(sid, service_id);
+        assert_eq!(r.firebolt_method, "foo.qux");
+    }
+
+    #[tokio::test]
+    async fn test_is_apigateway_connection_accept() {
+        let uri: http::Uri = "/apigateway?serviceId=testsvc".parse().unwrap();
+        let res = ApiGateway::is_apigateway_connection(&uri);
+        assert!(matches!(
+            res,
+            Ok(APIGatewayServiceConnectionDisposition::Accept(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_is_apigateway_connection_reject() {
+        let uri: http::Uri = "/notgateway".parse().unwrap();
+        let res = ApiGateway::is_apigateway_connection(&uri);
+        assert!(matches!(
+            res,
+            Err(APIGatewayServiceConnectionError::NotAService)
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_classify_message_register() {
+        let reg = APIClientMessages::Register(make_registration("foo.bar"));
+        let msg = Message::Text(serde_json::to_string(&reg).unwrap());
+        let state = ApiGateway::classify_message(&msg);
+        match state {
+            APIGatewayClientState::Registering(_) => {}
+            _ => panic!("Expected Registering"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_classify_message_close() {
+        let msg = Message::Close(None);
+        let state = ApiGateway::classify_message(&msg);
+        assert!(matches!(state, APIGatewayClientState::Closed));
+    }
+
+    #[tokio::test]
+    async fn test_handle_registration_and_unregister() {
+        let service_id = ServiceId::new("svc4".to_string());
+        let mut mock = MockRuleEngineProvider::new();
+        let r = Rule {
+            alias: "foo.bar".to_string(),
+            filter: Some(".foo".to_string()),
+            endpoint: Some("service".to_string()),
+            ..Default::default()
+        };
+        mock.expect_add_rule()
+            .with(eq(r.clone()))
+            .times(1)
+            .return_const(());
+        mock.expect_remove_rule().times(1).return_const(());
+
+        let rule_engine: Arc<
+            RwLock<Box<dyn ripple_sdk::api::rules_engine::RuleEngineProvider + Send + Sync>>,
+        > = Arc::new(RwLock::new(Box::new(mock)));
+
+        let methods_2_services = Arc::new(RwLock::new(ServiceMap::new()));
+        let registration = make_registration("foo.bar");
+        ApiGateway::handle_registration(
+            service_id.clone(),
+            rule_engine.clone(),
+            &registration,
+            methods_2_services.clone(),
+        )
+        .await;
+        let regs = methods_2_services
+            .read()
+            .await
+            .get_registrations(&service_id);
+        assert_eq!(regs.len(), 1);
+
+        ApiGateway::handle_unregister(&service_id, methods_2_services.clone(), rule_engine.clone())
+            .await;
+        let regs = methods_2_services
+            .read()
+            .await
+            .get_registrations(&service_id);
+        assert!(regs.is_empty());
+    }
+}

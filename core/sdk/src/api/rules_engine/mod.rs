@@ -101,7 +101,7 @@ pub enum RuleEndpointProtocol {
     Extn,
     Service,
 }
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, Eq, PartialEq, PartialOrd, Ord)]
 pub struct JsonDataSource {
     // configurable namespace to "stuff" an in individual result payload into
     pub namespace: Option<String>,
@@ -109,7 +109,7 @@ pub struct JsonDataSource {
     pub params: Option<String>,
 }
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, Eq, PartialEq, PartialOrd, Ord)]
 pub struct Rule {
     pub alias: String,
     // Not every rule needs transform
@@ -187,7 +187,7 @@ impl Rule {
     }
 }
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RuleTransform {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request: Option<String>,
@@ -501,7 +501,8 @@ pub fn compose_json_values(values: Vec<Value>) -> Value {
 pub fn make_name_json_safe(name: &str) -> String {
     name.replace([' ', '.', ','], "_")
 }
-
+use mockall::automock;
+#[automock]
 #[async_trait::async_trait]
 pub trait RuleEngineProvider: Send + Sync {
     fn add_rules(&mut self, rules: RuleSet);
