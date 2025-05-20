@@ -30,6 +30,7 @@ use crate::{
 };
 use futures::SinkExt;
 use futures::StreamExt;
+
 use jsonrpsee::types::{error::INVALID_REQUEST_CODE, ErrorObject, ErrorResponse, Id};
 use ripple_sdk::{
     api::{
@@ -38,15 +39,18 @@ use ripple_sdk::{
         },
         observability::log_signal::LogSignal,
     },
-    log::{error, info, trace},
+    log::{error, info},
     tokio::{
         net::{TcpListener, TcpStream},
-        sync::{mpsc, oneshot},
+        sync::{mpsc, oneshot, Mutex},
     },
     utils::channel_utils::oneshot_send_and_log,
     uuid::Uuid,
 };
 use ripple_sdk::{log::debug, tokio};
+use ssda_service::ApiGateway;
+use ssda_types::gateway::{APIGatewayServiceConnectionDisposition, ApiGatewayServer};
+use ssda_types::ServiceId;
 use tokio_tungstenite::{
     tungstenite::{self, Message},
     WebSocketStream,
@@ -61,12 +65,16 @@ pub struct ClientIdentity {
     app_id: String,
     rpc_v2: bool,
 }
-
+#[derive(Debug, Clone)]
+struct ServiceConnection {
+    service_id: ServiceId,
+}
 struct ConnectionCallbackConfig {
     pub next: oneshot::Sender<ClientIdentity>,
     pub app_state: AppManagerState,
     pub secure: bool,
     pub internal_app_id: Option<String>,
+    pub service_connection: Arc<std::sync::Mutex<Option<ServiceConnection>>>,
 }
 pub struct ConnectionCallback(ConnectionCallbackConfig);
 
@@ -122,6 +130,12 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
                 Some(a) => Some(a),
                 None => cfg.internal_app_id,
             },
+        };
+        if let Ok(APIGatewayServiceConnectionDisposition::Accept(service_id)) =
+            ApiGateway::is_apigateway_connection(request.uri())
+        {
+            let service_connection = ServiceConnection { service_id };
+            *cfg.service_connection.lock().unwrap() = Some(service_connection);
         };
         let session_id = match app_id_opt {
             Some(_) => Uuid::new_v4().to_string(),
@@ -184,6 +198,7 @@ impl FireboltWs {
         state: PlatformState,
         secure: bool,
         internal_app_id: Option<String>,
+        service_manager: Arc<Mutex<Box<dyn ApiGatewayServer + Send + Sync>>>,
     ) {
         // Create the event loop and TCP listener we'll accept connections on.
         let try_socket = TcpListener::bind(&server_addr).await; //create the server on the address
@@ -192,36 +207,73 @@ impl FireboltWs {
         let state_for_connection = state.clone();
         let app_state = state.app_manager_state.clone();
         // Let's spawn the handling of each connection in a separate task.
+
         while let Ok((stream, client_addr)) = listener.accept().await {
             let (connect_tx, connect_rx) = oneshot::channel::<ClientIdentity>();
+            let service_manager_clone = Arc::clone(&service_manager);
+            let service_connection_state = Arc::new(std::sync::Mutex::new(None));
             let cfg = ConnectionCallbackConfig {
                 next: connect_tx,
                 app_state: app_state.clone(),
                 secure,
                 internal_app_id: internal_app_id.clone(),
+                service_connection: service_connection_state.clone(),
             };
             match tokio_tungstenite::accept_hdr_async(stream, ConnectionCallback(cfg)).await {
                 Err(e) => {
                     error!("websocket connection error {:?}", e);
                 }
                 Ok(ws_stream) => {
-                    trace!("websocket connection success");
-                    let state_for_connection_c = state_for_connection.clone();
-                    tokio::spawn(async move {
-                        FireboltWs::handle_connection(
-                            client_addr,
-                            ws_stream,
-                            connect_rx,
-                            state_for_connection_c.clone(),
-                            secure,
-                        )
-                        .await;
-                    });
+                    // let (mut send , mut recv) = ws_stream.split();;
+                    //let c = send;
+                    let connection = service_connection_state.clone();
+                    let service_connection_state = connection.lock().unwrap().clone();
+                    //let service_connections = service_connection_state.clone();
+
+                    match service_connection_state {
+                        Some(service_connection) => {
+                            let service_connection = service_connection.clone();
+                            let service_id = service_connection.service_id.clone();
+
+                            info!("Service connection for service_id={:?}", service_id);
+                            tokio::spawn(async move {
+                                FireboltWs::handle_service_connection(
+                                    service_id,
+                                    service_manager_clone,
+                                    ws_stream,
+                                )
+                                .await;
+                            });
+                        }
+                        None => {
+                            let state_for_connection_c = state_for_connection.clone();
+                            tokio::spawn(async move {
+                                FireboltWs::handle_connection(
+                                    client_addr,
+                                    ws_stream,
+                                    connect_rx,
+                                    state_for_connection_c.clone(),
+                                    secure,
+                                )
+                                .await;
+                            });
+                        }
+                    }
                 }
             }
         }
     }
-
+    async fn handle_service_connection(
+        service_id: ServiceId,
+        service_manager: Arc<Mutex<Box<dyn ApiGatewayServer + Send + Sync>>>,
+        ws_stream: WebSocketStream<TcpStream>,
+    ) {
+        info!("handle_service_connection");
+        {
+            let mut guard = service_manager.lock().await;
+            guard.service_connect(service_id, ws_stream).await.unwrap();
+        }
+    }
     async fn handle_connection(
         _client_addr: SocketAddr,
         ws_stream: WebSocketStream<TcpStream>,
