@@ -28,6 +28,7 @@ tdk = []
 full = ["rpc"]
 sysd = []
 test = ["jsonrpsee", "mock"]
+mock_service = ["mock_app_gw/mock_service"]
 mock = []
 http_contract_tests = [
 ]
@@ -71,6 +72,7 @@ lazy_static = "1.5.0"
 tokio-tungstenite = { workspace = true, features = ["handshake", "connect"]}
 url.workspace = true
 futures-util = { version = "0.3.28", features = ["sink", "std"], default-features = false}
+mock_app_gw = { path = "src/service/mock_app_gw", optional = true}
 
 [dev-dependencies]
 ripple_sdk = { path = ".", features=["tdk"]}

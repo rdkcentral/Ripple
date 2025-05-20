@@ -1911,6 +1911,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mock_app_gw"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures-util",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+ "uuid",
+]
+
+[[package]]
 name = "mock_device"
 version = "1.0.0"
 dependencies = [
@@ -2808,6 +2821,7 @@ dependencies = [
  "lazy_static",
  "libloading",
  "log",
+ "mock_app_gw",
  "regex",
  "ripple_sdk",
  "rstest",
