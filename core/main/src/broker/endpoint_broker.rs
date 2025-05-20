@@ -705,14 +705,14 @@ impl EndpointBrokerState {
             telemetry_response_listeners,
         )
     }
-    pub fn build_thunder_endpoint(&mut self) {
+    pub fn build_thunder_endpoint(&mut self, ps: Option<PlatformState>) {
         if let Some(endpoint) = self.rule_engine.rules.endpoints.get("thunder").cloned() {
             let request = BrokerConnectRequest::new(
                 "thunder".to_owned(),
                 endpoint.clone(),
                 self.reconnect_tx.clone(),
             );
-            self.build_endpoint(None, request);
+            self.build_endpoint(ps, request);
         }
     }
 
@@ -758,7 +758,7 @@ impl EndpointBrokerState {
             }
             RuleEndpointProtocol::Thunder => {
                 let thunder_broker =
-                    ThunderBroker::get_broker(None, request, self.callback.clone(), self);
+                    ThunderBroker::get_broker(ps, request, self.callback.clone(), self);
                 (
                     thunder_broker.get_sender(),
                     Some(thunder_broker.get_cleaner()),
@@ -875,15 +875,28 @@ impl EndpointBrokerState {
         .with_diagnostic_context_item("workflow", &workflow_callback.is_some().to_string())
         .emit_debug();
 
-        self.handle_brokerage_workflow(
-            rpc_request,
+        let resp = self.handle_brokerage_workflow(
+            rpc_request.clone(),
             extn_message,
             workflow_callback,
             permissions,
             session,
             telemetry_response_listeners,
-        )
-        .is_ok()
+        );
+
+        if resp.is_err() {
+            let err = resp.unwrap_err();
+            LogSignal::new(
+                "handle_brokerage".to_string(),
+                "Rule error".to_string(),
+                rpc_request.ctx.clone(),
+            )
+            .with_diagnostic_context_item("error", &format!("{:?}", err))
+            .emit_error();
+            false
+        } else {
+            true
+        }
     }
 
     fn get_endpoint(

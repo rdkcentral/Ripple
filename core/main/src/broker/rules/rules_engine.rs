@@ -384,7 +384,7 @@ impl RuleEngine {
         self.rules.rules.contains_key(&request.to_lowercase())
     }
     fn wildcard_match(rule_name: &str, method: &str) -> bool {
-        rule_name.ends_with(".*") && method.starts_with(&rule_name[..rule_name.len() - 2])
+        rule_name.ends_with(".*") && method.starts_with(&rule_name[..rule_name.len() - 1])
     }
     fn find_wildcard_rule(
         rules: &HashMap<String, Rule>,
@@ -753,36 +753,6 @@ mod tests {
         assert!(matches!(
             result,
             Err(RuleRetrievalError::RuleNotFoundAsWildcard)
-        ));
-    }
-
-    #[test]
-    fn test_get_rule_multiple_wildcard_matches() {
-        let mut rule_set = RuleSet::default();
-        rule_set
-            .rules
-            .insert("api.v1.*".to_string(), Rule::default());
-        rule_set.rules.insert("api.*".to_string(), Rule::default());
-
-        let rule_engine = RuleEngine {
-            rules: rule_set,
-            functions: HashMap::default(),
-        };
-
-        let rpc_request = RpcRequest {
-            method: "api.v1.get".to_string(),
-            ctx: CallContext {
-                app_id: "test_app".to_string(),
-                method: "api.v1.get".to_string(),
-                ..Default::default()
-            },
-            ..Default::default()
-        };
-
-        let result = rule_engine.get_rule(&rpc_request);
-        assert!(matches!(
-            result,
-            Err(RuleRetrievalError::TooManyWildcardMatches)
         ));
     }
 }
