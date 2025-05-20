@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use gateway::ServiceRoutingRequest;
@@ -573,6 +574,7 @@ pub struct WebsocketAPIGatewayClient {
 }
 
 use tokio_tungstenite::{connect_async, tungstenite::Message};
+use url::Url;
 
 impl WebsocketAPIGatewayClient {
     pub fn new(handler: Arc<dyn ServiceRequestHandler>, registration: ServiceRegistration) -> Self {
@@ -668,25 +670,40 @@ impl WebsocketAPIGatewayClient {
             }
         }
     }
-    pub async fn connect(&self) -> Result<(), Box<dyn std::error::Error>> {
-        /*
-        todo: refactor to use the backoff crate
-        */
+    pub async fn connect(
+        &self,
+        endpoint_url: Option<String>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let url = Url::parse(
+            &endpoint_url
+                .unwrap_or_else(|| "ws://localhost:3474/apigateway?serviceId=tester".to_string()),
+        )?;
+        let mut backoff = Duration::from_secs(1);
 
-        match connect_async("ws://localhost:3474/apigateway?serviceId=tester").await {
-            Ok(yay) => {
-                let handler = self.handler.clone();
-                /*
-                register serviced fb methods
-                 */
-                let registration = self.registration.clone();
-                Self::handle_messages(yay.0, handler, registration).await;
-            }
-            Err(lame) => {
-                error!("Error connecting to WebSocket: {:?}", lame);
+        loop {
+            match connect_async(url.clone()).await {
+                Ok((ws_stream, _)) => {
+                    let handler = self.handler.clone();
+                    let registration = self.registration.clone();
+
+                    info!("✅ Connected to WebSocket");
+
+                    // Reset backoff after successful connection
+                    backoff = Duration::from_secs(1);
+
+                    // This handles the message loop and returns on disconnect
+                    Self::handle_messages(ws_stream, handler, registration).await;
+                    info!("🔌 Disconnected, retrying...");
+                }
+                Err(err) => {
+                    error!("Error connecting to WebSocket: {:?}", err);
+
+                    // Exponential backoff (up to 1 minute)
+                    tokio::time::sleep(backoff).await;
+                    backoff = std::cmp::min(backoff * 2, Duration::from_secs(60));
+                }
             }
         }
-        Ok(())
     }
 }
 
@@ -704,7 +721,7 @@ impl APIGatewayClient for WebsocketAPIGatewayClient {
 
     async fn start(&self) {
         info!("starting websocket client");
-        self.connect().await.unwrap();
+        self.connect(None).await.unwrap();
         self.handler.on_connected();
     }
 
