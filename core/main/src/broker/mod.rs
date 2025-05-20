@@ -20,7 +20,7 @@ pub mod event_management_utility;
 pub mod extn_broker;
 pub mod http_broker;
 pub mod provider_broker_state;
-pub mod rules_engine;
+
 pub mod service_broker;
 #[cfg(test)]
 pub mod test;
