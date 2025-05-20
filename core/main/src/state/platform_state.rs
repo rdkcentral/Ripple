@@ -261,7 +261,7 @@ impl PlatformState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ripple_sdk::api::manifest::extn_manifest::default_providers;
+    use ripple_sdk::api::{manifest::extn_manifest::default_providers, rules_engine::RuleEngine};
     use ripple_tdk::utils::test_utils::Mockable;
 
     impl Mockable for PlatformState {
@@ -279,12 +279,24 @@ mod tests {
             )
             .unwrap();
             extn_manifest.provider_registrations = default_providers();
+            let rules_engine: Arc<tokio::sync::RwLock<Box<dyn RuleEngineProvider + Send + Sync>>> =
+                Arc::new(tokio::sync::RwLock::new(Box::new(RuleEngine::build(
+                    &extn_manifest,
+                ))));
+
+            let api_gateway_state: Arc<
+                tokio::sync::Mutex<Box<dyn ApiGatewayServer + Send + Sync>>,
+            > = Arc::new(tokio::sync::Mutex::new(Box::new(
+                ssda_service::ApiGateway::new(rules_engine.clone()),
+            )));
             Self::new(
                 extn_manifest,
                 manifest,
                 RippleClient::new(ChannelsState::new()),
                 vec![],
                 None,
+                api_gateway_state.clone(),
+                rules_engine.clone(),
             )
         }
     }

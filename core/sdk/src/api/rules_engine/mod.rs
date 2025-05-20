@@ -427,7 +427,7 @@ pub enum RuleRetrievalError {
 /// ```
 /// use serde_json::json;
 /// use ripple_sdk::utils::error::RippleError;
-/// use crate::jq_compile;
+/// use ripple_sdk::api::rules_engine::jq_compile;
 ///
 /// let filter = "if .success then .stbVersion else { code: -32100, message: \"couldn't get version\" } end";
 /// let input = json!({
@@ -568,8 +568,10 @@ impl RuleEngineProvider for RuleEngine {
 
 #[cfg(test)]
 mod tests {
+    use crate::api::gateway::rpc_gateway_api::CallContext;
+
     use super::*;
-    use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
+
     use ripple_sdk::serde_json::json;
 
     #[test]
@@ -673,7 +675,6 @@ mod tests {
         .unwrap()
         .contains("nested"));
     }
-    use ripple_sdk::api::gateway::rpc_gateway_api::CallContext;
 
     #[test]
     fn test_get_rule_exact_match() {

@@ -74,8 +74,9 @@ pub struct ServiceHandler {
     pub handler_type: Handler,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum Handler {
+    #[default]
     None,
     JqRule(JqRule),
     StaticRule(StaticRule),
@@ -90,11 +91,6 @@ impl std::fmt::Display for Handler {
     }
 }
 
-impl Default for Handler {
-    fn default() -> Self {
-        Handler::None
-    }
-}
 impl From<Handler> for ripple_sdk::api::rules_engine::Rule {
     fn from(handler: Handler) -> Self {
         match handler {
@@ -262,13 +258,7 @@ pub mod service {
 
     use serde::{Deserialize, Serialize};
 
-    use crate::{
-        gateway::{
-            ServiceRoutingErrorResponse, ServiceRoutingRequest, ServiceRoutingResponse,
-            ServiceRoutingSuccessResponse,
-        },
-        Handler, JqRule, ServiceId, ServiceRequestId, StaticRule,
-    };
+    use crate::{Handler, JqRule, ServiceId, ServiceRequestId};
 
     #[derive(Debug, Clone, Default, Serialize, Deserialize)]
     pub struct FireboltMethodHandlerRegistration {
@@ -339,8 +329,8 @@ pub mod service {
             firebolt_handlers: Vec<FireboltMethodHandlerAPIRegistration>,
         ) -> Self {
             ServiceRegistration {
-                service_id: service_id,
-                firebolt_handlers: firebolt_handlers,
+                service_id,
+                firebolt_handlers,
             }
         }
         pub fn get_rule_registrations(&self) -> Vec<FireboltMethodHandlerAPIRegistration> {
@@ -355,7 +345,7 @@ pub mod service {
     impl ServiceRegistrationBuilder {
         pub fn new(service_id: ServiceId) -> Self {
             ServiceRegistrationBuilder {
-                service_id: service_id,
+                service_id,
                 firebolt_handlers: Vec::new(),
             }
         }
@@ -467,17 +457,14 @@ pub mod service {
             &self,
             request: ServiceCall,
         ) -> Result<ServiceCallSuccessResponse, ServiceCallErrorResponse>;
-        fn on_connected(&self) -> ();
-        fn on_disconnected(&self) -> ();
+        fn on_connected(&self);
+        fn on_disconnected(&self);
         fn healthy(&self) -> bool;
     }
 }
 pub mod client {
     use mockall::automock;
 
-    use crate::gateway::{
-        ServiceRoutingErrorResponse, ServiceRoutingRequest, ServiceRoutingSuccessResponse,
-    };
     use crate::{HandlerId, ServiceId};
 
     use crate::service::{
@@ -506,7 +493,7 @@ pub mod client {
             &self,
             registraton: Box<ServiceRegistration>,
         ) -> Result<ServiceRegistrationResponse, ServiceRegistrationFailure>;
-        fn set_handler(&mut self, handler: Box<dyn ServiceRequestHandler>) -> ();
+        fn set_handler(&mut self, handler: Box<dyn ServiceRequestHandler>);
         fn unregister_service(&mut self, service_id: ServiceId) -> Result<(), String>;
         fn register_handler(
             &mut self,
@@ -584,11 +571,11 @@ This is a trait to :
 */
 #[async_trait::async_trait]
 pub trait APIGatewayClient {
-    fn connect(&self) -> ();
-    fn disconnect(&self) -> ();
-    fn dispatch(&self, request: gateway::ServiceRoutingRequest) -> ();
-    async fn start(&self) -> ();
-    async fn stop(&self) -> ();
+    fn connect(&self);
+    fn disconnect(&self);
+    fn dispatch(&self, request: gateway::ServiceRoutingRequest);
+    async fn start(&self);
+    async fn stop(&self);
 }
 pub struct WebsocketAPIGatewayClient {
     handler: Arc<dyn service::ServiceRequestHandler>,
@@ -726,46 +713,47 @@ impl WebsocketAPIGatewayClient {
 
 #[async_trait::async_trait]
 impl APIGatewayClient for WebsocketAPIGatewayClient {
-    fn connect(&self) -> () {
+    fn connect(&self) {
         // connect to the API gateway
     }
-    fn disconnect(&self) -> () {
+    fn disconnect(&self) {
         // disconnect from the API gateway
     }
-    fn dispatch(&self, _request: ServiceRoutingRequest) -> () {
+    fn dispatch(&self, _request: ServiceRoutingRequest) {
         // send a request to the API gateway
     }
 
-    async fn start(&self) -> () {
+    async fn start(&self) {
         println!("starting websocket client");
         self.connect().await.unwrap();
         self.handler.on_connected();
     }
 
-    async fn stop(&self) -> () {
+    async fn stop(&self) {
         todo!()
     }
 }
+
 pub struct DBUSAPIGatewayClient {
     // dbus client
 }
 #[async_trait::async_trait]
 impl APIGatewayClient for DBUSAPIGatewayClient {
-    fn connect(&self) -> () {
+    fn connect(&self) {
         // connect to the API gateway
     }
-    fn disconnect(&self) -> () {
+    fn disconnect(&self) {
         // disconnect from the API gateway
     }
-    fn dispatch(&self, _request: ServiceRoutingRequest) -> () {
+    fn dispatch(&self, _request: ServiceRoutingRequest) {
         // send a request to the API gateway
     }
 
-    async fn start(&self) -> () {
+    async fn start(&self) {
         todo!()
     }
 
-    async fn stop(&self) -> () {
+    async fn stop(&self) {
         todo!()
     }
 }

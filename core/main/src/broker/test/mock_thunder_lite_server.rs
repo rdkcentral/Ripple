@@ -372,7 +372,7 @@ macro_rules! process_broker_output {
             .clone()
             .rule
             .transform
-            .get_transform_data(rules_engine::RuleTransformType::Response)
+            .get_transform_data(ripple_sdk::api::rules_engine::RuleTransformType::Response)
         {
             apply_response(filter, &rule_context_name, &mut response);
         } else if response.result.is_none() && response.error.is_none() {
@@ -394,12 +394,9 @@ macro_rules! process_broker_output_event_resposne {
 
         // Apply the jq transform to the response
 
-        if let Some(filter) = $broker_request
-            .clone()
-            .rule
-            .transform
-            .get_transform_data(rules_engine::RuleTransformType::Event(false))
-        {
+        if let Some(filter) = $broker_request.clone().rule.transform.get_transform_data(
+            ripple_sdk::api::rules_engine::RuleTransformType::Event(false),
+        ) {
             let broker_request_clone = $broker_request.clone();
             let result = response.clone().result.unwrap();
             let rpc = $broker_request.rpc.clone();

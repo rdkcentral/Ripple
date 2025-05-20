@@ -6,21 +6,14 @@ use ripple_sdk::{
 use ssda_types::gateway::{ServiceRoutingRequest, ServiceRoutingResponse};
 use ssda_types::ServiceRequestId;
 
-use crate::state::platform_state::PlatformState;
-
 use super::endpoint_broker::{
-    BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerRequest,
-    BrokerSender, EndpointBroker, EndpointBrokerState, BROKER_CHANNEL_BUFFER_SIZE,
+    BrokerCallback, BrokerCleaner, BrokerOutputForwarder, BrokerRequest, BrokerSender,
+    EndpointBroker, BROKER_CHANNEL_BUFFER_SIZE,
 };
 use ripple_sdk::tokio;
 
 pub struct ServiceBroker {
-    platform_state: Option<PlatformState>,
-    connect_request: BrokerConnectRequest,
-    broker_callback: BrokerCallback,
-    endpoint_broker_state: EndpointBrokerState,
     broker_sender: BrokerSender,
-    cleaner: BrokerCleaner,
 }
 async fn send_broker_response(callback: &BrokerCallback, request: &BrokerRequest, body: &[u8]) {
     match BrokerOutputForwarder::handle_non_jsonrpc_response(
@@ -30,7 +23,7 @@ async fn send_broker_response(callback: &BrokerCallback, request: &BrokerRequest
     ) {
         Ok(_) => {}
         Err(e) => {
-            error!("Error message from http broker {:?}", e)
+            error!("Error message from service broker {:?}", e)
         }
     }
 }
@@ -39,9 +32,9 @@ impl ServiceBroker {}
 impl EndpointBroker for ServiceBroker {
     fn get_broker(
         ps: Option<crate::state::platform_state::PlatformState>,
-        connect_request: super::endpoint_broker::BrokerConnectRequest,
+        _connect_request: super::endpoint_broker::BrokerConnectRequest,
         broker_callback: super::endpoint_broker::BrokerCallback,
-        endpoint_broker: &mut super::endpoint_broker::EndpointBrokerState,
+        _endpoint_broker: &mut super::endpoint_broker::EndpointBrokerState,
     ) -> Self {
         //todo!();
         // let endpoint = request.endpoint.clone();
@@ -107,12 +100,12 @@ impl EndpointBroker for ServiceBroker {
         };
 
         Self {
-            platform_state: ps.clone(),
-            connect_request: connect_request,
-            broker_callback: broker_callback,
-            endpoint_broker_state: endpoint_broker.clone(),
-            broker_sender: broker_sender,
-            cleaner: BrokerCleaner { cleaner: None },
+            // platform_state: ps.clone(),
+            // connect_request,
+            // broker_callback,
+            // endpoint_broker_state: endpoint_broker.clone(),
+            broker_sender,
+            //cleaner: BrokerCleaner { cleaner: None },
         }
     }
 

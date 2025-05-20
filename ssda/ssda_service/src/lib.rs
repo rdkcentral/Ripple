@@ -73,7 +73,11 @@ pub enum APIGatewayClientState {
     Message(ServiceRequestId, Value),
     ServiceCallFailed(ServiceRequestId, String),
 }
-//static service_map:HashMap<ServiceId,Vec<FireboltMethodHandlerAPIRegistration> = HashMap::;
+type RequestIds2SendersType = Arc<
+    RwLock<
+        HashMap<ServiceRequestId, Arc<Mutex<Option<oneshot::Sender<WebsocketServiceResponse>>>>>,
+    >,
+>;
 
 impl ApiGateway {
     pub fn new(
@@ -85,11 +89,11 @@ impl ApiGateway {
 
         let me = Self {
             service_endpoints: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
-            rules_engine: rules_engine,
+            rules_engine,
             methods_2_services: Arc::new(tokio::sync::RwLock::new(ServiceMap::new())),
             broker_sender: tx.clone(),
             services_2_rxs: services_2_rxs.clone(),
-            reply_to_tx: reply_to_tx,
+            reply_to_tx,
         };
 
         me.start(rx, Arc::clone(&services_2_rxs));
@@ -137,7 +141,7 @@ impl ApiGateway {
                                             let _ = request.respond_to.send(
                                                 ServiceRoutingResponse::Success(
                                                     ServiceRoutingSuccessResponse {
-                                                        request_id: request_id,
+                                                        request_id,
                                                         response: result,
                                                     },
                                                 ),
@@ -149,8 +153,8 @@ impl ApiGateway {
                                             let _ = request.respond_to.send(
                                                 ServiceRoutingResponse::Error(
                                                     ServiceRoutingErrorResponse {
-                                                        request_id: request_id,
-                                                        error: error,
+                                                        request_id,
+                                                        error,
                                                     },
                                                 ),
                                             );
@@ -197,7 +201,7 @@ impl ApiGateway {
                 }
             }
         }
-        return Err(APIGatewayServiceConnectionError::NotAService);
+        Err(APIGatewayServiceConnectionError::NotAService)
     }
     pub fn classify_message(message: &Message) -> APIGatewayClientState {
         // Classify the message based on its content
@@ -232,11 +236,10 @@ impl ApiGateway {
                     }
                 }
             }
-        } else {
-            if let Message::Close(_) = message {
-                return APIGatewayClientState::Closed;
-            }
+        } else if let Message::Close(_) = message {
+            return APIGatewayClientState::Closed;
         }
+
         APIGatewayClientState::Failed(format!("Failed to parse message: {}", message))
     }
     fn jq_rule_to_string(jq_rule: Option<JqRule>) -> Option<String> {
@@ -370,8 +373,8 @@ impl ApiGateway {
                 info!("Client closed connection. Error: {:?}", e);
                 info!("Unregistering service: {:?}", service_id);
 
-                Self::handle_unregister(&service_id, methods_2_services, rule_engine.clone()).await;
-                services_2_rxes.write().await.remove(&service_id).unwrap();
+                Self::handle_unregister(service_id, methods_2_services, rule_engine.clone()).await;
+                services_2_rxes.write().await.remove(service_id).unwrap();
 
                 tx.close().await.unwrap();
             }
@@ -397,14 +400,7 @@ impl ApiGateway {
 
         let (bridge_tx, mut bridge_rx) = mpsc::channel::<WebsocketServiceResponse>(32);
 
-        let requests_2_requestors: Arc<
-            RwLock<
-                HashMap<
-                    ServiceRequestId,
-                    Arc<Mutex<Option<oneshot::Sender<WebsocketServiceResponse>>>>,
-                >,
-            >,
-        > = Arc::new(RwLock::new(HashMap::new()));
+        let requests_2_requestors: RequestIds2SendersType = Arc::new(RwLock::new(HashMap::new()));
 
         loop {
             tokio::select! {
@@ -431,7 +427,7 @@ impl ApiGateway {
                     let service_call =  APIClientMessages::ServiceCall(
                         ServiceCall {
                             method: request.method.clone(),
-                            request_id: request_id,
+                            request_id,
                             payload: request.payload.clone(),
                         }
                      );

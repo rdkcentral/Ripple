@@ -201,15 +201,15 @@ mod tests {
     use serde_json::{json, Value};
     use std::time::Duration;
 
-    use crate::broker::{
-        endpoint_broker::BrokerOutput,
-        rules_engine::{Rule, RuleEndpoint, RuleEndpointProtocol},
-    };
+    use crate::broker::endpoint_broker::BrokerOutput;
 
     use super::*;
 
     use ripple_sdk::{
-        api::gateway::rpc_gateway_api::{JsonRpcApiResponse, RpcRequest},
+        api::{
+            gateway::rpc_gateway_api::{JsonRpcApiResponse, RpcRequest},
+            rules_engine::{Rule, RuleEndpoint, RuleEndpointProtocol},
+        },
         tokio::{runtime::Runtime, task::JoinHandle, time::timeout},
         Mockable,
     };

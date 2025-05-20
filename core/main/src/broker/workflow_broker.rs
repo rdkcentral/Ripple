@@ -312,7 +312,7 @@ pub mod tests {
     use ripple_sdk::{
         api::{
             gateway::rpc_gateway_api::RpcRequest,
-            rules_engine::{JsonDataSource, Rule, RuleEngine},
+            rules_engine::{JsonDataSource, Rule, RuleEngine, RuleEngineProvider},
         },
         tokio, Mockable,
     };
@@ -371,7 +371,15 @@ pub mod tests {
         engine.unwrap()
     }
     pub fn endppoint_broker_state() -> EndpointBrokerState {
-        EndpointBrokerState::default().with_rules_engine(rule_engine())
+        use ripple_sdk::tokio::sync::RwLock as TokioRwLock;
+        use std::sync::Arc;
+
+        let rule_engine = rule_engine();
+        let boxed: Box<dyn RuleEngineProvider + Send + Sync> = Box::new(rule_engine);
+        let rw_locked = TokioRwLock::new(boxed);
+        let arc = Arc::new(rw_locked);
+
+        EndpointBrokerState::default().with_rules_engine(arc)
     }
 
     #[tokio::test]

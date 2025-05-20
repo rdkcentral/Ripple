@@ -135,7 +135,7 @@ impl BootstrapState {
             Arc::new(tokio::sync::RwLock::new(Box::new(RuleEngine::build(
                 &extn_manifest,
             ))));
-        tokio::spawn(async move {});
+
         let api_gateway_state: Arc<tokio::sync::Mutex<Box<dyn ApiGatewayServer + Send + Sync>>> =
             Arc::new(tokio::sync::Mutex::new(Box::new(
                 ssda_service::ApiGateway::new(rules_engine.clone()),
