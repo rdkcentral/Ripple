@@ -671,6 +671,8 @@ impl ThunderDeviceInfoRequestProcessor {
                 "timeZones": [
                     timezone,
                     "Etc/UTC",
+                    "Etc", 
+                    "UTC",
                 ]
             })
             .to_string(),
