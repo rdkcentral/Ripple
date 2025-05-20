@@ -203,7 +203,7 @@ mod tests {
 
     use crate::broker::{
         endpoint_broker::BrokerOutput,
-        rules_engine::{Rule, RuleEndpoint, RuleEndpointProtocol},
+        rules::rules_engine::{Rule, RuleEndpoint, RuleEndpointProtocol},
     };
 
     use super::*;
