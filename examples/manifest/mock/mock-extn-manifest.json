@@ -87,7 +87,6 @@
         "device_events",
         "device_persistence",
         "remote_accessory",
-        "secure_storage",
         "privacy_settings",
         "session_token",
         "account.session"
