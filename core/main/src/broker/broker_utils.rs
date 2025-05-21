@@ -33,11 +33,17 @@ use ripple_sdk::{
     utils::rpc_utils::extract_tcp_port,
 };
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::{
     sync::{atomic::Ordering, Arc},
     time::Duration,
 };
 use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
+
+#[derive(Default)]
+pub struct RippleMainSubscription {
+    pub subscription_map: HashMap<u64, String>,
+}
 
 fn get_next_id() -> u64 {
     ATOMIC_ID.fetch_add(1, Ordering::SeqCst)
@@ -175,6 +181,7 @@ impl BrokerUtils {
         rpc_req: RpcRequest,
         broker: Arc<ThunderBroker>,
         ws_tx: Arc<Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>>,
+        mut subscription: RippleMainSubscription,
     ) {
         // create the unique request id for each request.
         let request_id = get_next_id();
@@ -198,6 +205,33 @@ impl BrokerUtils {
             "ripple main to thunder sending request : {:?}",
             thunder_request
         );
+        let method_name = rpc_req.method.clone();
+
+        let contains_listen = method_name.contains("listen");
+        if contains_listen {
+            info!("The method_name '{}' contains 'listen'", method_name);
+
+            // Check if the method is already present in the subscription map
+            let already_subscribed = subscription
+                .subscription_map
+                .values()
+                .any(|v| v == &method_name);
+
+            if !already_subscribed {
+                subscription
+                    .subscription_map
+                    .insert(request_id, method_name.clone());
+                info!(
+                    "Stored subscription: id={}, method={}",
+                    request_id, method_name
+                );
+            } else {
+                info!(
+                    "Subscription for method '{}' already exists, not inserting again.",
+                    method_name
+                );
+            }
+        }
 
         // send the request to the legacy storage
         if let Err(e) = send_thunder_request(&ws_tx, &thunder_request).await {
@@ -206,23 +240,46 @@ impl BrokerUtils {
             return;
         }
 
-        let broker_clone = Arc::clone(&broker);
         tokio::spawn(async move {
-            // Wait asynchronously for the response from ThunderBroker
             if let Some(response) = response_rx.recv().await {
+                // Try to extract the "method" field from the response, if present
+                let (response_method, response_id) = {
+                    // Serialize the response.data to a JSON value before parsing
+                    let msg = &response.data;
+                    match serde_json::to_value(msg) {
+                        Ok(val) => {
+                            let method = val
+                                .get("method")
+                                .and_then(|m: &Value| m.as_str())
+                                .map(|s| s.to_string());
+                            let id = val.get("id").and_then(|i| i.as_u64());
+                            (method, id)
+                        }
+                        Err(_) => (None, None),
+                    }
+                };
                 info!(
-                    "Received response for request_id {}: {:?}",
-                    request_id, response
+                    "response_id:{:?}, method:{:?}",
+                    response_id, response_method,
                 );
+
+                // If event response check the subscriptionmap for registered or not
+                if method_name.ends_with(".register") {
+                    let is_present = subscription
+                        .subscription_map
+                        .values()
+                        .any(|v| v == &method_name);
+
+                    if is_present {
+                        //TO DO: send the response back to the caller
+                    }
+                }
             } else {
                 error!(
                     "No response received for request_id {}: channel closed",
                     request_id
                 );
             }
-
-            // Unregister the callback after receiving the response
-            broker_clone.unregister_custom_callback(request_id).await;
         });
     }
 }
