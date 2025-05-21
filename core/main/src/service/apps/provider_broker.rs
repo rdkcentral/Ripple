@@ -39,7 +39,6 @@ use ripple_sdk::{
     uuid::Uuid,
 };
 
-use core::error;
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
