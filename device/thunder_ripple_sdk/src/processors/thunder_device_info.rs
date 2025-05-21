@@ -662,17 +662,17 @@ impl ThunderDeviceInfoRequestProcessor {
         Some(timezone_obj)
     }
 
+    // Updated function to handle both old and new response formats
     async fn get_all_timezones(
         state: &ThunderState,
         timezone: &str,
     ) -> Result<ThunderAllTimezonesResponse, RippleError> {
+        // Prepare parameters for the Thunder call
         let params = Some(DeviceChannelParams::Json(
             json!({
                 "timeZones": [
                     timezone,
                     "Etc/UTC",
-                    "Etc", 
-                    "UTC",
                 ]
             })
             .to_string(),
@@ -685,14 +685,53 @@ impl ThunderDeviceInfoRequestProcessor {
                 params,
             })
             .await;
-        if check_thunder_response_success(&response) {
-            match serde_json::from_value::<ThunderAllTimezonesResponse>(response.message) {
-                Ok(timezones) => Ok(timezones),
-                Err(e) => {
+
+        if !check_thunder_response_success(&response) {
+            return Err(RippleError::ProcessorError);
+        }
+
+        // Check if the response uses the full path format (nested "America", etc.)
+        let has_full_path = response
+            .message
+            .get("zoneinfo")
+            .and_then(|z| z.as_object())
+            .and_then(|zoneinfo| zoneinfo.get("America"))
+            .map_or(false, |val| val.is_object());
+
+        if has_full_path {
+            // Deserialize using the full path format
+            serde_json::from_value::<ThunderAllTimezonesResponse>(response.message)
+                .map_err(|e| {
                     error!("{}", e.to_string());
-                    Err(RippleError::ProcessorError)
+                    RippleError::ProcessorError
+                })
+        } else {
+            // Handle the flat format
+            Self::extract_timezone_data_from_response(&response.message, timezone)
+        }
+    }
+
+    // This function is used to handle the new format of the response
+    fn extract_timezone_data_from_response(
+        response_value: &Value,
+        timezone: &str,
+    ) -> Result<ThunderAllTimezonesResponse, RippleError> {
+        let mut timezones = HashMap::new();
+
+        if let Some(zoneinfo) = response_value.get("zoneinfo").and_then(|z| z.as_object()) {
+            for (key, value) in zoneinfo {
+                if let Some(time_str) = value.as_str() {
+                    let full_key = match key.as_str() {
+                        "UTC" | "Etc/UTC" => "Etc/UTC".to_string(),
+                        _ if timezone == &format!("America/{}", key) => {
+                            format!("America/{}", key)
+                        }
+                        _ => key.clone(),
+                    };
+                    timezones.insert(full_key, time_str.to_string());
                 }
             }
+            Ok(ThunderAllTimezonesResponse { timezones })
         } else {
             Err(RippleError::ProcessorError)
         }
