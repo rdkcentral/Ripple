@@ -61,13 +61,7 @@ async fn send_http_request(
 
         let transform_params =
             match serde_json::from_str::<Vec<Value>>(&broker_request.rpc.params_json) {
-                Ok(mut params) => {
-                    if params.len() > 1 {
-                        params.pop().unwrap()
-                    } else {
-                        Value::Null
-                    }
-                }
+                Ok(mut params) => params.pop().unwrap_or(Value::Null),
                 Err(e) => {
                     error!(
                         "send_http_request: Error in http broker parsing request params: e={:?}",
