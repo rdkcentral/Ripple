@@ -126,7 +126,13 @@ impl WebSocketUtils {
         } else {
             endpoint.to_owned()
         };
-        if cfg!(not(feature = "local_dev")) {
+        let local_dev = std::env::var("local_dev")
+        .ok()
+        .and_then(|s| s.parse::<bool>().ok())
+        .unwrap_or(false);
+
+
+        if cfg!(not(feature = "local_dev")) && !local_dev {
             // Only support local ws connections
             if !url_path.starts_with("ws://127.0.0.1") && !url_path.starts_with("ws://localhost") {
                 return Err(RippleError::InvalidInput);
