@@ -39,6 +39,7 @@ use ripple_sdk::{
     uuid::Uuid,
 };
 
+use core::error;
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
@@ -241,7 +242,16 @@ impl ProviderBroker {
         if let Some(provider_method) = provider_opt {
             let event_name = provider_method.event_name.clone();
             let req_params = request.request.clone();
-            let app_id_opt = request.app_id.clone();
+
+            let mut app_id_opt = request.app_id.clone();
+            if app_id_opt.is_none() {
+                if let ProviderRequestPayload::Generic(ref payload) = request.request {
+                    if let Some(app_id_value) = payload.get("appId") {
+                        app_id_opt = app_id_value.as_str().map(|s| s.to_string());
+                    }
+                }
+            }
+
             let c_id =
                 ProviderBroker::start_provider_session(pst, request, provider_method.clone());
             if let Some(app_id) = app_id_opt {
