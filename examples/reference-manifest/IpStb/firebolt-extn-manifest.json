@@ -61,7 +61,6 @@
                         "account.session",
                         "device.session",
                         "root.session",
-                        "secure.storage",
                         "advertising",
                         "behavior_metrics"
                     ]
@@ -79,7 +78,6 @@
         "wifi",
         "local.storage",
         "remote_accessory",
-        "secure.storage",
         "privacy_settings",
         "account.session",
         "device.session",

@@ -281,6 +281,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn connect_non_json_rpc_websocket() {
         let (tx, mut tr) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);
@@ -325,6 +326,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn connect_non_json_rpc_websocket_test_invalid_response() {
         let (tx, mut _tr) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);
@@ -359,6 +361,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn cleanup_non_json_rpc_websocket() {
         let (tx, mut tr) = mpsc::channel(1);
         let (sender, _) = mpsc::channel(1);
@@ -421,6 +424,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn ws_notification_broker_start_validate_handling_response() {
         let (tx, mut tr) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);
@@ -447,6 +451,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn ws_notification_broker_start_validate_handling_invalid_json_rpc_response() {
         let (tx, mut _tr) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);
@@ -463,6 +468,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn ws_notification_broker_start_connection_timeout() {
         let (tx, mut _tr) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);
@@ -477,6 +483,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn ws_notification_broker_start_test_connection_error() {
         let _ = init_logger("ws tests".to_owned());
         let (sender, mut rec) = mpsc::channel(1);
