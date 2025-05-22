@@ -18,6 +18,8 @@ use crate::client::jsonrpc_method_locator::JsonRpcMethodLocator;
 use futures::SinkExt;
 use futures::StreamExt;
 use ripple_sdk::log::info;
+use ripple_sdk::tokio_tungstenite::accept_async;
+use ripple_sdk::tokio_tungstenite::tungstenite::protocol::Message;
 use ripple_sdk::{futures, serde_json, tokio};
 use serde_json::{json, Value};
 use std::net::SocketAddr;
@@ -25,8 +27,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
-use tokio_tungstenite::accept_async;
-use tokio_tungstenite::tungstenite::protocol::Message;
 
 pub trait MethodHandler: Send + Sync {
     fn handle_method(&self, request: &Value) -> Option<Value>;
@@ -128,7 +128,7 @@ impl MockWebSocketServer {
 }
 
 async fn handle_connection(
-    ws_stream: tokio_tungstenite::WebSocketStream<TcpStream>,
+    ws_stream: ripple_sdk::tokio_tungstenite::WebSocketStream<TcpStream>,
     _sender: mpsc::Sender<Message>,
     method_handler: Arc<dyn MethodHandler>,
 ) {

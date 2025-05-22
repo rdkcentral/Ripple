@@ -24,3 +24,4 @@ pub mod rpc_utils;
 pub mod serde_utils;
 pub mod test_utils;
 pub mod time_utils;
+pub mod ws_utils;

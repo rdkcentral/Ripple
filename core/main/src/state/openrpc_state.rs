@@ -180,7 +180,10 @@ impl OpenRpcState {
                     validator.add_schema(additional_open_rpc_validator);
                     return Ok(());
                 }
-                Err(_) => Err(RippleError::ParseError),
+                Err(e) => {
+                    error!("Error parsing openrpc validator from e={:?}", e);
+                    Err(RippleError::ParseError)
+                }
             };
         };
         Err(RippleError::ParseError)
