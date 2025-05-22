@@ -49,8 +49,15 @@ fn gateway_default() -> String {
 
 pub async fn boot_thunder(ext_client: ExtnClient) -> Option<ThunderBootstrapStateWithClient> {
     info!("Booting thunder initiated");
+    let mut status_check = true;
+
+    if let Some(status) = ext_client.get_config("thunder_plugin_status_check_at_broker_start_up") {
+        if let Ok(s) = status.parse() {
+            status_check = s;
+        }
+    };
     let state = {
-        info!("Using thunder_async_clinet");
+        info!("Using thunder_async_client");
         let mut extn_client = ext_client.clone();
         let mut gateway_url = match url::Url::parse(GATEWAY_DEFAULT) {
             Ok(url) => url,
@@ -98,7 +105,7 @@ pub async fn boot_thunder(ext_client: ExtnClient) -> Option<ThunderBootstrapStat
         }
 
         if let Ok(thndr_client) =
-            ThunderClientBuilder::start_thunder_client(gateway_url.clone()).await
+            ThunderClientBuilder::start_thunder_client(gateway_url.clone(), status_check).await
         {
             let thunder_state = ThunderState::new(ext_client.clone(), thndr_client);
 

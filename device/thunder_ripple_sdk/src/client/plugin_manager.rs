@@ -502,6 +502,7 @@ mod tests {
     //         None,
     //         Some(Arc::new(ThunderConnectionState::new())),
     //         1,
+    //         false,
     //     )
     //     .await;
     //     assert!(controller_pool.is_ok());
@@ -525,6 +526,7 @@ mod tests {
     //         Some(plugin_manager_tx_clone),
     //         Some(Arc::new(ThunderConnectionState::new())),
     //         4,
+    //         false,
     //     )
     //     .await;
     //     assert!(client.is_ok());

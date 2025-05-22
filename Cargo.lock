@@ -1871,6 +1871,8 @@ dependencies = [
  "serde",
  "serde_json",
  "serial_test",
+ "strum 0.24.1",
+ "strum_macros 0.24.3",
  "tokio-tungstenite",
  "url",
  "vergen",
@@ -1930,6 +1932,19 @@ dependencies = [
  "libc",
  "wasi 0.11.0+wasi-snapshot-preview1",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "mock_app_gw"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures-util",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+ "uuid",
 ]
 
 [[package]]
@@ -2887,6 +2902,7 @@ dependencies = [
  "lazy_static",
  "libloading",
  "log",
+ "mock_app_gw",
  "regex",
  "ripple_sdk",
  "rstest",
