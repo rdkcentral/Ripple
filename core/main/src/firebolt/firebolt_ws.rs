@@ -142,6 +142,7 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
 
         if !cfg.secure {
             if let Ok(Some(extn_id)) = get_query(request, "service_handshake", false) {
+                info!("Service handshake for extn_id={}", extn_id);
                 if let Some(c) = cfg.get_extn(&extn_id) {
                     // valid extn_id
                     info!("New Service connection {:?}", extn_id);
@@ -154,6 +155,7 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
                     oneshot_send_and_log(cfg.next, cid, "ResolveClientIdentity");
                     return Ok(response);
                 }
+                info!("Extn not found for extn_id={} in {:?} ", extn_id,cfg.extns);
                 // invalid extn_id
                 let err = tungstenite::http::response::Builder::new()
                     .status(403)
