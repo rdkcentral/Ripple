@@ -21,9 +21,12 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use crate::broker::broker_utils::BrokerUtils;
 use ripple_sdk::{
     api::{
-        distributor::distributor_permissions::{PermissionRequest, PermissionResponse, PermissionRequestPayload},
+        distributor::distributor_permissions::{
+            PermissionRequest, PermissionRequestPayload, PermissionResponse,
+        },
         firebolt::{
             fb_capabilities::{
                 DenyReason, DenyReasonWithCap, FireboltCap, FireboltPermission, RoleInfo,
@@ -37,7 +40,6 @@ use ripple_sdk::{
     tokio,
     utils::error::RippleError,
 };
-use crate::broker::broker_utils::BrokerUtils;
 
 use crate::state::platform_state::PlatformState;
 
@@ -173,22 +175,20 @@ impl PermissionHandler {
                     session: session.clone(),
                     payload: Some(PermissionRequestPayload::ListFireboltPermissions),
                 };
-    
-              let params = serde_json::to_value(perm_request).unwrap();
-              let permission_response: Result<serde_json::Value, jsonrpsee::core::Error> = BrokerUtils::process_internal_main_request(
-                    &mut state.clone(),
-                    "ripple.getPermissions",
-                    Some(params),
-                ).await;
+
+                let params = serde_json::to_value(perm_request).unwrap();
+                let permission_response: Result<serde_json::Value, jsonrpsee::core::Error> =
+                    BrokerUtils::process_internal_main_request(
+                        &mut state.clone(),
+                        "ripple.getPermissions",
+                        Some(params),
+                    )
+                    .await;
                 let v = permission_response.unwrap();
                 match serde_json::from_value::<PermissionResponse>(v.clone()) {
                     Ok(perm_resp) => {
                         let mut permission_response_copy = perm_resp;
-                        Self::process_permissions(
-                            state,
-                            app_id,
-                            &mut permission_response_copy,
-                        )
+                        Self::process_permissions(state, app_id, &mut permission_response_copy)
                     }
                     Err(e) => {
                         error!("Error converting value to PermissionResponse: {:?}", e);
