@@ -32,7 +32,6 @@
                         "config"
                     ],
                     "fulfills": [
-                        "permissions",
                         "account_session",
                         "advertising",
                         "privacy_settings",
@@ -70,7 +69,6 @@
         "device_info",
         "window_manager",
         "browser",
-        "permissions",
         "account_session",
         "wifi",
         "device_events",
