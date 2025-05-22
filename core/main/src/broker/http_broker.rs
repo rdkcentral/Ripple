@@ -30,11 +30,13 @@ use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerRequest,
     BrokerSender, EndpointBroker, EndpointBrokerState, BROKER_CHANNEL_BUFFER_SIZE,
 };
+
 use crate::{
     broker::rules_engine::{jq_compile, RuleTransformType},
     state::platform_state::PlatformState,
 };
-use tokio_tungstenite::tungstenite::http::uri::InvalidUri;
+
+use ripple_sdk::tokio_tungstenite::tungstenite::http::uri::InvalidUri;
 
 pub struct HttpBroker {
     sender: BrokerSender,

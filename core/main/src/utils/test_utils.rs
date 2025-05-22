@@ -31,7 +31,7 @@ use ripple_sdk::{
         sync::mpsc::{self, Receiver},
         time::sleep,
     },
-    utils::logger::init_logger,
+    tokio_tungstenite::tungstenite::Message,
 };
 use ripple_tdk::utils::test_utils::Mockable;
 
@@ -131,7 +131,6 @@ impl MockWebsocket {
         result: mpsc::Sender<bool>,
         on_close: bool,
     ) -> u32 {
-        let _ = init_logger("mock websocket tests".to_owned());
         let mut port: u32 = 34743;
 
         loop {
@@ -166,7 +165,7 @@ impl MockWebsocket {
             .expect("connected streams should have a peer address");
         debug!("Peer address: {}", addr);
 
-        let ws_stream = tokio_tungstenite::accept_async(stream)
+        let ws_stream = ripple_sdk::tokio_tungstenite::accept_async(stream)
             .await
             .expect("Error during the websocket handshake occurred");
 
@@ -178,28 +177,25 @@ impl MockWebsocket {
             if let Some(d) = send.delay {
                 sleep(Duration::from_millis(d)).await;
             }
-            write
-                .send(tokio_tungstenite::tungstenite::Message::Text(send.data))
-                .await
-                .unwrap();
+            write.send(Message::Text(send.data)).await.unwrap();
             write.flush().await.unwrap();
         }
 
         if recv_data.is_empty() && on_close {
             while let Some(Ok(v)) = read.next().await {
-                if let tokio_tungstenite::tungstenite::Message::Close(_) = v {
+                if let Message::Close(_) = v {
                     result.send(true).await.unwrap();
                 }
             }
         } else {
             for r in recv_data {
                 let value = read.next().await.unwrap().unwrap();
-                if let tokio_tungstenite::tungstenite::Message::Text(v) = value {
+                if let Message::Text(v) = value {
                     if !r.data.eq_ignore_ascii_case(&v) {
                         result.send(false).await.unwrap();
                         return;
                     }
-                } else if let tokio_tungstenite::tungstenite::Message::Close(_) = value {
+                } else if let Message::Close(_) = value {
                     if on_close {
                         result.send(true).await.unwrap();
                     }

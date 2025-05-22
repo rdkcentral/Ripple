@@ -216,7 +216,6 @@ impl RippleContext {
             target: RippleContract::RippleContext,
             target_id: None,
             payload: self.get_extn_payload(),
-            callback: None,
             ts: None,
         }
     }

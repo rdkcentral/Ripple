@@ -138,7 +138,6 @@ mod tests {
             target: RippleContract::Internal,
             target_id: Some(ExtnId::get_main_target("main".into())),
             payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
-            callback: None,
             ts: Some(1234567890),
         };
 
@@ -188,7 +187,6 @@ mod tests {
             target: RippleContract::Internal,
             target_id: Some(ExtnId::get_main_target("main".into())),
             payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
-            callback: None,
             ts: Some(1234567890),
         };
 
@@ -243,7 +241,6 @@ mod tests {
             target: RippleContract::Internal,
             target_id: Some(ExtnId::get_main_target("main".into())),
             payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
-            callback: None,
             ts: Some(1234567890),
         };
 
@@ -280,7 +277,6 @@ mod tests {
             target: RippleContract::Internal,
             target_id: Some(ExtnId::get_main_target("main".into())),
             payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
-            callback: None,
             ts: Some(1234567890),
         };
 
