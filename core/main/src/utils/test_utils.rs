@@ -146,12 +146,12 @@ impl MockWebsocket {
                             }
                         });
                         debug!("Listening on port: {}", port);
-                        return Ok(port);
+                        Ok(port)
                     }
                     Err(err) => {
                         debug!("Error getting local address: {}", err);
 
-                        return Err(err);
+                        Err(err)
                     }
                 }
             }
