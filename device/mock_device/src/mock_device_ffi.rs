@@ -24,7 +24,7 @@ use ripple_sdk::{
         extn_id::{ExtnClassId, ExtnId},
         ffi::ffi_channel::ExtnChannel,
     },
-    log::{error, info},
+    log::error,
     processor::rpc_request_processor::RPCRequestProcessor,
     tokio::{self, runtime::Runtime},
     utils::logger::init_and_configure_logger,
@@ -39,19 +39,18 @@ use crate::{
 pub const EXTN_NAME: &str = "mock_device";
 
 fn start() {
-  
     let Ok((extn_manifest, _device_manifest)) = RippleManifestLoader::initialize() else {
         error!("Error initializing manifests");
         return;
     };
-    let runtime= match Runtime::new() {
+    let runtime = match Runtime::new() {
         Ok(r) => r,
         Err(err) => {
             error!("Error creating runtime: {}", err);
             return;
         }
     };
-    
+
     let id = ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.to_string()).to_string();
     let symbol = extn_manifest.get_extn_symbol(&id);
     if symbol.is_none() {
@@ -94,7 +93,7 @@ fn init_extn_channel() -> ExtnChannel {
             ("device_manifest".to_string(), log_lev),
         ]),
     );
-    
+
     ExtnChannel { start }
 }
 
