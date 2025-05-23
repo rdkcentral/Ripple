@@ -116,7 +116,8 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
         tungstenite::handshake::server::Response,
         tungstenite::handshake::server::ErrorResponse,
     > {
-        info!("New firebolt connection {:?}", request.uri().query());
+        let query = request.uri().query();
+        info!("New firebolt connection {:?}", query);
         let cfg = self.0;
         let app_id_opt = match cfg.secure {
             true => None,
@@ -158,23 +159,17 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
 
         // If RPCv2 is set as a query param then Ripple will use logic more complicit with the RPCv2 spec.
         // Non-complicit behavior is still available for compatibility with older firebolt clients.
-        let rpc_v2 = match get_query(request, "RPCv2", false)? {
+        let mut rpc_v2 = match get_query(request, "RPCv2", false)? {
             Some(e) => e == "true",
             None => false,
         };
-
-        let cid = ClientIdentity {
-            session_id: session_id.clone(),
-            app_id,
-            rpc_v2,
-        };
-        oneshot_send_and_log(cfg.next, cid, "ResolveClientIdentity");
         /*
         add Sec-WebSocket-Protocol header to the response to indicate we suport jsonrpc
         this was breaking FCA as it tried to use standard websocket protocol and do the upgrade,
         but ripple was not sending the header
         */
         if request.headers().get("Sec-WebSocket-Protocol").is_some() {
+            rpc_v2 = true;
             /*
             jsonrpc is the only answer...
             */
@@ -183,6 +178,16 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
                 tungstenite::http::header::HeaderValue::from_str("jsonrpc").unwrap(),
             );
         }
+
+        info!("{:?} {} is_rpc_v2={}", query, app_id, rpc_v2);
+
+        let cid = ClientIdentity {
+            session_id: session_id.clone(),
+            app_id,
+            rpc_v2,
+        };
+        oneshot_send_and_log(cfg.next, cid, "ResolveClientIdentity");
+
         Ok(response)
     }
 }

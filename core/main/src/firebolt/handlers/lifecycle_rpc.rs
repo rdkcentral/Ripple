@@ -38,6 +38,7 @@ use ripple_sdk::{
     tokio::sync::oneshot,
 };
 
+use crate::broker::broker_utils::BrokerUtils;
 use crate::{
     firebolt::rpc::RippleRPCProvider,
     service::apps::app_events::AppEvents,
@@ -175,17 +176,19 @@ impl LifecycleImpl {
 #[async_trait]
 impl LifecycleServer for LifecycleImpl {
     async fn ready(&self, ctx: CallContext) -> RpcResult<()> {
-        if self
-            .platform_state
-            .get_device_manifest()
-            .get_lifecycle_configuration()
-            .is_app_lifecycle_2_enabled()
-        {
-            // This call is not expected at this point when lifecycle 2.0 is enabled
-            // A JQ Rule should be responsible for invoking the LifecycleManager AppReady method
-            return Err(rpc_err(
-                "Invalid call to lifecycle.ready handler method in 2.0. A JQ Rule should be used instead",
-            ));
+        if ctx.is_rpc_v2() {
+            if BrokerUtils::process_for_app_main_request(
+                &self.platform_state,
+                "lifecycle2.ready",
+                None,
+                ctx.app_id.as_str(),
+            )
+            .await
+            .is_err()
+            {
+                rpc_err("Error reporting lifecycle 2 state");
+            }
+            return Ok(());
         }
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
 

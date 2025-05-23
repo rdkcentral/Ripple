@@ -623,49 +623,6 @@ impl EndpointBrokerState {
         .emit_error();
         Err(RippleError::ParseError)
     }
-    /// Adds BrokerContext to a given request used by the Broker Implementations
-    /// just before sending the data through the protocol
-    ///
-    fn _update_request(
-        &self,
-        rpc_request: &RpcRequest,
-        rule: Rule,
-        extn_message: Option<ExtnMessage>,
-        workflow_callback: Option<BrokerCallback>,
-        telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
-    ) -> (u64, BrokerRequest) {
-        let id = Self::get_next_id();
-        let mut rpc_request_c = rpc_request.clone();
-        {
-            let mut request_map = self.request_map.write().unwrap();
-            let _ = request_map.insert(
-                id,
-                BrokerRequest {
-                    rpc: rpc_request.clone(),
-                    rule: rule.clone(),
-                    subscription_processed: None,
-                    workflow_callback: workflow_callback.clone(),
-                    telemetry_response_listeners: telemetry_response_listeners.clone(),
-                },
-            );
-        }
-
-        if extn_message.is_some() {
-            let mut extn_map = self.extension_request_map.write().unwrap();
-            let _ = extn_map.insert(id, extn_message.unwrap());
-        }
-
-        rpc_request_c.ctx.call_id = id;
-        (
-            id,
-            BrokerRequest::new(
-                &rpc_request_c,
-                rule,
-                workflow_callback,
-                telemetry_response_listeners,
-            ),
-        )
-    }
 
     pub fn update_request(
         &self,
@@ -862,7 +819,7 @@ impl EndpointBrokerState {
         &self,
         rpc_request: RpcRequest,
         extn_message: Option<ExtnMessage>,
-        workflow_callback: Option<BrokerCallback>,
+        custom_callback: Option<BrokerCallback>,
         permissions: Vec<FireboltPermission>,
         session: Option<Session>,
         telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
@@ -872,13 +829,13 @@ impl EndpointBrokerState {
             "starting brokerage".to_string(),
             rpc_request.ctx.clone(),
         )
-        .with_diagnostic_context_item("workflow", &workflow_callback.is_some().to_string())
+        .with_diagnostic_context_item("workflow", &custom_callback.is_some().to_string())
         .emit_debug();
 
         let resp = self.handle_brokerage_workflow(
             rpc_request.clone(),
             extn_message,
-            workflow_callback,
+            custom_callback,
             permissions,
             session,
             telemetry_response_listeners,
@@ -999,6 +956,7 @@ impl EndpointBrokerState {
         )
         .with_diagnostic_context_item("rule", &format!("{}", rule))
         .with_diagnostic_context_item("endpoint", &format!("{}", endpoint))
+        // this is printing non debuggable data
         .with_diagnostic_context_item("workflow", &workflow_callback.is_some().to_string())
         .emit_debug();
         /*
@@ -1562,7 +1520,7 @@ impl BrokerOutputForwarder {
         let session_id = rpc_request.ctx.get_id();
         let request_id = rpc_request.ctx.call_id;
         let protocol = rpc_request.ctx.protocol.clone();
-        let mut platform_state_c = platform_state.clone();
+        let platform_state_c = platform_state.clone();
 
         // FIXME: As we transition to full RPCv2 support we need to be able to post-process the results from an event
         // handler as defined by Rule::event_handler, however as currently implemented event_handler logic short-circuits
@@ -1606,12 +1564,9 @@ impl BrokerOutputForwarder {
         };
         // ==============================================================================================================
 
-        if let Ok(res) = BrokerUtils::process_internal_main_request(
-            &mut platform_state_c,
-            method.as_str(),
-            params,
-        )
-        .await
+        if let Ok(res) =
+            BrokerUtils::process_internal_main_request(&platform_state_c, method.as_str(), params)
+                .await
         {
             response.result = Some(res.clone());
         }

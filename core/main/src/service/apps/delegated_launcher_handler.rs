@@ -44,7 +44,7 @@ use ripple_sdk::{
     },
     log::{debug, error, warn},
     serde_json::{self},
-    tokio::sync::oneshot,
+    tokio::sync::{mpsc, oneshot},
     utils::{error::RippleError, time_utils::Timer},
     uuid::Uuid,
 };
@@ -71,7 +71,7 @@ use ripple_sdk::{
 use serde_json::{json, Value};
 
 use crate::{
-    broker::broker_utils::BrokerUtils,
+    broker::{broker_utils::BrokerUtils, endpoint_broker::BrokerCallback},
     service::{
         apps::app_events::AppEvents,
         extn::ripple_client::RippleClient,
@@ -453,7 +453,7 @@ impl DelegatedLauncherHandler {
     }
 
     #[allow(dead_code)]
-    fn create_new_app_session(&self, event: LifecycleStateChangeEvent) {
+    fn create_new_app_session(platform_state: &PlatformState, event: LifecycleStateChangeEvent) {
         let LifecycleStateChangeEvent {
             app_id,
             app_instance_id,
@@ -465,7 +465,7 @@ impl DelegatedLauncherHandler {
         if let Some(intent) = navigation_intent {
             session.set_navigation_intent(intent);
         }
-        self.platform_state.lifecycle2_app_state.insert(
+        platform_state.lifecycle2_app_state.insert(
             app_id.clone(),
             App2_0 {
                 app_id,
@@ -476,7 +476,7 @@ impl DelegatedLauncherHandler {
 
     #[allow(dead_code)]
     async fn emit_lifecycle_app_event(
-        &self,
+        platform_state: &PlatformState,
         app_id: &str,
         event_ctor: fn(Lifecycle2_0AppEventData) -> Lifecycle2_0AppEvent,
         old_state: LifecycleManagerState,
@@ -489,7 +489,7 @@ impl DelegatedLauncherHandler {
             source,
         });
         AppEvents::emit_to_app(
-            &self.platform_state,
+            platform_state,
             app_id.to_string(),
             event.as_event_name(),
             &event.as_event_data_json().unwrap_or_default(),
@@ -497,72 +497,143 @@ impl DelegatedLauncherHandler {
         .await;
     }
 
-    #[allow(dead_code)]
-    async fn on_app_lifecycle_state_changed(&self, event: LifecycleStateChangeEvent) {
+    async fn on_app_lifecycle_state_changed(
+        platform_state: &PlatformState,
+        event: LifecycleStateChangeEvent,
+    ) {
+        info!("on_app_lifecycle_2_state_changed: {:?}", event);
         let LifecycleStateChangeEvent {
             app_id,
-            old_state,
-            new_state,
+            old_lifecycle_state: old_state,
+            new_lifecycle_state: new_state,
             ..
         } = event.clone();
 
         use Lifecycle2_0AppEvent::*;
         use LifecycleManagerState::*;
 
+        // Update the navigation intent
+        if let Some(intent) = &event.navigation_intent {
+            // Get the App2_0 instance, update its session, and re-insert it
+            if let Some(mut app) = platform_state.lifecycle2_app_state.get(&app_id) {
+                app.current_session.set_navigation_intent(intent.clone());
+                platform_state
+                    .lifecycle2_app_state
+                    .insert(app_id.clone(), app);
+            }
+        }
+
         match (old_state.clone(), new_state.clone()) {
             (_, Loading) => {
-                self.create_new_app_session(event);
+                Self::create_new_app_session(platform_state, event);
             }
             (_, Initializing) => {
                 // Ripple does not maintain the state of the app in the AppManagerState2_0
-                // Update the navigation intent
-                if let Some(intent) = event.navigation_intent {
-                    // Get the App2_0 instance, update its session, and re-insert it
-                    if let Some(mut app) = self.platform_state.lifecycle2_app_state.get(&app_id) {
-                        app.current_session.set_navigation_intent(intent);
-                        self.platform_state
-                            .lifecycle2_app_state
-                            .insert(app_id.clone(), app);
-                    }
-                }
+                debug!(
+                    "on_app_lifecycle_state_changed : {} is in Initializing state",
+                    event.app_id
+                );
             }
             (Initializing, Paused) => {
-                self.emit_lifecycle_app_event(&app_id, OnStart, old_state, new_state, None)
-                    .await;
+                Self::emit_lifecycle_app_event(
+                    platform_state,
+                    &app_id,
+                    OnStart,
+                    old_state,
+                    new_state,
+                    None,
+                )
+                .await;
             }
             (Initializing, Suspended) => {
-                self.emit_lifecycle_app_event(&app_id, OnStartSuspend, old_state, new_state, None)
-                    .await;
+                Self::emit_lifecycle_app_event(
+                    platform_state,
+                    &app_id,
+                    OnStartSuspend,
+                    old_state,
+                    new_state,
+                    None,
+                )
+                .await;
             }
             (Paused, Active) => {
-                self.emit_lifecycle_app_event(&app_id, OnActivate, old_state, new_state, None)
-                    .await;
+                Self::emit_lifecycle_app_event(
+                    platform_state,
+                    &app_id,
+                    OnActivate,
+                    old_state,
+                    new_state,
+                    None,
+                )
+                .await;
             }
             (Active, Paused) => {
-                self.emit_lifecycle_app_event(&app_id, OnPause, old_state, new_state, None)
-                    .await;
+                Self::emit_lifecycle_app_event(
+                    platform_state,
+                    &app_id,
+                    OnPause,
+                    old_state,
+                    new_state,
+                    None,
+                )
+                .await;
             }
             (Paused, Suspended) => {
-                self.emit_lifecycle_app_event(&app_id, OnSuspend, old_state, new_state, None)
-                    .await;
+                Self::emit_lifecycle_app_event(
+                    platform_state,
+                    &app_id,
+                    OnSuspend,
+                    old_state,
+                    new_state,
+                    None,
+                )
+                .await;
             }
             (Suspended, Paused) => {
-                self.emit_lifecycle_app_event(&app_id, OnResume, old_state, new_state, None)
-                    .await;
+                Self::emit_lifecycle_app_event(
+                    platform_state,
+                    &app_id,
+                    OnResume,
+                    old_state,
+                    new_state,
+                    None,
+                )
+                .await;
             }
             (Suspended, Hibernated) => {
-                self.emit_lifecycle_app_event(&app_id, OnHibernate, old_state, new_state, None)
-                    .await;
+                Self::emit_lifecycle_app_event(
+                    platform_state,
+                    &app_id,
+                    OnHibernate,
+                    old_state,
+                    new_state,
+                    None,
+                )
+                .await;
             }
             (Hibernated, Suspended) => {
-                self.emit_lifecycle_app_event(&app_id, OnRestore, old_state, new_state, None)
-                    .await;
+                Self::emit_lifecycle_app_event(
+                    platform_state,
+                    &app_id,
+                    OnRestore,
+                    old_state,
+                    new_state,
+                    None,
+                )
+                .await;
             }
-            (Paused, Terminating) => {
+            (_, Terminating) => {
                 // Clean up the app session and the emit onDestroy app event.
-                self.platform_state.lifecycle2_app_state.remove(&app_id);
-                self.emit_lifecycle_app_event(&app_id, OnDestroy, old_state, new_state, None)
-                    .await;
+                platform_state.lifecycle2_app_state.remove(&app_id);
+                Self::emit_lifecycle_app_event(
+                    platform_state,
+                    &app_id,
+                    OnDestroy,
+                    old_state,
+                    new_state,
+                    None,
+                )
+                .await;
             }
             _ => {
                 debug!(
@@ -574,7 +645,34 @@ impl DelegatedLauncherHandler {
     }
 
     async fn set_up_lifecycle_manager_listener(&mut self) {
+        info!("Setting up lifecycle manager thunder listener");
         // RPPL-3205: Add the logic to set up the lifecycle manager listener
+        let mut state = self.platform_state.clone();
+        let (sender, mut recv) = mpsc::channel(10);
+        let broker_callback = BrokerCallback { sender };
+        BrokerUtils::process_internal_subscription(
+            &mut state,
+            "lifecycle2.onAppLifecycleStateChanged",
+            Some(json!({"listen": true})),
+            None,
+            Some(broker_callback),
+        )
+        .await;
+        tokio::spawn(async move {
+            while let Some(e) = recv.recv().await {
+                debug!("Received lifecycle manager output: {:?}", e);
+                if let Some(p) = e.data.params {
+                    match serde_json::from_value::<LifecycleStateChangeEvent>(p) {
+                        Ok(event) => {
+                            Self::on_app_lifecycle_state_changed(&state, event).await;
+                        }
+                        Err(e) => {
+                            error!("Failed to deserialize LifecycleStateChangeEvent: {:?}", e);
+                        }
+                    }
+                }
+            }
+        });
     }
 
     pub async fn start(&mut self) {
