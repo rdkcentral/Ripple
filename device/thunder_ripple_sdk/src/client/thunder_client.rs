@@ -355,15 +355,15 @@ impl ThunderClientBuilder {
         );
         Ok(thunder_client)
     }
-    // #[cfg(test)]
-    // pub fn mock(sender: MpscSender<ThunderMessage>) -> ThunderClient {
-    //     ThunderClient {
-    //         id: Uuid::new_v4(),
-    //         thunder_async_client: None,
-    //         thunder_async_subscriptions: None,
-    //         thunder_async_callbacks: None,
-    //     }
-    // }
+    #[cfg(test)]
+    pub fn mock(sender: MpscSender<ThunderMessage>) -> ThunderClient {
+        ThunderClient {
+            id: Uuid::new_v4(),
+            thunder_async_client: None,
+            thunder_async_subscriptions: None,
+            thunder_async_callbacks: None,
+        }
+    }
 }
 
 #[cfg(test)]
