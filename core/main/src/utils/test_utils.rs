@@ -130,27 +130,36 @@ impl MockWebsocket {
         recv_data: Vec<WSMockData>,
         result: mpsc::Sender<bool>,
         on_close: bool,
-    ) -> u32 {
-        let mut port: u32 = 34743;
+    ) -> Result<u16, std::io::Error> {
+        match TcpListener::bind("127.0.0.1:0").await {
+            Ok(listener) => {
+                let port = listener.local_addr();
+                match port {
+                    Ok(addr) => {
+                        debug!("Listening on: {}", addr);
+                        let port = addr.port();
+                        tokio::spawn(async move {
+                            if let Ok((stream, _)) = listener.accept().await {
+                                tokio::spawn(Self::accept_connection(
+                                    stream, send_data, recv_data, result, on_close,
+                                ));
+                            }
+                        });
+                        debug!("Listening on port: {}", port);
+                        return Ok(port);
+                    }
+                    Err(err) => {
+                        debug!("Error getting local address: {}", err);
 
-        loop {
-            let url = format!("127.0.0.1:{}", port);
-            match TcpListener::bind(&url).await {
-                Ok(l) => {
-                    tokio::spawn(async move {
-                        if let Ok((stream, _)) = l.accept().await {
-                            tokio::spawn(Self::accept_connection(
-                                stream, send_data, recv_data, result, on_close,
-                            ));
-                        }
-                    });
-                    break;
+                        return Err(err);
+                    }
                 }
-                Err(_) => port += 1,
+            }
+            Err(err) => {
+                debug!("Error binding to port: {}", err);
+                Err(err)
             }
         }
-
-        port
     }
 
     async fn accept_connection(

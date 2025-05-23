@@ -266,7 +266,13 @@ mod tests {
         on_close: bool,
     ) -> WebsocketBroker {
         // setup mock websocket server
-        let port = MockWebsocket::start(send_data, Vec::new(), tx, on_close).await;
+        /*
+        doing unrwap here because doing it "right" would require changing call chain for this function, as result types would
+        have to change
+         */
+        let port = MockWebsocket::start(send_data, Vec::new(), tx, on_close)
+            .await
+            .unwrap();
 
         let endpoint = RuleEndpoint {
             url: format!("ws://127.0.0.1:{}", port),
@@ -281,7 +287,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
+
     async fn connect_non_json_rpc_websocket() {
         let (tx, mut tr) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);
@@ -326,7 +332,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn connect_non_json_rpc_websocket_test_invalid_response() {
         let (tx, mut _tr) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);
@@ -361,7 +366,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
+
     async fn cleanup_non_json_rpc_websocket() {
         let (tx, mut tr) = mpsc::channel(1);
         let (sender, _) = mpsc::channel(1);
@@ -398,7 +403,13 @@ mod tests {
         on_close: bool,
     ) -> mpsc::Sender<String> {
         // setup mock websocket server
-        let port = MockWebsocket::start(send_data, Vec::new(), tx, on_close).await;
+        /*
+        doing unrwap here because doing it "right" would require changing call chain for this function, as result types would
+        have to change
+         */
+        let port = MockWebsocket::start(send_data, Vec::new(), tx, on_close)
+            .await
+            .unwrap();
 
         let endpoint = RuleEndpoint {
             url: format!("ws://127.0.0.1:{}", port),
@@ -424,7 +435,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn ws_notification_broker_start_validate_handling_response() {
         let (tx, mut tr) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);
@@ -451,7 +461,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn ws_notification_broker_start_validate_handling_invalid_json_rpc_response() {
         let (tx, mut _tr) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);
@@ -468,7 +477,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn ws_notification_broker_start_connection_timeout() {
         let (tx, mut _tr) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);
@@ -483,7 +491,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn ws_notification_broker_start_test_connection_error() {
         let _ = init_logger("ws tests".to_owned());
         let (sender, mut rec) = mpsc::channel(1);
