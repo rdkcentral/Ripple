@@ -120,7 +120,7 @@ impl Bootstep<BootstrapState> for LoadExtensionsStep {
             unsafe {
                 let path = &extn.entry.path;
                 let library = &extn.library;
-                info!("Starting library of path {}", path);
+                info!("Starting library at  path {}", path);
                 if let Ok(builder) = load_channel_builder(library) {
                     thread::spawn(move || {
                         (builder.start)();
