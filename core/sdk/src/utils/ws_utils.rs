@@ -229,8 +229,7 @@ impl WebSocketUtils {
             if url_path.contains("service_handshake") {
                 // Increase retry backoff exponentially ONLY for ripple service connection
                 if retry_backoff < 30.0 {
-                    retry_backoff =
-                        retry_backoff * (1.0 + (5.0_f64).sqrt()) / 2.0;
+                    retry_backoff = retry_backoff * (1.0 + (5.0_f64).sqrt()) / 2.0;
                     // assign retry backoff to 30.0 if it exceeds 30.0 else round it to the nearest integer
                     if retry_backoff > 30.0 {
                         retry_backoff = 30.0;
