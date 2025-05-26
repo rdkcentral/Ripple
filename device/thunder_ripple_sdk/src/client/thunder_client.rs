@@ -356,12 +356,18 @@ impl ThunderClientBuilder {
         Ok(thunder_client)
     }
     #[cfg(test)]
-    pub fn mock(sender: MpscSender<ThunderMessage>) -> ThunderClient {
+    pub fn mock() -> ThunderClient {
+        let (resp_tx, _resp_rx) = mpsc::channel(32);
+        let callback = AsyncCallback { sender: resp_tx };
+        let (broker_tx, _broker_rx) = mpsc::channel(32);
+        let broker_sender = AsyncSender { sender: broker_tx };
+        let client = ThunderAsyncClient::new(callback, broker_sender);
+
         ThunderClient {
             id: Uuid::new_v4(),
-            thunder_async_client: None,
-            thunder_async_subscriptions: None,
-            thunder_async_callbacks: None,
+            thunder_async_client: Some(client),
+            thunder_async_subscriptions: Some(Arc::new(RwLock::new(HashMap::new()))),
+            thunder_async_callbacks: Some(Arc::new(RwLock::new(HashMap::new()))),
         }
     }
 }

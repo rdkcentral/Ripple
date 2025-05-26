@@ -81,10 +81,10 @@ pub struct MockThunderController {
     custom_handlers: CustomHandler,
 }
 
-// const EMPTY_RESPONSE: DeviceResponseMessage = DeviceResponseMessage {
-//     message: Value::Null,
-//     sub_id: None,
-// };
+const EMPTY_RESPONSE: DeviceResponseMessage = DeviceResponseMessage {
+    message: Value::Null,
+    sub_id: None,
+};
 
 impl MockThunderController {
     pub async fn activate(&mut self, callsign: String) {
@@ -246,7 +246,7 @@ impl MockThunderController {
             id: Uuid::new_v4(),
             thunder_async_client: Some(thunderasyncclient),
             thunder_async_subscriptions: Some(Arc::new(RwLock::new(HashMap::new()))),
-            thunder_async_callbacks: None,
+            thunder_async_callbacks: Some(Arc::new(RwLock::new(HashMap::new()))),
         };
 
         let (s, _) = unbounded();
