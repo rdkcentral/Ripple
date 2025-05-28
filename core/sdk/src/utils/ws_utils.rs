@@ -203,7 +203,6 @@ impl WebSocketUtils {
         RippleError,
     > {
         let mut index: i32 = 0;
-        let mut retry_backoff: f64 = 1.0;
         loop {
             match Self::connect_tcp_port(&tcp_port, &url_path).await {
                 Ok(v) => {
@@ -222,38 +221,19 @@ impl WebSocketUtils {
                 }
             }
 
-            if url_path.contains("service_handshake") {
-                // Increase retry backoff exponentially ONLY for ripple service connection
-                if retry_backoff < 30.0 {
-                    retry_backoff = retry_backoff * (1.0 + (5.0_f64).sqrt()) / 2.0;
-                    // assign retry backoff to 30.0 if it exceeds 30.0 else round it to the nearest integer
-                    if retry_backoff > 30.0 {
-                        retry_backoff = 30.0;
-                    }
-                    retry_backoff = retry_backoff.round()
-                } else {
-                    retry_backoff = 30.0;
-                }
-                tokio::time::sleep(Duration::from_millis((retry_backoff * 1000.0) as u64)).await;
+            if (index % LOG_RETRY_INTERVAL).eq(&0) {
                 error!(
                     "Websocket TCP Connection with {} failed with retry for last {} secs in {}",
-                    url_path, retry_backoff, tcp_port
+                    url_path, index, tcp_port
                 );
-            } else {
-                if (index % LOG_RETRY_INTERVAL).eq(&0) {
-                    error!(
-                        "Websocket TCP Connection with {} failed with retry for last {} secs in {}",
-                        url_path, index, tcp_port
-                    );
+            }
+            if let Some(fail) = &config.fail_after {
+                if fail.eq(&index) {
+                    break Err(RippleError::NotAvailable);
                 }
-                if let Some(fail) = &config.fail_after {
-                    if fail.eq(&index) {
-                        break Err(RippleError::NotAvailable);
-                    }
-                }
-                tokio::time::sleep(Duration::from_millis(retry_every)).await;
             }
             index += 1;
+            tokio::time::sleep(Duration::from_millis(retry_every)).await;
         }
     }
 }
