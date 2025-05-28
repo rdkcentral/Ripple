@@ -60,7 +60,7 @@ pub async fn boot(state: BootstrapState) -> RippleResponse {
     execute_step(StartWsStep, &bootstrap).await?;
     execute_step(StartCommunicationBroker, &bootstrap).await?;
     execute_step(SetupExtnClientStep, &bootstrap).await?;
-    let ripple_service = std::env::var("RIPPLE_SERVICE")
+    let ripple_service = std::env::var("RIPPLE_RPC_EXTENSIONS")
         .ok()
         .and_then(|s| s.parse::<bool>().ok())
         .unwrap_or(false);
