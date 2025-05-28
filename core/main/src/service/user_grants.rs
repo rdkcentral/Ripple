@@ -904,6 +904,7 @@ impl GrantState {
         )
         .with_diagnostic_context_item("fireboltcap", &format!("{:?}", permission.cap))
         .with_diagnostic_context_item("capabilityrole", &format!("{:?}", permission.role))
+        .with_diagnostic_context_item("grantstatemodify", &format!("{:?}", granted))
         .emit_debug();
 
         let grant_policy =
@@ -941,8 +942,7 @@ impl GrantState {
                     .update_property
             {
                 //There is no need to update privacy settings so it is enough to update only user grants storage.
-
-                GrantPolicyEnforcer::store_user_grants(
+                let result = GrantPolicyEnforcer::store_user_grants(
                     platform_state,
                     &permission,
                     &result,
@@ -950,6 +950,16 @@ impl GrantState {
                     &grant_policy,
                 )
                 .await;
+
+                LogSignal::new(
+                    "user_grants".to_string(),
+                    format!("store_user_grants process result:{:?}", result),
+                    ctx.clone(),
+                )
+                .with_diagnostic_context_item("fireboltcap", &format!("{:?}", permission.cap))
+                .with_diagnostic_context_item("capabilityrole", &format!("{:?}", permission.role))
+                .with_diagnostic_context_item("app_id", &format!("{:?}", app_id))
+                .emit_debug();
                 return Ok(());
             } else {
                 GrantPolicyEnforcer::update_privacy_settings_and_user_grants(
@@ -960,6 +970,35 @@ impl GrantState {
                     &grant_policy,
                 )
                 .await;
+
+                LogSignal::new(
+                    "user_grants".to_string(),
+                    format!(
+                        "update_privacy_settings_and_user_grants process result: {:?}",
+                        result
+                    ),
+                    ctx.clone(),
+                )
+                .with_diagnostic_context_item("fireboltcap", &format!("{:?}", permission.cap))
+                .with_diagnostic_context_item("capabilityrole", &format!("{:?}", permission.role))
+                .with_diagnostic_context_item("app_id", &format!("{:?}", app_id))
+                .with_diagnostic_context_item("lifespan", &format!("{:?}", grant_policy.lifespan))
+                .with_diagnostic_context_item("grantscope", &format!("{:?}", grant_policy.scope))
+                .with_diagnostic_context_item(
+                    "lifespan_ttl",
+                    &format!("{:?}", grant_policy.lifespan_ttl),
+                )
+                .with_diagnostic_context_item(
+                    "persistence",
+                    &format!("{:?}", grant_policy.persistence),
+                )
+                .with_diagnostic_context_item(
+                    "privacy_setting",
+                    &format!("{:?}", grant_policy.privacy_setting),
+                )
+                .with_diagnostic_context_item("options", &format!("{:?}", grant_policy.options))
+                .emit_debug();
+
                 return Ok(());
             }
         } else {
