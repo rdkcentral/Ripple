@@ -73,12 +73,18 @@ pub fn init_and_configure_logger(
     let _version_string = version.to_string();
     let filter = log::LevelFilter::from_str(&log_string).unwrap_or(log::LevelFilter::Info);
     let (extracted_module_name, extracted_level_filter) = additional_modules
+        .clone()
         .and_then(|modules| modules.into_iter().last())
         .unwrap_or(("no_module".to_string(), log::LevelFilter::Off));
-    MODULE_LOG_LEVELS
-        .write()
-        .unwrap()
-        .insert(extracted_module_name.clone(), extracted_level_filter);
+    if let Some(am) = additional_modules {
+        am.iter().for_each(|(module_name, level_filter)| {
+            MODULE_LOG_LEVELS
+                .write()
+                .unwrap()
+                .insert(module_name.clone(), *level_filter);
+        });
+    }
+
     println!(
         "additional module: {}, Level filter : {}",
         extracted_module_name, extracted_level_filter
