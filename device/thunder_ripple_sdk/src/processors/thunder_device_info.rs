@@ -996,114 +996,109 @@ fn round_to_nearest_quarter_hour(offset_seconds: i64) -> i64 {
 
 #[cfg(test)]
 pub mod tests {
-    // use std::{fs::File, sync::Arc};
+    use crate::processors::thunder_device_info::DeviceCallRequest;
+    use crate::{
+        client::{
+            device_operator::DeviceResponseMessage,
+            //thunder_client::ThunderCallMessage,
+            thunder_plugin::ThunderPlugin,
+        },
+        processors::thunder_device_info::ThunderDeviceInfoRequestProcessor,
+        tests::mock_thunder_controller::{CustomHandler, MockThunderController, ThunderHandlerFn},
+    };
+    use ripple_sdk::{
+        api::device::{
+            device_info_request::{DeviceInfoRequest, DeviceResponse, PlatformBuildInfo},
+            device_request::DeviceRequest,
+        },
+        extn::{
+            client::extn_processor::ExtnRequestProcessor,
+            extn_client_message::{ExtnMessage, ExtnRequest},
+            mock_extension_client::MockExtnClient,
+        },
+        framework::ripple_contract::RippleContract,
+        serde_json::{self, json},
+        tokio,
+        utils::channel_utils::oneshot_send_and_log,
+    };
+    use serde::{Deserialize, Serialize};
+    use std::{fs::File, sync::Arc};
 
-    // use ripple_sdk::{
-    //     api::device::{
-    //         device_info_request::{DeviceInfoRequest, DeviceResponse, PlatformBuildInfo},
-    //         device_request::DeviceRequest,
-    //     },
-    //     extn::{
-    //         client::extn_processor::ExtnRequestProcessor,
-    //         extn_client_message::{ExtnMessage, ExtnRequest},
-    //         mock_extension_client::MockExtnClient,
-    //     },
-    //     framework::ripple_contract::RippleContract,
-    //     serde_json::{self, json},
-    //     tokio,
-    //     utils::channel_utils::oneshot_send_and_log,
-    // };
-    //use serde::{Deserialize, Serialize};
+    macro_rules! run_platform_info_test {
+        ($build_name:expr) => {
+            test_platform_build_info_with_build_name($build_name, Arc::new(|msg: DeviceCallRequest| {
+                oneshot_send_and_log(
+                    msg.callback,
+                    DeviceResponseMessage::call(json!({"success" : true, "stbVersion": $build_name, "receiverVersion": $build_name, "stbTimestamp": "".to_owned() })),
+                    "",
+                );
+            })).await;
+        };
+    }
 
-    // use crate::{
-    //     client::{
-    //         device_operator::DeviceResponseMessage,
-    //         //thunder_client::ThunderCallMessage,
-    //         thunder_plugin::ThunderPlugin,
-    //     },
-    //     processors::thunder_device_info::ThunderDeviceInfoRequestProcessor,
-    //     tests::mock_thunder_controller::{
-    //         CustomHandler,
-    //         MockThunderController,
-    //         //ThunderHandlerFn
-    //     },
-    // };
+    #[derive(Debug, Serialize, Deserialize)]
+    struct BuildInfoTest {
+        build_name: String,
+        info: PlatformBuildInfo,
+    }
 
-    // macro_rules! run_platform_info_test {
-    //     ($build_name:expr) => {
-    //         test_platform_build_info_with_build_name($build_name, Arc::new(|msg: ThunderCallMessage| {
-    //             oneshot_send_and_log(
-    //                 msg.callback,
-    //                 DeviceResponseMessage::call(json!({"success" : true, "stbVersion": $build_name, "receiverVersion": $build_name, "stbTimestamp": "".to_owned() })),
-    //                 "",
-    //             );
-    //         })).await;
-    //     };
-    // }
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_platform_build_info() {
+        run_platform_info_test!("SCXI11BEI_023.005.03.6.8p12s3_VBN_sdy");
+        run_platform_info_test!("SCXI11BEI_23_VBN_sdy");
+        run_platform_info_test!("SCXI11BEI_VBN_23_20231130001020sdy");
+        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_PRODLOG_sdy");
+        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_PROD_sdy");
+        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_VBN_sdy");
+        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_VBN_sey");
+        run_platform_info_test!("SCXI11BEI_023.003.00.6.8p7s1_PRODLOG_sdy_XOE");
+        run_platform_info_test!("SCXI11BEI_VBN_stable2_20231129231433sdy_XOE_NG");
+        run_platform_info_test!("SCXI11AIC_PROD_6.6_p1v_20231130001020sdy_NG");
+        run_platform_info_test!("SCXI11AIC_VBN_23Q4_sprint_20231129232625sdy_FG_NG");
+        run_platform_info_test!("SCXI11AIC_VBN_23Q4_sprint_20231129232625sey_FG_NG");
+        run_platform_info_test!("SCXI11BEI_PROD_some_branch_20231129233157sdy_FG_NG-signed");
+        run_platform_info_test!("SCXI11BEI_PROD_QS024_20231129231350sdy_XOE_NG");
+        run_platform_info_test!("COESST11AEI_VBN_23Q4_sprint_20231130233011sdy_DFL_FG_GRT");
+        run_platform_info_test!("COESST11AEI_23.40p11d24_EXP_PROD_sdy-signed");
+        run_platform_info_test!(
+            "SCXI11BEI_VBN_23Q4_sprint_20231113173051sdy_FG_EDGE_DISTPDEMO-signed"
+        );
+        run_platform_info_test!("SCXI11BEI_somebuild");
+        run_platform_info_test!("SCXI11BEI_someVBNbuild");
+    }
 
-    //#[derive(Debug, Serialize, Deserialize)]
-    // struct BuildInfoTest {
-    //     build_name: String,
-    //     info: PlatformBuildInfo,
-    // }
+    async fn test_platform_build_info_with_build_name(
+        build_name: &'static str,
+        handler: Arc<ThunderHandlerFn>,
+    ) {
+        let tests_file = File::open("src/tests/buildinfo-parse-tests.json").unwrap();
+        let tests: Vec<BuildInfoTest> = serde_json::from_reader(tests_file).unwrap();
+        let mut ch = CustomHandler::default();
+        ch.custom_request_handler.insert(
+            ThunderPlugin::System.unversioned_method("getSystemVersions"),
+            handler,
+        );
+        let (state, r) = MockThunderController::state_with_mock(Some(ch));
+        let msg = MockExtnClient::req(
+            RippleContract::DeviceInfo,
+            ExtnRequest::Device(DeviceRequest::DeviceInfo(
+                DeviceInfoRequest::PlatformBuildInfo,
+            )),
+        );
 
-    // #[tokio::test(flavor = "multi_thread")]
-    // async fn test_platform_build_info() {
-    //     run_platform_info_test!("SCXI11BEI_023.005.03.6.8p12s3_VBN_sdy");
-    //     run_platform_info_test!("SCXI11BEI_23_VBN_sdy");
-    //     run_platform_info_test!("SCXI11BEI_VBN_23_20231130001020sdy");
-    //     run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_PRODLOG_sdy");
-    //     run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_PROD_sdy");
-    //     run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_VBN_sdy");
-    //     run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_VBN_sey");
-    //     run_platform_info_test!("SCXI11BEI_023.003.00.6.8p7s1_PRODLOG_sdy_XOE");
-    //     run_platform_info_test!("SCXI11BEI_VBN_stable2_20231129231433sdy_XOE_NG");
-    //     run_platform_info_test!("SCXI11AIC_PROD_6.6_p1v_20231130001020sdy_NG");
-    //     run_platform_info_test!("SCXI11AIC_VBN_23Q4_sprint_20231129232625sdy_FG_NG");
-    //     run_platform_info_test!("SCXI11AIC_VBN_23Q4_sprint_20231129232625sey_FG_NG");
-    //     run_platform_info_test!("SCXI11BEI_PROD_some_branch_20231129233157sdy_FG_NG-signed");
-    //     run_platform_info_test!("SCXI11BEI_PROD_QS024_20231129231350sdy_XOE_NG");
-    //     run_platform_info_test!("COESST11AEI_VBN_23Q4_sprint_20231130233011sdy_DFL_FG_GRT");
-    //     run_platform_info_test!("COESST11AEI_23.40p11d24_EXP_PROD_sdy-signed");
-    //     run_platform_info_test!(
-    //         "SCXI11BEI_VBN_23Q4_sprint_20231113173051sdy_FG_EDGE_DISTPDEMO-signed"
-    //     );
-    //     run_platform_info_test!("SCXI11BEI_somebuild");
-    //     run_platform_info_test!("SCXI11BEI_someVBNbuild");
-    // }
-
-    // async fn test_platform_build_info_with_build_name(
-    //     build_name: &'static str,
-    //     handler: Arc<ThunderHandlerFn>,
-    // ) {
-    //     let tests_file = File::open("src/tests/buildinfo-parse-tests.json").unwrap();
-    //     let tests: Vec<BuildInfoTest> = serde_json::from_reader(tests_file).unwrap();
-    //     let mut ch = CustomHandler::default();
-    //     ch.custom_request_handler.insert(
-    //         ThunderPlugin::System.unversioned_method("getSystemVersions"),
-    //         handler,
-    //     );
-    //     let (state, r) = MockThunderController::state_with_mock(Some(ch));
-    //     let msg = MockExtnClient::req(
-    //         RippleContract::DeviceInfo,
-    //         ExtnRequest::Device(DeviceRequest::DeviceInfo(
-    //             DeviceInfoRequest::PlatformBuildInfo,
-    //         )),
-    //     );
-
-    //     ThunderDeviceInfoRequestProcessor::process_request(
-    //         state,
-    //         msg,
-    //         DeviceInfoRequest::PlatformBuildInfo,
-    //     )
-    //     .await;
-    //     let msg: ExtnMessage = r.recv().await.unwrap().try_into().unwrap();
-    //     let resp_opt = msg.payload.extract::<DeviceResponse>();
-    //     if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp_opt {
-    //         let exp = tests.iter().find(|x| x.build_name == build_name).unwrap();
-    //         assert_eq!(info, exp.info);
-    //     } else {
-    //         panic!("Did not get the expected PlatformBuildInfo from extension call");
-    //     }
-    // }
+        ThunderDeviceInfoRequestProcessor::process_request(
+            state,
+            msg,
+            DeviceInfoRequest::PlatformBuildInfo,
+        )
+        .await;
+        let msg: ExtnMessage = r.recv().await.unwrap().try_into().unwrap();
+        let resp_opt = msg.payload.extract::<DeviceResponse>();
+        if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp_opt {
+            let exp = tests.iter().find(|x| x.build_name == build_name).unwrap();
+            assert_eq!(info, exp.info);
+        } else {
+            panic!("Did not get the expected PlatformBuildInfo from extension call");
+        }
+    }
 }

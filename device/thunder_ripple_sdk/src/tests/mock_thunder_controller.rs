@@ -6,6 +6,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use ripple_sdk::tokio::sync::oneshot::{self, error::RecvError, Sender as OneShotSender};
 use ripple_sdk::{
     async_channel::{unbounded, Receiver},
     extn::{ffi::ffi_message::CExtnMessage, mock_extension_client::MockExtnClient},
@@ -15,7 +16,8 @@ use ripple_sdk::{
         sync::mpsc::{self, Sender},
     },
     utils::channel_utils::{mpsc_send_and_log, oneshot_send_and_log},
-    uuid::Uuid,
+    //uuid::Uuid,
+    Mockable,
 };
 use serde_json::Value;
 
@@ -27,8 +29,7 @@ use crate::{
         },
         jsonrpc_method_locator::JsonRpcMethodLocator,
         plugin_manager::{PluginState, PluginStateChangeEvent, PluginStatus},
-        thunder_async_client::ThunderAsyncClient,
-        thunder_async_client_plugins_status_mgr::{AsyncCallback, AsyncSender},
+        thunder_async_client::ThunderAsyncRequest,
         thunder_client::ThunderClient,
         thunder_plugin::ThunderPlugin,
     },
@@ -116,25 +117,28 @@ impl MockThunderController {
     pub async fn handle_thunder_call(&mut self, msg: DeviceCallRequest) {
         let locator = JsonRpcMethodLocator::from_str(&msg.method).unwrap();
         let module = locator.module.unwrap();
+
+        let (tx, _rx) = oneshot::channel::<DeviceResponseMessage>();
+
         if module == ThunderPlugin::Controller.callsign() {
             if locator.method_name == "activate" {
                 let ps = msg.params.unwrap().as_params();
                 let psv: Value = serde_json::from_str(ps.as_str()).expect("Message should be JSON");
                 let cs = psv.get("callsign").unwrap();
                 self.activate(String::from(cs.as_str().unwrap())).await;
-                oneshot_send_and_log(msg.callback, EMPTY_RESPONSE, "ActivateAck");
-            } else if msg.method_name().starts_with("status") {
+                oneshot_send_and_log(tx, EMPTY_RESPONSE, "ActivateAck");
+            } else if msg.method.starts_with("status") {
                 let status = self.status(locator.qualifier.unwrap()).await;
                 let val = serde_json::to_value(status).unwrap_or_default();
                 let m = DeviceResponseMessage::call(val);
-                oneshot_send_and_log(msg.callback, m, "StatusReturn");
+                oneshot_send_and_log(tx, m, "StatusReturn");
             }
         } else if let Some(handler) = self
             .custom_handlers
             .custom_request_handler
             .get(&format!("{}.{}", module, locator.method_name))
         {
-            (handler)(msg);
+            (handler)(msg.clone());
         } else {
             println!(
                 "No mock thunder response found for {}.{}",
@@ -144,12 +148,91 @@ impl MockThunderController {
         }
     }
 
+    // pub async fn handle_thunder_call(&mut self, msg: DeviceCallRequest) {
+    //     let locator = JsonRpcMethodLocator::from_str(&msg.method).unwrap();
+    //     let module = locator.module.unwrap();
+    //     let method = msg.method;
+    //     //let async_request = ThunderAsyncRequest::new(DeviceChannelRequest::Call(msg.clone()));
+
+    //     let thunderclient = ThunderClient::mock();
+    //     //let thunderasync_client = thunderclient.thunder_async_client.as_ref().unwrap();
+
+    //     let (tx, _rx) = oneshot::channel::<DeviceResponseMessage>();
+
+    //     // if let Some(async_client) = thunderclient.thunder_async_client {
+    //     //     async_client.send(async_request).await;
+    //     // }
+
+    //     if module == ThunderPlugin::Controller.callsign() {
+    //         if locator.method_name == "activate" {
+    //             let ps = msg.params.unwrap().as_params();
+    //             let psv: Value = serde_json::from_str(ps.as_str()).expect("Message should be JSON");
+    //             let cs = psv.get("callsign").unwrap();
+    //             self.activate(String::from(cs.as_str().unwrap())).await;
+    //             oneshot_send_and_log(tx, EMPTY_RESPONSE, "ActivateAck");
+    //         } else if method.starts_with("status") {
+    //             let status = self.status(locator.qualifier.unwrap()).await;
+    //             let val = serde_json::to_value(status).unwrap_or_default();
+    //             let m = DeviceResponseMessage::call(val);
+    //             oneshot_send_and_log(tx, m, "StatusReturn");
+    //         }
+    //     } else if let Some(handler) = self
+    //         .custom_handlers
+    //         .custom_request_handler
+    //         .get(&format!("{}.{}", module, locator.method_name))
+    //     {
+    //         (handler)(msg);
+    //     } else {
+    //         println!(
+    //             "No mock thunder response found for {}.{}",
+    //             module, locator.method_name
+    //         );
+    //         return;
+    //     }
+    // }
+
+    // pub async fn handle_thunder_call(&mut self, msg: DeviceCallRequest) {
+    //     let locator = JsonRpcMethodLocator::from_str(&msg.method).unwrap();
+    //     let module = locator.module.unwrap();
+    //     let method = msg.method;
+    //     let thunderclient = ThunderClient::mock();
+    //     let async_request = ThunderAsyncRequest::new(DeviceChannelRequest::Call(msg));
+
+    //     if module == ThunderPlugin::Controller.callsign() {
+    //         if locator.method_name == "activate" {
+    //             let ps = msg.params.unwrap().as_params();
+    //             let psv: Value = serde_json::from_str(ps.as_str()).expect("Message should be JSON");
+    //             let cs = psv.get("callsign").unwrap();
+    //             self.activate(String::from(cs.as_str().unwrap())).await;
+    //             oneshot_send_and_log(msg.callback, EMPTY_RESPONSE, "ActivateAck");
+    //         } else if method.starts_with("status") {
+    //             let status = self.status(locator.qualifier.unwrap()).await;
+    //             let val = serde_json::to_value(status).unwrap_or_default();
+    //             let m = DeviceResponseMessage::call(val);
+    //             oneshot_send_and_log(msg.callback, m, "StatusReturn");
+    //         }
+    //     } else if let Some(handler) = self
+    //         .custom_handlers
+    //         .custom_request_handler
+    //         .get(&format!("{}.{}", module, locator.method_name))
+    //     {
+    //         (handler)(msg);
+    //     } else {
+    //         println!(
+    //             "No mock thunder response found for {}.{}",
+    //             module, locator.method_name
+    //         );
+    //         return;
+    //     }
+    // }
+
     pub async fn handle_thunder_unsub(&mut self, _msg: DeviceUnsubscribeRequest) {}
     pub async fn handle_thunder_sub(
         &mut self,
         msg: DeviceSubscribeRequest,
         handler: mpsc::Sender<DeviceResponseMessage>,
     ) {
+        let (tx, _rx) = oneshot::channel::<DeviceResponseMessage>();
         if msg.module == "Controller.1" && msg.event_name == "statechange" {
             self.on_state_change(handler).await;
         } else if let Some(handler_fn) = self
@@ -167,9 +250,7 @@ impl MockThunderController {
                 msg.module, &msg.event_name
             );
         }
-        if let Some(cb) = msg.callback {
-            oneshot_send_and_log(cb, EMPTY_RESPONSE, "SubscribeAck");
-        }
+        oneshot_send_and_log(tx, EMPTY_RESPONSE, "SubscribeAck");
     }
 
     pub fn start() -> mpsc::Sender<DeviceChannelRequest> {
@@ -217,12 +298,13 @@ impl MockThunderController {
         custom_thunder: Option<CustomHandler>,
     ) -> (CachedState, Receiver<CExtnMessage>) {
         let _s_thunder = MockThunderController::start_with_custom_handlers(custom_thunder);
-        let thunder_client = ThunderClient {
-            id: Uuid::new_v4(),
-            thunder_async_client: None,
-            thunder_async_subscriptions: None,
-            thunder_async_callbacks: None,
-        };
+        let thunder_client = ThunderClient::mock();
+        // let thunder_client = ThunderClient {
+        //     id: Uuid::new_v4(),
+        //     thunder_async_client: None,
+        //     thunder_async_subscriptions: None,
+        //     thunder_async_callbacks: None,
+        // };
 
         let (s, r) = unbounded();
         let extn_client = MockExtnClient::client(s);
@@ -230,24 +312,19 @@ impl MockThunderController {
         (CachedState::new(thunder_state), r)
     }
 
-    pub fn get_thunderasyncclient() -> ThunderAsyncClient {
-        let (resp_tx, _resp_rx) = mpsc::channel(32);
-        let callback = AsyncCallback { sender: resp_tx };
-        let (broker_tx, _broker_rx) = mpsc::channel(32);
-        let broker_sender = AsyncSender { sender: broker_tx };
-        let client = ThunderAsyncClient::new(callback, broker_sender);
-        client
-    }
+    // pub fn get_thunderasync_client() -> ThunderAsyncClient {
+    //     let (resp_tx, _resp_rx) = mpsc::channel(32);
+    //     let callback = AsyncCallback { sender: resp_tx };
+    //     let (broker_tx, _broker_rx) = mpsc::channel(32);
+    //     let broker_sender = AsyncSender { sender: broker_tx };
+    //     let client = ThunderAsyncClient::new(callback, broker_sender);
+    //     client
+    // }
 
-    pub fn get_thunder_state_mock_with_handler(handler: Option<CustomHandler>) -> ThunderState {
+    pub fn get_thunder_state_mock_with_handler(_handler: Option<CustomHandler>) -> ThunderState {
         //let _s_thunder = MockThunderController::start_with_custom_handlers(handler);
-        let thunderasyncclient = MockThunderController::get_thunderasyncclient();
-        let thunder_client = ThunderClient {
-            id: Uuid::new_v4(),
-            thunder_async_client: Some(thunderasyncclient),
-            thunder_async_subscriptions: Some(Arc::new(RwLock::new(HashMap::new()))),
-            thunder_async_callbacks: Some(Arc::new(RwLock::new(HashMap::new()))),
-        };
+        // let thunderasync_client = MockThunderController::get_thunderasync_client();
+        let thunder_client = ThunderClient::mock();
 
         let (s, _) = unbounded();
         let extn_client = MockExtnClient::client(s);
