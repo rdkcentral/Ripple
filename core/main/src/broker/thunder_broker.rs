@@ -673,6 +673,7 @@ impl EndpointBroker for ThunderBroker {
         } else {
             error!("Bad broker response {}", String::from_utf8_lossy(result));
         }
+
         final_result
     }
 }

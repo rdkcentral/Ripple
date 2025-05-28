@@ -1747,7 +1747,7 @@ pub fn apply_response(
                 Err(e) => {
                     response.error = Some(json!(e.to_string()));
                     error!(
-                        "jq compile error {:?} for rule {} and data {:?}",
+                        "jq compile error: e={:?}, filter={}, response={:?}",
                         e, result_response_filter, response
                     );
                 }
@@ -1756,7 +1756,7 @@ pub fn apply_response(
         Err(e) => {
             response.error = Some(json!(e.to_string()));
             error!(
-                "json rpc response error {:?} for rule {} and data {}",
+                "json rpc response error: e={:?}, filter={}, response={:?}",
                 e, result_response_filter, response
             );
         }
