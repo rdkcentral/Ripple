@@ -32,7 +32,7 @@ use super::endpoint_broker::{
 };
 
 use crate::{
-    broker::rules_engine::{jq_compile, RuleTransformType},
+    broker::rules::rules_engine::{jq_compile, RuleTransformType},
     state::platform_state::PlatformState,
 };
 
