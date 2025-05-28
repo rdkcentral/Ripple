@@ -8,8 +8,7 @@ use std::{
 
 use ripple_sdk::tokio::sync::oneshot::{self, error::RecvError, Sender as OneShotSender};
 use ripple_sdk::{
-    async_channel::{unbounded, Receiver},
-    extn::{ffi::ffi_message::CExtnMessage, mock_extension_client::MockExtnClient},
+    extn::mock_extension_client::MockExtnClient,
     serde_json,
     tokio::{
         self,
@@ -294,22 +293,11 @@ impl MockThunderController {
      * Returns the state and a receiver which can be used to listen to responses that
      * come back from the extension
      */
-    pub fn state_with_mock(
-        custom_thunder: Option<CustomHandler>,
-    ) -> (CachedState, Receiver<CExtnMessage>) {
-        let _s_thunder = MockThunderController::start_with_custom_handlers(custom_thunder);
+    pub fn state_with_mock(custom_thunder: Option<CustomHandler>) -> CachedState {
         let thunder_client = ThunderClient::mock();
-        // let thunder_client = ThunderClient {
-        //     id: Uuid::new_v4(),
-        //     thunder_async_client: None,
-        //     thunder_async_subscriptions: None,
-        //     thunder_async_callbacks: None,
-        // };
-
-        let (s, r) = unbounded();
-        let extn_client = MockExtnClient::client(s);
+        let extn_client = MockExtnClient::client();
         let thunder_state = ThunderState::new(extn_client, thunder_client);
-        (CachedState::new(thunder_state), r)
+        CachedState::new(thunder_state)
     }
 
     // pub fn get_thunderasync_client() -> ThunderAsyncClient {
@@ -326,8 +314,7 @@ impl MockThunderController {
         // let thunderasync_client = MockThunderController::get_thunderasync_client();
         let thunder_client = ThunderClient::mock();
 
-        let (s, _) = unbounded();
-        let extn_client = MockExtnClient::client(s);
+        let extn_client = MockExtnClient::client();
         ThunderState::new(extn_client, thunder_client)
     }
 
