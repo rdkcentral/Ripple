@@ -36,8 +36,6 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
             return Ok(());
         }
 
-        MainContextProcessor::initialize_session(&s.platform_state).await;
-
         s.platform_state
             .get_client()
             .add_event_processor(MainContextProcessor::new(s.platform_state.clone()));

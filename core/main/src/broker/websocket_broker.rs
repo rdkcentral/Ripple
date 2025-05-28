@@ -15,8 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::broker::broker_utils::BrokerUtils;
-
 use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerRequest,
     BrokerSender, EndpointBroker,
@@ -24,10 +22,12 @@ use super::endpoint_broker::{
 use crate::broker::endpoint_broker::EndpointBrokerState;
 use crate::state::platform_state::PlatformState;
 use futures_util::{SinkExt, StreamExt};
+use ripple_sdk::tokio_tungstenite::tungstenite::Message;
 use ripple_sdk::{
     api::observability::log_signal::LogSignal,
     log::{debug, error},
     tokio::{self, sync::mpsc},
+    utils::ws_utils::{WebSocketConfigBuilder, WebSocketUtils},
 };
 use std::{
     collections::HashMap,
@@ -49,8 +49,13 @@ impl WebsocketBroker {
         let broker = BrokerSender { sender: tx };
         tokio::spawn(async move {
             if endpoint.jsonrpc {
-                let (mut ws_tx, mut ws_rx) =
-                    BrokerUtils::get_ws_broker(&endpoint.get_url(), None).await;
+                let resp = WebSocketUtils::get_ws_stream(&endpoint.get_url(), None).await;
+                if resp.is_err() {
+                    error!("Error connecting to websocket broker");
+                    tr.close();
+                    return false;
+                }
+                let (mut ws_tx, mut ws_rx) = resp.unwrap();
 
                 tokio::pin! {
                     let read = ws_rx.next();
@@ -60,7 +65,7 @@ impl WebsocketBroker {
                         Some(value) = &mut read => {
                             match value {
                                 Ok(v) => {
-                                    if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
+                                    if let Message::Text(t) = v {
                                         // send the incoming text without context back to the sender
                                        match  Self::handle_jsonrpc_response(t.as_bytes(),callback.clone(), None) {
                                              Ok(_) => {},
@@ -91,7 +96,7 @@ impl WebsocketBroker {
                                     request.rpc.ctx.clone(),
                                 )
                                 .emit_debug();
-                                let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(updated_request)).await;
+                                let _feed = ws_tx.feed(Message::Text(updated_request)).await;
                                 let _flush = ws_tx.flush().await;
                             }
 
@@ -156,8 +161,22 @@ impl WSNotificationBroker {
         tokio::spawn(async move {
             let app_id = request_c.get_id();
             let alias = request_c.rule.alias.clone();
-            let (mut ws_tx, mut ws_rx) =
-                BrokerUtils::get_ws_broker(&url, Some(alias.clone())).await;
+            #[cfg(not(test))]
+            let config = WebSocketConfigBuilder::default().alias(alias).build();
+            #[cfg(test)]
+            let config = WebSocketConfigBuilder::default()
+                .alias(alias)
+                .retry(0)
+                .fail_after(1)
+                .build();
+
+            let resp = WebSocketUtils::get_ws_stream(&url, Some(config)).await;
+            if resp.is_err() {
+                error!("Error connecting to websocket broker");
+                tr.close();
+                return;
+            }
+            let (mut ws_tx, mut ws_rx) = resp.unwrap();
 
             tokio::pin! {
                 let read = ws_rx.next();
@@ -168,7 +187,7 @@ impl WSNotificationBroker {
                     Some(value) = &mut read => {
                         match value {
                             Ok(v) => {
-                                if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
+                                if let Message::Text(t) = v {
                                     // send the incoming text without context back to the sender
                                     if let Err(e) = BrokerOutputForwarder::handle_non_jsonrpc_response(
                                         t.as_bytes(),
@@ -193,7 +212,7 @@ impl WSNotificationBroker {
                     Some(request) = tr.recv() => {
                         debug!("Recieved cleaner request for {}", request);
                         if request.eq(&app_id) {
-                            let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Close(None)).await;
+                            let _feed = ws_tx.feed(Message::Close(None)).await;
                             let _flush = ws_tx.flush().await;
                             break;
                         }
@@ -235,7 +254,7 @@ mod tests {
         },
         utils::test_utils::{MockWebsocket, WSMockData},
     };
-    use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
+    use ripple_sdk::{api::gateway::rpc_gateway_api::RpcRequest, utils::logger::init_logger};
     use serde_json::json;
 
     use super::*;
@@ -247,7 +266,13 @@ mod tests {
         on_close: bool,
     ) -> WebsocketBroker {
         // setup mock websocket server
-        let port = MockWebsocket::start(send_data, Vec::new(), tx, on_close).await;
+        /*
+        doing unrwap here because doing it "right" would require changing call chain for this function, as result types would
+        have to change
+         */
+        let port = MockWebsocket::start(send_data, Vec::new(), tx, on_close)
+            .await
+            .unwrap();
 
         let endpoint = RuleEndpoint {
             url: format!("ws://127.0.0.1:{}", port),
@@ -262,6 +287,7 @@ mod tests {
     }
 
     #[tokio::test]
+
     async fn connect_non_json_rpc_websocket() {
         let (tx, mut tr) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);
@@ -340,6 +366,7 @@ mod tests {
     }
 
     #[tokio::test]
+
     async fn cleanup_non_json_rpc_websocket() {
         let (tx, mut tr) = mpsc::channel(1);
         let (sender, _) = mpsc::channel(1);
@@ -376,7 +403,13 @@ mod tests {
         on_close: bool,
     ) -> mpsc::Sender<String> {
         // setup mock websocket server
-        let port = MockWebsocket::start(send_data, Vec::new(), tx, on_close).await;
+        /*
+        doing unrwap here because doing it "right" would require changing call chain for this function, as result types would
+        have to change
+         */
+        let port = MockWebsocket::start(send_data, Vec::new(), tx, on_close)
+            .await
+            .unwrap();
 
         let endpoint = RuleEndpoint {
             url: format!("ws://127.0.0.1:{}", port),
@@ -459,6 +492,7 @@ mod tests {
 
     #[tokio::test]
     async fn ws_notification_broker_start_test_connection_error() {
+        let _ = init_logger("ws tests".to_owned());
         let (sender, mut rec) = mpsc::channel(1);
         let callback = BrokerCallback { sender };
 
@@ -482,9 +516,7 @@ mod tests {
             protocol: crate::broker::rules::rules_engine::RuleEndpointProtocol::Websocket,
             jsonrpc: false,
         };
-        let sender = WSNotificationBroker::start(request, callback, endpoint.get_url().clone());
-        sender.send("test".to_owned()).await.unwrap();
-        let v = tokio::time::timeout(Duration::from_secs(2), rec.recv()).await;
-        assert!(v.is_err());
+        let _ = WSNotificationBroker::start(request, callback, endpoint.get_url().clone());
+        assert!(rec.recv().await.is_none());
     }
 }

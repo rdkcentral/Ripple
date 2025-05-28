@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{collections::HashMap, time::Duration};
+use std::time::Duration;
 
 use crate::{
     firebolt::handlers::privacy_rpc::PrivacyImpl,
@@ -35,18 +35,16 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         apps::{AppError, AppManagerResponse, AppMethod, AppRequest, AppResponse},
-        config::Config,
         firebolt::{
             fb_capabilities::FireboltCap,
             fb_discovery::{
-                LaunchRequest, LocalizedString, DISCOVERY_EVENT_ON_NAVIGATE_TO,
-                ENTITY_INFO_CAPABILITY, ENTITY_INFO_EVENT, EVENT_DISCOVERY_POLICY_CHANGED,
-                PURCHASED_CONTENT_CAPABILITY, PURCHASED_CONTENT_EVENT,
+                LaunchRequest, DISCOVERY_EVENT_ON_NAVIGATE_TO, ENTITY_INFO_CAPABILITY,
+                ENTITY_INFO_EVENT, EVENT_DISCOVERY_POLICY_CHANGED, PURCHASED_CONTENT_CAPABILITY,
+                PURCHASED_CONTENT_EVENT,
             },
             provider::{ProviderRequestPayload, ProviderResponse, ProviderResponsePayload},
         },
     },
-    extn::extn_client_message::ExtnResponse,
     log::{error, info},
     tokio::{sync::oneshot, time::timeout},
 };
@@ -202,42 +200,6 @@ impl DiscoveryImpl {
 
     pub fn get_share_watch_history() -> bool {
         false
-    }
-
-    async fn _get_titles_from_localized_string(
-        &self,
-        title: &LocalizedString,
-    ) -> HashMap<String, String> {
-        let mut title_map = HashMap::new();
-        let result = self
-            .state
-            .get_client()
-            .send_extn_request(Config::DefaultLanguage)
-            .await;
-        let def_lang = match result {
-            Ok(extn_message) => {
-                match extn_message
-                    .payload
-                    .extract()
-                    .unwrap_or_else(|| ExtnResponse::String("en".to_owned()))
-                {
-                    ExtnResponse::String(value) => value,
-                    _ => "en".to_owned(),
-                }
-            }
-            Err(_) => "en".to_owned(),
-        };
-        match title {
-            LocalizedString::Simple(value) => {
-                title_map.insert(def_lang, value.to_string());
-            }
-            LocalizedString::Locale(value) => {
-                for (locale, description) in value.iter() {
-                    title_map.insert(locale.to_string(), description.to_string());
-                }
-            }
-        }
-        title_map
     }
 }
 

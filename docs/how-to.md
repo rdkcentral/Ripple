@@ -208,14 +208,14 @@ fn build(extn_id: String) -> Result<Box<ExtnChannel>, RippleError> {
     }
 }
 
-fn init_extn_builder() -> ExtnChannelBuilder {
+fn init_extn_channel() -> ExtnChannelBuilder {
     ExtnChannelBuilder {
         build,
         service: "distributor_general".into(),
     }
 }
 
-export_channel_builder!(ExtnChannelBuilder, init_extn_builder);
+export_extn_channel!(ExtnChannelBuilder, init_extn_channel);
 
 ```
 

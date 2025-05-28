@@ -36,7 +36,6 @@ pub const FEATURE_DISTRIBUTOR_SESSION: &str = "distributor_session";
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Config {
-    AllDefaultApps,
     DefaultApp,
     DefaultCountryCode,
     DefaultLanguage,

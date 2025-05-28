@@ -17,7 +17,7 @@
 
 use jsonrpsee::types::{error::CallError, ErrorObject};
 
-use crate::JsonRpcErrorType;
+use crate::{api::apps::AppError, JsonRpcErrorType};
 
 pub fn rpc_err(msg: impl Into<String>) -> JsonRpcErrorType {
     JsonRpcErrorType::Custom(msg.into())
@@ -47,16 +47,8 @@ pub fn rpc_custom_error<T>(msg: impl Into<String>) -> JsonRpcErrorType {
     JsonRpcErrorType::Custom(msg.into())
 }
 
-pub fn extract_tcp_port(url: &str) -> Result<String, JsonRpcErrorType> {
-    let url_split: Vec<&str> = url.split("://").collect();
-    if let Some(domain) = url_split.get(1) {
-        let domain_split: Vec<&str> = domain.split('/').collect();
-        if let Some(first_part) = domain_split.first() {
-            Ok(first_part.to_string())
-        } else {
-            rpc_custom_error_result("Invalid domain format")
-        }
-    } else {
-        rpc_custom_error_result("Invalid URL format")
+impl From<AppError> for jsonrpsee::core::Error {
+    fn from(err: AppError) -> Self {
+        jsonrpsee::core::Error::Custom(format!("Internal failure: {:?}", err))
     }
 }

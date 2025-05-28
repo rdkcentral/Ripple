@@ -78,9 +78,10 @@ impl MergeConfig<CascadedDeviceManifest> for DeviceManifest {
 
 impl CascadedDeviceManifest {
     pub fn load(path: String) -> Result<(String, CascadedDeviceManifest), RippleError> {
-        info!("Trying to load device manifest from path={}", path);
+        info!("Trying to load device manifest cascaded from path={}", path);
         if let Some(p) = Path::new(&path).to_str() {
             if let Ok(contents) = fs::read_to_string(p) {
+                info!("Device manifest found in {}", path);
                 return Self::load_from_content(contents);
             }
         }

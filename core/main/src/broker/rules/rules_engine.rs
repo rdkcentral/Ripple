@@ -413,6 +413,7 @@ impl RuleEngine {
 
     pub fn get_rule(&self, rpc_request: &RpcRequest) -> Result<RuleRetrieved, RuleRetrievalError> {
         let method = rpc_request.method.to_lowercase();
+
         /*
         match directly from method name
          */
