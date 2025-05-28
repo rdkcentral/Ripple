@@ -45,7 +45,7 @@ contract_tests = [
 tdk=[]
 [dependencies]
 base64.workspace = true
-ripple_sdk = { workspace = true, features = ["full","local_dev"] }
+ripple_sdk = { workspace = true, features = ["full"] }
 jsonrpsee = { workspace = true, features = ["macros"] }
 futures-channel.workspace = true
 futures.workspace = true
