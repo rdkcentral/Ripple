@@ -17,22 +17,18 @@
 
 use crate::{
     bootstrap::setup_thunder_processors::SetupThunderProcessor,
-    //client::plugin_manager::ThunderPluginBootParam,
-    client::thunder_client::ThunderClientBuilder,
-    thunder_state::{
-        ThunderBootstrapStateWithClient, ThunderBootstrapStateWithConfig, ThunderState,
-    },
+    client::plugin_manager::ThunderPluginBootParam, thunder_state::ThunderBootstrapStateWithClient,
 };
 use ripple_sdk::{
-    api::config::Config,
-    extn::{
-        client::extn_client::ExtnClient,
-        extn_client_message::{ExtnMessage, ExtnResponse},
-    },
+    api::manifest::device_manifest::DeviceManifest,
+    extn::client::extn_client::ExtnClient,
     log::{debug, error, info, warn},
     serde_json,
-    utils::error::RippleError,
 };
+
+use crate::client::thunder_client::ThunderClientBuilder;
+use crate::thunder_state::ThunderBootstrapStateWithConfig;
+use crate::thunder_state::ThunderState;
 use serde::Deserialize;
 
 const GATEWAY_DEFAULT: &str = "ws://127.0.0.1:9998/jsonrpc";
@@ -47,7 +43,11 @@ fn gateway_default() -> String {
     String::from(GATEWAY_DEFAULT)
 }
 
-pub async fn boot_thunder(ext_client: ExtnClient) -> Option<ThunderBootstrapStateWithClient> {
+pub async fn boot_thunder(
+    ext_client: ExtnClient,
+    _plugin_param: ThunderPluginBootParam,
+    device_manifest: &DeviceManifest,
+) -> Option<ThunderBootstrapStateWithClient> {
     info!("Booting thunder initiated");
     let mut status_check = true;
 
@@ -58,7 +58,6 @@ pub async fn boot_thunder(ext_client: ExtnClient) -> Option<ThunderBootstrapStat
     };
     let state = {
         info!("Using thunder_async_client");
-        let mut extn_client = ext_client.clone();
         let mut gateway_url = match url::Url::parse(GATEWAY_DEFAULT) {
             Ok(url) => url,
             Err(e) => {
@@ -69,39 +68,30 @@ pub async fn boot_thunder(ext_client: ExtnClient) -> Option<ThunderBootstrapStat
                 return None;
             }
         };
+        serde_json::from_value(device_manifest.configuration.platform_parameters.clone())
+            .map(|thunder_parameters: ThunderPlatformParams| {
+                url::Url::parse(&thunder_parameters.gateway).map_or_else(
+                    |_| {
+                        warn!(
+                            "Could not parse thunder gateway '{}', using default {}",
+                            thunder_parameters.gateway, GATEWAY_DEFAULT
+                        );
+                    },
+                    |gtway_url| {
+                        debug!("Got url from device manifest");
+                        gateway_url = gtway_url;
+                    },
+                );
+            })
+            .unwrap_or_else(|_| {
+                warn!(
+                    "Could not read thunder platform parameters, using default {}",
+                    GATEWAY_DEFAULT
+                );
+            });
 
-        let extn_message_response: Result<ExtnMessage, RippleError> =
-            extn_client.request(Config::PlatformParameters).await;
-
-        if let Ok(message) = extn_message_response {
-            if let Some(_response) = message.payload.extract().map(|response| {
-                if let ExtnResponse::Value(v) = response {
-                    serde_json::from_value::<ThunderPlatformParams>(v)
-                        .map(|thunder_parameters| {
-                            url::Url::parse(&thunder_parameters.gateway).map_or_else(
-                                |_| {
-                                    warn!(
-                                        "Could not parse thunder gateway '{}', using default {}",
-                                        thunder_parameters.gateway, GATEWAY_DEFAULT
-                                    );
-                                },
-                                |gtway_url| {
-                                    debug!("Got url from device manifest");
-                                    gateway_url = gtway_url;
-                                },
-                            );
-                        })
-                        .unwrap_or_else(|_| {
-                            warn!(
-                                "Could not read thunder platform parameters, using default {}",
-                                GATEWAY_DEFAULT
-                            );
-                        });
-                }
-                if let Ok(host_override) = std::env::var("DEVICE_HOST") {
-                    gateway_url.set_host(Some(&host_override)).ok();
-                }
-            }) {}
+        if let Ok(host_override) = std::env::var("DEVICE_HOST") {
+            gateway_url.set_host(Some(&host_override)).ok();
         }
 
         if let Ok(thndr_client) =
