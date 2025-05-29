@@ -89,8 +89,8 @@ impl LifecycleState {
 pub struct LifecycleStateChangeEvent {
     pub app_id: String,
     pub app_instance_id: String,
-    pub old_state: LifecycleManagerState,
-    pub new_state: LifecycleManagerState,
+    pub old_lifecycle_state: LifecycleManagerState,
+    pub new_lifecycle_state: LifecycleManagerState,
     //#[serde(skip_serializing_if = "Option::is_none")]
     pub navigation_intent: Option<String>,
 }
@@ -326,8 +326,11 @@ mod tests {
 
         assert_eq!(event.app_id, "test_app");
         assert_eq!(event.app_instance_id, "instance_123");
-        assert_eq!(event.old_state, LifecycleManagerState::Initializing);
-        assert_eq!(event.new_state, LifecycleManagerState::Suspended);
+        assert_eq!(
+            event.old_lifecycle_state,
+            LifecycleManagerState::Initializing
+        );
+        assert_eq!(event.new_lifecycle_state, LifecycleManagerState::Suspended);
         assert_eq!(event.navigation_intent, Some("some_intent".to_string()));
     }
 }
