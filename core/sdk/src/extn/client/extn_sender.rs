@@ -18,16 +18,18 @@
 use std::collections::HashMap;
 
 use crate::{
+    api::{gateway::rpc_gateway_api::ApiMessage, manifest::extn_manifest::ExtnSymbol},
     extn::{
-        extn_client_message::ExtnPayloadProvider, extn_id::ExtnId, ffi::ffi_message::CExtnMessage,
+        extn_client_message::{ExtnMessage, ExtnPayloadProvider},
+        extn_id::ExtnId,
     },
     framework::{ripple_contract::RippleContract, RippleResponse},
     utils::error::RippleError,
 };
-use async_channel::Sender as CSender;
 use chrono::Utc;
 #[cfg(not(test))]
 use log::{debug, error, trace};
+use tokio::sync::mpsc::Sender;
 #[cfg(test)]
 use {println as trace, println as debug, println as error};
 
@@ -41,10 +43,9 @@ use {println as trace, println as debug, println as error};
 /// Sender also creates unique uuid to mark each requests
 ///
 
-#[repr(C)]
 #[derive(Clone, Debug)]
 pub struct ExtnSender {
-    pub tx: CSender<CExtnMessage>,
+    pub tx: Option<Sender<ApiMessage>>,
     pub id: ExtnId,
     pub permitted: Vec<String>,
     pub fulfills: Vec<String>,
@@ -56,21 +57,26 @@ impl ExtnSender {
         self.id.clone()
     }
 
-    pub fn new(
-        tx: CSender<CExtnMessage>,
-        id: ExtnId,
-        context: Vec<String>,
-        fulfills: Vec<String>,
-        config: Option<HashMap<String, String>>,
-    ) -> Self {
+    pub fn new_main() -> Self {
         ExtnSender {
-            tx,
-            id,
-            permitted: context,
-            fulfills,
-            config,
+            tx: None,
+            id: ExtnId::get_main_target("main".to_owned()),
+            permitted: Vec::default(),
+            fulfills: Vec::default(),
+            config: None,
         }
     }
+
+    pub fn new_extn(tx: Sender<ApiMessage>, symbol: ExtnSymbol) -> Self {
+        ExtnSender {
+            tx: Some(tx),
+            id: ExtnId::try_from(symbol.id.clone()).unwrap(),
+            permitted: symbol.uses.clone(),
+            fulfills: symbol.fulfills.clone(),
+            config: symbol.config.clone(),
+        }
+    }
+
     pub fn check_contract_permission(&self, contract: RippleContract) -> bool {
         if self.id.is_main() {
             true
@@ -98,12 +104,22 @@ impl ExtnSender {
         None
     }
 
+    pub fn get_message(&self, id: String, payload: impl ExtnPayloadProvider) -> ExtnMessage {
+        ExtnMessage {
+            requestor: self.id.clone(),
+            payload: payload.get_extn_payload(),
+            id,
+            target: payload.get_contract(),
+            target_id: None,
+            ts: Some(Utc::now().timestamp_millis()),
+        }
+    }
+
     pub fn send_request(
         &self,
         id: String,
         payload: impl ExtnPayloadProvider,
-        other_sender: Option<CSender<CExtnMessage>>,
-        callback: Option<CSender<CExtnMessage>>,
+        other_sender: Option<Sender<ApiMessage>>,
     ) -> Result<(), RippleError> {
         // Extns can only send request to which it has permissions through Extn manifest
         if !self.check_contract_permission(payload.get_contract()) {
@@ -114,105 +130,51 @@ impl ExtnSender {
             );
             return Err(RippleError::InvalidAccess);
         }
-        let p = payload.get_extn_payload();
-        let c_request = p.into();
-        let msg = CExtnMessage {
-            requestor: self.id.to_string(),
-            callback,
-            payload: c_request,
-            id,
-            target: payload.get_contract().into(),
-            target_id: "".to_owned(),
-            ts: Utc::now().timestamp_millis(),
-        };
-        self.send(msg, other_sender)
+        // let c_request = p.into();
+        let msg = self.get_message(id, payload);
+        self.send(msg.into(), other_sender)
     }
 
     pub fn send_event(
         &self,
         payload: impl ExtnPayloadProvider,
-        other_sender: Option<CSender<CExtnMessage>>,
+        other_sender: Option<Sender<ApiMessage>>,
     ) -> Result<(), RippleError> {
         let id = uuid::Uuid::new_v4().to_string();
-        let p = payload.get_extn_payload();
-        let c_event = p.into();
-        let msg = CExtnMessage {
-            requestor: self.id.to_string(),
-            callback: None,
-            payload: c_event,
-            id,
-            target: payload.get_contract().into(),
-            target_id: "".to_owned(),
-            ts: Utc::now().timestamp_millis(),
-        };
+        let msg = self.get_message(id, payload);
         self.respond(msg, other_sender)
-    }
-
-    pub fn forward_event(
-        &self,
-        target_id: &str,
-        payload: impl ExtnPayloadProvider,
-    ) -> Result<(), RippleError> {
-        // Check if sender has permission to forward the payload
-        let permitted = self.check_contract_permission(payload.get_contract());
-        if permitted || self.get_cap().is_main() {
-            let id = uuid::Uuid::new_v4().to_string();
-            let p = payload.get_extn_payload();
-            let c_event = p.into();
-            let msg = CExtnMessage {
-                requestor: self.id.to_string(),
-                callback: None,
-                payload: c_event,
-                id,
-                target: payload.get_contract().into(),
-                target_id: target_id.to_owned(),
-                ts: Utc::now().timestamp_millis(),
-            };
-            self.respond(msg, None)
-        } else {
-            Err(RippleError::InvalidAccess)
-        }
     }
 
     pub fn send(
         &self,
-        msg: CExtnMessage,
-        other_sender: Option<CSender<CExtnMessage>>,
+        msg: ApiMessage,
+        other_sender: Option<Sender<ApiMessage>>,
     ) -> Result<(), RippleError> {
         if let Some(other_sender) = other_sender {
-            trace!("Sending message on the other sender");
+            trace!("Sending message on the other sender {:?}", msg);
             if let Err(e) = other_sender.try_send(msg) {
                 error!("send() error for message in other sender {}", e);
                 return Err(RippleError::SendFailure);
             }
             Ok(())
-        } else {
-            let tx = self.tx.clone();
-            //tokio::spawn(async move {
-            trace!("sending to main channel");
+        } else if let Some(tx) = self.tx.clone() {
+            trace!("sending to main channel {:?}", msg);
             if let Err(e) = tx.try_send(msg) {
                 error!("send() error for message in main sender {}", e);
                 return Err(RippleError::SendFailure);
             }
             Ok(())
+        } else {
+            Err(RippleError::SenderMissing)
         }
     }
 
     pub fn respond(
         &self,
-        msg: CExtnMessage,
-        other_sender: Option<CSender<CExtnMessage>>,
+        msg: ExtnMessage,
+        other_sender: Option<Sender<ApiMessage>>,
     ) -> RippleResponse {
-        if let Some(callback) = msg.callback.clone() {
-            trace!("Sending message on the callback sender");
-            if let Err(e) = callback.try_send(msg) {
-                error!("respond() error for message in callback sender {}", e);
-                return Err(RippleError::SendFailure);
-            }
-            Ok(())
-        } else {
-            self.send(msg, other_sender)
-        }
+        self.send(msg.into(), other_sender)
     }
 }
 

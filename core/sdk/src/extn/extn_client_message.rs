@@ -86,7 +86,6 @@ pub struct ExtnMessage {
     pub target: RippleContract,
     pub target_id: Option<ExtnId>,
     pub payload: ExtnPayload,
-    pub callback: Option<CSender<CExtnMessage>>,
     pub ts: Option<i64>,
 }
 
@@ -98,13 +97,12 @@ impl ExtnMessage {
     pub fn get_response(&self, response: ExtnResponse) -> Result<ExtnMessage, RippleError> {
         match self.payload {
             ExtnPayload::Request(_) => Ok(ExtnMessage {
-                callback: self.callback.clone(),
                 id: self.id.clone(),
                 payload: ExtnPayload::Response(response),
                 requestor: self.requestor.clone(),
                 target: self.target.clone(),
                 target_id: self.target_id.clone(),
-                ts: None,
+                ts: Some(Utc::now().timestamp_millis()),
             }),
             _ => {
                 error!("can only respond for a request message");
@@ -120,7 +118,6 @@ impl ExtnMessage {
     pub fn get_event(&self, event: ExtnEvent) -> Result<ExtnMessage, RippleError> {
         match self.payload {
             ExtnPayload::Request(_) => Ok(ExtnMessage {
-                callback: self.callback.clone(),
                 id: self.id.clone(),
                 payload: ExtnPayload::Event(event),
                 requestor: self.requestor.clone(),
@@ -142,7 +139,6 @@ impl ExtnMessage {
             target: self.target.clone(),
             target_id: self.target_id.clone(),
             payload: ExtnPayload::Response(ExtnResponse::None(())),
-            callback: self.callback.clone(),
             ts: None,
         }
     }

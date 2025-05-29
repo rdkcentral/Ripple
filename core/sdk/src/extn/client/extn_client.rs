@@ -15,38 +15,38 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use async_channel::{bounded, Receiver as CReceiver, Sender as CSender};
 use chrono::Utc;
 use log::warn;
 #[cfg(not(test))]
 use log::{debug, error, info, trace};
 use std::{
     collections::HashMap,
+    ops::ControlFlow,
     sync::{Arc, RwLock},
-    time::Duration,
 };
+use tokio_tungstenite::tungstenite::Message;
 
-#[cfg(test)]
-use {println as info, println as trace, println as debug, println as error};
-
+use futures_util::{SinkExt, StreamExt};
 use tokio::sync::{
-    mpsc::Sender as MSender,
+    mpsc::{self, Sender as MSender},
     oneshot::{self, Sender as OSender},
 };
+#[cfg(test)]
+use {println as info, println as trace, println as debug, println as error};
 
 use crate::{
     api::{
         context::{ActivationStatus, RippleContext, RippleContextUpdateRequest},
         device::device_request::{InternetConnectionStatus, TimeZone},
+        gateway::rpc_gateway_api::ApiMessage,
         manifest::extn_manifest::ExtnSymbol,
     },
     extn::{
         extn_client_message::{ExtnMessage, ExtnPayloadProvider, ExtnResponse},
         extn_id::ExtnId,
-        ffi::ffi_message::CExtnMessage,
     },
     framework::{ripple_contract::RippleContract, RippleResponse},
-    utils::{error::RippleError, extn_utils::ExtnStackSize},
+    utils::{error::RippleError, extn_utils::ExtnStackSize, ws_utils::WebSocketUtils},
 };
 
 use super::{
@@ -72,9 +72,8 @@ use crate::utils::mock_utils::get_next_mock_response;
 #[repr(C)]
 #[derive(Clone, Debug)]
 pub struct ExtnClient {
-    receiver: CReceiver<CExtnMessage>,
     sender: ExtnSender,
-    extn_sender_map: Arc<RwLock<HashMap<String, CSender<CExtnMessage>>>>,
+    extn_sender_map: Arc<RwLock<HashMap<String, MSender<ApiMessage>>>>,
     contract_map: Arc<RwLock<HashMap<String, String>>>,
     response_processors: Arc<RwLock<HashMap<String, OSender<ExtnMessage>>>>,
     request_processors: Arc<RwLock<HashMap<String, MSender<ExtnMessage>>>>,
@@ -116,10 +115,10 @@ impl ExtnClient {
     /// `receiver` - Async Channel Receiver provided by the `Main` Application for IEC
     ///
     /// `sender` - [ExtnSender] object provided by `Main` Application with a unique [ExtnCapability]
-    pub fn new(receiver: CReceiver<CExtnMessage>, sender: ExtnSender) -> ExtnClient {
-        ExtnClient {
-            receiver,
-            sender,
+
+    pub fn new_main() -> ExtnClient {
+        Self {
+            sender: ExtnSender::new_main(),
             extn_sender_map: Arc::new(RwLock::new(HashMap::new())),
             contract_map: Arc::new(RwLock::new(HashMap::new())),
             response_processors: Arc::new(RwLock::new(HashMap::new())),
@@ -127,6 +126,21 @@ impl ExtnClient {
             event_processors: Arc::new(RwLock::new(HashMap::new())),
             ripple_context: Arc::new(RwLock::new(RippleContext::default())),
         }
+    }
+
+    pub fn new_extn(symbol: ExtnSymbol) -> (ExtnClient, mpsc::Receiver<ApiMessage>) {
+        let (tx, tr) = mpsc::channel::<ApiMessage>(32);
+        let client = Self {
+            sender: ExtnSender::new_extn(tx, symbol),
+            extn_sender_map: Arc::new(RwLock::new(HashMap::new())),
+            contract_map: Arc::new(RwLock::new(HashMap::new())),
+            response_processors: Arc::new(RwLock::new(HashMap::new())),
+            request_processors: Arc::new(RwLock::new(HashMap::new())),
+            event_processors: Arc::new(RwLock::new(HashMap::new())),
+            ripple_context: Arc::new(RwLock::new(RippleContext::default())),
+        };
+
+        (client, tr)
     }
 
     /// Adds a new request processor reference to the internal map of processors
