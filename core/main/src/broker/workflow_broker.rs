@@ -2,9 +2,9 @@ use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerRequest, BrokerSender,
     EndpointBroker, HandleBrokerageError, BROKER_CHANNEL_BUFFER_SIZE,
 };
-use super::rules_engine::JsonDataSource;
+use super::rules::rules_engine::JsonDataSource;
 use crate::broker::endpoint_broker::{BrokerOutput, EndpointBrokerState};
-use crate::broker::rules_engine::{compose_json_values, make_name_json_safe};
+use crate::broker::rules::rules_engine::{compose_json_values, make_name_json_safe};
 use crate::state::platform_state::PlatformState;
 use futures::future::{join_all, BoxFuture};
 use futures::FutureExt;
@@ -312,7 +312,7 @@ pub mod tests {
 
     use crate::broker::{
         endpoint_broker::{BrokerCallback, BrokerRequest, EndpointBrokerState},
-        rules_engine::{JsonDataSource, Rule, RuleEngine},
+        rules::rules_engine::{JsonDataSource, Rule, RuleEngine},
     };
     pub fn broker_request(callback: BrokerCallback) -> BrokerRequest {
         let mut rule = Rule {

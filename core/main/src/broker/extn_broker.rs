@@ -173,7 +173,7 @@ impl EndpointBroker for ExtnBroker {
 mod tests {
     use super::*;
     use crate::broker::endpoint_broker::BrokerOutput;
-    use crate::broker::rules_engine::Rule;
+    use crate::broker::rules::rules_engine::Rule;
     use crate::service::extn::ripple_client::RippleClient;
     use crate::state::bootstrap_state::ChannelsState;
     use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;

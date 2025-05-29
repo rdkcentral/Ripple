@@ -1,4 +1,7 @@
 {
+    "imports": [
+        "/etc/ripple/rules/rule_utils.json"
+    ],
     "endpoints": {
         "thunder": {
             "protocol": "thunder",
