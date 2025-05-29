@@ -44,7 +44,6 @@
                     "fulfills": [
                         "permissions",
                         "account_session",
-                        "secure_storage",
                         "advertising",
                         "privacy_settings",
                         "session_token"
@@ -64,7 +63,6 @@
         "wifi",
         "device_persistence",
         "remote_accessory",
-        "secure_storage",
         "advertising",
         "privacy_settings",
         "session_token"
