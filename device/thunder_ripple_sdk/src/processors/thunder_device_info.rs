@@ -1013,19 +1013,11 @@ pub mod tests {
         utils::channel_utils::oneshot_send_and_log,
     };
     use serde::{Deserialize, Serialize};
-
-    use crate::{
-        client::{
-            device_operator::DeviceResponseMessage, thunder_client::ThunderCallMessage,
-            thunder_plugin::ThunderPlugin,
-        },
-        processors::thunder_device_info::ThunderDeviceInfoRequestProcessor,
-        tests::mock_thunder_controller::{CustomHandler, MockThunderController, ThunderHandlerFn},
-    };
+    use std::{fs::File, sync::Arc};
 
     macro_rules! run_platform_info_test {
         ($build_name:expr) => {
-            test_platform_build_info_with_build_name($build_name, Arc::new(|msg: ThunderCallMessage| {
+            test_platform_build_info_with_build_name($build_name, Arc::new(|msg: DeviceCallRequest| {
                 oneshot_send_and_log(
                     msg.callback,
                     DeviceResponseMessage::call(json!({"success" : true, "stbVersion": $build_name, "receiverVersion": $build_name, "stbTimestamp": "".to_owned() })),

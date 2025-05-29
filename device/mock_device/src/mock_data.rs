@@ -18,26 +18,15 @@
 use ripple_sdk::log::{debug, error};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::{collections::HashMap, fmt::Display, sync::Arc};
+use std::{collections::HashMap, fmt::Display};
 
 use crate::{
     errors::{LoadMockDataError, MockDeviceError},
     mock_server::{MessagePayload, PayloadType, PayloadTypeError},
-    mock_web_socket_server::{MockWebSocketServer, ThunderRegisterParams},
+    mock_web_socket_server::ThunderRegisterParams,
 };
 
 pub type MockData = HashMap<String, Vec<ParamResponse>>;
-
-#[derive(Debug, Clone)]
-pub struct MockDeviceState {
-    pub server: Arc<MockWebSocketServer>,
-}
-
-impl MockDeviceState {
-    pub fn new(server: Arc<MockWebSocketServer>) -> Self {
-        Self { server }
-    }
-}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ParamResponse {

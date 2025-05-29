@@ -16,6 +16,7 @@
 //
 
 use crate::extn::client::extn_client::ExtnClient;
+use crate::extn::client::extn_sender::ExtnSender;
 use crate::extn::extn_client_message::{
     ExtnEvent, ExtnMessage, ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse,
 };
@@ -23,12 +24,12 @@ use crate::extn::extn_id::ExtnId;
 use crate::framework::ripple_contract::RippleContract;
 #[cfg(any(test, feature = "mock"))]
 use crate::utils::error::RippleError;
+use async_channel::unbounded;
 use chrono::Utc;
 #[cfg(any(test, feature = "mock"))]
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-#[cfg(any(test, feature = "mock"))]
 use std::collections::HashMap;
 #[cfg(any(test, feature = "mock"))]
 use std::{
@@ -53,8 +54,6 @@ pub fn queue_mock_response(test_context: &str, response: Result<ExtnMessage, Rip
     let mock_queue = get_mock_queue();
     let mut mock_queues = mock_queue.write().unwrap();
     let queue = mock_queues.entry(test_context.to_string()).or_default();
-    // Print the size for debugging
-    println!("**** Queued mock response for context '{:?}'", response);
     queue.push_back(response);
 
     // Print the size for debugging
@@ -218,8 +217,17 @@ impl ExtnPayloadProvider for MockRequest {
     }
 }
 
-pub fn get_mock_extn_client() -> ExtnClient {
-    ExtnClient::new_main()
+pub fn get_mock_extn_client(id: ExtnId) -> ExtnClient {
+    let (s, receiver) = unbounded();
+    let mock_sender = ExtnSender::new(
+        s,
+        id,
+        vec!["context".to_string()],
+        vec!["fulfills".to_string()],
+        Some(HashMap::new()),
+    );
+
+    ExtnClient::new(receiver, mock_sender)
 }
 
 pub fn get_mock_message(payload_type: PayloadType) -> ExtnMessage {
@@ -232,6 +240,7 @@ pub fn get_mock_message(payload_type: PayloadType) -> ExtnMessage {
             PayloadType::Event => get_mock_event_payload(),
             PayloadType::Request => get_mock_request_payload(),
         },
+        callback: None,
         ts: Some(Utc::now().timestamp_millis()),
     }
 }

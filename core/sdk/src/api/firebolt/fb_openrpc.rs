@@ -112,8 +112,6 @@ pub struct OpenRPCParser {
     pub openrpc: String,
     pub info: FireboltInfo,
     pub methods: Vec<FireboltOpenRpcMethod>,
-    #[serde(skip)]
-    pub capabilities: HashMap<String, CapabilityPolicy>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -121,8 +119,6 @@ pub struct FireboltOpenRpc {
     pub openrpc: String,
     pub info: FireboltSemanticVersion,
     pub methods: Vec<FireboltOpenRpcMethod>,
-    #[serde(skip)]
-    pub capabilities: HashMap<String, CapabilityPolicy>,
 }
 
 impl From<OpenRPCParser> for FireboltOpenRpc {
@@ -142,7 +138,6 @@ impl From<OpenRPCParser> for FireboltOpenRpc {
                 "".to_string(),
             ),
             methods: value.methods,
-            capabilities: value.capabilities.clone(),
         }
     }
 }
@@ -158,7 +153,6 @@ impl Default for FireboltOpenRpc {
                 readable: String::from("Firebolt API v0.0.0"),
             },
             methods: Vec::new(),
-            capabilities: HashMap::new(),
         }
     }
 }
@@ -188,7 +182,6 @@ impl From<FireboltVersionManifest> for FireboltOpenRpc {
             methods: parser.methods,
             openrpc: parser.openrpc,
             info: api,
-            capabilities: version_manifest.capabilities.clone(),
         }
     }
 }
@@ -240,10 +233,6 @@ impl FireboltOpenRpc {
             }
         }
         r
-    }
-
-    pub fn get_capability_policy(&self) -> HashMap<String, CapabilityPolicy> {
-        self.capabilities.clone()
     }
 
     pub fn get_setter_method_for_getter(
@@ -732,7 +721,6 @@ mod tests {
                 version: "1.0.0".to_string(),
             },
             methods: Vec::new(),
-            capabilities: HashMap::new(),
         };
         apis.insert("v1".to_string(), parser);
 
@@ -756,7 +744,6 @@ mod tests {
                 version: "1.0.0".to_string(),
             },
             methods: Vec::new(),
-            capabilities: HashMap::new(),
         };
         let parser_v2 = OpenRPCParser {
             openrpc: "1.1.0".to_string(),
@@ -765,7 +752,6 @@ mod tests {
                 version: "1.1.0".to_string(),
             },
             methods: Vec::new(),
-            capabilities: HashMap::new(),
         };
         apis.insert("v1".to_string(), parser_v1);
         apis.insert("v2".to_string(), parser_v2);

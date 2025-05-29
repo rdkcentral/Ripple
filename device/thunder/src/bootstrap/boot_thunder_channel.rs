@@ -17,18 +17,11 @@
 
 use thunder_ripple_sdk::{
     bootstrap::boot_thunder::boot_thunder,
-    client::plugin_manager::{ThunderPluginBootParam, ThunderPluginParam},
+    //client::plugin_manager::{ThunderPluginBootParam, ThunderPluginParam},
     ripple_sdk::{extn::client::extn_client::ExtnClient, log::info},
 };
 
 pub async fn boot_thunder_channel(state: ExtnClient) {
     info!("Booting thunder");
-    let _ = boot_thunder(
-        state,
-        ThunderPluginBootParam {
-            activate_on_boot: ThunderPluginParam::Default,
-            expected: ThunderPluginParam::Default,
-        },
-    )
-    .await;
+    let _ = boot_thunder(state).await;
 }

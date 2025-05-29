@@ -593,6 +593,7 @@ impl DelegatedLauncherHandler {
                 previous_state: from_state,
             })
             .unwrap();
+            println!("Sending to eos");
             if BrokerUtils::process_for_app_main_request(
                 platform_state,
                 "ripple.reportLifecycleStateChange",

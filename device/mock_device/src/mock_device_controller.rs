@@ -19,22 +19,26 @@ use std::fmt::Display;
 
 use crate::{
     mock_data::MockData,
-    mock_data::MockDeviceState,
-    mock_server::{
-        AddRequestResponseResponse, EmitEventParams, EmitEventResponse, RemoveRequestResponse,
-    },
+    mock_device_ffi::EXTN_NAME,
+    mock_server::{EmitEventParams, MockServerRequest},
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::CallContext,
     async_trait::async_trait,
-    extn::extn_id::ExtnProviderResponse,
+    extn::{
+        client::extn_client::ExtnClient,
+        extn_id::{ExtnClassId, ExtnId, ExtnProviderRequest, ExtnProviderResponse},
+    },
+    log::debug,
+    tokio::runtime::Runtime,
     utils::{error::RippleError, rpc_utils::rpc_err},
 };
 
 #[derive(Debug, Clone)]
 enum MockDeviceControllerError {
     RequestFailed(RippleError),
+    ExtnCommunicationFailed,
 }
 
 impl std::error::Error for MockDeviceControllerError {}
@@ -44,6 +48,9 @@ impl Display for MockDeviceControllerError {
         let msg = match self.clone() {
             MockDeviceControllerError::RequestFailed(err) => {
                 format!("Failed to complete the request. RippleError {err:?}")
+            }
+            MockDeviceControllerError::ExtnCommunicationFailed => {
+                "Failed to communicate with the Mock Device extension".to_owned()
             }
         };
 
@@ -82,12 +89,39 @@ pub trait MockDeviceController {
 }
 
 pub struct MockDeviceController {
-    state: MockDeviceState,
+    client: ExtnClient,
+    rt: Runtime,
+    id: ExtnId,
 }
 
 impl MockDeviceController {
-    pub fn new(state: MockDeviceState) -> MockDeviceController {
-        MockDeviceController { state }
+    pub fn new(client: ExtnClient) -> MockDeviceController {
+        MockDeviceController {
+            client,
+            rt: Runtime::new().unwrap(),
+            id: ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.into()),
+        }
+    }
+
+    async fn request(
+        &self,
+        request: MockServerRequest,
+    ) -> Result<ExtnProviderResponse, MockDeviceControllerError> {
+        debug!("request={request:?}");
+        let client = self.client.clone();
+        let request = ExtnProviderRequest {
+            value: serde_json::to_value(request).unwrap(),
+            id: self.id.clone(),
+        };
+        self.rt
+            .spawn(async move {
+                client
+                    .standalone_request(request, 5000)
+                    .await
+                    .map_err(MockDeviceControllerError::RequestFailed)
+            })
+            .await
+            .map_err(|_| MockDeviceControllerError::ExtnCommunicationFailed)?
     }
 }
 
@@ -98,25 +132,12 @@ impl MockDeviceControllerServer for MockDeviceController {
         _ctx: CallContext,
         req: MockData,
     ) -> RpcResult<ExtnProviderResponse> {
-        if self
-            .state
-            .server
-            .add_request_response_v2(req)
+        let res = self
+            .request(MockServerRequest::AddRequestResponse(req))
             .await
-            .is_err()
-        {
-            return Err(rpc_err(MockDeviceControllerError::RequestFailed(
-                RippleError::InvalidInput,
-            )));
-        } else {
-            Ok(ExtnProviderResponse {
-                value: serde_json::to_value(AddRequestResponseResponse {
-                    success: true,
-                    error: None,
-                })
-                .unwrap(),
-            })
-        }
+            .map_err(rpc_err)?;
+
+        Ok(res)
     }
 
     async fn remove_requests(
@@ -124,25 +145,12 @@ impl MockDeviceControllerServer for MockDeviceController {
         _ctx: CallContext,
         req: MockData,
     ) -> RpcResult<ExtnProviderResponse> {
-        if self
-            .state
-            .server
-            .remove_request_response_v2(req)
+        let res = self
+            .request(MockServerRequest::RemoveRequestResponse(req))
             .await
-            .is_err()
-        {
-            return Err(rpc_err(MockDeviceControllerError::RequestFailed(
-                RippleError::InvalidInput,
-            )));
-        } else {
-            Ok(ExtnProviderResponse {
-                value: serde_json::to_value(RemoveRequestResponse {
-                    success: true,
-                    error: None,
-                })
-                .unwrap(),
-            })
-        }
+            .map_err(rpc_err)?;
+
+        Ok(res)
     }
 
     async fn emit_event(
@@ -150,12 +158,11 @@ impl MockDeviceControllerServer for MockDeviceController {
         _ctx: CallContext,
         req: EmitEventParams,
     ) -> RpcResult<ExtnProviderResponse> {
-        self.state
-            .server
-            .emit_event(&req.event.body, req.event.delay)
-            .await;
-        Ok(ExtnProviderResponse {
-            value: serde_json::to_value(EmitEventResponse { success: true }).unwrap(),
-        })
+        let res = self
+            .request(MockServerRequest::EmitEvent(req))
+            .await
+            .map_err(rpc_err)?;
+
+        Ok(res)
     }
 }

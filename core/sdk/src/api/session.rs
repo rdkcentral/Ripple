@@ -80,12 +80,14 @@ impl ExtnPayloadProvider for AccountSessionRequest {
     }
 }
 
+#[repr(C)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AccountSessionResponse {
     AccountSession(AccountSession),
     AccountSessionToken(AccountToken),
 }
 
+#[repr(C)]
 #[derive(Serialize, Deserialize, PartialEq, Clone, Default)]
 pub struct AccountSession {
     pub id: String,
@@ -206,6 +208,7 @@ impl ContractAdjective for EventAdjective {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::config::Config;
     use crate::utils::test_utils::test_extn_payload_provider;
 
     #[test]
@@ -213,6 +216,13 @@ mod tests {
         let account_session_request = AccountSessionRequest::Get;
         let contract_type: RippleContract = RippleContract::Session(SessionAdjective::Account);
         test_extn_payload_provider(account_session_request, contract_type);
+    }
+
+    #[test]
+    fn test_extn_request_account_session_none() {
+        let other_payload = ExtnPayload::Request(ExtnRequest::Config(Config::DefaultApp));
+        let result = AccountSessionRequest::get_from_payload(other_payload);
+        assert_eq!(result, None);
     }
 
     #[test]

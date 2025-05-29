@@ -35,8 +35,6 @@ pub trait DeviceOperator: Clone {
         request: DeviceSubscribeRequest,
         handler: mpsc::Sender<DeviceResponseMessage>,
     ) -> Result<DeviceResponseMessage, RecvError>;
-
-    async fn unsubscribe(&self, request: DeviceUnsubscribeRequest);
 }
 
 #[derive(Debug, Clone)]

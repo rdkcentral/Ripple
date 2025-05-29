@@ -56,8 +56,8 @@ pub async fn boot_thunder(
             status_check = s;
         }
     };
-    let state = if ext_client.get_bool_config("use_with_thunder_async_client") {
-        info!("Using thunder_async_clinet");
+    let state = {
+        info!("Using thunder_async_client");
         let mut gateway_url = match url::Url::parse(GATEWAY_DEFAULT) {
             Ok(url) => url,
             Err(e) => {
@@ -94,16 +94,8 @@ pub async fn boot_thunder(
             gateway_url.set_host(Some(&host_override)).ok();
         }
 
-        if let Ok(thndr_client) = ThunderClientBuilder::start_thunder_client(
-            gateway_url.clone(),
-            None,
-            None,
-            None,
-            None,
-            true,
-            status_check,
-        )
-        .await
+        if let Ok(thndr_client) =
+            ThunderClientBuilder::start_thunder_client(gateway_url.clone(), status_check).await
         {
             let thunder_state = ThunderState::new(ext_client.clone(), thndr_client);
 
@@ -124,11 +116,9 @@ pub async fn boot_thunder(
 
             Some(thndr_boot_stateclient)
         } else {
+            error!("Unable to start_thunder_client");
             None
         }
-    } else {
-        error!("Unable to connect to Thunder, error in ThunderGetConfigStep");
-        None
     };
 
     if let Some(s) = state.clone() {

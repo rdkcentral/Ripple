@@ -16,17 +16,25 @@
 //
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
-    extn::{
-        client::extn_client::ExtnClient,
-        extn_client_message::{ExtnMessage, ExtnResponse},
-    },
-    log::trace,
+    extn::extn_client_message::{ExtnMessage, ExtnResponse},
+    log::{error, trace},
+    serde_json::{self, Result as SResult},
 };
 
 use crate::state::ops_metrics_state::OpMetricState;
 
-pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage, client: ExtnClient) {
-    if let Ok(resp) = serde_json::from_str::<JsonRpcApiResponse>(&msg.jsonrpc_msg) {
+pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage) {
+    let callback = match extn_msg.clone().callback {
+        Some(cb) => cb,
+        None => {
+            error!("No valid callbacks");
+            return;
+        }
+    };
+
+    let r: SResult<JsonRpcApiResponse> = serde_json::from_str(&msg.jsonrpc_msg);
+
+    if let Ok(resp) = r {
         let response_value = if let Some(result) = resp.result {
             result
         } else if let Some(error) = resp.error {
@@ -38,7 +46,11 @@ pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage, client: Extn
 
         let return_value = ExtnResponse::Value(response_value);
         if let Ok(response) = extn_msg.get_response(return_value) {
-            client.respond_with_api_message(extn_msg, response);
+            if let Err(e) = callback.try_send(response.into()) {
+                error!("Error while sending back rpc request for extn {:?}", e);
+            }
+        } else {
+            error!("Not a Request object {:?}", extn_msg);
         }
     }
 }

@@ -2,10 +2,8 @@
     "default_path": "/usr/lib/rust/",
     "default_extension": "so",
     "timeout": 2000,
-    "extns": [
-    ],
-    "required_contracts": [
-    ],
+    "extns": [],
+    "required_contracts": [],
     "rpc_aliases": {},
     "rules_path": [
         "/etc/ripple.common.rules.json"

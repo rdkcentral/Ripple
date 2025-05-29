@@ -93,7 +93,7 @@ case ${1} in
     ;;
     "run")
         cargo build --features local_dev
-        DEVICE_HOST=${2} cargo run --features local_dev --bin ripple
+        DEVICE_HOST=${2} cargo run --features local_dev core/main 
     ;;
     "run-mock")
         workspace_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
@@ -114,7 +114,7 @@ case ${1} in
         export EXTN_MANIFEST=${workspace_dir}/target/manifests/firebolt-extn-manifest.json
         export DEVICE_MANIFEST=${workspace_dir}/target/manifests/firebolt-device-manifest.json
         cargo build --features local_dev
-        cargo run --features local_dev --bin ripple
+        cargo run --features local_dev core/main
     ;;
     "-h")
         print_help

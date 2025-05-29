@@ -181,17 +181,14 @@ impl ExtnSender {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::{
-        api::device::device_info_request::DeviceInfoRequest, extn::extn_id::ExtnClassId,
-        utils::logger::init_and_configure_logger,
-    };
+    use crate::{api::device::device_info_request::DeviceInfoRequest, extn::extn_id::ExtnClassId};
+    use async_channel::{unbounded, Receiver as CReceiver, Sender};
     use rstest::rstest;
     use std::collections::HashMap;
-    use tokio::sync::mpsc;
 
     #[cfg(test)]
     pub trait Mockable {
-        fn mock() -> (Self, mpsc::Receiver<ApiMessage>)
+        fn mock() -> (Self, CReceiver<CExtnMessage>)
         where
             Self: Sized;
         //mock main sender
@@ -200,7 +197,7 @@ pub mod tests {
             context: Vec<String>,
             fulfills: Vec<String>,
             config: Option<HashMap<String, String>>,
-        ) -> (Self, mpsc::Receiver<ApiMessage>)
+        ) -> (Self, CReceiver<CExtnMessage>)
         where
             Self: Sized;
 
@@ -210,16 +207,17 @@ pub mod tests {
             context: Vec<String>,
             fulfills: Vec<String>,
             config: Option<HashMap<String, String>>,
-            main_sender: mpsc::Sender<ApiMessage>,
-        ) -> (Self, mpsc::Sender<ApiMessage>, mpsc::Receiver<ApiMessage>)
+            main_sender: Sender<CExtnMessage>,
+        ) -> (Self, Sender<CExtnMessage>, CReceiver<CExtnMessage>)
         where
             Self: Sized;
     }
 
     #[cfg(test)]
     impl Mockable for ExtnSender {
-        fn mock() -> (Self, mpsc::Receiver<ApiMessage>) {
-            ExtnSenderBuilder::new().build()
+        fn mock() -> (Self, CReceiver<CExtnMessage>) {
+            let (tx1, rx1) = unbounded();
+            (ExtnSenderBuilder::new(tx1).build().0, rx1)
         }
 
         fn mock_with_params(
@@ -227,13 +225,18 @@ pub mod tests {
             context: Vec<String>,
             fulfills: Vec<String>,
             config: Option<HashMap<String, String>>,
-        ) -> (Self, mpsc::Receiver<ApiMessage>) {
-            ExtnSenderBuilder::new()
-                .id(id)
-                .context(context)
-                .fulfills(fulfills)
-                .config(config)
-                .build()
+        ) -> (Self, CReceiver<CExtnMessage>) {
+            let (tx, rx) = unbounded();
+            (
+                ExtnSenderBuilder::new(tx)
+                    .id(id)
+                    .context(context)
+                    .fulfills(fulfills)
+                    .config(config)
+                    .build()
+                    .0,
+                rx,
+            )
         }
 
         fn mock_extn(
@@ -241,10 +244,9 @@ pub mod tests {
             context: Vec<String>,
             fulfills: Vec<String>,
             config: Option<HashMap<String, String>>,
-            main_sender: mpsc::Sender<ApiMessage>,
-        ) -> (Self, mpsc::Sender<ApiMessage>, mpsc::Receiver<ApiMessage>) {
-            let (tx, rx) = mpsc::channel(2);
-            let (extn_sender, _tr) = ExtnSenderBuilder::new()
+            main_sender: Sender<CExtnMessage>,
+        ) -> (Self, Sender<CExtnMessage>, CReceiver<CExtnMessage>) {
+            let (extn_sender, tx, rx) = ExtnSenderBuilder::new(main_sender.clone())
                 .main_sender(main_sender)
                 .id(id)
                 .context(context)
@@ -257,6 +259,7 @@ pub mod tests {
 
     #[cfg(test)]
     pub struct ExtnSenderBuilder {
+        main_sender: Sender<CExtnMessage>,
         id: ExtnId,
         context: Vec<String>,
         fulfills: Vec<String>,
@@ -265,8 +268,9 @@ pub mod tests {
 
     #[cfg(test)]
     impl ExtnSenderBuilder {
-        fn new() -> Self {
+        fn new(main_sender: Sender<CExtnMessage>) -> Self {
             ExtnSenderBuilder {
+                main_sender,
                 id: ExtnId::get_main_target("main".into()),
                 context: Vec::new(),
                 fulfills: Vec::new(),
@@ -274,7 +278,8 @@ pub mod tests {
             }
         }
 
-        fn main_sender(self, _main_sender: mpsc::Sender<ApiMessage>) -> Self {
+        fn main_sender(mut self, main_sender: Sender<CExtnMessage>) -> Self {
+            self.main_sender = main_sender;
             self
         }
 
@@ -298,16 +303,17 @@ pub mod tests {
             self
         }
 
-        fn build(self) -> (ExtnSender, mpsc::Receiver<ApiMessage>) {
-            let (tx, rx) = mpsc::channel(2);
+        fn build(self) -> (ExtnSender, Sender<CExtnMessage>, CReceiver<CExtnMessage>) {
+            let (tx, rx) = unbounded();
             (
                 ExtnSender {
-                    tx: Some(tx.clone()),
+                    tx: self.main_sender.clone(),
                     id: self.id,
                     permitted: self.context,
                     fulfills: self.fulfills,
                     config: self.config,
                 },
+                tx,
                 rx,
             )
         }
@@ -441,7 +447,7 @@ pub mod tests {
     #[case(vec![RippleContract::DeviceInfo.as_clear_string()], true)]
     #[case(vec![RippleContract::Config.as_clear_string()], false)]
     async fn test_send_request(#[case] permission: Vec<String>, #[case] permitted_req: bool) {
-        let (sender, mut rx) = ExtnSender::mock_with_params(
+        let (sender, rx) = ExtnSender::mock_with_params(
             ExtnId::new_channel(ExtnClassId::Device, "info".into()),
             permission,
             Vec::new(),
@@ -451,20 +457,27 @@ pub mod tests {
         let result = sender.send_request(
             "some_id".to_string(),
             DeviceInfoRequest::Model.clone(),
-            Some(sender.clone().tx.unwrap()),
+            Some(sender.tx.clone()),
+            None,
         );
 
         if permitted_req {
             assert!(result.is_ok());
-            if let Some(m) = rx.recv().await {
-                let r: ExtnMessage = ExtnMessage::try_from(m.jsonrpc_msg).unwrap();
-                assert_eq!(r.requestor, sender.id);
-                assert_eq!(r.target, RippleContract::DeviceInfo);
+            if let Ok(r) = rx.recv().await {
+                assert_eq!(r.requestor, sender.id.to_string());
+                assert_eq!(
+                    r.target,
+                    format!("\"{}\"", RippleContract::DeviceInfo.as_clear_string())
+                );
 
                 // Generate the ExtnPayload using get_extn_payload
                 let extn_payload = DeviceInfoRequest::Model.get_extn_payload();
+
+                // Convert the ExtnPayload to a JSON string
+                let exp_payload_str = serde_json::to_string(&extn_payload).unwrap();
+
                 // Assert the payload matches the expected payload string
-                assert_eq!(r.payload, extn_payload);
+                assert_eq!(r.payload, exp_payload_str);
             } else {
                 panic!("Expected a message to be received");
             }
@@ -480,28 +493,53 @@ pub mod tests {
 
     #[rstest]
     async fn test_send_event() {
-        let (sender, mut rx) = ExtnSender::mock_with_params(
+        let (sender, rx) = ExtnSender::mock_with_params(
             ExtnId::new_channel(ExtnClassId::Device, "info".into()),
             vec![RippleContract::DeviceInfo.as_clear_string()],
             Vec::new(),
             Some(HashMap::new()),
         );
 
-        let result = sender.send_event(DeviceInfoRequest::Model, Some(sender.clone().tx.unwrap()));
+        let result = sender.send_event(DeviceInfoRequest::Model, Some(sender.tx.clone()));
 
         assert!(result.is_ok());
-        if let Some(m) = rx.recv().await {
-            let r = ExtnMessage::try_from(m).unwrap();
-            assert_eq!(r.requestor, sender.id);
-            assert_eq!(r.target, RippleContract::DeviceInfo);
+        if let Ok(r) = rx.recv().await {
+            assert_eq!(r.requestor, sender.id.to_string());
+            assert_eq!(
+                r.target,
+                format!("\"{}\"", RippleContract::DeviceInfo.as_clear_string())
+            );
 
             // Generate the ExtnPayload using get_extn_payload
             let extn_payload = DeviceInfoRequest::Model.get_extn_payload();
 
-            assert_eq!(r.payload, extn_payload);
+            // Convert the ExtnPayload to a JSON string
+            let exp_payload_str = serde_json::to_string(&extn_payload).unwrap();
+
+            assert_eq!(r.payload, exp_payload_str);
         } else {
             panic!("Expected a message to be received");
         };
+    }
+
+    #[rstest(id, extn_id, permitted,fulfills, exp_resp,
+        case("ext_id", ExtnId::get_main_target("main".into()), vec!["context".to_string()], vec!["fulfills".to_string()],  Ok(())),
+        case("non_ext_id", ExtnId::get_main_target("main".into()), vec!["context".to_string()], vec!["fulfills".to_string()], Ok(())),    
+        case("non_ext_id", ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
+        vec!["config".to_string()],
+        vec!["device_info".to_string()], Err(RippleError::InvalidAccess))
+    )]
+    async fn test_forward_event(
+        id: &str,
+        extn_id: ExtnId,
+        permitted: Vec<String>,
+        fulfills: Vec<String>,
+        exp_resp: RippleResponse,
+    ) {
+        let (sender, _mock_rx) =
+            ExtnSender::mock_with_params(extn_id, permitted, fulfills, Some(HashMap::new()));
+        let actual_response = sender.forward_event(id, DeviceInfoRequest::Model);
+        assert_eq!(actual_response, exp_resp);
     }
 
     #[rstest]
@@ -516,16 +554,15 @@ pub mod tests {
         let mut rx_option = Some(rx);
 
         // Construct the message
-        let m = ExtnMessage {
-            requestor: sender.id.clone(),
-            payload: DeviceInfoRequest::Model.get_extn_payload(),
+        let msg = CExtnMessage {
+            requestor: sender.id.to_string(),
+            callback: None,
+            payload: DeviceInfoRequest::Model.get_extn_payload().into(),
             id: "some_id".to_string(),
-            target: RippleContract::DeviceInfo,
-            target_id: Some(ExtnId::get_main_target("some".to_owned())),
-            ts: Some(Utc::now().timestamp_millis()),
+            target: RippleContract::DeviceInfo.as_clear_string(),
+            target_id: RippleContract::DeviceInfo.as_clear_string(),
+            ts: Utc::now().timestamp_millis(),
         };
-
-        let msg = m.into();
 
         // Determine if rx should be dropped based on the test case
         if drop_rx {
@@ -533,7 +570,10 @@ pub mod tests {
         }
 
         // Determine the actual sender based on the test case
-        let actual_sender_option = other_sender_option.map(|_| sender.clone().tx.unwrap());
+        let actual_sender_option = match other_sender_option {
+            Some(_) => Some(sender.tx.clone()), // Replace 0 with the actual sender
+            None => None,
+        };
 
         // Perform the send operation
         let result = sender.send(msg, actual_sender_option);
@@ -550,17 +590,19 @@ pub mod tests {
             // Expecting success when the receiver is not dropped
             assert!(result.is_ok(), "Expected Ok, got {:?}", result);
             // Use rx_option here to attempt receiving, since rx might have been taken above
-            if let Some(mut rx) = rx_option {
-                if let Some(m) = rx.recv().await {
-                    println!("**** test_send: r: {:?}", m);
-                    let r = ExtnMessage::try_from(m).unwrap();
-                    assert_eq!(r.requestor, sender.id.clone());
-                    assert_eq!(r.target, RippleContract::DeviceInfo);
+            if let Some(rx) = rx_option {
+                if let Ok(r) = rx.recv().await {
+                    println!("**** test_send: r: {:?}", r);
+                    assert_eq!(r.requestor, sender.id.to_string());
+                    assert_eq!(r.target, RippleContract::DeviceInfo.as_clear_string());
 
                     // Generate the ExtnPayload using get_extn_payload
                     let extn_payload = DeviceInfoRequest::Model.get_extn_payload();
 
-                    assert_eq!(r.payload, extn_payload);
+                    // Convert the ExtnPayload to a JSON string
+                    let exp_payload_str = serde_json::to_string(&extn_payload).unwrap();
+
+                    assert_eq!(r.payload, exp_payload_str);
                 } else {
                     panic!("Expected a message to be received");
                 };
@@ -569,28 +611,25 @@ pub mod tests {
     }
 
     #[rstest]
-    #[case(false)]
-    #[case(true)]
-    async fn test_respond(#[case] drop_rx: bool) {
-        let _ = init_and_configure_logger("some", "test".to_owned(), None);
-        let (sender, rx) = ExtnSender::mock_with_params(
-            ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
-            vec!["device_info".to_owned()],
-            Vec::new(),
-            None,
-        );
+    #[case(Some(0), false)]
+    #[case(None, false)]
+    #[case(Some(0), true)]
+    #[case(None, true)]
+    async fn test_respond(#[case] other_sender_option: Option<u8>, #[case] drop_rx: bool) {
+        let (sender, rx) = ExtnSender::mock();
 
         // Wrap rx in an Option to conditionally take it for dropping
         let mut rx_option = Some(rx);
 
         // Construct the message with callback
-        let msg = ExtnMessage {
-            requestor: sender.id.clone(),
+        let msg = CExtnMessage {
+            requestor: sender.id.to_string(),
+            callback: other_sender_option.map(|_| Sender::clone(&sender.tx)),
             payload: Default::default(),
             id: "some_id".to_string(),
-            target: RippleContract::DeviceInfo,
-            target_id: Some(ExtnId::get_main_target("some".to_owned())),
-            ts: Some(Utc::now().timestamp_millis()),
+            target: RippleContract::DeviceInfo.as_clear_string(),
+            target_id: RippleContract::DeviceInfo.as_clear_string(),
+            ts: Utc::now().timestamp_millis(),
         };
 
         // Determine if rx should be dropped based on the test case
@@ -598,8 +637,14 @@ pub mod tests {
             let _dropped = rx_option.take(); // This takes rx out of the Option, effectively dropping it
         }
 
+        // Create optional other_sender based on the test case
+        let actual_other_sender_option = match other_sender_option {
+            Some(_) => Some(Sender::clone(&sender.tx)), // Replace 0 with the actual sender
+            None => None,
+        };
+
         // Perform the respond operation
-        let result = sender.respond(msg, None);
+        let result = sender.respond(msg, actual_other_sender_option);
 
         // Assert based on the expected outcome
         if drop_rx {
@@ -610,16 +655,14 @@ pub mod tests {
                 result
             );
         } else {
-            assert!(rx_option.is_some(), "RX is not removed");
             // Expecting success when the receiver is not dropped
             assert!(result.is_ok(), "Expected Ok, got {:?}", result);
             // Use rx_option here to attempt receiving, since rx might have been taken above
-            if let Some(mut rx) = rx_option {
-                if let Some(m) = rx.recv().await {
-                    let r = ExtnMessage::try_from(m).unwrap();
+            if let Some(rx) = rx_option {
+                if let Ok(r) = rx.recv().await {
                     println!("**** test_respond: r: {:?}", r);
-                    assert_eq!(r.requestor, sender.id);
-                    assert_eq!(r.target, RippleContract::DeviceInfo);
+                    assert_eq!(r.requestor, sender.id.to_string());
+                    assert_eq!(r.target, RippleContract::DeviceInfo.as_clear_string());
                 } else {
                     panic!("Expected a message to be received");
                 };
