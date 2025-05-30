@@ -798,7 +798,13 @@ mod tests {
         on_close: bool,
     ) -> ThunderBroker {
         // setup mock websocket server
-        let port = MockWebsocket::start(send_data, Vec::new(), tx, on_close).await;
+        /*
+        doing unrwap here because doing it "right" would require changing call chain for this function, as result types would
+        have to change
+         */
+        let port = MockWebsocket::start(send_data, Vec::new(), tx, on_close)
+            .await
+            .unwrap();
 
         let endpoint = RuleEndpoint {
             url: format!("ws://127.0.0.1:{}", port),
