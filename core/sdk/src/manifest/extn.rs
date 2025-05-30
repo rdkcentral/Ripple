@@ -34,6 +34,9 @@ impl LoadExtnManifestStep {
 type ExtnManifestLoader = Vec<fn() -> Result<(String, ExtnManifest), RippleError>>;
 
 fn try_manifest_files() -> Result<ExtnManifest, RippleError> {
+    if cfg!(feature = "local_dev") {
+        info!("Running in local dev mode");
+    }
     let dm_arr: ExtnManifestLoader = if cfg!(feature = "local_dev") {
         vec![load_from_env, load_from_home]
     } else if cfg!(any(test, feature = "test")) {
