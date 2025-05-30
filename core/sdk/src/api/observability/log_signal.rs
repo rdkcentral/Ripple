@@ -1,9 +1,8 @@
-use std::collections::HashMap;
-
 use crate::api::gateway::rpc_gateway_api::{
     CallContext, ClientContext, JsonRpcApiResponse, RpcRequest,
 };
 use crate::utils::logger::MODULE_LOG_LEVELS;
+use std::collections::HashMap;
 
 /*
 
@@ -141,6 +140,7 @@ impl ContextAsJson for RpcRequest {
         serde_json::Value::Object(map)
     }
 }
+
 impl std::fmt::Display for RpcRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "rpc_request={}", self.method)
