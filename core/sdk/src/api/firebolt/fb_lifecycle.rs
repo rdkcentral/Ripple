@@ -317,8 +317,8 @@ mod tests {
         let json_data = json!({
             "appId": "test_app",
             "appInstanceId": "instance_123",
-            "oldState": "INITIALIZING",
-            "newState": "SUSPENDED",
+            "old_lifecycle_state": "INITIALIZING",
+            "new_lifecycle_state": "SUSPENDED",
             "navigationIntent": "some_intent"
         });
 
