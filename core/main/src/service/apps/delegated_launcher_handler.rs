@@ -484,8 +484,8 @@ impl DelegatedLauncherHandler {
         source: Option<String>,
     ) {
         let event = event_ctor(Lifecycle2_0AppEventData {
-            state: old_state.into(),
-            previous: new_state.into(),
+            previous: old_state.into(),
+            state: new_state.into(),
             source,
         });
         AppEvents::emit_to_app(
@@ -646,7 +646,6 @@ impl DelegatedLauncherHandler {
 
     async fn set_up_lifecycle_manager_listener(&mut self) {
         info!("Setting up lifecycle manager thunder listener");
-        // RPPL-3205: Add the logic to set up the lifecycle manager listener
         let mut state = self.platform_state.clone();
         let (sender, mut recv) = mpsc::channel(10);
         let broker_callback = BrokerCallback { sender };
@@ -676,11 +675,10 @@ impl DelegatedLauncherHandler {
     }
 
     pub async fn start(&mut self) {
-        if self
-            .platform_state
-            .get_device_manifest()
-            .get_lifecycle_configuration()
-            .is_app_lifecycle_2_enabled()
+        if std::env::var("RIPPLE_LIFECYCLE_2_ENABLED")
+            .ok()
+            .and_then(|s| s.parse::<bool>().ok())
+            .unwrap_or(false)
         {
             self.set_up_lifecycle_manager_listener().await;
         }

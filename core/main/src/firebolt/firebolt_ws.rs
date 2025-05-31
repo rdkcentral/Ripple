@@ -201,7 +201,10 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
                 match app_id {
                     Some(id) => id,
                     None => {
-                        error!("No application session found for app_id={}", &session_id);
+                        error!(
+                            "No application session found for session_id = {}",
+                            &session_id
+                        );
                         let err = tungstenite::http::response::Builder::new()
                             .status(403)
                             .body(Some(format!(
@@ -266,10 +269,10 @@ impl FireboltWs {
         let extns = state.extn_manifest.get_all_extns();
         let app_state = state.app_manager_state.clone();
         let app_state2_0 = state.lifecycle2_app_state.clone();
-        let app_lifecycle_2_enabled = state
-            .get_device_manifest()
-            .get_lifecycle_configuration()
-            .is_app_lifecycle_2_enabled();
+        let app_lifecycle_2_enabled = std::env::var("RIPPLE_LIFECYCLE_2_ENABLED")
+            .ok()
+            .and_then(|s| s.parse::<bool>().ok())
+            .unwrap_or(false);
         // Let's spawn the handling of each connection in a separate task.
         while let Ok((stream, client_addr)) = listener.accept().await {
             let (connect_tx, connect_rx) = oneshot::channel::<ClientIdentity>();
