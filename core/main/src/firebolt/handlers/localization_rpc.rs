@@ -111,11 +111,11 @@ enum MapEntryProperty {
 }
 
 async fn update_additional_info(
-    mut platform_state: PlatformState,
+    platform_state: PlatformState,
     map_entry_property: MapEntryProperty,
 ) -> RpcResult<()> {
     match BrokerUtils::process_internal_main_request(
-        &mut platform_state,
+        &platform_state,
         "localization.additionalInfo",
         None,
     )
@@ -140,7 +140,7 @@ async fn update_additional_info(
                 }));
 
                 BrokerUtils::process_internal_main_request(
-                    &mut platform_state,
+                    &platform_state,
                     "localization.setAdditionalInfo",
                     params,
                 )

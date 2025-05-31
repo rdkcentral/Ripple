@@ -74,12 +74,8 @@ pub struct VoiceguidanceImpl {
 }
 
 pub async fn voice_guidance_settings_enabled(state: &PlatformState) -> RpcResult<bool> {
-    match BrokerUtils::process_internal_main_request(
-        &mut state.clone(),
-        "voiceguidance.enabled",
-        None,
-    )
-    .await
+    match BrokerUtils::process_internal_main_request(&state.clone(), "voiceguidance.enabled", None)
+        .await
     {
         Ok(enabled_value) => {
             if let Value::Bool(enabled) = enabled_value {
