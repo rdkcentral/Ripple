@@ -504,8 +504,8 @@ impl DelegatedLauncherHandler {
         info!("on_app_lifecycle_2_state_changed: {:?}", event);
         let LifecycleStateChangeEvent {
             app_id,
-            old_lifecycle_state: old_state,
-            new_lifecycle_state: new_state,
+            old_state,
+            new_state,
             ..
         } = event.clone();
 
