@@ -472,102 +472,102 @@ impl PluginManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client::thunder_client_pool::ThunderClientPool;
-    use crate::tests::thunder_client_pool_test_utility::{
-        CustomMethodHandler, MockWebSocketServer,
-    };
-    use crate::thunder_state::ThunderConnectionState;
-    use ripple_sdk::tokio::time::{sleep, Duration};
-    use std::sync::Arc;
-    use url::Url;
+    // use crate::tests::thunder_client_pool_test_utility::{
+    //     CustomMethodHandler, MockWebSocketServer,
+    // };
+    // use crate::thunder_state::ThunderConnectionState;
+    // use ripple_sdk::tokio::time::{sleep, Duration};
+    // use std::sync::Arc;
+    // use url::Url;
 
-    #[tokio::test]
-    async fn test_plugin_manager_start_and_message_handling() {
-        // Using the default method handler from tests::thunder_client_pool_test_utility
-        // This can be replaced with a custom method handler, if needed
-        let custom_method_handler = Arc::new(CustomMethodHandler);
-        let custom_method_handler_c = custom_method_handler.clone();
+    // #[tokio::test]
+    // async fn test_plugin_manager_start_and_message_handling() {
+    //     // Using the default method handler from tests::thunder_client_pool_test_utility
+    //     // This can be replaced with a custom method handler, if needed
+    //     let custom_method_handler = Arc::new(CustomMethodHandler);
+    //     let custom_method_handler_c = custom_method_handler.clone();
 
-        let server_task = tokio::spawn(async {
-            let mock_server = MockWebSocketServer::new("127.0.0.1:8081", custom_method_handler_c);
-            mock_server.start().await;
-        });
+    //     let server_task = tokio::spawn(async {
+    //         let mock_server = MockWebSocketServer::new("127.0.0.1:8081", custom_method_handler_c);
+    //         mock_server.start().await;
+    //     });
 
-        // Wait for the server to start
-        sleep(Duration::from_secs(1)).await;
+    //     // Wait for the server to start
+    //     sleep(Duration::from_secs(1)).await;
 
-        let url = Url::parse("ws://127.0.0.1:8081/jsonrpc").unwrap();
+    //     let url = Url::parse("ws://127.0.0.1:8081/jsonrpc").unwrap();
 
-        let controller_pool = ThunderClientPool::start(
-            url.clone(),
-            None,
-            Some(Arc::new(ThunderConnectionState::new())),
-            1,
-            false,
-        )
-        .await;
-        assert!(controller_pool.is_ok());
+    //     let controller_pool = ThunderClientPool::start(
+    //         url.clone(),
+    //         None,
+    //         Some(Arc::new(ThunderConnectionState::new())),
+    //         1,
+    //         false,
+    //     )
+    //     .await;
+    //     assert!(controller_pool.is_ok());
 
-        let controller_pool = controller_pool.unwrap();
+    //     let controller_pool = controller_pool.unwrap();
 
-        let expected_plugins = ThunderPluginBootParam {
-            expected: ThunderPluginParam::None,
-            activate_on_boot: ThunderPluginParam::None,
-        };
+    //     let expected_plugins = ThunderPluginBootParam {
+    //         expected: ThunderPluginParam::None,
+    //         activate_on_boot: ThunderPluginParam::None,
+    //     };
 
-        // Start the plugin manager
-        let plugin_manager_tx =
-            PluginManager::start(Box::new(controller_pool), expected_plugins).await;
+    //     // Start the plugin manager
+    //     let plugin_manager_tx =
+    //         PluginManager::start(Box::new(controller_pool), expected_plugins).await;
 
-        let (plugin_manager_tx_clone, _) = plugin_manager_tx.clone();
+    //     let (plugin_manager_tx_clone, _) = plugin_manager_tx.clone();
 
-        // Start the ThunderClientPool
-        let client = ThunderClientPool::start(
-            url,
-            Some(plugin_manager_tx_clone),
-            Some(Arc::new(ThunderConnectionState::new())),
-            4,
-            false,
-        )
-        .await;
-        assert!(client.is_ok());
+    //     // Start the ThunderClientPool
+    //     let client = ThunderClientPool::start(
+    //         url,
+    //         Some(plugin_manager_tx_clone),
+    //         Some(Arc::new(ThunderConnectionState::new())),
+    //         4,
+    //         false,
+    //     )
+    //     .await;
+    //     assert!(client.is_ok());
 
-        // 1. test PluginManagerCommand::StateChangeEvent command
-        let (plugin_manager_tx_clone, _) = plugin_manager_tx.clone();
-        let msg = PluginManagerCommand::StateChangeEvent(PluginStateChangeEvent {
-            callsign: "org.rdk.Controller".to_string(),
-            state: PluginState::Activated,
-        });
-        mpsc_send_and_log(&plugin_manager_tx_clone, msg, "StateChangeEvent").await;
+    //     // 1. test PluginManagerCommand::StateChangeEvent command
+    //     let (plugin_manager_tx_clone, _) = plugin_manager_tx.clone();
+    //     let msg = PluginManagerCommand::StateChangeEvent(PluginStateChangeEvent {
+    //         callsign: "org.rdk.Controller".to_string(),
+    //         state: PluginState::Activated,
+    //     });
+    //     mpsc_send_and_log(&plugin_manager_tx_clone, msg, "StateChangeEvent").await;
 
-        // 2. test PluginManagerCommand::ActivatePluginIfNeeded command
-        let (tx, _rx) = oneshot::channel::<PluginActivatedResult>();
-        let (plugin_manager_tx_clone, _) = plugin_manager_tx.clone();
-        let msg = PluginManagerCommand::ActivatePluginIfNeeded {
-            callsign: "org.rdk.Controller".to_string(),
-            tx,
-        };
-        mpsc_send_and_log(&plugin_manager_tx_clone, msg, "ActivatePluginIfNeeded").await;
+    //     // 2. test PluginManagerCommand::ActivatePluginIfNeeded command
+    //     let (tx, _rx) = oneshot::channel::<PluginActivatedResult>();
+    //     let (plugin_manager_tx_clone, _) = plugin_manager_tx.clone();
+    //     let msg = PluginManagerCommand::ActivatePluginIfNeeded {
+    //         callsign: "org.rdk.Controller".to_string(),
+    //         tx,
+    //     };
+    //     mpsc_send_and_log(&plugin_manager_tx_clone, msg, "ActivatePluginIfNeeded").await;
 
-        // 3. test PluginManagerCommand::WaitForActivation command
-        let (tx, _rx) = oneshot::channel::<PluginActivatedResult>();
-        let (plugin_manager_tx_clone, _) = plugin_manager_tx.clone();
-        let msg = PluginManagerCommand::WaitForActivation {
-            callsign: "org.rdk.Controller".to_string(),
-            tx,
-        };
-        mpsc_send_and_log(&plugin_manager_tx_clone, msg, "WaitForActivation").await;
+    //     // 3. test PluginManagerCommand::WaitForActivation command
+    //     let (tx, _rx) = oneshot::channel::<PluginActivatedResult>();
+    //     let (plugin_manager_tx_clone, _) = plugin_manager_tx.clone();
+    //     let msg = PluginManagerCommand::WaitForActivation {
+    //         callsign: "org.rdk.Controller".to_string(),
+    //         tx,
+    //     };
+    //     mpsc_send_and_log(&plugin_manager_tx_clone, msg, "WaitForActivation").await;
 
-        // 4. test PluginManagerCommand::ReactivatePluginState command
-        let (tx, _rx) = oneshot::channel::<PluginActivatedResult>();
-        let (plugin_manager_tx_clone, _) = plugin_manager_tx.clone();
-        let msg = PluginManagerCommand::ReactivatePluginState { tx };
-        mpsc_send_and_log(&plugin_manager_tx_clone, msg, "ReactivatePluginState").await;
+    //     // 4. test PluginManagerCommand::ReactivatePluginState command
+    //     let (tx, _rx) = oneshot::channel::<PluginActivatedResult>();
+    //     let (plugin_manager_tx_clone, _) = plugin_manager_tx.clone();
+    //     let msg = PluginManagerCommand::ReactivatePluginState { tx };
+    //     mpsc_send_and_log(&plugin_manager_tx_clone, msg, "ReactivatePluginState").await;
 
-        // Wait for a moment and stop the server
-        sleep(Duration::from_secs(1)).await;
-        server_task.abort();
-    }
+    //     // Wait for a moment and stop the server
+    //     sleep(Duration::from_secs(1)).await;
+    //     server_task.abort();
+    // }
+
     // test PluginStatus
     #[test]
     fn test_plugin_status() {

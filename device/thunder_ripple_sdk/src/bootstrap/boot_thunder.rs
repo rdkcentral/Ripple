@@ -17,7 +17,7 @@
 
 use crate::{
     bootstrap::setup_thunder_processors::SetupThunderProcessor,
-    client::plugin_manager::ThunderPluginBootParam, thunder_state::ThunderBootstrapStateWithClient,
+    thunder_state::ThunderBootstrapStateWithClient,
 };
 use ripple_sdk::{
     api::manifest::device_manifest::DeviceManifest,
@@ -45,7 +45,6 @@ fn gateway_default() -> String {
 
 pub async fn boot_thunder(
     ext_client: ExtnClient,
-    _plugin_param: ThunderPluginBootParam,
     device_manifest: &DeviceManifest,
 ) -> Option<ThunderBootstrapStateWithClient> {
     info!("Booting thunder initiated");
@@ -94,16 +93,8 @@ pub async fn boot_thunder(
             gateway_url.set_host(Some(&host_override)).ok();
         }
 
-        if let Ok(thndr_client) = ThunderClientBuilder::start_thunder_client(
-            gateway_url.clone(),
-            None,
-            None,
-            None,
-            None,
-            true,
-            status_check,
-        )
-        .await
+        if let Ok(thndr_client) =
+            ThunderClientBuilder::start_thunder_client(gateway_url.clone(), status_check).await
         {
             let thunder_state = ThunderState::new(ext_client.clone(), thndr_client);
 

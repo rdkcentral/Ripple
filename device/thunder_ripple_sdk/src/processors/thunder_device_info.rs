@@ -1016,7 +1016,8 @@ pub mod tests {
 
     use crate::{
         client::{
-            device_operator::DeviceResponseMessage, thunder_client::ThunderCallMessage,
+            device_operator::DeviceResponseMessage,
+            //thunder_client::ThunderCallMessage,
             thunder_plugin::ThunderPlugin,
         },
         processors::thunder_device_info::ThunderDeviceInfoRequestProcessor,
