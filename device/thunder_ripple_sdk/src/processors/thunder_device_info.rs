@@ -1016,7 +1016,7 @@ pub mod tests {
 
     use crate::{
         client::{
-            device_operator::DeviceResponseMessage,
+            device_operator::{DeviceCallRequest, DeviceResponseMessage},
             //thunder_client::ThunderCallMessage,
             thunder_plugin::ThunderPlugin,
         },
@@ -1026,7 +1026,7 @@ pub mod tests {
 
     macro_rules! run_platform_info_test {
         ($build_name:expr) => {
-            test_platform_build_info_with_build_name($build_name, Arc::new(|msg: ThunderCallMessage| {
+            test_platform_build_info_with_build_name($build_name, Arc::new(|msg: DeviceCallRequest| {
                 oneshot_send_and_log(
                     msg.callback,
                     DeviceResponseMessage::call(json!({"success" : true, "stbVersion": $build_name, "receiverVersion": $build_name, "stbTimestamp": "".to_owned() })),
