@@ -1,0 +1,16 @@
+{
+  "rules": {
+    "service1.*": {
+      "endpoint": "service",
+      "alias": "mock:service:appgw:service1"
+    },
+    "service2.*": {
+      "endpoint": "service",
+      "alias": "mock:service:appgw:service2"
+    },
+    "service1.info": {
+      "endpoint": "service",
+      "alias": "mock:service:appgw:service1"
+    }
+  }
+}

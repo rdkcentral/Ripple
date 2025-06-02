@@ -29,8 +29,7 @@ use crate::{
             lifecycle_rpc::LifecycleRippleProvider, localization_rpc::LocalizationRPCProvider,
             parameters_rpc::ParametersRPCProvider, privacy_rpc::PrivacyProvider,
             profile_rpc::ProfileRPCProvider, provider_registrar::ProviderRegistrar,
-            second_screen_rpc::SecondScreenRPCProvider,
-            secure_storage_rpc::SecureStorageRPCProvider, user_grants_rpc::UserGrantsRPCProvider,
+            second_screen_rpc::SecondScreenRPCProvider, user_grants_rpc::UserGrantsRPCProvider,
             voice_guidance_rpc::VoiceguidanceRPCProvider, wifi_rpc::WifiRPCProvider,
         },
         rpc::RippleRPCProvider,
@@ -44,7 +43,7 @@ use ripple_sdk::{framework::bootstrap::Bootstep, utils::error::RippleError};
 pub struct FireboltGatewayStep;
 
 impl FireboltGatewayStep {
-    async fn init_handlers(&self, state: PlatformState, extn_methods: Methods) -> Methods {
+    async fn init_handlers(&self, state: PlatformState) -> Methods {
         let mut methods = Methods::new();
 
         // TODO: Ultimately this may be able to register all providers below, for now just does
@@ -71,7 +70,6 @@ impl FireboltGatewayStep {
         let _ = methods.merge(SecondScreenRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(UserGrantsRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(ParametersRPCProvider::provide_with_alias(state.clone()));
-        let _ = methods.merge(SecureStorageRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(AdvertisingRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(DiscoveryRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(AudioDescriptionRPCProvider::provide_with_alias(
@@ -83,7 +81,6 @@ impl FireboltGatewayStep {
         if !state.has_internal_launcher() {
             let _ = methods.merge(LifecycleManagementProvider::provide_with_alias(state));
         }
-        let _ = methods.merge(extn_methods);
         methods
     }
 }
@@ -95,12 +92,7 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
     }
 
     async fn setup(&self, state: BootstrapState) -> Result<(), RippleError> {
-        let methods = self
-            .init_handlers(
-                state.platform_state.clone(),
-                state.extn_state.get_extn_methods(),
-            )
-            .await;
+        let methods = self.init_handlers(state.platform_state.clone()).await;
         let gateway = FireboltGateway::new(state.clone(), methods);
         debug!("Handlers initialized");
         #[cfg(feature = "sysd")]

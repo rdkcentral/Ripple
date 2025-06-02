@@ -3,93 +3,10 @@
     "default_extension": "so",
     "timeout": 2000,
     "extns": [
-        {
-            "path": "libthunder",
-            "symbols": [
-                {
-                    "id": "ripple:channel:device:thunder",
-                    "uses": [
-                        "config",
-                        "ripple_context",
-                        "app_events",
-                        "rpc"
-                    ],
-                    "fulfills": [
-                        "ripple_context",
-                        "window_manager",
-                        "browser",
-                        "device_info",
-                        "wifi",
-                        "local.storage",
-                        "remote_accessory",
-                        "app_events",
-                        "input.device_events",
-                        "voice_guidance.device_events",
-                        "audio.device_events"
-                    ]
-                }
-            ]
-        },
-        {
-            "path": "liblauncher",
-            "symbols": [
-                {
-                    "id": "ripple:channel:launcher:internal",
-                    "uses": [
-                        "config",
-                        "lifecycle_management",
-                        "device_info",
-                        "window_manager",
-                        "browser"
-                    ],
-                    "fulfills": [
-                        "launcher"
-                    ]
-                }
-            ]
-        },
-        {
-            "path": "libdistributor_general",
-            "symbols": [
-                {
-                    "id": "ripple:channel:distributor:general",
-                    "uses": [
-                        "config"
-                    ],
-                    "fulfills": [
-                        "permissions",
-                        "account.session",
-                        "device.session",
-                        "root.session",
-                        "secure.storage",
-                        "advertising",
-                        "behavior_metrics"
-                    ]
-                }
-            ]
-        }
     ],
     "required_contracts": [
-        "rpc",
-        "lifecycle_management",
-        "device_info",
-        "window_manager",
-        "browser",
-        "permissions",
-        "wifi",
-        "local.storage",
-        "remote_accessory",
-        "secure.storage",
-        "privacy_settings",
-        "account.session",
-        "device.session",
-        "behavior_metrics"
     ],
-    "rpc_aliases": {
-        "device.model": [
-            "custom.model"
-        ]
-    },
+    "rpc_aliases": {},
     "rules_path": [
         "/etc/ripple.common.rules.json"
     ]
