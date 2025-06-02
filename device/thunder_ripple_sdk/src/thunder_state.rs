@@ -119,10 +119,9 @@ impl ThunderState {
         if self
             .event_processor
             .handle_listener(listen, app_id.clone(), handler.clone())
+            && listen
         {
-            if listen {
-                self.subscribe(handler).await
-            }
+            self.subscribe(handler).await
         }
     }
 
