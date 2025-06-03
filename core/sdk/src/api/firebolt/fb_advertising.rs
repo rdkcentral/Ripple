@@ -109,8 +109,7 @@ pub struct AdConfig {
     #[serde(default)]
     pub environment: Environment,
     // COPPA stands for Children's Online Privacy Protection Act.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub coppa: Option<bool>,
+    pub coppa: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub authentication_entity: Option<String>,
 }
@@ -120,7 +119,7 @@ impl Default for GetAdConfig {
         GetAdConfig {
             options: AdConfig {
                 environment: Environment::default(),
-                coppa: Some(false),
+                coppa: false,
                 authentication_entity: Some("".to_owned()),
             },
         }
@@ -146,7 +145,7 @@ mod tests {
         let expected_config = GetAdConfig {
             options: AdConfig {
                 environment: Environment::Prod,
-                coppa: Some(false),
+                coppa: false,
                 authentication_entity: Some("".to_owned()),
             },
         };
