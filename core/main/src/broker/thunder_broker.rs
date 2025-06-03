@@ -677,6 +677,7 @@ impl EndpointBroker for ThunderBroker {
         } else {
             error!("Bad broker response {}", String::from_utf8_lossy(result));
         }
+
         final_result
     }
 }
@@ -684,13 +685,14 @@ impl EndpointBroker for ThunderBroker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::broker::thunder_broker::tests::rules_engine::RuleTransformType;
     use crate::{
         broker::{
             endpoint_broker::{
                 apply_response, apply_rule_for_event, BrokerCallback, BrokerConnectRequest,
                 BrokerOutput, BrokerRequest, EndpointBroker,
             },
-            rules_engine::{self, Rule, RuleEndpoint, RuleEndpointProtocol, RuleTransform},
+            rules::rules_engine::{self, Rule, RuleEndpoint, RuleEndpointProtocol, RuleTransform},
             test::mock_thunder_lite_server::MockThunderLiteServer,
         },
         create_and_send_broker_request, create_and_send_broker_request_with_jq_transform,
@@ -801,7 +803,7 @@ mod tests {
 
         let endpoint = RuleEndpoint {
             url: format!("ws://127.0.0.1:{}", port),
-            protocol: crate::broker::rules_engine::RuleEndpointProtocol::Websocket,
+            protocol: crate::broker::rules::rules_engine::RuleEndpointProtocol::Websocket,
             jsonrpc: false,
         };
         let (tx, _) = mpsc::channel(1);
