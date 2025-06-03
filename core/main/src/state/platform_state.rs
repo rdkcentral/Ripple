@@ -38,7 +38,7 @@ use ripple_sdk::{
 use std::collections::HashMap;
 
 use crate::{
-    broker::{endpoint_broker::EndpointBrokerState, rules_engine::RuleEngine},
+    broker::{endpoint_broker::EndpointBrokerState, rules::rules_engine::RuleEngine},
     firebolt::rpc_router::RouterState,
     service::{
         apps::{
