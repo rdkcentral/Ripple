@@ -220,7 +220,7 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
 
         // If RPCv2 is set as a query param then Ripple will use logic more complicit with the RPCv2 spec.
         // Non-complicit behavior is still available for compatibility with older firebolt clients.
-        let mut rpc_v2 = match get_query(request, "RPCv2", false)? {
+        let rpc_v2 = match get_query(request, "RPCv2", false)? {
             Some(e) => e == "true",
             None => false,
         };
@@ -230,7 +230,6 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
         but ripple was not sending the header
         */
         if request.headers().get("Sec-WebSocket-Protocol").is_some() {
-            rpc_v2 = true;
             /*
             jsonrpc is the only answer...
             */
