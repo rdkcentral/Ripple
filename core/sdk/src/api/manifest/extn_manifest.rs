@@ -154,7 +154,7 @@ impl ExtnManifest {
                 return Self::load_from_content(contents);
             }
         }
-        info!("No device manifest found in {}", path);
+        info!("No device extn found in {}", path);
         Err(RippleError::MissingInput)
     }
 
