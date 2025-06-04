@@ -1015,7 +1015,7 @@ pub mod tests {
 
     macro_rules! run_platform_info_test {
         ($build_name:expr) => {
-            test_platform_build_info_with_build_name($build_name, Arc::new(|msg: DeviceCallRequest| {
+            test_platform_build_info_with_build_name($build_name, Arc::new(|_msg: DeviceCallRequest| {
                 let (tx, _rx) = oneshot::channel::<DeviceResponseMessage>();
 
                 oneshot_send_and_log(
