@@ -20,7 +20,7 @@ use ripple_sdk::{
         bootstrap::{Bootstep, Bootstrap},
         RippleResponse,
     },
-    log::error,
+    log::{debug, error},
 };
 
 use crate::state::bootstrap_state::BootstrapState;
@@ -60,7 +60,17 @@ pub async fn boot(state: BootstrapState) -> RippleResponse {
     execute_step(StartWsStep, &bootstrap).await?;
     execute_step(StartCommunicationBroker, &bootstrap).await?;
     execute_step(SetupExtnClientStep, &bootstrap).await?;
-    execute_step(LoadExtensionsStep, &bootstrap).await?;
+
+    let load_extensions = std::env::var("RIPPLE_RPC_EXTENSIONS")
+        .ok()
+        .and_then(|s| s.parse::<bool>().ok())
+        .unwrap_or(true);
+    if !load_extensions {
+        debug!("Starting Ripple Service WITHOUT loading extension clients manifest");
+    } else {
+        debug!("Starting Ripple Service with extension clients");
+        execute_step(LoadExtensionsStep, &bootstrap).await?;
+    }
     execute_step(StartAppManagerStep, &bootstrap).await?;
     execute_step(StartOtherBrokers, &bootstrap).await?;
     execute_step(LoadDistributorValuesStep, &bootstrap).await?;
