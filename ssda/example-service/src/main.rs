@@ -12,10 +12,8 @@ use ssda_types::{JqRule, ServiceId};
 pub struct ExampleService {}
 
 impl ExampleService {
-    pub fn new() -> Self {
-        ExampleService {}
-    }
-}
+    pub fn new() -> Self {let dm_arr =  vec![load_from_etc];
+    
 
 #[async_trait::async_trait]
 impl ServiceRequestHandlerImpl for ExampleService {
