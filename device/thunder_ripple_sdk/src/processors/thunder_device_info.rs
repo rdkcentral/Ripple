@@ -985,8 +985,6 @@ fn round_to_nearest_quarter_hour(offset_seconds: i64) -> i64 {
 
 #[cfg(test)]
 pub mod tests {
-    use std::sync::Arc;
-
     use ripple_sdk::{
         api::device::{
             device_info_request::{DeviceInfoRequest, PlatformBuildInfo},
@@ -1002,6 +1000,8 @@ pub mod tests {
         utils::channel_utils::oneshot_send_and_log,
     };
     use serde::{Deserialize, Serialize};
+    use std::sync::Arc;
+    use tokio::sync::oneshot;
 
     use crate::{
         client::{
@@ -1016,8 +1016,10 @@ pub mod tests {
     macro_rules! run_platform_info_test {
         ($build_name:expr) => {
             test_platform_build_info_with_build_name($build_name, Arc::new(|msg: DeviceCallRequest| {
+                let (tx, _rx) = oneshot::channel::<DeviceResponseMessage>();
+
                 oneshot_send_and_log(
-                    msg.callback,
+                    tx,
                     DeviceResponseMessage::call(json!({"success" : true, "stbVersion": $build_name, "receiverVersion": $build_name, "stbTimestamp": "".to_owned() })),
                     "",
                 );
