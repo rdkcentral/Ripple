@@ -62,7 +62,7 @@ use super::{
     extn_broker::ExtnBroker,
     http_broker::HttpBroker,
     provider_broker_state::{ProvideBrokerState, ProviderResult},
-    rules_engine::{
+    rules::rules_engine::{
         jq_compile, EventHandler, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine,
         RuleRetrievalError, RuleRetrieved, RuleType,
     },
@@ -1582,7 +1582,7 @@ impl BrokerOutputForwarder {
                 serde_json::to_string(&event_handler_response)
             {
                 if let Some(mut event_filter) = broker_request.rule.transform.get_transform_data(
-                    super::rules_engine::RuleTransformType::Event(
+                    super::rules::rules_engine::RuleTransformType::Event(
                         rpc_request.ctx.context.contains(&RPC_V2.into()),
                     ),
                 ) {

@@ -692,7 +692,7 @@ mod tests {
                 apply_response, apply_rule_for_event, BrokerCallback, BrokerConnectRequest,
                 BrokerOutput, BrokerRequest, EndpointBroker,
             },
-            rules_engine::{
+            rules::rules_engine::{
                 self, EventHandler, Rule, RuleEndpoint, RuleEndpointProtocol, RuleTransform,
             },
             test::mock_thunder_lite_server::MockThunderLiteServer,
