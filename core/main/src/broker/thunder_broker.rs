@@ -677,6 +677,7 @@ impl EndpointBroker for ThunderBroker {
         } else {
             error!("Bad broker response {}", String::from_utf8_lossy(result));
         }
+
         final_result
     }
 }
@@ -684,6 +685,7 @@ impl EndpointBroker for ThunderBroker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::broker::thunder_broker::tests::rules_engine::RuleTransformType;
     use crate::{
         broker::{
             endpoint_broker::{
@@ -803,7 +805,7 @@ mod tests {
 
         let endpoint = RuleEndpoint {
             url: format!("ws://127.0.0.1:{}", port),
-            protocol: crate::broker::rules_engine::RuleEndpointProtocol::Websocket,
+            protocol: crate::broker::rules::rules_engine::RuleEndpointProtocol::Websocket,
             jsonrpc: false,
         };
         let (tx, _) = mpsc::channel(1);
