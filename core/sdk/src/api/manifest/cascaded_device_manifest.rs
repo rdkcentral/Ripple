@@ -1185,7 +1185,7 @@ mod tests {
                 min_available_memory_kb: 1024,
                 prioritized,
                 emit_app_init_events_enabled: false,
-                emit_navigate_on_activate: false
+                emit_navigate_on_activate: false,
             }
         );
     }

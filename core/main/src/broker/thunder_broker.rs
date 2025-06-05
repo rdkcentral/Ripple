@@ -597,6 +597,13 @@ impl EndpointBroker for ThunderBroker {
         let mut requests = Vec::new();
 
         let method = method.unwrap();
+        debug!(
+            "Preparing request for method {} and callsign {} for {} subscription {}",
+            method,
+            callsign,
+            rpc_request.rpc.method,
+            rpc_request.rpc.is_subscription()
+        );
         // Below chunk of code is basically for subscription where thunder needs some special care based on
         // the JsonRpc specification
         if rpc_request.rpc.is_subscription() && !rpc_request.rpc.is_unlisten() {
