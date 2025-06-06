@@ -108,6 +108,13 @@ pub struct JsonDataSource {
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct EventHandler {
+    pub method: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub params: Option<String>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Rule {
     pub alias: String,
     // Not every rule needs transform
@@ -115,8 +122,8 @@ pub struct Rule {
     pub transform: RuleTransform,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filter: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub event_handler: Option<String>,
+    #[serde(default)]
+    pub event_handler: Option<EventHandler>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub endpoint: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -159,7 +166,7 @@ impl Rule {
         self.filter = Some(filter);
         self
     }
-    pub fn with_event_handler(&mut self, event_handler: String) -> &mut Self {
+    pub fn with_event_handler(&mut self, event_handler: EventHandler) -> &mut Self {
         self.event_handler = Some(event_handler);
         self
     }

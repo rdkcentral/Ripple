@@ -63,8 +63,8 @@ use super::{
     http_broker::HttpBroker,
     provider_broker_state::{ProvideBrokerState, ProviderResult},
     rules::rules_engine::{
-        jq_compile, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine, RuleRetrievalError,
-        RuleRetrieved, RuleType,
+        jq_compile, EventHandler, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine,
+        RuleRetrievalError, RuleRetrieved, RuleType,
     },
     thunder_broker::ThunderBroker,
     websocket_broker::WebsocketBroker,
@@ -619,49 +619,6 @@ impl EndpointBrokerState {
         .emit_error();
         Err(RippleError::ParseError)
     }
-    /// Adds BrokerContext to a given request used by the Broker Implementations
-    /// just before sending the data through the protocol
-    ///
-    fn _update_request(
-        &self,
-        rpc_request: &RpcRequest,
-        rule: Rule,
-        extn_message: Option<ExtnMessage>,
-        workflow_callback: Option<BrokerCallback>,
-        telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
-    ) -> (u64, BrokerRequest) {
-        let id = Self::get_next_id();
-        let mut rpc_request_c = rpc_request.clone();
-        {
-            let mut request_map = self.request_map.write().unwrap();
-            let _ = request_map.insert(
-                id,
-                BrokerRequest {
-                    rpc: rpc_request.clone(),
-                    rule: rule.clone(),
-                    subscription_processed: None,
-                    workflow_callback: workflow_callback.clone(),
-                    telemetry_response_listeners: telemetry_response_listeners.clone(),
-                },
-            );
-        }
-
-        if extn_message.is_some() {
-            let mut extn_map = self.extension_request_map.write().unwrap();
-            let _ = extn_map.insert(id, extn_message.unwrap());
-        }
-
-        rpc_request_c.ctx.call_id = id;
-        (
-            id,
-            BrokerRequest::new(
-                &rpc_request_c,
-                rule,
-                workflow_callback,
-                telemetry_response_listeners,
-            ),
-        )
-    }
 
     pub fn update_request(
         &self,
@@ -858,7 +815,7 @@ impl EndpointBrokerState {
         &self,
         rpc_request: RpcRequest,
         extn_message: Option<ExtnMessage>,
-        workflow_callback: Option<BrokerCallback>,
+        custom_callback: Option<BrokerCallback>,
         permissions: Vec<FireboltPermission>,
         session: Option<Session>,
         telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
@@ -868,13 +825,13 @@ impl EndpointBrokerState {
             "starting brokerage".to_string(),
             rpc_request.ctx.clone(),
         )
-        .with_diagnostic_context_item("workflow", &workflow_callback.is_some().to_string())
+        .with_diagnostic_context_item("workflow", &custom_callback.is_some().to_string())
         .emit_debug();
 
         let resp = self.handle_brokerage_workflow(
             rpc_request.clone(),
             extn_message,
-            workflow_callback,
+            custom_callback,
             permissions,
             session,
             telemetry_response_listeners,
@@ -995,6 +952,7 @@ impl EndpointBrokerState {
         )
         .with_diagnostic_context_item("rule", &format!("{}", rule))
         .with_diagnostic_context_item("endpoint", &format!("{}", endpoint))
+        // this is printing non debuggable data
         .with_diagnostic_context_item("workflow", &workflow_callback.is_some().to_string())
         .emit_debug();
         /*
@@ -1294,7 +1252,9 @@ impl BrokerOutputForwarder {
                             .emit_debug();
 
                             if is_event {
-                                if let Some(method) = broker_request.rule.event_handler.clone() {
+                                if let Some(event_handler) =
+                                    broker_request.rule.event_handler.clone()
+                                {
                                     let platform_state_c = platform_state.clone();
                                     let rpc_request_c = rpc_request.clone();
                                     let response_c = response.clone();
@@ -1302,7 +1262,7 @@ impl BrokerOutputForwarder {
 
                                     tokio::spawn(Self::handle_event(
                                         platform_state_c,
-                                        method,
+                                        event_handler,
                                         broker_request_c,
                                         rpc_request_c,
                                         response_c,
@@ -1549,7 +1509,7 @@ impl BrokerOutputForwarder {
 
     async fn handle_event(
         platform_state: PlatformState,
-        method: String,
+        event_handler: EventHandler,
         broker_request: BrokerRequest,
         rpc_request: RpcRequest,
         mut response: JsonRpcApiResponse,
@@ -1557,40 +1517,9 @@ impl BrokerOutputForwarder {
         let session_id = rpc_request.ctx.get_id();
         let request_id = rpc_request.ctx.call_id;
         let protocol = rpc_request.ctx.protocol.clone();
-        let mut platform_state_c = platform_state.clone();
+        let platform_state_c = platform_state.clone();
 
-        // FIXME: As we transition to full RPCv2 support we need to be able to post-process the results from an event
-        // handler as defined by Rule::event_handler, however as currently implemented event_handler logic short-circuits
-        // rule transform logic. Need to refactor to support this, disabing below for now.
-        // ==============================================================================================================
-        // if let Ok(Value::String(res)) =
-        //     BrokerUtils::process_internal_main_request(&mut platform_state_c, method.as_str(), None)
-        //         .await
-        // {
-        //     let mut filter = res.clone();
-        //     if let Some(transform_data) = broker_request.rule.transform.get_transform_data(
-        //         super::rules::rules_engine::RuleTransformType::Event(
-        //             rpc_request.ctx.context.contains(&RPC_V2.into()),
-        //         ),
-        //     ) {
-        //         filter = transform_data
-        //             .replace("$event_handler_response", format!("\"{}\"", res).as_str());
-        //     }
-
-        //     let response_result_value = serde_json::to_value(filter.clone()).unwrap();
-
-        //     apply_rule_for_event(
-        //         &broker_request,
-        //         &response_result_value,
-        //         &rpc_request,
-        //         &filter,
-        //         &mut response,
-        //     );
-        // } else {
-        //     error!("handle_event: error processing internal main request");
-        // }
-
-        let params = if let Some(request) = broker_request.rule.transform.request {
+        let params = if let Some(request) = event_handler.params {
             if let Ok(map) = serde_json::from_str::<serde_json::Map<String, Value>>(&request) {
                 Some(Value::Object(map))
             } else {
@@ -1599,20 +1528,42 @@ impl BrokerOutputForwarder {
         } else {
             None
         };
-        // ==============================================================================================================
 
-        if let Ok(res) = BrokerUtils::process_internal_main_request(
-            &mut platform_state_c,
-            method.as_str(),
+        if let Ok(event_handler_response) = BrokerUtils::process_internal_main_request(
+            &platform_state_c,
+            event_handler.method.as_str(),
             params,
         )
         .await
         {
-            response.result = Some(res.clone());
+            if let Ok(event_handler_response_string) =
+                serde_json::to_string(&event_handler_response)
+            {
+                if let Some(mut event_filter) = broker_request.rule.transform.get_transform_data(
+                    super::rules::rules_engine::RuleTransformType::Event(
+                        rpc_request.ctx.context.contains(&RPC_V2.into()),
+                    ),
+                ) {
+                    event_filter = event_filter
+                        .replace("$event_handler_response", &event_handler_response_string);
+
+                    apply_rule_for_event(
+                        &broker_request,
+                        &event_handler_response,
+                        &rpc_request,
+                        &event_filter,
+                        &mut response,
+                    );
+                } else {
+                    response.result = Some(event_handler_response);
+                }
+            } else {
+                error!("handle_event: Could not deserialize event handler response");
+                response.result = Some(event_handler_response);
+            }
         }
 
         response.id = Some(request_id);
-
         response.update_event_message(&rpc_request);
 
         let message = ApiMessage::new(

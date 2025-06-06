@@ -597,6 +597,13 @@ impl EndpointBroker for ThunderBroker {
         let mut requests = Vec::new();
 
         let method = method.unwrap();
+        debug!(
+            "Preparing request for method {} and callsign {} for {} subscription {}",
+            method,
+            callsign,
+            rpc_request.rpc.method,
+            rpc_request.rpc.is_subscription()
+        );
         // Below chunk of code is basically for subscription where thunder needs some special care based on
         // the JsonRpc specification
         if rpc_request.rpc.is_subscription() && !rpc_request.rpc.is_unlisten() {
@@ -692,7 +699,9 @@ mod tests {
                 apply_response, apply_rule_for_event, BrokerCallback, BrokerConnectRequest,
                 BrokerOutput, BrokerRequest, EndpointBroker,
             },
-            rules::rules_engine::{self, Rule, RuleEndpoint, RuleEndpointProtocol, RuleTransform},
+            rules::rules_engine::{
+                self, EventHandler, Rule, RuleEndpoint, RuleEndpointProtocol, RuleTransform,
+            },
             test::mock_thunder_lite_server::MockThunderLiteServer,
         },
         create_and_send_broker_request, create_and_send_broker_request_with_jq_transform,
@@ -754,7 +763,7 @@ mod tests {
         params: Option<Value>,
         transform: Option<RuleTransform>,
         event_filter: Option<String>,
-        event_handler_fn: Option<String>,
+        event_handler: Option<EventHandler>,
     ) -> BrokerRequest {
         let mut broker_request = create_mock_broker_request(
             method,
@@ -762,7 +771,7 @@ mod tests {
             params,
             transform,
             event_filter,
-            event_handler_fn,
+            event_handler,
         );
         broker_request.rpc.ctx.call_id = call_id;
         broker_request
@@ -819,7 +828,7 @@ mod tests {
         params: Option<Value>,
         transform: Option<RuleTransform>,
         event_filter: Option<String>,
-        event_handler_fn: Option<String>,
+        event_handler: Option<EventHandler>,
     ) -> BrokerRequest {
         BrokerRequest {
             rpc: get_test_new_internal(method.to_owned(), params),
@@ -829,7 +838,7 @@ mod tests {
                 transform: transform.unwrap_or_default(),
                 endpoint: None,
                 filter: event_filter,
-                event_handler: event_handler_fn,
+                event_handler,
                 sources: None,
             },
             subscription_processed: None,

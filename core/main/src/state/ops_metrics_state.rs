@@ -73,7 +73,7 @@ impl OpMetricState {
         }
     }
 
-    pub fn add_api_stats(&mut self, request_id: &str, api: &str) {
+    pub fn add_api_stats(&self, request_id: &str, api: &str) {
         let mut api_stats_map = self.api_stats_map.write().unwrap();
         api_stats_map.insert(request_id.to_string(), ApiStats::new(api.into()));
 
