@@ -140,8 +140,14 @@ impl DeviceOperator for ThunderClient {
         if let Some(async_client) = &self.thunder_async_client {
             async_client.send(async_request).await;
         }
+
+        // <pca> Naveen: I think you need something to execute the callback (tx), otherwise you'll never get a response here. </pca>
+
         match rx.await {
-            Ok(response) => response,
+            Ok(response) => {
+                println!("*** _DEBUG: ThunderClient: call: response= {:?}", response);
+                response
+            }
             Err(e) => {
                 error!("ThunderClient Failed to receive response: {:?}", e);
                 DeviceResponseMessage {
@@ -228,6 +234,52 @@ impl ThunderClient {
             Some(async_request)
         }
     }
+
+    // <pca> TODO: Move to MockThunderClient or similar o it's only used in tests
+    pub fn start_mock(device_channel_request_tx: MpscSender<DeviceChannelRequest>) -> Self {
+        let (thunder_async_response_tx, mut thunder_async_response_rx) = mpsc::channel(32);
+        let callback = AsyncCallback {
+            sender: thunder_async_response_tx,
+        };
+        let (thunder_async_request_tx, mut thunder_async_request_rx) = mpsc::channel(32);
+        let broker_sender = AsyncSender {
+            sender: thunder_async_request_tx,
+        };
+        let client = ThunderAsyncClient::new(callback, broker_sender);
+
+        tokio::spawn(async move {
+            while let Some(thunder_async_request) = thunder_async_request_rx.recv().await {
+                println!(
+                    "*** _DEBUG: ThunderClient: mock: thunder_async_request= {:?}",
+                    thunder_async_request
+                );
+
+                mpsc_send_and_log(
+                    &device_channel_request_tx,
+                    thunder_async_request.request,
+                    "DeviceChannelRequest",
+                )
+                .await;
+            }
+        });
+
+        tokio::spawn(async move {
+            while let Some(thunder_async_response) = thunder_async_response_rx.recv().await {
+                println!(
+                    "*** _DEBUG: ThunderClient: mock: thunder_async_response= {:?}",
+                    thunder_async_response
+                );
+            }
+        });
+
+        ThunderClient {
+            id: Uuid::new_v4(),
+            thunder_async_client: Some(client),
+            thunder_async_subscriptions: Some(Arc::new(RwLock::new(HashMap::new()))),
+            thunder_async_callbacks: Some(Arc::new(RwLock::new(HashMap::new()))),
+        }
+    }
+    // </pca>
 }
 
 impl ThunderClientBuilder {
