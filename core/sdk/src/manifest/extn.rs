@@ -15,7 +15,13 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::{api::manifest::extn_manifest::ExtnManifest, log::info, utils::error::RippleError};
+use log::debug;
+
+use crate::{
+    api::manifest::extn_manifest::ExtnManifest,
+    log::info,
+    utils::{error::RippleError, logger::MODULE_LOG_LEVELS},
+};
 
 pub struct LoadExtnManifestStep;
 
@@ -28,6 +34,9 @@ impl LoadExtnManifestStep {
 type ExtnManifestLoader = Vec<fn() -> Result<(String, ExtnManifest), RippleError>>;
 
 fn try_manifest_files() -> Result<ExtnManifest, RippleError> {
+    if cfg!(feature = "local_dev") {
+        info!("Running in local dev mode");
+    }
     let dm_arr: ExtnManifestLoader = if cfg!(feature = "local_dev") {
         vec![load_from_env, load_from_home, load_from_etc]
     } else if cfg!(any(test, feature = "test")) {
@@ -38,7 +47,16 @@ fn try_manifest_files() -> Result<ExtnManifest, RippleError> {
 
     for dm_provider in dm_arr {
         if let Ok((p, m)) = dm_provider() {
-            info!("loaded_extn_file_content={}", p);
+            let log_levels = MODULE_LOG_LEVELS.read().unwrap();
+            debug!("extn_log_levels_list={:?}", log_levels);
+            if let Some(level) = log_levels.get("extn_manifest") {
+                debug!("extn_log_levels={:?}", level);
+                if level == &log::Level::Info {
+                    info!("loaded_extn_file_content={}", p);
+                }
+            } else {
+                info!("loaded_extn_file_content={}", p);
+            }
             return Ok(m);
         }
     }

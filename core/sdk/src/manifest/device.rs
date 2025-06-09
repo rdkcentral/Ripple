@@ -15,7 +15,13 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::{api::manifest::device_manifest::DeviceManifest, log::info, utils::error::RippleError};
+use log::debug;
+
+use crate::{
+    api::manifest::device_manifest::DeviceManifest,
+    log::info,
+    utils::{error::RippleError, logger::MODULE_LOG_LEVELS},
+};
 pub struct LoadDeviceManifestStep;
 
 impl LoadDeviceManifestStep {
@@ -42,7 +48,16 @@ fn try_manifest_files() -> Result<DeviceManifest, RippleError> {
 
     for dm_provider in dm_arr {
         if let Ok((p, m)) = dm_provider() {
-            info!("loaded_manifest_file_content={}", p);
+            let log_levels = MODULE_LOG_LEVELS.read().unwrap();
+            debug!("log_levels_list={:?}", log_levels);
+            if let Some(level) = log_levels.get("device_manifest") {
+                debug!("log_levels={:?}", level);
+                if level == &log::Level::Info {
+                    info!("loaded_manifest_file_content={}", p);
+                }
+            } else {
+                info!("loaded_manifest_file_content={}", p);
+            }
             return Ok(m);
         }
     }

@@ -13,11 +13,11 @@ use pact_consumer::prelude::*;
 #[allow(dead_code, unused_imports)]
 use futures_util::{SinkExt, StreamExt};
 #[allow(dead_code, unused_imports)]
+use ripple_sdk::tokio_tungstenite::connect_async;
+#[allow(dead_code, unused_imports)]
+use ripple_sdk::tokio_tungstenite::tungstenite::protocol::Message;
+#[allow(dead_code, unused_imports)]
 use tokio::time::{timeout, Duration};
-#[allow(dead_code, unused_imports)]
-use tokio_tungstenite::connect_async;
-#[allow(dead_code, unused_imports)]
-use tokio_tungstenite::tungstenite::protocol::Message;
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]

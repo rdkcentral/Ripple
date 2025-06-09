@@ -106,9 +106,9 @@ impl From<String> for DeviceSessionIdentifier {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PlatformState {
-    extn_manifest: ExtnManifest,
+    pub extn_manifest: ExtnManifest,
     device_manifest: DeviceManifest,
     pub ripple_client: RippleClient,
     pub app_library_state: AppLibraryState,
@@ -157,7 +157,6 @@ impl PlatformState {
     ) -> PlatformState {
         let exclusory = ExclusoryImpl::get(&manifest);
         let broker_sender = client.get_broker_sender();
-        //let rule_engine = RuleEngine::build(&extn_manifest);
         let extn_sdks = extn_manifest.extn_sdks.clone();
         let provider_registations = extn_manifest.provider_registrations.clone();
         let metrics_state = OpMetricState::default();
@@ -253,7 +252,8 @@ impl PlatformState {
         rpc_request: impl ExtnPayloadProvider,
     ) -> Result<ExtnMessage, RippleError> {
         self.get_client()
-            .send_extn_request(rpc_request.to_owned())
+            .get_extn_client()
+            .main_internal_request(rpc_request.to_owned())
             .await
     }
 }
@@ -261,7 +261,7 @@ impl PlatformState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ripple_sdk::api::{manifest::extn_manifest::default_providers, rules_engine::RuleEngine};
+    use ripple_sdk::api::manifest::extn_manifest::default_providers;
     use ripple_tdk::utils::test_utils::Mockable;
 
     impl Mockable for PlatformState {

@@ -20,17 +20,13 @@ use ripple_sdk::{
         bootstrap::{Bootstep, Bootstrap},
         RippleResponse,
     },
-    log::error,
+    log::{debug, error},
 };
 
 use crate::state::bootstrap_state::BootstrapState;
 
 use super::{
-    extn::{
-        check_launcher_step::CheckLauncherStep, load_extn_metadata_step::LoadExtensionMetadataStep,
-        load_extn_step::LoadExtensionsStep, load_session_step::LoadDistributorValuesStep,
-        start_extn_channel_step::StartExtnChannelsStep,
-    },
+    extn::{load_extn_step::LoadExtensionsStep, load_session_step::LoadDistributorValuesStep},
     logging_bootstrap_step::LoggingBootstrapStep,
     setup_extn_client_step::SetupExtnClientStep,
     start_app_manager_step::StartAppManagerStep,
@@ -50,13 +46,10 @@ use super::{
 ///
 /// 1. [StartCommunicationBroker] - Initialize the communication broker to create Thunder broker if rules are setup.
 /// 2. [SetupExtnClientStep] - Initializes the extn client to start the Inter process communication backbone
-/// 3. [LoadExtensionMetadataStep] - Loads the Extn metadata from the So files
 /// 4. [LoadExtensionsStep] - Loads the Extensions in to [crate::state::extn_state::ExtnState]
-/// 5. [StartExtnChannelsStep] - Starts the Device channel extension
 /// 6. [StartAppManagerStep] - Starts the App Manager and other supporting services
 /// 7. [StartOtherBrokers] - Start Other brokers if they are setup in endpoints for rules
 /// 8. [LoadDistributorValuesStep] - Loads the values from distributor like Session
-/// 9. [CheckLauncherStep] - Checks the presence of launcher extension and starts default app
 /// 10. [StartWsStep] - Starts the Websocket to accept external and internal connections
 /// 11. [FireboltGatewayStep] - Starts the firebolt gateway and blocks the thread to keep it alive till interruption.
 
@@ -64,16 +57,23 @@ use super::{
 pub async fn boot(state: BootstrapState) -> RippleResponse {
     let bootstrap = Bootstrap::new(state);
     execute_step(LoggingBootstrapStep, &bootstrap).await?;
+    execute_step(StartWsStep, &bootstrap).await?;
     execute_step(StartCommunicationBroker, &bootstrap).await?;
     execute_step(SetupExtnClientStep, &bootstrap).await?;
-    execute_step(LoadExtensionMetadataStep, &bootstrap).await?;
-    execute_step(LoadExtensionsStep, &bootstrap).await?;
-    execute_step(StartExtnChannelsStep, &bootstrap).await?;
+
+    let load_extensions = std::env::var("RIPPLE_RPC_EXTENSIONS")
+        .ok()
+        .and_then(|s| s.parse::<bool>().ok())
+        .unwrap_or(true);
+    if !load_extensions {
+        debug!("Starting Ripple Service WITHOUT loading extension clients manifest");
+    } else {
+        debug!("Starting Ripple Service with extension clients");
+        execute_step(LoadExtensionsStep, &bootstrap).await?;
+    }
     execute_step(StartAppManagerStep, &bootstrap).await?;
     execute_step(StartOtherBrokers, &bootstrap).await?;
     execute_step(LoadDistributorValuesStep, &bootstrap).await?;
-    execute_step(CheckLauncherStep, &bootstrap).await?;
-    execute_step(StartWsStep, &bootstrap).await?;
     execute_step(FireboltGatewayStep, &bootstrap).await?;
     Ok(())
 }

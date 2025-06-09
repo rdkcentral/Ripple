@@ -56,7 +56,6 @@ mock=[]
 
 
 [dependencies]
-tokio-tungstenite = { workspace = true, features = ["native-tls"] }
 base64 = { workspace = true, default-features = false, features=["alloc"] }
 ripple_tdk = { path = "../../core/tdk" }
 ripple_sdk.workspace = true

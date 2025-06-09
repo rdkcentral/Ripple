@@ -9,6 +9,7 @@ use ripple_sdk::tokio::{
     },
     time::sleep,
 };
+use ripple_sdk::tokio_tungstenite::{accept_async, tungstenite::protocol::Message};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -17,6 +18,7 @@ use std::time::Duration;
 use tokio_tungstenite::{accept_async, tungstenite::protocol::Message};
 
 use ripple_sdk::api::gateway::rpc_gateway_api::{JsonRpcApiRequest, JsonRpcApiResponse};
+
 const CONTROLLER_STATUS_METHOD: &str = "Controller.1.status@";
 const CONTROLLER_ACTIVATE_METHOD: &str = "Controller.1.activate";
 const CONTROLLER_REGISTER_METHOD: &str = "Controller.1.register";
@@ -359,6 +361,7 @@ macro_rules! read_broker_responses {
         assert_eq!(counter, $expected_count);
     };
 }
+
 #[macro_export]
 macro_rules! process_broker_output {
     ($broker_request:expr, $broker_output:expr) => {{

@@ -36,7 +36,8 @@ use ripple_sdk::{
         sync::{mpsc, Mutex},
         time,
     },
-    utils::error::RippleError,
+    tokio_tungstenite::tungstenite::Message,
+    utils::{error::RippleError, ws_utils::WebSocketUtils},
 };
 use serde_json::json;
 use serde_json::Value;
@@ -211,7 +212,17 @@ impl ThunderBroker {
         let broker_for_cleanup = thunder_broker.clone();
         let broker_for_reconnect = thunder_broker.clone();
         tokio::spawn(async move {
-            let (ws_tx, mut ws_rx) = BrokerUtils::get_ws_broker(&endpoint.get_url(), None).await;
+            let resp = WebSocketUtils::get_ws_stream(&endpoint.get_url(), None).await;
+            if resp.is_err() {
+                error!("FATAL error Thunder URL badly configured.");
+                // This stops the Server
+                let reconnect_request = request.clone();
+                if request.reconnector.send(reconnect_request).await.is_err() {
+                    error!("Error trying to stop server");
+                }
+                return;
+            }
+            let (ws_tx, mut ws_rx) = resp.unwrap();
 
             let ws_tx_wrap = Arc::new(Mutex::new(ws_tx));
             // send the first request to the broker. This is the controller statechange subscription request
@@ -220,12 +231,7 @@ impl ThunderBroker {
                 .generate_state_change_subscribe_request();
             {
                 let mut ws_tx = ws_tx_wrap.lock().await;
-
-                let _feed = ws_tx
-                    .feed(tokio_tungstenite::tungstenite::Message::Text(
-                        status_request.to_string(),
-                    ))
-                    .await;
+                let _feed = ws_tx.feed(Message::Text(status_request.to_string())).await;
                 let _flush = ws_tx.flush().await;
             }
             if let Some(ps) = platform_state {
@@ -242,9 +248,7 @@ impl ThunderBroker {
                         let mut ws_tx = ws_tx_wrap.lock().await;
 
                         let _feed = ws_tx
-                            .feed(tokio_tungstenite::tungstenite::Message::Text(
-                                status_check_request.to_string(),
-                            ))
+                            .feed(Message::Text(status_check_request.to_string()))
                             .await;
                         let _flush = ws_tx.flush().await;
                     }
@@ -264,7 +268,7 @@ impl ThunderBroker {
                         match value {
                             Ok(v) => {
 
-                                if let tokio_tungstenite::tungstenite::Message::Text(t) = v {
+                                if let Message::Text(t) = v {
                                     debug!("Broker Websocket message {:?}", t);
 
                                     if broker_c.status_manager.is_controller_response(broker_c.get_sender(), broker_c.get_default_callback(), t.as_bytes()).await {
@@ -299,7 +303,7 @@ impl ThunderBroker {
 
                                     let mut ws_tx = ws_tx_wrap.lock().await;
                                     for r in requests {
-                                        let _feed = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
+                                        let _feed = ws_tx.feed(Message::Text(r)).await;
                                         let _flush = ws_tx.flush().await;
                                     }
                                 }
@@ -337,7 +341,7 @@ impl ThunderBroker {
                                                 let binding = ws_tx_wrap.clone();
                                                 let mut ws_tx = binding.lock().await;
                                                 for r in updated_request {
-                                                    let _ = ws_tx.feed(tokio_tungstenite::tungstenite::Message::Text(r)).await;
+                                                    let _ = ws_tx.feed(Message::Text(r)).await;
 
                                                     let _ = ws_tx.flush().await;
                                                 }
@@ -673,6 +677,7 @@ impl EndpointBroker for ThunderBroker {
         } else {
             error!("Bad broker response {}", String::from_utf8_lossy(result));
         }
+
         final_result
     }
 }
@@ -680,12 +685,14 @@ impl EndpointBroker for ThunderBroker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::broker::thunder_broker::tests::rules_engine::RuleTransformType;
     use crate::{
         broker::{
             endpoint_broker::{
                 apply_response, apply_rule_for_event, BrokerCallback, BrokerConnectRequest,
                 BrokerOutput, BrokerRequest, EndpointBroker,
             },
+            rules::rules_engine::{self, Rule, RuleEndpoint, RuleEndpointProtocol, RuleTransform},
             test::mock_thunder_lite_server::MockThunderLiteServer,
         },
         create_and_send_broker_request, create_and_send_broker_request_with_jq_transform,
@@ -790,11 +797,17 @@ mod tests {
         on_close: bool,
     ) -> ThunderBroker {
         // setup mock websocket server
-        let port = MockWebsocket::start(send_data, Vec::new(), tx, on_close).await;
+        /*
+        doing unrwap here because doing it "right" would require changing call chain for this function, as result types would
+        have to change
+         */
+        let port = MockWebsocket::start(send_data, Vec::new(), tx, on_close)
+            .await
+            .unwrap();
 
         let endpoint = RuleEndpoint {
             url: format!("ws://127.0.0.1:{}", port),
-            protocol: RuleEndpointProtocol::Websocket,
+            protocol: crate::broker::rules::rules_engine::RuleEndpointProtocol::Websocket,
             jsonrpc: false,
         };
         let (tx, _) = mpsc::channel(1);
