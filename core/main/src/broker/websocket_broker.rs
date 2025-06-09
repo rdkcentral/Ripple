@@ -15,8 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::broker::broker_utils::BrokerUtils;
-
 use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerRequest,
     BrokerSender, EndpointBroker,
@@ -253,9 +251,12 @@ mod tests {
         broker::endpoint_broker::{BrokerOutput, BrokerRequest},
         utils::test_utils::{MockWebsocket, WSMockData},
     };
-    use ripple_sdk::api::{
-        gateway::rpc_gateway_api::RpcRequest,
-        rules_engine::{Rule, RuleEndpoint, RuleEndpointProtocol, RuleTransform},
+    use ripple_sdk::{
+        api::{
+            gateway::rpc_gateway_api::RpcRequest,
+            rules_engine::{Rule, RuleEndpoint, RuleEndpointProtocol, RuleTransform},
+        },
+        utils::logger::init_logger,
     };
     use serde_json::json;
 
@@ -278,7 +279,7 @@ mod tests {
 
         let endpoint = RuleEndpoint {
             url: format!("ws://127.0.0.1:{}", port),
-            protocol: crate::broker::rules::rules_engine::RuleEndpointProtocol::Websocket,
+            protocol: RuleEndpointProtocol::Websocket,
             jsonrpc: false,
         };
         let (tx, _) = mpsc::channel(1);
@@ -415,7 +416,7 @@ mod tests {
 
         let endpoint = RuleEndpoint {
             url: format!("ws://127.0.0.1:{}", port),
-            protocol: crate::broker::rules::rules_engine::RuleEndpointProtocol::Websocket,
+            protocol: RuleEndpointProtocol::Websocket,
             jsonrpc: false,
         };
 
@@ -515,7 +516,7 @@ mod tests {
         let port: u32 = 34743;
         let endpoint = RuleEndpoint {
             url: format!("ws://127.0.0.1:{}", port),
-            protocol: crate::broker::rules::rules_engine::RuleEndpointProtocol::Websocket,
+            protocol: RuleEndpointProtocol::Websocket,
             jsonrpc: false,
         };
         let _ = WSNotificationBroker::start(request, callback, endpoint.get_url().clone());

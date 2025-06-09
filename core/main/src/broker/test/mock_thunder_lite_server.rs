@@ -15,7 +15,6 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio_tungstenite::{accept_async, tungstenite::protocol::Message};
 
 use ripple_sdk::api::gateway::rpc_gateway_api::{JsonRpcApiRequest, JsonRpcApiResponse};
 

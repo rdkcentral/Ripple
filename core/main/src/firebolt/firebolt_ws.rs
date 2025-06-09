@@ -38,6 +38,7 @@ use ripple_sdk::{
         extn_id::ExtnId,
     },
     framework::ripple_contract::RippleContract,
+    log::trace,
     tokio_tungstenite::{
         tungstenite::{self, Message},
         WebSocketStream,
@@ -63,10 +64,7 @@ use ripple_sdk::{log::debug, tokio};
 use ssda_service::ApiGateway;
 use ssda_types::gateway::{APIGatewayServiceConnectionDisposition, ApiGatewayServer};
 use ssda_types::ServiceId;
-use tokio_tungstenite::{
-    tungstenite::{self, Message},
-    WebSocketStream,
-};
+
 #[allow(dead_code)]
 pub struct FireboltWs {}
 
@@ -87,7 +85,18 @@ struct ConnectionCallbackConfig {
     pub app_state: AppManagerState,
     pub secure: bool,
     pub internal_app_id: Option<String>,
+    pub extns: Vec<ExtnSymbol>,
     pub service_connection: Arc<std::sync::Mutex<Option<ServiceConnection>>>,
+}
+impl ConnectionCallbackConfig {
+    fn get_extn(&self, id: &str) -> Option<ExtnSymbol> {
+        for extn in &self.extns {
+            if extn.id.eq(id) {
+                return Some(extn.clone());
+            }
+        }
+        None
+    }
 }
 pub struct ConnectionCallback(ConnectionCallbackConfig);
 
@@ -263,6 +272,7 @@ impl FireboltWs {
                 secure,
                 internal_app_id: internal_app_id.clone(),
                 extns: extns.clone(),
+                service_connection: service_connection_state.clone(),
             };
             match ripple_sdk::tokio_tungstenite::accept_hdr_async(stream, ConnectionCallback(cfg))
                 .await

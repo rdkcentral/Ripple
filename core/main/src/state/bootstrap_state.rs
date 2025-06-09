@@ -23,8 +23,8 @@ use ripple_sdk::{
         manifest::ripple_manifest_loader::RippleManifestLoader,
         rules_engine::{RuleEngine, RuleEngineProvider},
     },
-    async_channel::{unbounded, Receiver as CReceiver, Sender as CSender},
-    extn::ffi::ffi_message::CExtnMessage,
+    // async_channel::{unbounded, Receiver as CReceiver, Sender as CSender},
+    // extn::ffi::ffi_message::CExtnMessage,
     framework::bootstrap::TransientChannel,
     log::{error, info, warn},
     tokio::{
@@ -36,13 +36,12 @@ use ripple_sdk::{
 use ssda_types::gateway::ApiGatewayServer;
 
 use crate::{
-    bootstrap::manifest::apps::LoadAppLibraryStep,
-    broker::endpoint_broker::{BrokerOutput, BROKER_CHANNEL_BUFFER_SIZE},
-    firebolt::firebolt_gateway::FireboltGatewayCommand,
-    service::extn::ripple_client::RippleClient,
+    bootstrap::manifest::apps::LoadAppLibraryStep, broker::endpoint_broker::BrokerOutput,
+    firebolt::firebolt_gateway::FireboltGatewayCommand, service::extn::ripple_client::RippleClient,
+    state::platform_state::PlatformState,
 };
 
-use super::{extn_state::ExtnState, platform_state::PlatformState};
+//use super::{extn_state::ExtnState, platform_state::PlatformState};
 
 use env_file_reader::read_file;
 #[derive(Debug, Clone)]
@@ -112,7 +111,6 @@ impl BootstrapState {
             return Err(RippleError::BootstrapError);
         };
         let app_manifest_result = LoadAppLibraryStep::load_app_library();
-        let extn_state = ExtnState::new(channels_state.clone(), extn_manifest.clone());
         let rules_engine: Arc<tokio::sync::RwLock<Box<dyn RuleEngineProvider + Send + Sync>>> =
             Arc::new(tokio::sync::RwLock::new(Box::new(RuleEngine::build(
                 &extn_manifest,

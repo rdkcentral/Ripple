@@ -106,7 +106,7 @@ impl From<String> for DeviceSessionIdentifier {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct PlatformState {
     pub extn_manifest: ExtnManifest,
     device_manifest: DeviceManifest,
@@ -261,7 +261,7 @@ impl PlatformState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ripple_sdk::api::manifest::extn_manifest::default_providers;
+    use ripple_sdk::api::{manifest::extn_manifest::default_providers, rules_engine::RuleEngine};
     use ripple_tdk::utils::test_utils::Mockable;
 
     impl Mockable for PlatformState {

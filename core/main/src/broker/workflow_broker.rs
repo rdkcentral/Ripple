@@ -2,9 +2,8 @@ use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerRequest, BrokerSender,
     EndpointBroker, HandleBrokerageError, BROKER_CHANNEL_BUFFER_SIZE,
 };
-use super::rules::rules_engine::JsonDataSource;
+
 use crate::broker::endpoint_broker::{BrokerOutput, EndpointBrokerState};
-use crate::broker::rules::rules_engine::{compose_json_values, make_name_json_safe};
 use crate::state::platform_state::PlatformState;
 use futures::future::{join_all, BoxFuture};
 use futures::FutureExt;
@@ -56,16 +55,18 @@ async fn subbroker_call(
     source: JsonDataSource,
 ) -> Result<serde_json::Value, SubBrokerErr> {
     let (brokered_tx, mut brokered_rx) = mpsc::channel::<BrokerOutput>(BROKER_CHANNEL_BUFFER_SIZE);
-    endpoint_broker.handle_brokerage(
-        rpc_request,
-        None,
-        Some(BrokerCallback {
-            sender: brokered_tx,
-        }),
-        Vec::new(),
-        None,
-        vec![],
-    );
+    let _ = endpoint_broker
+        .handle_brokerage(
+            rpc_request,
+            None,
+            Some(BrokerCallback {
+                sender: brokered_tx,
+            }),
+            Vec::new(),
+            None,
+            vec![],
+        )
+        .await;
 
     match brokered_rx.recv().await {
         Some(msg) => {
@@ -317,10 +318,7 @@ pub mod tests {
     };
     use serde_json::json;
 
-    use crate::broker::{
-        endpoint_broker::{BrokerCallback, BrokerRequest, EndpointBrokerState},
-        rules::rules_engine::{JsonDataSource, Rule, RuleEngine},
-    };
+    use crate::broker::endpoint_broker::{BrokerCallback, BrokerRequest, EndpointBrokerState};
     pub fn broker_request(callback: BrokerCallback) -> BrokerRequest {
         let mut rule = Rule {
             alias: "module.method".to_string(),

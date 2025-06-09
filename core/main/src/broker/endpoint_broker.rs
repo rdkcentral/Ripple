@@ -1546,7 +1546,8 @@ impl BrokerOutputForwarder {
                                         )
                                         .await;
                                     } else {
-                                        return_extn_response(message, extn_message)
+                                        let client = platform_state.get_client().get_extn_client();
+                                        return_extn_response(message, extn_message, client);
                                     }
                                 }
                             } else if let Some(session) = platform_state
