@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use ripple_sdk::api::rules_engine::EventHandler;
 use ripple_sdk::tokio::sync::RwLock as TokioRwLock;
 use ripple_sdk::{
     api::{
@@ -1580,7 +1581,7 @@ impl BrokerOutputForwarder {
 
     async fn handle_event(
         platform_state: PlatformState,
-        method: String,
+        event_handler: EventHandler,
         broker_request: BrokerRequest,
         rpc_request: RpcRequest,
         mut response: JsonRpcApiResponse,
@@ -1588,40 +1589,9 @@ impl BrokerOutputForwarder {
         let session_id = rpc_request.ctx.get_id();
         let request_id = rpc_request.ctx.call_id;
         let protocol = rpc_request.ctx.protocol.clone();
-        let mut platform_state_c = platform_state.clone();
+        let platform_state_c = platform_state.clone();
 
-        // FIXME: As we transition to full RPCv2 support we need to be able to post-process the results from an event
-        // handler as defined by Rule::event_handler, however as currently implemented event_handler logic short-circuits
-        // rule transform logic. Need to refactor to support this, disabing below for now.
-        // ==============================================================================================================
-        // if let Ok(Value::String(res)) =
-        //     BrokerUtils::process_internal_main_request(&mut platform_state_c, method.as_str(), None)
-        //         .await
-        // {
-        //     let mut filter = res.clone();
-        //     if let Some(transform_data) = broker_request.rule.transform.get_transform_data(
-        //         super::rules_engine::RuleTransformType::Event(
-        //             rpc_request.ctx.context.contains(&RPC_V2.into()),
-        //         ),
-        //     ) {
-        //         filter = transform_data
-        //             .replace("$event_handler_response", format!("\"{}\"", res).as_str());
-        //     }
-
-        //     let response_result_value = serde_json::to_value(filter.clone()).unwrap();
-
-        //     apply_rule_for_event(
-        //         &broker_request,
-        //         &response_result_value,
-        //         &rpc_request,
-        //         &filter,
-        //         &mut response,
-        //     );
-        // } else {
-        //     error!("handle_event: error processing internal main request");
-        // }
-
-        let params = if let Some(request) = broker_request.rule.transform.request {
+        let params = if let Some(request) = event_handler.params {
             if let Ok(map) = serde_json::from_str::<serde_json::Map<String, Value>>(&request) {
                 Some(Value::Object(map))
             } else {
@@ -1630,20 +1600,45 @@ impl BrokerOutputForwarder {
         } else {
             None
         };
-        // ==============================================================================================================
 
-        if let Ok(res) = BrokerUtils::process_internal_main_request(
-            &mut platform_state_c,
-            method.as_str(),
+        if let Ok(event_handler_response) = BrokerUtils::process_internal_main_request(
+            &platform_state_c,
+            event_handler.method.as_str(),
             params,
         )
         .await
         {
-            response.result = Some(res.clone());
+            if let Ok(event_handler_response_string) =
+                serde_json::to_string(&event_handler_response)
+            {
+                if let Some(mut event_filter) =
+                    broker_request
+                        .rule
+                        .transform
+                        .get_transform_data(RuleTransformType::Event(
+                            rpc_request.ctx.context.contains(&RPC_V2.into()),
+                        ))
+                {
+                    event_filter = event_filter
+                        .replace("$event_handler_response", &event_handler_response_string);
+
+                    apply_rule_for_event(
+                        &broker_request,
+                        &event_handler_response,
+                        &rpc_request,
+                        &event_filter,
+                        &mut response,
+                    );
+                } else {
+                    response.result = Some(event_handler_response);
+                }
+            } else {
+                error!("handle_event: Could not deserialize event handler response");
+                response.result = Some(event_handler_response);
+            }
         }
 
         response.id = Some(request_id);
-
         response.update_event_message(&rpc_request);
 
         let message = ApiMessage::new(
@@ -1659,7 +1654,6 @@ impl BrokerOutputForwarder {
             let _ = session.send_json_rpc(message).await;
         }
     }
-
     pub fn handle_non_jsonrpc_response(
         data: &[u8],
         callback: BrokerCallback,
@@ -1906,7 +1900,7 @@ mod endpoint_broker_tests {
 
     mod endpoint_broker_state {
         use ripple_sdk::{
-            api::rules_engine::{RuleEndpoint, RuleEndpointProtocol, RuleEngine, RuleSet},
+            api::rules_engine::{RuleEndpoint, RuleEndpointProtocol, RuleEngine},
             tokio::{self, sync::mpsc::channel},
         };
 
@@ -2048,9 +2042,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(RuleEngine {
-                    rules: RuleSet::default(),
-                }))),
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
 
@@ -2078,9 +2072,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(RuleEngine {
-                    rules: RuleSet::default(),
-                }))),
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
 
@@ -2108,9 +2102,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(RuleEngine {
-                    rules: RuleSet::default(),
-                }))),
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
 
@@ -2138,9 +2132,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(RuleEngine {
-                    rules: RuleSet::default(),
-                }))),
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
 
@@ -2168,9 +2162,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(RuleEngine {
-                    rules: RuleSet::default(),
-                }))),
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
 
@@ -2198,9 +2192,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(RuleEngine {
-                    rules: RuleSet::default(),
-                }))),
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
 
@@ -2228,9 +2222,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(RuleEngine {
-                    rules: RuleSet::default(),
-                }))),
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
 
@@ -2260,9 +2254,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(RuleEngine {
-                    rules: RuleSet::default(),
-                }))),
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
 
@@ -2511,7 +2505,6 @@ mod endpoint_broker_tests {
         use ripple_sdk::api::rules_engine::RuleEndpoint;
         use ripple_sdk::api::rules_engine::RuleEndpointProtocol;
         use ripple_sdk::api::rules_engine::RuleEngine;
-        use ripple_sdk::api::rules_engine::RuleSet;
         use ripple_sdk::api::rules_engine::RuleTransform;
         use ripple_sdk::tokio;
         use ripple_sdk::tokio::sync::mpsc::channel;
@@ -2529,9 +2522,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(RuleEngine {
-                    rules: RuleSet::default(),
-                }))),
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
             let endpoint = RuleEndpoint {
@@ -2574,9 +2567,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(RuleEngine {
-                    rules: RuleSet::default(),
-                }))),
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
             let endpoint = RuleEndpoint {
@@ -2621,9 +2614,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(RuleEngine {
-                    rules: RuleSet::default(),
-                }))),
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
             let endpoint = RuleEndpoint {
@@ -2667,9 +2660,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(RuleEngine {
-                    rules: RuleSet::default(),
-                }))),
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
             let endpoint = RuleEndpoint {
@@ -2712,9 +2705,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(RuleEngine {
-                    rules: RuleSet::default(),
-                }))),
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
             let endpoint = RuleEndpoint {
@@ -2759,7 +2752,7 @@ mod endpoint_broker_tests {
         use ripple_sdk::{
             api::{
                 gateway::rpc_gateway_api::RpcRequest,
-                rules_engine::{Rule, RuleEngine, RuleSet},
+                rules_engine::{Rule, RuleEngine},
             },
             tokio::sync::mpsc::channel,
             Mockable,
@@ -2769,9 +2762,7 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
 
             let client = RippleClient::new(ChannelsState::new());
-            let mut engine = RuleEngine {
-                rules: RuleSet::default(),
-            };
+            let mut engine = RuleEngine::default();
             let r = Rule {
                 alias: "provided".to_owned(),
                 transform: Default::default(),
@@ -2812,9 +2803,9 @@ mod endpoint_broker_tests {
             let mut endpoint_broker = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(RuleEngine {
-                    rules: RuleSet::default(),
-                }))),
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
             for endpoint in endpoints {
@@ -2824,6 +2815,9 @@ mod endpoint_broker_tests {
 
             endpoint_broker
         }
+        use std::sync::Arc;
+
+        use crate::broker::endpoint_broker::TokioRwLock;
         use crate::{
             broker::endpoint_broker::{
                 BrokerRequest, BrokerSender, EndpointBrokerState, HandleBrokerageError,
@@ -2834,7 +2828,7 @@ mod endpoint_broker_tests {
         use ripple_sdk::{
             api::{
                 gateway::rpc_gateway_api::RpcRequest,
-                rules_engine::{Rule, RuleEngine, RuleSet},
+                rules_engine::{Rule, RuleEngine, RuleEngineProvider},
             },
             extn::extn_client_message::ExtnMessage,
             tokio::{
@@ -2917,9 +2911,10 @@ mod endpoint_broker_tests {
         async fn test_dispatch_brokerage_endpoint_rule() {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
-            let mut engine = RuleEngine {
-                rules: RuleSet::default(),
-            };
+            let engine: Arc<TokioRwLock<Box<dyn RuleEngineProvider + Send + Sync>>> =
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                )));
             let rule = Rule {
                 alias: "endpoint".to_owned(),
                 transform: Default::default(),
@@ -2928,13 +2923,13 @@ mod endpoint_broker_tests {
                 event_handler: None,
                 sources: None,
             };
-            engine.add_rule(rule);
-            let mut under_test = EndpointBrokerState::new(
-                OpMetricState::default(),
-                tx,
-                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(engine))),
-                client,
-            );
+            {
+                let mut mutant = engine.write().await;
+                mutant.add_rule(rule);
+                drop(mutant);
+            }
+            let mut under_test =
+                EndpointBrokerState::new(OpMetricState::default(), tx, engine.clone(), client);
 
             let (tx, _) = mpsc::channel::<BrokerRequest>(10);
             under_test.add_endpoint("thunder".to_string(), BrokerSender { sender: tx });
@@ -2952,13 +2947,12 @@ mod endpoint_broker_tests {
         async fn test_dispatch_brokerage_rule_not_found() {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
-            let engine = RuleEngine {
-                rules: RuleSet::default(),
-            };
             let under_test = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(engine))),
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
 
@@ -2979,9 +2973,10 @@ mod endpoint_broker_tests {
         async fn test_dispatch_brokerage_broker_not_found() {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
-            let mut engine = RuleEngine {
-                rules: RuleSet::default(),
-            };
+            let engine: Arc<TokioRwLock<Box<dyn RuleEngineProvider + Send + Sync>>> =
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                )));
             let rule = Rule {
                 alias: "endpoint".to_owned(),
                 transform: Default::default(),
@@ -2990,13 +2985,13 @@ mod endpoint_broker_tests {
                 event_handler: None,
                 sources: None,
             };
-            engine.add_rule(rule);
-            let under_test = EndpointBrokerState::new(
-                OpMetricState::default(),
-                tx,
-                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(engine))),
-                client,
-            );
+            {
+                let mut mutant = engine.write().await;
+                mutant.add_rule(rule);
+                drop(mutant);
+            }
+            let under_test =
+                EndpointBrokerState::new(OpMetricState::default(), tx, engine.clone(), client);
 
             let mut request = RpcRequest::mock();
             request.method = "endpoint".to_string();
@@ -3032,9 +3027,7 @@ mod endpoint_broker_tests {
                     OpMetricState::default(),
                     tx,
                     std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
-                        RuleEngine {
-                            rules: RuleSet::default(),
-                        },
+                        RuleEngine::default(),
                     ))),
                     client,
                 );
@@ -3062,9 +3055,7 @@ mod endpoint_broker_tests {
                     OpMetricState::default(),
                     tx,
                     std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
-                        RuleEngine {
-                            rules: RuleSet::default(),
-                        },
+                        RuleEngine::default(),
                     ))),
                     client,
                 );
@@ -3094,9 +3085,7 @@ mod endpoint_broker_tests {
                     OpMetricState::default(),
                     tx,
                     std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
-                        RuleEngine {
-                            rules: RuleSet::default(),
-                        },
+                        RuleEngine::default(),
                     ))),
                     client,
                 );
@@ -3132,9 +3121,7 @@ mod endpoint_broker_tests {
                     OpMetricState::default(),
                     tx,
                     std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
-                        RuleEngine {
-                            rules: RuleSet::default(),
-                        },
+                        RuleEngine::default(),
                     ))),
                     client,
                 );

@@ -45,7 +45,8 @@ use crate::{
     firebolt::rpc_router::RouterState,
     service::{
         apps::{
-            app_events::AppEventsState, delegated_launcher_handler::AppManagerState,
+            app_events::AppEventsState,
+            delegated_launcher_handler::{AppManagerState, AppManagerState2_0},
             provider_broker::ProviderBrokerState,
         },
         extn::ripple_client::RippleClient,
@@ -124,6 +125,7 @@ pub struct PlatformState {
     pub ripple_cache: RippleCache,
     pub version: Option<String>,
     pub endpoint_state: EndpointBrokerState,
+    pub lifecycle2_app_state: AppManagerState2_0,
     pub services_gateway_api: Arc<tokio::sync::Mutex<Box<dyn ApiGatewayServer + Send + Sync>>>,
 }
 impl std::fmt::Debug for PlatformState {
@@ -182,6 +184,7 @@ impl PlatformState {
                 rule_engine,
                 client,
             ),
+            lifecycle2_app_state: AppManagerState2_0::new(),
             services_gateway_api: services_gateway_api.clone(),
         }
     }

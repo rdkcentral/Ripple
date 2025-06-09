@@ -17,7 +17,7 @@
 
 use std::collections::HashMap;
 
-use ripple_sdk::{log::error, utils::error::RippleError};
+use crate::{log::error, utils::error::RippleError};
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Default, Deserialize)]

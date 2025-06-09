@@ -70,9 +70,9 @@ pub struct SecondScreenImpl {
 #[async_trait]
 impl SecondScreenServer for SecondScreenImpl {
     async fn friendly_name(&self, _ctx: CallContext) -> RpcResult<String> {
-        let mut s = self.state.clone();
+        let s = self.state.clone();
         rpc_value_result_to_string_result(
-            BrokerUtils::process_internal_main_request(&mut s, "device.name", None).await,
+            BrokerUtils::process_internal_main_request(&s, "device.name", None).await,
             None,
         )
     }

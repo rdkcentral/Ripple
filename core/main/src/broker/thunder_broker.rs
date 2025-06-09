@@ -597,6 +597,13 @@ impl EndpointBroker for ThunderBroker {
         let mut requests = Vec::new();
 
         let method = method.unwrap();
+        debug!(
+            "Preparing request for method {} and callsign {} for {} subscription {}",
+            method,
+            callsign,
+            rpc_request.rpc.method,
+            rpc_request.rpc.is_subscription()
+        );
         // Below chunk of code is basically for subscription where thunder needs some special care based on
         // the JsonRpc specification
         if rpc_request.rpc.is_subscription() && !rpc_request.rpc.is_unlisten() {
@@ -700,10 +707,9 @@ mod tests {
         utils::test_utils::{MockWebsocket, WSMockData},
     };
     use ripple_sdk::{
-        api::rules_engine::{Rule, RuleEndpoint, RuleEndpointProtocol},
         api::{
             gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
-            rules_engine::RuleTransform,
+            rules_engine::{EventHandler, Rule, RuleEndpoint, RuleEndpointProtocol, RuleTransform},
         },
         uuid::Uuid,
     };
@@ -757,7 +763,7 @@ mod tests {
         params: Option<Value>,
         transform: Option<RuleTransform>,
         event_filter: Option<String>,
-        event_handler_fn: Option<String>,
+        event_handler: Option<EventHandler>,
     ) -> BrokerRequest {
         let mut broker_request = create_mock_broker_request(
             method,
@@ -765,7 +771,7 @@ mod tests {
             params,
             transform,
             event_filter,
-            event_handler_fn,
+            event_handler,
         );
         broker_request.rpc.ctx.call_id = call_id;
         broker_request
@@ -822,7 +828,7 @@ mod tests {
         params: Option<Value>,
         transform: Option<RuleTransform>,
         event_filter: Option<String>,
-        event_handler_fn: Option<String>,
+        event_handler: Option<EventHandler>,
     ) -> BrokerRequest {
         BrokerRequest {
             rpc: get_test_new_internal(method.to_owned(), params),
@@ -832,7 +838,7 @@ mod tests {
                 transform: transform.unwrap_or_default(),
                 endpoint: None,
                 filter: event_filter,
-                event_handler: event_handler_fn,
+                event_handler,
                 sources: None,
             },
             subscription_processed: None,
