@@ -47,6 +47,7 @@ use crate::{
             provider_broker::ProviderBrokerState,
         },
         extn::ripple_client::RippleClient,
+        ripple_service::service_registry::ServiceRegistry,
     },
 };
 
@@ -110,6 +111,7 @@ pub struct PlatformState {
     pub version: Option<String>,
     pub endpoint_state: EndpointBrokerState,
     pub lifecycle2_app_state: AppManagerState2_0,
+    pub service_registry: ServiceRegistry,
 }
 
 impl PlatformState {
@@ -149,6 +151,7 @@ impl PlatformState {
                 client,
             ),
             lifecycle2_app_state: AppManagerState2_0::new(),
+            service_registry: ServiceRegistry::default(),
         }
     }
 

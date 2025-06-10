@@ -98,6 +98,7 @@ pub enum RuleEndpointProtocol {
     Thunder,
     Workflow,
     Extn,
+    Service,
 }
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct JsonDataSource {

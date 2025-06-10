@@ -725,6 +725,11 @@ impl EndpointBrokerState {
                 ExtnBroker::get_broker(ps, request, self.callback.clone(), self).get_sender(),
                 None,
             ),
+            RuleEndpointProtocol::Service => {
+                // Service broker is not implemented yet
+                error!("Service broker is not implemented yet");
+                return;
+            }
         };
         self.add_endpoint(key, broker);
 

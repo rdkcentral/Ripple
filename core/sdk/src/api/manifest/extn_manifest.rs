@@ -120,6 +120,15 @@ impl ExtnSymbol {
         }
         None
     }
+
+    pub fn default() -> Self {
+        ExtnSymbol {
+            id: String::new(),
+            uses: Vec::new(),
+            fulfills: Vec::new(),
+            config: None,
+        }
+    }
 }
 
 impl ExtnManifestEntry {
