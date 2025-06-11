@@ -26,8 +26,10 @@ use ripple_sdk::{
 };
 
 use crate::{
-    bootstrap::manifest::apps::LoadAppLibraryStep, broker::endpoint_broker::BrokerOutput,
-    firebolt::firebolt_gateway::FireboltGatewayCommand, service::extn::ripple_client::RippleClient,
+    bootstrap::manifest::apps::LoadAppLibraryStep,
+    broker::endpoint_broker::{BrokerOutput, BROKER_CHANNEL_BUFFER_SIZE},
+    firebolt::firebolt_gateway::FireboltGatewayCommand,
+    service::extn::ripple_client::RippleClient,
 };
 
 use super::platform_state::PlatformState;
@@ -44,7 +46,7 @@ impl ChannelsState {
     pub fn new() -> ChannelsState {
         let (gateway_tx, gateway_tr) = mpsc::channel(32);
         let (app_req_tx, app_req_tr) = mpsc::channel(32);
-        let (broker_tx, broker_rx) = mpsc::channel(10);
+        let (broker_tx, broker_rx) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
 
         ChannelsState {
             gateway_channel: TransientChannel::new(gateway_tx, gateway_tr),
