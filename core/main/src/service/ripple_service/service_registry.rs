@@ -71,6 +71,11 @@ impl ServiceRegistry {
         }
     }
 
+    // get sender for a given service_id
+    pub async fn get_sender(&self, service_id: &String) -> Option<mpsc::Sender<Message>> {
+        let registry = self.service_registry.lock().await;
+        registry.get(service_id).map(|info| info.tx.clone())
+    }
     async fn process_service_message(
         _state: &PlatformState,
         _connection_id: &str,

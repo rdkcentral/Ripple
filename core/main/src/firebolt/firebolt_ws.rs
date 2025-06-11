@@ -55,7 +55,7 @@ use ripple_sdk::{
     log::{error, info, trace},
     tokio::{
         net::{TcpListener, TcpStream},
-        sync::{mpsc, oneshot, Mutex},
+        sync::{mpsc, oneshot},
     },
     utils::channel_utils::oneshot_send_and_log,
     uuid::Uuid,
