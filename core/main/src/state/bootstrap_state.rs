@@ -26,8 +26,10 @@ use ripple_sdk::{
 };
 
 use crate::{
-    bootstrap::manifest::apps::LoadAppLibraryStep, broker::endpoint_broker::{BrokerOutput, BROKER_CHANNEL_BUFFER_SIZE},
-    firebolt::firebolt_gateway::FireboltGatewayCommand, service::extn::ripple_client::RippleClient,
+    bootstrap::manifest::apps::LoadAppLibraryStep,
+    broker::endpoint_broker::{BrokerOutput, BROKER_CHANNEL_BUFFER_SIZE},
+    firebolt::firebolt_gateway::FireboltGatewayCommand,
+    service::extn::ripple_client::RippleClient,
 };
 
 use super::platform_state::PlatformState;
