@@ -401,7 +401,7 @@ impl ClosedcaptionsImpl {
 
     pub async fn cc_enabled(state: &PlatformState) -> RpcResult<bool> {
         match BrokerUtils::process_internal_main_request(
-            &mut state.clone(),
+            &state.clone(),
             "closedcaptions.enabled",
             None,
         )

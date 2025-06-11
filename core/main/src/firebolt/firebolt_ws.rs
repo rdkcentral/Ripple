@@ -22,7 +22,7 @@ use std::{
 
 use super::firebolt_gateway::FireboltGatewayCommand;
 use crate::{
-    service::apps::delegated_launcher_handler::AppManagerState,
+    service::apps::delegated_launcher_handler::{AppManagerState, AppManagerState2_0},
     state::{
         cap::permitted_state::PermissionHandler, platform_state::PlatformState,
         session_state::Session,
@@ -75,6 +75,8 @@ pub struct ClientIdentity {
 struct ConnectionCallbackConfig {
     pub next: oneshot::Sender<ClientIdentity>,
     pub app_state: AppManagerState,
+    pub app_state2_0: AppManagerState2_0,
+    pub app_lifecycle_2_enabled: bool,
     pub secure: bool,
     pub internal_app_id: Option<String>,
     extns: Vec<ExtnSymbol>,
@@ -137,11 +139,13 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
         tungstenite::handshake::server::Response,
         tungstenite::handshake::server::ErrorResponse,
     > {
-        info!("New firebolt connection {:?}", request.uri().query());
+        let query = request.uri().query();
+        info!("New firebolt connection {:?}", query);
         let cfg = self.0;
 
         if !cfg.secure {
             if let Ok(Some(extn_id)) = get_query(request, "service_handshake", false) {
+                info!("Service handshake for extn_id={}", extn_id);
                 if let Some(c) = cfg.get_extn(&extn_id) {
                     // valid extn_id
                     info!("New Service connection {:?}", extn_id);
@@ -154,6 +158,7 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
                     oneshot_send_and_log(cfg.next, cid, "ResolveClientIdentity");
                     return Ok(response);
                 }
+                info!("Extn not found for extn_id={} in {:?} ", extn_id, cfg.extns);
                 // invalid extn_id
                 let err = tungstenite::http::response::Builder::new()
                     .status(403)
@@ -183,18 +188,34 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
         let app_id = match app_id_opt {
             Some(a) => a,
             None => {
-                if let Some(app_id) = cfg.app_state.get_app_id_from_session_id(&session_id) {
-                    app_id
-                } else {
-                    let err = tungstenite::http::response::Builder::new()
-                        .status(403)
-                        .body(Some(format!(
-                            "No application session found for {}",
-                            session_id
-                        )))
-                        .unwrap();
-                    error!("No application session found for app_id={}", &session_id);
-                    return Err(err);
+                let mut app_id = None;
+                if cfg.app_lifecycle_2_enabled {
+                    let v = cfg.app_state2_0.get_app_id_from_session_id(&session_id);
+                    if v.is_some() {
+                        app_id = v;
+                    }
+                }
+
+                if app_id.is_none() {
+                    app_id = cfg.app_state.get_app_id_from_session_id(&session_id);
+                }
+
+                match app_id {
+                    Some(id) => id,
+                    None => {
+                        error!(
+                            "No application session found for session_id = {}",
+                            &session_id
+                        );
+                        let err = tungstenite::http::response::Builder::new()
+                            .status(403)
+                            .body(Some(format!(
+                                "No application session found for {}",
+                                session_id
+                            )))
+                            .unwrap();
+                        return Err(err);
+                    }
                 }
             }
         };
@@ -205,14 +226,6 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
             Some(e) => e == "true",
             None => false,
         };
-
-        let cid = ClientIdentity {
-            session_id: session_id.clone(),
-            app_id,
-            rpc_v2,
-            service_info: None,
-        };
-        oneshot_send_and_log(cfg.next, cid, "ResolveClientIdentity");
         /*
         add Sec-WebSocket-Protocol header to the response to indicate we suport jsonrpc
         this was breaking FCA as it tried to use standard websocket protocol and do the upgrade,
@@ -227,6 +240,17 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
                 tungstenite::http::header::HeaderValue::from_str("jsonrpc").unwrap(),
             );
         }
+
+        info!("{:?} {} is_rpc_v2={}", query, app_id, rpc_v2);
+
+        let cid = ClientIdentity {
+            session_id: session_id.clone(),
+            app_id,
+            rpc_v2,
+            service_info: None,
+        };
+        oneshot_send_and_log(cfg.next, cid, "ResolveClientIdentity");
+
         Ok(response)
     }
 }
@@ -245,12 +269,19 @@ impl FireboltWs {
         let state_for_connection = state.clone();
         let extns = state.extn_manifest.get_all_extns();
         let app_state = state.app_manager_state.clone();
+        let app_state2_0 = state.lifecycle2_app_state.clone();
+        let app_lifecycle_2_enabled = std::env::var("RIPPLE_LIFECYCLE_2_ENABLED")
+            .ok()
+            .and_then(|s| s.parse::<bool>().ok())
+            .unwrap_or(false);
         // Let's spawn the handling of each connection in a separate task.
         while let Ok((stream, client_addr)) = listener.accept().await {
             let (connect_tx, connect_rx) = oneshot::channel::<ClientIdentity>();
             let cfg = ConnectionCallbackConfig {
                 next: connect_tx,
                 app_state: app_state.clone(),
+                app_state2_0: app_state2_0.clone(),
+                app_lifecycle_2_enabled,
                 secure,
                 internal_app_id: internal_app_id.clone(),
                 extns: extns.clone(),

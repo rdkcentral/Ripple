@@ -66,9 +66,9 @@ use ripple_sdk::{
             device_request::PowerState,
         },
     },
-    serde_json::{Map, Value},
+    serde_json::Value,
 };
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -225,32 +225,6 @@ pub struct ThunderAllTimezonesResponse {
 }
 
 impl ThunderAllTimezonesResponse {
-    fn recurse_timezones(
-        timezones: &mut HashMap<String, String>,
-        prefix: String,
-        source: &Map<String, Value>,
-        filter: Vec<&str>,
-    ) {
-        for (key, value) in source {
-            if filter.is_empty() || filter.contains(&key.as_str()) {
-                let new_prefix = if !prefix.is_empty() {
-                    format!("{}/{}", prefix, key)
-                } else {
-                    key.clone()
-                };
-                match value {
-                    Value::String(s) => {
-                        timezones.insert(new_prefix.clone(), s.clone());
-                    }
-                    Value::Object(map) => {
-                        Self::recurse_timezones(timezones, new_prefix, map, Vec::new())
-                    }
-                    _ => {}
-                }
-            }
-        }
-    }
-
     fn get_offset(&self, key: &str) -> i64 {
         if let Some(tz) = self.timezones.get(key) {
             if let Some(utc_tz) = self.timezones.get("Etc/UTC").cloned() {
@@ -265,50 +239,6 @@ impl ThunderAllTimezonesResponse {
             }
         }
         0
-    }
-}
-impl<'de> Deserialize<'de> for ThunderAllTimezonesResponse {
-    fn deserialize<D>(deserializer: D) -> Result<ThunderAllTimezonesResponse, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let tz_value: Map<String, Value> = Map::deserialize(deserializer)?;
-        let mut timezones = HashMap::new();
-        if let Some(Value::Object(zones)) = tz_value.get("zoneinfo") {
-            Self::recurse_timezones(
-                &mut timezones,
-                String::from(""),
-                zones,
-                vec![
-                    "Etc",
-                    "Utc",
-                    "America",
-                    "Australia",
-                    "Africa",
-                    "Europe",
-                    "Pacific",
-                ],
-            );
-        }
-        Ok(ThunderAllTimezonesResponse { timezones })
-    }
-}
-
-impl ThunderAvailableTimezonesResponse {
-    pub fn as_array(&self) -> Vec<String> {
-        let mut timezones = Vec::default();
-        for (area, locations) in &self.zoneinfo {
-            let mut found_location = false;
-            for location in locations.keys() {
-                timezones.push(format!("{}/{}", area, location));
-                found_location = true;
-            }
-            if !found_location {
-                // If there weren't any specific locations within the area, just add the area itself as a timezone.
-                timezones.push(area.to_string());
-            }
-        }
-        timezones
     }
 }
 
@@ -643,47 +573,106 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     pub async fn get_timezone_and_offset(state: &ThunderState) -> Option<TimeZone> {
-        let timezone_result = ThunderDeviceInfoRequestProcessor::get_timezone_value(state).await;
-        let timezones_result = ThunderDeviceInfoRequestProcessor::get_all_timezones(state).await;
+        // Get the current timezone
+        let Ok(timezone) = ThunderDeviceInfoRequestProcessor::get_timezone_value(state).await
+        else {
+            return None;
+        };
 
-        if let (Ok(timezone), Ok(timezones)) = (timezone_result, timezones_result) {
-            let timezone = TimeZone {
-                time_zone: timezone.clone(),
-                offset: timezones.get_offset(&timezone),
-            };
-            let timezone_c = timezone.clone();
-            let _ = state
-                .get_client()
-                .request_transient(RippleContextUpdateRequest::TimeZone(timezone_c));
-            Some(timezone)
-        } else {
-            None
-        }
+        // Get all timezones (including the specific one we need)
+        let Ok(timezones) =
+            ThunderDeviceInfoRequestProcessor::get_all_timezones(state, &timezone).await
+        else {
+            return None;
+        };
+
+        // Create the TimeZone object
+        let timezone_obj = TimeZone {
+            time_zone: timezone.clone(),
+            offset: timezones.get_offset(&timezone),
+        };
+
+        // Update client with timezone info
+        let _ = state
+            .get_client()
+            .request_transient(RippleContextUpdateRequest::TimeZone(timezone_obj.clone()));
+
+        Some(timezone_obj)
     }
 
+    // Updated function to handle both old and new response formats
     async fn get_all_timezones(
         state: &ThunderState,
+        timezone: &str,
     ) -> Result<ThunderAllTimezonesResponse, RippleError> {
+        // Prepare parameters for the Thunder call
+        let params = Some(DeviceChannelParams::Json(
+            json!({
+                "timeZones": [
+                    timezone,
+                    "Etc/UTC",
+                ]
+            })
+            .to_string(),
+        ));
+
         let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::System.method("getTimeZones"),
-                params: None,
+                params,
             })
             .await;
-        if check_thunder_response_success(&response) {
-            match serde_json::from_value::<ThunderAllTimezonesResponse>(response.message) {
-                Ok(timezones) => Ok(timezones),
-                Err(e) => {
-                    error!("{}", e.to_string());
-                    Err(RippleError::ProcessorError)
+
+        if !check_thunder_response_success(&response) {
+            return Err(RippleError::ProcessorError);
+        }
+        Self::extract_timezone_data_from_response(&response.message, timezone)
+    }
+
+    // Helper function to handle both old and new formats of the response
+    fn extract_timezone_data_from_response(
+        response_value: &Value,
+        timezone: &str,
+    ) -> Result<ThunderAllTimezonesResponse, RippleError> {
+        let mut timezones = HashMap::new();
+
+        if let Some(zoneinfo) = response_value.get("zoneinfo").and_then(|z| z.as_object()) {
+            for (key, value) in zoneinfo {
+                match key.as_str() {
+                    "UTC" | "Etc/UTC" => {
+                        if let Some(time_str) = value.as_str() {
+                            timezones.insert("Etc/UTC".to_string(), time_str.to_string());
+                        }
+                    }
+                    "America" => {
+                        if let Some(obj) = value.as_object() {
+                            for (city, city_val) in obj {
+                                let tz_key = format!("America/{}", city);
+                                if tz_key == timezone {
+                                    if let Some(time_str) = city_val.as_str() {
+                                        timezones.insert(tz_key, time_str.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => {
+                        // Handle flat keys that match the requested timezone
+                        let tz_key = format!("America/{}", key);
+                        if tz_key == timezone {
+                            if let Some(time_str) = value.as_str() {
+                                timezones.insert(tz_key, time_str.to_string());
+                            }
+                        }
+                    }
                 }
             }
+            Ok(ThunderAllTimezonesResponse { timezones })
         } else {
             Err(RippleError::ProcessorError)
         }
     }
-
     async fn voice_guidance_enabled(state: CachedState, request: ExtnMessage) -> bool {
         let response = state
             .get_thunder_client()
@@ -1097,5 +1086,69 @@ pub mod tests {
         // } else {
         //     panic!("Did not get the expected PlatformBuildInfo from extension call");
         // }
+    }
+
+    macro_rules! check_offset {
+        ($mock_response:expr, $timezone:expr, $expected_offset:expr, $expected_rounded_offset:expr) => {{
+            let resp = ThunderDeviceInfoRequestProcessor::extract_timezone_data_from_response(
+                &$mock_response,
+                $timezone,
+            );
+            match resp {
+                Ok(timezones) => {
+                    let offset = timezones.get_offset($timezone);
+                    assert_eq!(
+                        offset, $expected_offset,
+                        "Expected offset for {} is {}, got {}",
+                        $timezone, $expected_offset, offset
+                    );
+                    let rounded_offset = offset / 3600;
+                    assert_eq!(
+                        rounded_offset, $expected_rounded_offset,
+                        "Expected rounded offset for {} is {}, got {}",
+                        $timezone, $expected_rounded_offset, rounded_offset
+                    );
+                }
+                Err(e) => {
+                    panic!("Error processing mock format: {}", e.to_string());
+                }
+            }
+        }};
+    }
+
+    #[tokio::test]
+    async fn test_extract_timezone_data_from_response_and_offset() {
+        let timezone = "America/New_York";
+        let expected_offset = -14400; // -4 hours in seconds
+        let expected_rounded_offset = -4; // -4 hours
+
+        // Mock Thunder response in the flat format
+        let mock_response = json!({
+            "zoneinfo": {
+                "New_York": "Tue May 20 16:34:30 2025 EDT",
+                "UTC": "Tue May 20 20:34:30 2025 UTC",
+            }
+        });
+        check_offset!(
+            mock_response,
+            timezone,
+            expected_offset,
+            expected_rounded_offset
+        );
+
+        // Mock Thunder response in the nested format
+        let mock_nested_response = json!({
+            "zoneinfo": {
+                "America": {"New_York": "Tue May 20 16:34:30 2025 EDT"},
+                "UTC": "Tue May 20 20:34:30 2025 UTC",
+                "Etc/UTC": "Tue May 20 20:34:30 2025 UTC",
+            }
+        });
+        check_offset!(
+            mock_nested_response,
+            timezone,
+            expected_offset,
+            expected_rounded_offset
+        );
     }
 }

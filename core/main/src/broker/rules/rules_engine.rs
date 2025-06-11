@@ -30,14 +30,24 @@ use std::collections::HashMap;
 
 use std::{fs, path::Path};
 
+use super::rules_functions::{apply_functions, RulesFunction, RulesImport};
+
 #[derive(Debug, Deserialize, Default, Clone)]
 pub struct RuleSet {
+    #[serde(default)]
+    pub imports: Vec<String>,
     pub endpoints: HashMap<String, RuleEndpoint>,
     pub rules: HashMap<String, Rule>,
 }
 
 impl RuleSet {
     pub fn append(&mut self, rule_set: RuleSet) {
+        for import in rule_set.imports {
+            if !self.imports.contains(&import) {
+                self.imports.push(import);
+            }
+        }
+
         self.endpoints.extend(rule_set.endpoints);
         let rules: HashMap<String, Rule> = rule_set
             .rules
@@ -98,6 +108,13 @@ pub struct JsonDataSource {
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct EventHandler {
+    pub method: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub params: Option<String>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Rule {
     pub alias: String,
     // Not every rule needs transform
@@ -105,8 +122,8 @@ pub struct Rule {
     pub transform: RuleTransform,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filter: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub event_handler: Option<String>,
+    #[serde(default)]
+    pub event_handler: Option<EventHandler>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub endpoint: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -127,10 +144,6 @@ pub enum RuleType {
     Endpoint,
 }
 impl Rule {
-    fn apply_context(&mut self, rpc_request: &RpcRequest) -> &mut Self {
-        self.transform.apply_context(rpc_request);
-        self
-    }
     pub fn rule_type(&self) -> RuleType {
         match self.alias.trim().to_ascii_lowercase().as_str() {
             "static" => RuleType::Static,
@@ -153,7 +166,7 @@ impl Rule {
         self.filter = Some(filter);
         self
     }
-    pub fn with_event_handler(&mut self, event_handler: String) -> &mut Self {
+    pub fn with_event_handler(&mut self, event_handler: EventHandler) -> &mut Self {
         self.event_handler = Some(event_handler);
         self
     }
@@ -206,10 +219,30 @@ impl RuleTransform {
         output
     }
 
-    pub fn apply_context(&mut self, rpc_request: &RpcRequest) -> &mut Self {
+    pub fn apply_functions(&mut self, imports: &HashMap<String, RulesFunction>) {
+        if let Some(transform) = self.request.take() {
+            if let Ok(transformed) = apply_functions(&transform, imports) {
+                let _ = self.request.insert(transformed);
+            }
+        }
+
+        if let Some(transform) = self.response.take() {
+            if let Ok(transformed) = apply_functions(&transform, imports) {
+                let _ = self.response.insert(transformed);
+            }
+        }
+    }
+
+    pub fn apply_variables(&mut self, rpc_request: &RpcRequest) -> &mut Self {
         if let Some(value) = self.request.take() {
             let _ = self
                 .request
+                .insert(self.check_and_replace(&value, rpc_request));
+        }
+
+        if let Some(value) = self.response.take() {
+            let _ = self
+                .response
                 .insert(self.check_and_replace(&value, rpc_request));
         }
 
@@ -251,6 +284,7 @@ pub enum RuleTransformType {
 #[derive(Debug, Clone, Default)]
 pub struct RuleEngine {
     pub rules: RuleSet,
+    pub functions: HashMap<String, RulesFunction>,
 }
 
 impl RuleEngine {
@@ -291,7 +325,7 @@ impl RuleEngine {
                     info!("loading rules from path {}", path);
                     info!("loading rule {}", path_for_rule);
                     if let Ok((_, rule_set)) = Self::load_from_content(contents) {
-                        engine.rules.append(rule_set)
+                        engine.add_rules(rule_set, &extn_manifest.default_path);
                     } else {
                         warn!("invalid rule found in path {}", path)
                     }
@@ -305,6 +339,37 @@ impl RuleEngine {
         engine
     }
 
+    fn load_imports(&mut self, imports: &Vec<String>, default_path: &str) {
+        for import in imports {
+            let path_to_import = Self::build_path(import, default_path);
+            match fs::read_to_string(&path_to_import) {
+                Ok(import_contents) => {
+                    match serde_json::from_str::<RulesImport>(&import_contents) {
+                        Ok(import) => {
+                            for (function_name, function) in import.functions {
+                                // Last loaded import file will overwrite any pre-exsting functions to allow overriding.
+                                self.functions
+                                    .insert(function_name.clone(), function.clone());
+                            }
+                        }
+                        Err(e) => {
+                            error!(
+                                "load_imports: Invalid import: path_to_import={}, e={:?}",
+                                path_to_import, e
+                            )
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!(
+                        "load_imports: Invalid path: path_to_import={}, e={:?}",
+                        path_to_import, e
+                    );
+                }
+            }
+        }
+    }
+
     pub fn load_from_content(contents: String) -> Result<(String, RuleSet), RippleError> {
         match serde_json::from_str::<RuleSet>(&contents) {
             Ok(manifest) => Ok((contents, manifest)),
@@ -314,8 +379,9 @@ impl RuleEngine {
             }
         }
     }
-    pub fn add_rules(&mut self, rules: RuleSet) {
-        self.rules.append(rules);
+    pub fn add_rules(&mut self, rules: RuleSet, default_path: &str) {
+        self.rules.append(rules.clone());
+        self.load_imports(&rules.imports, default_path);
     }
     pub fn add_rule(&mut self, rule: Rule) {
         self.rules.rules.insert(rule.alias.clone(), rule);
@@ -344,6 +410,14 @@ impl RuleEngine {
         }
     }
 
+    fn apply_functions(&self, rule: &mut Rule) {
+        rule.transform.apply_functions(&self.functions);
+    }
+
+    fn apply_variables(&self, rule: &mut Rule, rpc_request: &RpcRequest) {
+        rule.transform.apply_variables(rpc_request);
+    }
+
     pub fn get_rule(&self, rpc_request: &RpcRequest) -> Result<RuleRetrieved, RuleRetrievalError> {
         let method = rpc_request.method.to_lowercase();
 
@@ -352,9 +426,9 @@ impl RuleEngine {
          */
 
         if let Some(mut rule) = self.rules.get(&method).cloned() {
-            return Ok(RuleRetrieved::ExactMatch(
-                rule.apply_context(rpc_request).to_owned(),
-            ));
+            self.apply_functions(&mut rule);
+            self.apply_variables(&mut rule, rpc_request);
+            Ok(RuleRetrieved::ExactMatch(rule.to_owned()))
         } else {
             /*
              * match, for example api.v1.* as rule name and api.v1.get as method name
@@ -608,7 +682,10 @@ mod tests {
             .rules
             .insert("test.method".to_string(), rule.clone());
 
-        let rule_engine = RuleEngine { rules: rule_set };
+        let rule_engine = RuleEngine {
+            rules: rule_set,
+            functions: HashMap::default(),
+        };
 
         let rpc_request = RpcRequest {
             method: "test.method".to_string(),
@@ -638,7 +715,10 @@ mod tests {
         };
         rule_set.rules.insert("api.v1.*".to_string(), rule.clone());
 
-        let rule_engine = RuleEngine { rules: rule_set };
+        let rule_engine = RuleEngine {
+            rules: rule_set,
+            functions: HashMap::default(),
+        };
 
         let rpc_request = RpcRequest {
             method: "api.v1.get".to_string(),
@@ -662,7 +742,10 @@ mod tests {
     #[test]
     fn test_get_rule_no_match() {
         let rule_set = RuleSet::default();
-        let rule_engine = RuleEngine { rules: rule_set };
+        let rule_engine = RuleEngine {
+            rules: rule_set,
+            functions: HashMap::default(),
+        };
 
         let rpc_request = RpcRequest {
             method: "nonexistent.method".to_string(),
