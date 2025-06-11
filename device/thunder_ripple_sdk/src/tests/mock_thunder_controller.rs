@@ -153,6 +153,7 @@ impl MockThunderController {
         msg: DeviceCallRequest,
         device_response_message_tx: mpsc::Sender<DeviceResponseMessage>,
     ) {
+        println!("*** _DEBUG: handle_thunder_call: DeviceChannelRequest::Call req received : {:?}", msg);
         let locator = JsonRpcMethodLocator::from_str(&msg.method).unwrap();
         let module = locator.module.unwrap();
 
@@ -296,6 +297,7 @@ impl MockThunderController {
         mpsc::Sender<DeviceChannelRequest>,
         mpsc::Receiver<DeviceResponseMessage>,
     ) {
+        println!("*** _DEBUG: start_with_custom_handlers: invoked");
         let (device_channel_request_tx, mut device_channel_request_rx) = mpsc::channel(32);
         let (device_response_message_tx, mut device_response_message_rx) = mpsc::channel(32);
 
@@ -309,11 +311,13 @@ impl MockThunderController {
 
                 match device_channel_request {
                     DeviceChannelRequest::Call(msg) => {
+                        println!("*** _DEBUG: start_with_custom_handlers: DeviceChannelRequest::Call req received : {:?}", msg);
                         mock_controller
                             .handle_thunder_call(msg, device_response_message_tx.clone())
                             .await;
                     }
                     DeviceChannelRequest::Subscribe(msg) => {
+                        println!("*** _DEBUG: start_with_custom_handlers: DeviceChannelRequest::Subscribe req received : {:?}", msg);
                         mock_controller
                             .handle_thunder_sub(msg, device_response_message_tx.clone())
                             .await;
@@ -346,6 +350,7 @@ impl MockThunderController {
     pub fn state_with_mock(
         custom_thunder: Option<CustomHandler>,
     ) -> (CachedState, mpsc::Receiver<DeviceResponseMessage>) {
+        println!("*** _DEBUG: state_with_mock: invoked");
         let (device_channel_request_tx, device_response_message_rx) =
             MockThunderController::start_with_custom_handlers(custom_thunder);
 

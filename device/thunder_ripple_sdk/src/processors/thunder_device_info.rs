@@ -1148,6 +1148,9 @@ pub mod tests {
                 "*** _DEBUG: test_platform_build_info_with_build_name: Received DeviceResponseMessage: {:?}",
                 r
             );
+                let client = state.clone().get_thunder_client();
+                let mut callback = client.thunder_async_client.as_ref().map(|c| c.get_callback());
+                client.return_message()
             }
         });
 

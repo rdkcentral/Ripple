@@ -66,6 +66,10 @@ impl ThunderClientManager {
         /*thunder async response will get here */
         tokio::spawn(async move {
             while let Some(response) = response_tr.recv().await {
+                println!(
+                    "*** _DEBUG: ThunderClientManager: ThunderAsyncResponse received : {:?}",
+                    response
+                );
                 if let Some(id) = response.get_id() {
                     if let Some(thunder_async_callbacks) = client.clone().thunder_async_callbacks {
                         let mut callbacks = thunder_async_callbacks.write().unwrap();
@@ -138,6 +142,10 @@ impl DeviceOperator for ThunderClient {
         let async_request = ThunderAsyncRequest::new(DeviceChannelRequest::Call(request));
         self.add_callback(&async_request, tx);
         if let Some(async_client) = &self.thunder_async_client {
+            println!(
+                "*** _DEBUG: ThunderClient: call: request= {:?}",
+                async_request
+            );
             async_client.send(async_request).await;
         }
 
@@ -189,6 +197,10 @@ impl ThunderClient {
         request: &ThunderAsyncRequest,
         dev_resp_callback: Sender<DeviceResponseMessage>,
     ) {
+        println!(
+            "*** _DEBUG: add_callback invoked for : ThunderAsyncRequest: {}",
+            request
+        );
         if let Some(callbacks_arc) = &self.thunder_async_callbacks {
             let mut callbacks = callbacks_arc.write().unwrap();
             callbacks.insert(request.id, Some(dev_resp_callback));
@@ -241,12 +253,14 @@ impl ThunderClient {
         let callback = AsyncCallback {
             sender: thunder_async_response_tx,
         };
+
         let (thunder_async_request_tx, mut thunder_async_request_rx) = mpsc::channel(32);
         let broker_sender = AsyncSender {
             sender: thunder_async_request_tx,
         };
         let client = ThunderAsyncClient::new(callback, broker_sender);
 
+        // Handle requests from ThunderAsyncClient and forward to device_channel_request_tx
         tokio::spawn(async move {
             while let Some(thunder_async_request) = thunder_async_request_rx.recv().await {
                 println!(
@@ -263,12 +277,19 @@ impl ThunderClient {
             }
         });
 
+        // Optionally, you can process responses here if needed
         tokio::spawn(async move {
             while let Some(thunder_async_response) = thunder_async_response_rx.recv().await {
                 println!(
                     "*** _DEBUG: ThunderClient: mock: thunder_async_response= {:?}",
                     thunder_async_response
                 );
+                // oneshot_send_and_log(
+                //     thunder_async_response_tx,
+                //     thunder_async_response,
+                //     "thunderasyncresponse",
+                // );
+                // You can add logic here to handle the response if required
             }
         });
 
