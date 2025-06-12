@@ -18,8 +18,8 @@
 use std::collections::HashMap;
 
 use crate::{
-    broker::broker_utils::BrokerUtils, firebolt::rpc::RippleRPCProvider,
-    state::platform_state::PlatformState, utils::rpc_utils::rpc_add_event_listener,
+    firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState,
+    utils::rpc_utils::rpc_add_event_listener,
 };
 use jsonrpsee::{
     core::{async_trait, RpcResult},
@@ -31,7 +31,7 @@ use ripple_sdk::api::{
         fb_general::{ListenRequest, ListenerResponse},
         fb_secondscreen::SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST,
     },
-    gateway::rpc_gateway_api::{rpc_value_result_to_string_result, CallContext},
+    gateway::rpc_gateway_api::CallContext,
 };
 
 pub const EVENT_SECOND_SCREEN_ON_CLOSE_REQUEST: &str = "secondscreen.onCloseRequest";
