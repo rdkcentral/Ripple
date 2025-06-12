@@ -1006,6 +1006,7 @@ pub mod tests {
     use std::sync::Arc;
     use tokio::sync::oneshot;
 
+    use crate::client::thunder_async_client::ThunderAsyncResponse;
     use crate::{
         client::{
             device_operator::{DeviceCallRequest, DeviceResponseMessage},
@@ -1015,6 +1016,7 @@ pub mod tests {
         processors::thunder_device_info::ThunderDeviceInfoRequestProcessor,
         tests::mock_thunder_controller::{CustomHandler, MockThunderController, ThunderHandlerFn},
     };
+    use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
 
     // <pca>
     // macro_rules! run_platform_info_test {
@@ -1029,14 +1031,40 @@ pub mod tests {
     //         })).await;
     //     };
     // }
+    // macro_rules! run_platform_info_test {
+    //     ($build_name:expr) => {
+    //         test_platform_build_info_with_build_name($build_name, Arc::new(|_msg: DeviceCallRequest, device_response_message_tx: oneshot::Sender<DeviceResponseMessage>| {
+
+    //             println!("*** _DEBUG: run_platform_info_test: Custom handler: build_name={}", $build_name);
+    //             oneshot_send_and_log(
+    //                 device_response_message_tx,
+    //                 DeviceResponseMessage::call(json!({"success" : true, "stbVersion": $build_name, "receiverVersion": $build_name, "stbTimestamp": "".to_owned() })),
+    //                 "",
+    //             );
+    //         })).await;
+    //     };
+    // }
+
     macro_rules! run_platform_info_test {
         ($build_name:expr) => {
-            test_platform_build_info_with_build_name($build_name, Arc::new(|_msg: DeviceCallRequest, device_response_message_tx: oneshot::Sender<DeviceResponseMessage>| {
+            test_platform_build_info_with_build_name($build_name, Arc::new(|_msg: DeviceCallRequest, async_resp_message_tx: oneshot::Sender<ThunderAsyncResponse>| {
 
                 println!("*** _DEBUG: run_platform_info_test: Custom handler: build_name={}", $build_name);
-                oneshot_send_and_log(
-                    device_response_message_tx,
-                    DeviceResponseMessage::call(json!({"success" : true, "stbVersion": $build_name, "receiverVersion": $build_name, "stbTimestamp": "".to_owned() })),
+            let thunderasyncresp = ThunderAsyncResponse {
+                id: None,
+                result: Ok(JsonRpcApiResponse {
+                    jsonrpc: "2.0".to_owned(),
+                    id: None,
+                    result: Some(json!({"success" : true, "stbVersion": $build_name, "receiverVersion": $build_name, "stbTimestamp": "".to_owned() })),
+                    error: None,
+                    method: None,
+                    params: None
+                }),
+            };
+
+            oneshot_send_and_log(
+                    async_resp_message_tx,
+                    thunderasyncresp,
                     "",
                 );
             })).await;
@@ -1148,9 +1176,6 @@ pub mod tests {
                 "*** _DEBUG: test_platform_build_info_with_build_name: Received DeviceResponseMessage: {:?}",
                 r
             );
-                let client = state.clone().get_thunder_client();
-                let mut callback = client.thunder_async_client.as_ref().map(|c| c.get_callback());
-                client.return_message()
             }
         });
 

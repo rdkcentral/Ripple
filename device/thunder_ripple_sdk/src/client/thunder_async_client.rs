@@ -278,6 +278,7 @@ impl ThunderAsyncClient {
         mut thunder_async_request_rx: Receiver<ThunderAsyncRequest>,
         status_check: bool,
     ) {
+        println!("@@@NNA.... we reached thundersyncclient start fn..");
         loop {
             info!("start: (re)establishing websocket connection: url={}", url);
             let resp = WebSocketUtils::get_ws_stream(url, None).await;
@@ -398,6 +399,7 @@ impl ThunderAsyncClient {
     }
 
     pub async fn send(&self, request: ThunderAsyncRequest) {
+        println!("@@@NNA....at thunderasync send fn");
         if let Err(e) = self.sender.send(request).await {
             error!("Failed to send thunder Async Request: {:?}", e);
         }
