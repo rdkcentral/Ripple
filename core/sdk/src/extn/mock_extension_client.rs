@@ -2,7 +2,6 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 
 use crate::{
-    api::{gateway::rpc_gateway_api::ApiMessage, manifest::extn_manifest::ExtnSymbol},
     extn::{
         client::extn_client::ExtnClient,
         extn_client_message::{ExtnMessage, ExtnPayload, ExtnRequest},

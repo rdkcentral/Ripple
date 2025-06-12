@@ -342,7 +342,7 @@ impl ThunderClient {
                     thunder_async_request
                 );
 
-                mpsc_send_and_log(  
+                mpsc_send_and_log(
                     &device_channel_request_tx,
                     thunder_async_request.request,
                     "DeviceChannelRequest",
