@@ -58,7 +58,7 @@ fn start() {
         return;
     }
     let symbol = symbol.unwrap();
-    let (mut client, tr) = ExtnClient::new_extn(symbol);
+    let (mut client, tr, trs) = ExtnClient::new_extn(symbol);
     runtime.block_on(async move {
         let client_c = client.clone();
         tokio::spawn(async move {
@@ -79,7 +79,7 @@ fn start() {
             };
         });
 
-        client_c.initialize(tr).await;
+        client_c.initialize(tr, trs).await;
     });
 }
 

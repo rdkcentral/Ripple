@@ -19,6 +19,7 @@ use chrono::Utc;
 use log::warn;
 #[cfg(not(test))]
 use log::{debug, error, info, trace};
+use serde_json::json;
 use std::{
     collections::HashMap,
     ops::ControlFlow,
@@ -42,7 +43,9 @@ use crate::{
         manifest::extn_manifest::ExtnSymbol,
     },
     extn::{
-        extn_client_message::{ExtnMessage, ExtnPayloadProvider, ExtnResponse},
+        extn_client_message::{
+            ExtnMessage, ExtnPayloadProvider, ExtnResponse, JsonRpcMessage, ServiceMessage,
+        },
         extn_id::ExtnId,
     },
     framework::{ripple_contract::RippleContract, RippleResponse},
@@ -72,6 +75,7 @@ use crate::utils::mock_utils::get_next_mock_response;
 #[derive(Clone, Debug)]
 pub struct ExtnClient {
     sender: ExtnSender,
+    service_sender: Option<MSender<ServiceMessage>>,
     extn_sender_map: Arc<RwLock<HashMap<String, MSender<ApiMessage>>>>,
     contract_map: Arc<RwLock<HashMap<String, String>>>,
     response_processors: Arc<RwLock<HashMap<String, OSender<ExtnMessage>>>>,
@@ -117,6 +121,7 @@ impl ExtnClient {
 
     pub fn new_main() -> ExtnClient {
         Self {
+            service_sender: None,
             sender: ExtnSender::new_main(),
             extn_sender_map: Arc::new(RwLock::new(HashMap::new())),
             contract_map: Arc::new(RwLock::new(HashMap::new())),
@@ -127,10 +132,18 @@ impl ExtnClient {
         }
     }
 
-    pub fn new_extn(symbol: ExtnSymbol) -> (ExtnClient, mpsc::Receiver<ApiMessage>) {
-        let (tx, tr) = mpsc::channel::<ApiMessage>(32);
+    pub fn new_extn(
+        symbol: ExtnSymbol,
+    ) -> (
+        ExtnClient,
+        mpsc::Receiver<ApiMessage>,
+        Option<mpsc::Receiver<ServiceMessage>>,
+    ) {
+        let (ext_tx, ext_tr) = mpsc::channel::<ApiMessage>(32);
+        let (service_tx, service_tr) = mpsc::channel::<ServiceMessage>(32);
         let client = Self {
-            sender: ExtnSender::new_extn(tx, symbol),
+            service_sender: Some(service_tx.clone()),
+            sender: ExtnSender::new_extn(ext_tx, symbol),
             extn_sender_map: Arc::new(RwLock::new(HashMap::new())),
             contract_map: Arc::new(RwLock::new(HashMap::new())),
             response_processors: Arc::new(RwLock::new(HashMap::new())),
@@ -139,7 +152,7 @@ impl ExtnClient {
             ripple_context: Arc::new(RwLock::new(RippleContext::default())),
         };
 
-        (client, tr)
+        (client, ext_tr, Some(service_tr))
     }
 
     /// Adds a new request processor reference to the internal map of processors
@@ -258,8 +271,42 @@ impl ExtnClient {
             .collect()
     }
 
+    pub fn handle_service_message(&self, sm: ServiceMessage) -> Result<(), RippleError> {
+        trace!("Received Service Message: {:?}", sm);
+        match sm.message {
+            JsonRpcMessage::Request(json_rpc_request) => {
+                if let Some(sender) = &self.service_sender {
+                    // create a response message ServiceMessage and send it to the service
+                    let mut respose = ServiceMessage::new_success(
+                        json!({"status": "ok from service"}),
+                        json_rpc_request.id,
+                    );
+                    respose.set_context(sm.context.clone());
+                    sender.try_send(respose).map_err(|e| {
+                        error!("Error sending service response: {:?}", e);
+                        RippleError::InvalidInput
+                    })?;
+                } else {
+                    error!("Service sender is missing");
+                    return Err(RippleError::SenderMissing);
+                };
+            }
+            JsonRpcMessage::Notification(_json_rpc_notification) => {}
+            JsonRpcMessage::Success(_json_rpc_success) => {}
+            JsonRpcMessage::Error(json_rpc_error) => {
+                error!("Received Service Error: {:?}", json_rpc_error);
+            }
+        }
+        Ok(())
+    }
     /// Called once per client initialization this is a blocking method. Use a spawned thread to call this method
-    pub async fn initialize(&self, mut tr: mpsc::Receiver<ApiMessage>) {
+    // The additional `trs` parameter is used to receive messages from the service
+    // We need both these channels for supporting APIs using extn and service endpoints.
+    pub async fn initialize(
+        &self,
+        mut outbound_extn_rx: mpsc::Receiver<ApiMessage>,
+        outbound_service_rx: Option<mpsc::Receiver<ServiceMessage>>,
+    ) {
         debug!("Starting initialize");
         let base_path = std::env::var("RIPPLE_SERVICE_HANDSHAKE_PATH")
             .unwrap_or_else(|_| "127.0.0.1:3474".to_string());
@@ -270,6 +317,7 @@ impl ExtnClient {
             .build()
             .unwrap();
 
+        let mut outbound_service_rx = outbound_service_rx.unwrap();
         let path = path.to_string();
         if let Ok((mut ws_tx, mut ws_rx)) = WebSocketUtils::get_ws_stream(&path, None).await {
             tokio::pin! {
@@ -281,17 +329,29 @@ impl ExtnClient {
                         match value {
                             Ok(msg) => {
                                 if let Message::Text(message) = msg.clone() {
-                                    if let Ok(extn_message) = ExtnMessage::try_from(message) {
-                                        if let Some(ts) = extn_message.ts {
-                                            let latency = Utc::now().timestamp_millis() - ts;
-                                            if latency > 1000 {
-                                                error!("IEC Latency {:?}", msg);
-                                            }
-                                        }
-                                        self.handle_message(extn_message);
+                                    // check if the message is a service message
+                                    if let Ok(sm) = serde_json::from_str::<ServiceMessage>(&message) {
+                                        info!("Received Service Message: {:?}", sm);
+                                        let _ = Self::handle_service_message(
+                                            self, sm.clone()
+                                        );
                                     } else {
-                                        error!("Failed to parse message: {:?}", msg);
-                                    }
+                                        if let Ok(extn_message) = ExtnMessage::try_from(message) {
+                                            if let Some(ts) = extn_message.ts {
+                                                let latency = Utc::now().timestamp_millis() - ts;
+                                                if latency > 1000 {
+                                                    error!("IEC Latency {:?}", msg);
+                                                }
+                                            }
+                                            self.handle_message(extn_message);
+                                        }
+                                    };
+                                }
+                                else if let Message::Close(_) = msg {
+                                    info!("Received Close message, exiting initialize");
+                                    break;
+                                } else {
+                                    warn!("Received unexpected message: {:?}", msg);
                                 }
                             }
                             Err(e) => {
@@ -300,9 +360,14 @@ impl ExtnClient {
                             }
                         }
                     },
-                    Some(request) = tr.recv() => {
+                    Some(request) = outbound_extn_rx.recv() => {
                         trace!("IEC send: {:?}", request.jsonrpc_msg);
                         let _feed = ws_tx.feed(Message::Text(request.jsonrpc_msg)).await;
+                        let _flush = ws_tx.flush().await;
+                    }
+                    Some(request) = outbound_service_rx.recv() => {
+                        trace!("Service Message send: {:?}", request);
+                        let _feed = ws_tx.feed(Message::Text(request.into())).await;
                         let _flush = ws_tx.flush().await;
                     }
                 }
@@ -2063,7 +2128,7 @@ pub mod tests {
             case(HashMap::new(), None),
         )]
     fn test_get_stack_size(config: HashMap<String, String>, exp_size: Option<ExtnStackSize>) {
-        let (extn_client, _) = ExtnClient::new_extn(ExtnSymbol {
+        let (extn_client, _, _) = ExtnClient::new_extn(ExtnSymbol {
             id: ExtnId::get_main_target("main".into()).to_string(),
             uses: Vec::new(),
             fulfills: Vec::new(),
@@ -2112,7 +2177,7 @@ pub mod tests {
         case(None, false),
     )]
     fn test_get_bool_config(config: Option<HashMap<String, String>>, expected_value: bool) {
-        let (extn_client, _tr) = ExtnClient::new_extn(ExtnSymbol {
+        let (extn_client, _tr, _) = ExtnClient::new_extn(ExtnSymbol {
             id: ExtnId::get_main_target("main".into()).to_string(),
             uses: Vec::new(),
             fulfills: Vec::new(),
@@ -2129,7 +2194,7 @@ pub mod tests {
         case(None, None),
     )]
     fn test_get_uint_config(config: Option<HashMap<String, String>>, expected_value: Option<u64>) {
-        let (extn_client, _tr) = ExtnClient::new_extn(ExtnSymbol {
+        let (extn_client, _tr, _) = ExtnClient::new_extn(ExtnSymbol {
             id: ExtnId::get_main_target("main".into()).to_string(),
             uses: Vec::new(),
             fulfills: Vec::new(),
@@ -2196,7 +2261,7 @@ pub mod tests {
         exp_resp: bool,
         error_msg: &str,
     ) {
-        let (extn_client, _tr) = ExtnClient::new_extn(ExtnSymbol {
+        let (extn_client, _tr, _) = ExtnClient::new_extn(ExtnSymbol {
             id: id.to_string(),
             uses: permitted,
             fulfills,
@@ -2236,7 +2301,7 @@ pub mod tests {
         exp_resp: bool,
         error_msg: &str,
     ) {
-        let (extn_client, _tr) = ExtnClient::new_extn(ExtnSymbol {
+        let (extn_client, _tr, _) = ExtnClient::new_extn(ExtnSymbol {
             id: id.to_string(),
             uses: Vec::new(),
             fulfills,

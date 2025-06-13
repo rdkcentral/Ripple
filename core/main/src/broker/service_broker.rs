@@ -19,17 +19,13 @@ use super::endpoint_broker::{
     EndpointBroker, EndpointBrokerState, BROKER_CHANNEL_BUFFER_SIZE,
 };
 use crate::state::platform_state::PlatformState;
-use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiError;
-use ripple_sdk::extn::extn_client_message::ExtnResponse;
-use ripple_sdk::extn::extn_id::ExtnProviderRequest;
-use ripple_sdk::log::trace;
 use ripple_sdk::{
-    api::gateway::rpc_gateway_api::JsonRpcApiResponse,
-    api::observability::log_signal::LogSignal,
-    extn::extn_id::ExtnId,
-    log::error,
+    api::{gateway::rpc_gateway_api::JsonRpcApiError, observability::log_signal::LogSignal},
+    extn::extn_client_message::{Id, ServiceMessage},
+    log::{error, info},
     tokio::{self, sync::mpsc},
     tokio_tungstenite::tungstenite::Message,
+    utils::error::RippleError,
 };
 
 #[derive(Clone)]
@@ -63,50 +59,45 @@ impl ServiceBroker {
                     broker_request.rpc.ctx.clone(),
                 )
                 .emit_debug();
-                let rpc_request = broker_request.rpc.clone();
-                let rule = broker_request.rule.clone();
-                let alias = rule.alias;
-                let id = match ExtnId::try_from(alias.clone()) {
-                    Ok(extn_id) => extn_id,
-                    Err(_) => {
-                        error!("Failed to convert alias to ExtnId");
+
+                let service_id = broker_request.rule.alias.clone();
+
+                // get the ws sender for the service from service_registry
+                let service_sender = match ps_c.service_registry.get_sender(&service_id).await {
+                    Some(sender) => sender,
+                    None => {
+                        error!("Service sender not found for service id: {}", service_id);
+                        Self::log_error_and_send_broker_failure_response(
+                            broker_request.clone(),
+                            &callback,
+                            JsonRpcApiError::default()
+                                .with_code(-32001)
+                                .with_message(format!(
+                                    "Service sender not found for service id: {}",
+                                    service_id
+                                ))
+                                .with_id(broker_request.rpc.ctx.call_id),
+                        );
                         continue;
                     }
                 };
 
-                // get the ws sender for the service from the platform state
-                let service_sender = ps_c.service_registry.get_sender(&id.service).await;
+                let request = match Self::update_service_request(&broker_request) {
+                    Ok(req) => req,
+                    Err(e) => {
+                        error!("Failed to update request: {:?}", e);
+                        Self::log_error_and_send_broker_failure_response(
+                            broker_request.clone(),
+                            &callback,
+                            JsonRpcApiError::default()
+                                .with_code(-32001)
+                                .with_message(format!("Failed to update request: {}", e))
+                                .with_id(broker_request.rpc.ctx.call_id),
+                        );
+                        continue;
+                    }
+                };
 
-                if service_sender.is_none() {
-                    error!("Service sender not found for service id: {}", id.service);
-                    Self::log_error_and_send_broker_failure_response(
-                        broker_request.clone(),
-                        &callback,
-                        JsonRpcApiError::default()
-                            .with_code(-32001)
-                            .with_message(format!(
-                                "Service sender not found for service id: {}",
-                                id.service
-                            ))
-                            .with_id(broker_request.rpc.ctx.call_id),
-                    );
-                    continue;
-                }
-                let service_sender = service_sender.unwrap();
-                let res = Self::update_request(&broker_request);
-                if let Err(e) = res {
-                    error!("Failed to update request: {:?}", e);
-                    Self::log_error_and_send_broker_failure_response(
-                        broker_request.clone(),
-                        &callback,
-                        JsonRpcApiError::default()
-                            .with_code(-32001)
-                            .with_message(format!("Failed to update request: {}", e))
-                            .with_id(broker_request.rpc.ctx.call_id),
-                    );
-                    continue;
-                }
-                let request = res.unwrap();
                 LogSignal::new(
                     "service_broker".to_string(),
                     format!("Sending request to service: {:?}", request),
@@ -114,73 +105,43 @@ impl ServiceBroker {
                 )
                 .emit_debug();
 
-                let _ = service_sender.send(Message::Text(request)).await;
-                /*
-
-                let request = ExtnProviderRequest {
-                    value: serde_json::to_value(rpc_request.clone()).unwrap(),
-                    id: id.clone(),
-                };
-
-                let client = if let Some(platform_state) = &ps {
-                    platform_state.get_client()
+                // set the Broker callback in service Registry for sending broker response
+                if let Some(workflow_callback) = broker_request.workflow_callback.clone() {
+                    let _ = ps_c
+                        .service_registry
+                        .set_broker_callback(&service_id, workflow_callback)
+                        .await;
                 } else {
-                    return;
-                };
+                    let _ = ps_c
+                        .service_registry
+                        .set_broker_callback(&service_id, callback.clone())
+                        .await;
+                }
 
-                match client.send_extn_request(request.clone()).await {
-                    Ok(response) => {
-                        if let Some(ExtnResponse::String(v)) = response.payload.extract() {
-                            if let Ok(value) = serde_json::from_str::<JsonRpcApiResponse>(&v) {
-                                LogSignal::new(
-                                    "extn_broker".to_string(),
-                                    format!("Received response from extn: {:?}", value),
-                                    broker_request.rpc.ctx.clone(),
-                                )
-                                .emit_debug();
-                                Self::send_broker_success_response(&callback, value);
-                            } else {
-                                trace!("serde failed in extn_broker");
-                                Self::send_broker_failure_response(
-                                    &callback,
-                                    JsonRpcApiError::default()
-                                        .with_code(-32001)
-                                        .with_message(format!(
-                                            "extn_broker error for api {}: serde failed",
-                                            broker_request.rpc.method,
-                                        ))
-                                        .with_id(broker_request.rpc.ctx.call_id)
-                                        .into(),
-                                );
-                            }
-                        } else {
-                            Self::log_error_and_send_broker_failure_response(
-                                broker_request.clone(),
-                                &callback,
-                                JsonRpcApiError::default()
-                                    .with_code(-32001)
-                                    .with_message(format!(
-                                        "extn_broker error for api {}: received response: {:?}",
-                                        broker_request.rpc.method, response.payload,
-                                    ))
-                                    .with_id(broker_request.rpc.ctx.call_id),
-                            );
-                        }
-                    }
-                    Err(e) => {
-                        Self::log_error_and_send_broker_failure_response(
-                            broker_request.clone(),
-                            &callback,
-                            JsonRpcApiError::default()
-                                .with_code(-32001)
-                                .with_message(format!(
-                                    "Extn error for api {}: received response: {}",
-                                    broker_request.rpc.method, e
-                                ))
-                                .with_id(broker_request.rpc.ctx.call_id),
-                        );
-                    }
-                } */
+                if let Err(err) = service_sender.try_send(Message::Text(request)) {
+                    error!(
+                        "Failed to send request to service {}: {:?}",
+                        service_id, err
+                    );
+                    Self::log_error_and_send_broker_failure_response(
+                        broker_request.clone(),
+                        &callback,
+                        JsonRpcApiError::default()
+                            .with_code(-32001)
+                            .with_message(format!(
+                                "Failed to send request to service {}: {:?}",
+                                service_id, err
+                            ))
+                            .with_id(broker_request.rpc.ctx.call_id),
+                    );
+                } else {
+                    LogSignal::new(
+                        "service_broker".to_string(),
+                        format!("Request sent to service: {}", service_id),
+                        broker_request.rpc.ctx.clone(),
+                    )
+                    .emit_debug();
+                }
             }
         });
 
@@ -195,12 +156,28 @@ impl ServiceBroker {
         error: JsonRpcApiError,
     ) {
         LogSignal::new(
-            "extn_broker".to_string(),
+            "service_broker".to_string(),
             format!("broker request failed: {:?} error: {:?}", request, error),
             request.rpc.ctx.clone(),
         )
         .emit_error();
         Self::send_broker_failure_response(callback, error.into());
+    }
+
+    fn update_service_request(broker_request: &BrokerRequest) -> Result<String, RippleError> {
+        let v = Self::apply_request_rule(broker_request)?;
+        info!("transformed request {:?}", v);
+
+        // Create a ServiceMessage
+        let mut request = ServiceMessage::new_request(
+            broker_request.rpc.ctx.method.clone(),
+            Some(v.clone()),
+            Id::Number(broker_request.rpc.ctx.call_id.try_into().unwrap()),
+        );
+        request.set_context(Some(serde_json::Value::from(
+            broker_request.rpc.ctx.clone(),
+        )));
+        Ok(request.into())
     }
 }
 
