@@ -22,7 +22,7 @@ repository = "https://github.com/rdkcentral/Ripple"
 
 [features]
 local_dev = ["jsonrpsee"]
-default = []
+default = ["jsonrpsee"]
 rpc = ["jsonrpsee"]
 tdk = []
 full = ["rpc"]
@@ -44,8 +44,7 @@ contract_tests = [
 
 #dependencies inherited from workspace
 futures-channel.workspace = true
-serde.workspace = true
-serde_json.workspace = true
+
 chrono.workspace = true
 tokio = { workspace = true, features = [
     "macros",
@@ -55,7 +54,7 @@ tokio = { workspace = true, features = [
     "time",
 ] }
 futures.workspace = true
-jsonrpsee = { workspace = true, features=["server"], optional = true }
+
 
 regex.workspace = true
 uuid = { workspace = true, features = ["serde", "v5", "v4"] }
@@ -78,6 +77,9 @@ jaq-parse = { version = "1.0.2", default-features = false }
 jaq-core = "1.5.0"
 jaq-std = { version = "1.5.1", default-features = false }
 mockall = "0.13.1"
+jsonrpsee = { version = "=0.16.3", default-features = false,features = ["macros", "jsonrpsee-core","server"] ,optional = true }
+serde_json = { version = "1.0", default-features = false}
+serde = { version = "1.0", features = ["derive"], default-features =  false  }
 
 [dev-dependencies]
 ripple_sdk = { path = ".", features=["tdk"]}
