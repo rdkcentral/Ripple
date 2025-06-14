@@ -25,6 +25,7 @@ use ripple_sdk::{
             exclusory::ExclusoryImpl,
             extn_manifest::ExtnManifest,
         },
+        rules_engine::RuleEngineProvider,
         session::SessionAdjective,
     },
     extn::{
@@ -32,13 +33,15 @@ use ripple_sdk::{
         extn_id::ExtnId,
     },
     framework::ripple_contract::RippleContract,
+    tokio,
     utils::error::RippleError,
     uuid::Uuid,
 };
-use std::collections::HashMap;
+use ssda_types::gateway::ApiGatewayServer;
+use std::{collections::HashMap, fmt, sync::Arc};
 
 use crate::{
-    broker::{endpoint_broker::EndpointBrokerState, rules::rules_engine::RuleEngine},
+    broker::endpoint_broker::EndpointBrokerState,
     firebolt::rpc_router::RouterState,
     service::{
         apps::{
@@ -71,6 +74,19 @@ pub struct DeviceSessionIdentifier {
     pub device_session_id: Uuid,
 }
 
+/// A wrapper for `Arc<tokio::sync::Mutex<Box<dyn ApiGatewayServer + Send + Sync>>>`
+/// that implements the `Debug` trait.
+#[derive(Clone)]
+pub struct DebuggableApiGatewayServer(
+    pub Arc<tokio::sync::Mutex<Box<dyn ApiGatewayServer + Send + Sync>>>,
+);
+
+impl fmt::Debug for DebuggableApiGatewayServer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "DebuggableApiGatewayServer")
+    }
+}
+
 impl Default for DeviceSessionIdentifier {
     fn default() -> Self {
         Self {
@@ -91,7 +107,7 @@ impl From<String> for DeviceSessionIdentifier {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct PlatformState {
     pub extn_manifest: ExtnManifest,
     device_manifest: DeviceManifest,
@@ -110,8 +126,27 @@ pub struct PlatformState {
     pub version: Option<String>,
     pub endpoint_state: EndpointBrokerState,
     pub lifecycle2_app_state: AppManagerState2_0,
+    pub services_gateway_api: Arc<tokio::sync::Mutex<Box<dyn ApiGatewayServer + Send + Sync>>>,
 }
-
+impl std::fmt::Debug for PlatformState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PlatformState")
+            .field("extn_manifest", &self.extn_manifest)
+            .field("device_manifest", &self.device_manifest)
+            .field("ripple_client", &self.ripple_client)
+            .field("app_library_state", &self.app_library_state)
+            .field("session_state", &self.session_state)
+            .field("cap_state", &self.cap_state)
+            .field("app_events_state", &self.app_events_state)
+            .field("provider_broker_state", &self.provider_broker_state)
+            .field("app_manager_state", &self.app_manager_state)
+            .field("open_rpc_state", &self.open_rpc_state)
+            .field("router_state", &self.router_state)
+            .field("metrics", &self.metrics)
+            .field("device_session_id", &self.device_session_id)
+            .finish()
+    }
+}
 impl PlatformState {
     pub fn new(
         extn_manifest: ExtnManifest,
@@ -119,10 +154,11 @@ impl PlatformState {
         client: RippleClient,
         app_library: Vec<AppLibraryEntry>,
         version: Option<String>,
+        services_gateway_api: Arc<tokio::sync::Mutex<Box<dyn ApiGatewayServer + Send + Sync>>>,
+        rule_engine: Arc<tokio::sync::RwLock<Box<dyn RuleEngineProvider + Send + Sync>>>,
     ) -> PlatformState {
         let exclusory = ExclusoryImpl::get(&manifest);
         let broker_sender = client.get_broker_sender();
-        let rule_engine = RuleEngine::build(&extn_manifest);
         let extn_sdks = extn_manifest.extn_sdks.clone();
         let provider_registations = extn_manifest.provider_registrations.clone();
         let metrics_state = OpMetricState::default();
@@ -149,6 +185,7 @@ impl PlatformState {
                 client,
             ),
             lifecycle2_app_state: AppManagerState2_0::new(),
+            services_gateway_api: services_gateway_api.clone(),
         }
     }
 
@@ -227,7 +264,7 @@ impl PlatformState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ripple_sdk::api::manifest::extn_manifest::default_providers;
+    use ripple_sdk::api::{manifest::extn_manifest::default_providers, rules_engine::RuleEngine};
     use ripple_tdk::utils::test_utils::Mockable;
 
     impl Mockable for PlatformState {
@@ -245,12 +282,24 @@ mod tests {
             )
             .unwrap();
             extn_manifest.provider_registrations = default_providers();
+            let rules_engine: Arc<tokio::sync::RwLock<Box<dyn RuleEngineProvider + Send + Sync>>> =
+                Arc::new(tokio::sync::RwLock::new(Box::new(RuleEngine::build(
+                    &extn_manifest,
+                ))));
+
+            let api_gateway_state: Arc<
+                tokio::sync::Mutex<Box<dyn ApiGatewayServer + Send + Sync>>,
+            > = Arc::new(tokio::sync::Mutex::new(Box::new(
+                ssda_service::ApiGateway::new(rules_engine.clone()),
+            )));
             Self::new(
                 extn_manifest,
                 manifest,
                 RippleClient::new(ChannelsState::new()),
                 vec![],
                 None,
+                api_gateway_state.clone(),
+                rules_engine.clone(),
             )
         }
     }
