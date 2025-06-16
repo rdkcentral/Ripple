@@ -24,12 +24,14 @@ repository = "https://github.com/rdkcentral/Ripple"
 local_dev = ["jsonrpsee"]
 default = ["jsonrpsee"]
 rpc = ["jsonrpsee"]
+jsonrpsee-server = ["jsonrpsee"]
 tdk = []
 full = ["rpc"]
 sysd = []
 test = ["jsonrpsee", "mock"]
 mock_service = ["mock_app_gw/mock_service"]
 mock = []
+sdk = ["jsonrpsee-server"]
 http_contract_tests = [
 ]
 
