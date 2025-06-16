@@ -1,12 +1,7 @@
-use std::{
-    collections::HashMap, future::Future, pin::Pin, str::FromStr, sync::Arc, thread::ThreadId,
-};
+use std::{collections::HashMap, future::Future, pin::Pin, str::FromStr, sync::Arc};
 
 use ripple_sdk::{
-    api::manifest::extn_manifest::ExtnSymbol,
-    extn::{
-        client::extn_client::ExtnClient, extn_id::ExtnId, mock_extension_client::MockExtnClient,
-    },
+    extn::{client::extn_client::ExtnClient, mock_extension_client::MockExtnClient},
     serde_json,
     tokio::{
         self,
@@ -15,7 +10,7 @@ use ripple_sdk::{
             oneshot,
         },
     },
-    utils::channel_utils::{mpsc_send_and_log, oneshot_send_and_log},
+    utils::channel_utils::mpsc_send_and_log,
     Mockable,
 };
 use serde_json::Value;
@@ -23,7 +18,7 @@ use serde_json::Value;
 use crate::{
     client::{
         device_operator::{
-            DeviceCallRequest, DeviceChannelRequest, DeviceResponseMessage, DeviceSubscribeRequest,
+            DeviceCallRequest, DeviceChannelRequest, DeviceResponseMessage,
             DeviceUnsubscribeRequest,
         },
         jsonrpc_method_locator::JsonRpcMethodLocator,
@@ -441,18 +436,17 @@ impl MockThunderController {
     //     let thunder_state = ThunderState::new(extn_client, thunder_client);
     //     CachedState::new(thunder_state)
     // }
-    pub fn state_with_mock(
-        custom_thunder: Option<CustomHandler>,
-    ) -> (CachedState, mpsc::Receiver<ThunderAsyncResponse>) {
+    pub fn state_with_mock(custom_thunder: Option<CustomHandler>) -> CachedState {
         println!("*** _DEBUG: state_with_mock: invoked");
         let (device_channel_request_tx, device_response_message_rx) =
             MockThunderController::start_with_custom_handlers(custom_thunder);
 
-        let thunder_client = ThunderClient::start_mock(device_channel_request_tx);
+        let thunder_client =
+            ThunderClient::start_mock(device_channel_request_tx, device_response_message_rx);
         let extn_client = ExtnClient::new_main();
         let thunder_state = ThunderState::new(extn_client, thunder_client);
-
-        (CachedState::new(thunder_state), device_response_message_rx)
+        //(CachedState::new(thunder_state), device_response_message_rx)
+        CachedState::new(thunder_state)
     }
     // </pca>
 
