@@ -28,7 +28,6 @@ pub mod utils;
 pub extern crate async_trait;
 pub extern crate chrono;
 pub extern crate futures;
-pub extern crate jsonrpsee;
 pub extern crate libloading;
 pub extern crate log;
 pub extern crate semver;
