@@ -19,7 +19,6 @@ use chrono::Utc;
 use log::warn;
 #[cfg(not(test))]
 use log::{debug, error, info, trace};
-use serde_json::json;
 use std::{
     collections::HashMap,
     ops::ControlFlow,
@@ -43,12 +42,12 @@ use crate::{
         manifest::extn_manifest::ExtnSymbol,
     },
     extn::{
-        extn_client_message::{
-            ExtnMessage, ExtnPayloadProvider, ExtnResponse, JsonRpcMessage, ServiceMessage,
-        },
+        extn_client_message::{ExtnMessage, ExtnPayloadProvider, ExtnResponse},
         extn_id::ExtnId,
     },
     framework::{ripple_contract::RippleContract, RippleResponse},
+    processor::rpc_router::RouterState,
+    service::{service_message::ServiceMessage, service_rpc_router::route_service_message},
     utils::{error::RippleError, extn_utils::ExtnStackSize, ws_utils::WebSocketUtils},
 };
 
@@ -56,6 +55,7 @@ use super::{
     extn_processor::{ExtnEventProcessor, ExtnRequestProcessor},
     extn_sender::ExtnSender,
 };
+use jsonrpsee::core::server::rpc_module::Methods;
 
 #[cfg(any(test, feature = "mock"))]
 use crate::utils::mock_utils::get_next_mock_response;
@@ -82,6 +82,7 @@ pub struct ExtnClient {
     request_processors: Arc<RwLock<HashMap<String, MSender<ExtnMessage>>>>,
     event_processors: Arc<RwLock<HashMap<String, Vec<MSender<ExtnMessage>>>>>,
     ripple_context: Arc<RwLock<RippleContext>>,
+    pub service_router: Arc<RwLock<RouterState>>,
 }
 
 fn add_stream_processor<P>(id: String, context: P, map: Arc<RwLock<HashMap<String, P>>>) {
@@ -129,6 +130,7 @@ impl ExtnClient {
             request_processors: Arc::new(RwLock::new(HashMap::new())),
             event_processors: Arc::new(RwLock::new(HashMap::new())),
             ripple_context: Arc::new(RwLock::new(RippleContext::default())),
+            service_router: Arc::new(RwLock::new(RouterState::new())),
         }
     }
 
@@ -150,9 +152,20 @@ impl ExtnClient {
             request_processors: Arc::new(RwLock::new(HashMap::new())),
             event_processors: Arc::new(RwLock::new(HashMap::new())),
             ripple_context: Arc::new(RwLock::new(RippleContext::default())),
+            service_router: Arc::new(RwLock::new(RouterState::new())),
         };
 
         (client, ext_tr, Some(service_tr))
+    }
+
+    pub fn set_service_rpc_route(&mut self, methods: Methods) -> Result<(), RippleError> {
+        let service_routes = self.service_router.write().unwrap();
+        service_routes.update_methods(methods.clone());
+        Ok(())
+    }
+
+    pub fn get_service_router_state(&self) -> RouterState {
+        self.service_router.read().unwrap().clone()
     }
 
     /// Adds a new request processor reference to the internal map of processors
@@ -271,34 +284,6 @@ impl ExtnClient {
             .collect()
     }
 
-    pub fn handle_service_message(&self, sm: ServiceMessage) -> Result<(), RippleError> {
-        trace!("Received Service Message: {:?}", sm);
-        match sm.message {
-            JsonRpcMessage::Request(json_rpc_request) => {
-                if let Some(sender) = &self.service_sender {
-                    // create a response message ServiceMessage and send it to the service
-                    let mut respose = ServiceMessage::new_success(
-                        json!({"status": "ok from service"}),
-                        json_rpc_request.id,
-                    );
-                    respose.set_context(sm.context.clone());
-                    sender.try_send(respose).map_err(|e| {
-                        error!("Error sending service response: {:?}", e);
-                        RippleError::InvalidInput
-                    })?;
-                } else {
-                    error!("Service sender is missing");
-                    return Err(RippleError::SenderMissing);
-                };
-            }
-            JsonRpcMessage::Notification(_json_rpc_notification) => {}
-            JsonRpcMessage::Success(_json_rpc_success) => {}
-            JsonRpcMessage::Error(json_rpc_error) => {
-                error!("Received Service Error: {:?}", json_rpc_error);
-            }
-        }
-        Ok(())
-    }
     /// Called once per client initialization this is a blocking method. Use a spawned thread to call this method
     // The additional `trs` parameter is used to receive messages from the service
     // We need both these channels for supporting APIs using extn and service endpoints.
@@ -331,10 +316,16 @@ impl ExtnClient {
                                 if let Message::Text(message) = msg.clone() {
                                     // check if the message is a service message
                                     if let Ok(sm) = serde_json::from_str::<ServiceMessage>(&message) {
-                                        info!("Received Service Message: {:?}", sm);
-                                        let _ = Self::handle_service_message(
-                                            self, sm.clone()
-                                        );
+                                        debug!("Received Service Message: {:#?}", sm);
+                                        if let Some(sender) = &self.service_sender {
+                                            route_service_message(
+                                                sender,
+                                                &self.get_service_router_state(),
+                                                sm.clone()
+                                            ).unwrap_or_else(|e| {
+                                                error!("Error handling service message: {:?}", e);
+                                            })
+                                        }
                                     } else {
                                         if let Ok(extn_message) = ExtnMessage::try_from(message) {
                                             if let Some(ts) = extn_message.ts {

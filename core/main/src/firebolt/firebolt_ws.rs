@@ -23,7 +23,7 @@ use std::{
 use super::firebolt_gateway::FireboltGatewayCommand;
 use crate::{
     service::apps::delegated_launcher_handler::{AppManagerState, AppManagerState2_0},
-    service::ripple_service::service_registry::ServiceRegistry,
+    service::ripple_service::service_controller_state::ServiceControllerState,
     state::{
         cap::permitted_state::PermissionHandler, platform_state::PlatformState,
         session_state::Session,
@@ -34,16 +34,10 @@ use futures::StreamExt;
 use jsonrpsee::types::{error::INVALID_REQUEST_CODE, ErrorObject, ErrorResponse, Id};
 use ripple_sdk::{
     api::manifest::extn_manifest::ExtnSymbol,
-    extn::{
-        extn_client_message::{ExtnMessage, ExtnPayload, ExtnResponse},
-        extn_id::ExtnId,
-    },
-    framework::ripple_contract::RippleContract,
     tokio_tungstenite::{
         tungstenite::{self, Message},
         WebSocketStream,
     },
-    utils::error::RippleError,
 };
 use ripple_sdk::{
     api::{
@@ -501,7 +495,7 @@ impl FireboltWs {
 
         if let Some(symbol) = identity.service_info.clone() {
             // Handle service connection
-            ServiceRegistry::handle_service_connection(
+            ServiceControllerState::handle_service_connection(
                 _client_addr,
                 ws_stream,
                 state,
@@ -734,6 +728,7 @@ impl FireboltWs {
     }*/
 }
 
+/*
 async fn return_invalid_service_error_message(
     state: &PlatformState,
     connection_id: &str,
@@ -759,7 +754,7 @@ async fn return_invalid_service_error_message(
         let _ = session.send_json_rpc(msg.into()).await;
     }
 }
-
+*/
 async fn return_invalid_format_error_message(
     req_id: String,
     state: &PlatformState,

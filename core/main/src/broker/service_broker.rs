@@ -21,8 +21,8 @@ use super::endpoint_broker::{
 use crate::state::platform_state::PlatformState;
 use ripple_sdk::{
     api::{gateway::rpc_gateway_api::JsonRpcApiError, observability::log_signal::LogSignal},
-    extn::extn_client_message::{Id, ServiceMessage},
     log::{error, info},
+    service::service_message::{Id, ServiceMessage},
     tokio::{self, sync::mpsc},
     tokio_tungstenite::tungstenite::Message,
     utils::error::RippleError,
@@ -62,25 +62,26 @@ impl ServiceBroker {
 
                 let service_id = broker_request.rule.alias.clone();
 
-                // get the ws sender for the service from service_registry
-                let service_sender = match ps_c.service_registry.get_sender(&service_id).await {
-                    Some(sender) => sender,
-                    None => {
-                        error!("Service sender not found for service id: {}", service_id);
-                        Self::log_error_and_send_broker_failure_response(
-                            broker_request.clone(),
-                            &callback,
-                            JsonRpcApiError::default()
-                                .with_code(-32001)
-                                .with_message(format!(
-                                    "Service sender not found for service id: {}",
-                                    service_id
-                                ))
-                                .with_id(broker_request.rpc.ctx.call_id),
-                        );
-                        continue;
-                    }
-                };
+                // get the ws sender for the service from service_controller_state
+                let service_sender =
+                    match ps_c.service_controller_state.get_sender(&service_id).await {
+                        Some(sender) => sender,
+                        None => {
+                            error!("Service sender not found for service id: {}", service_id);
+                            Self::log_error_and_send_broker_failure_response(
+                                broker_request.clone(),
+                                &callback,
+                                JsonRpcApiError::default()
+                                    .with_code(-32001)
+                                    .with_message(format!(
+                                        "Service sender not found for service id: {}",
+                                        service_id
+                                    ))
+                                    .with_id(broker_request.rpc.ctx.call_id),
+                            );
+                            continue;
+                        }
+                    };
 
                 let request = match Self::update_service_request(&broker_request) {
                     Ok(req) => req,
@@ -105,20 +106,24 @@ impl ServiceBroker {
                 )
                 .emit_debug();
 
+                let request_id = broker_request.rpc.ctx.call_id;
                 // set the Broker callback in service Registry for sending broker response
                 if let Some(workflow_callback) = broker_request.workflow_callback.clone() {
                     let _ = ps_c
-                        .service_registry
-                        .set_broker_callback(&service_id, workflow_callback)
+                        .service_controller_state
+                        .set_broker_callback(&service_id, request_id, workflow_callback)
                         .await;
                 } else {
                     let _ = ps_c
-                        .service_registry
-                        .set_broker_callback(&service_id, callback.clone())
+                        .service_controller_state
+                        .set_broker_callback(&service_id, request_id, callback.clone())
                         .await;
                 }
 
-                if let Err(err) = service_sender.try_send(Message::Text(request)) {
+                let message = Message::Text(request.clone());
+                info!("Sending request to service {}: {:#?}", service_id, message);
+
+                if let Err(err) = service_sender.try_send(message) {
                     error!(
                         "Failed to send request to service {}: {:?}",
                         service_id, err
@@ -170,7 +175,7 @@ impl ServiceBroker {
 
         // Create a ServiceMessage
         let mut request = ServiceMessage::new_request(
-            broker_request.rpc.ctx.method.clone(),
+            broker_request.rpc.method.clone(),
             Some(v.clone()),
             Id::Number(broker_request.rpc.ctx.call_id.try_into().unwrap()),
         );
