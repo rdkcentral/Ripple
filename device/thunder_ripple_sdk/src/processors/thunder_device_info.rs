@@ -1199,7 +1199,7 @@ pub mod tests {
         // let (state, mut device_response_message_rx) =
         //     MockThunderController::state_with_mock(Some(ch));
 
-        let state = MockThunderController::state_with_mock(Some(ch));
+        let state = MockThunderController::state_with_mock(Some(ch)).await;
 
         let msg = MockExtnClient::req(
             RippleContract::DeviceInfo,

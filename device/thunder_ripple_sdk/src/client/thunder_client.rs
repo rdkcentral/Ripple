@@ -40,6 +40,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::sync::oneshot::Sender;
 use url::Url;
+const GATEWAY_DEFAULT: &str = "ws://127.0.0.1:9998/jsonrpc";
 
 pub type BrokerSubMap = HashMap<String, DeviceResponseSubscription>;
 pub type BrokerCallbackMap = HashMap<u64, Option<OneShotSender<DeviceResponseMessage>>>;
@@ -61,6 +62,10 @@ impl ThunderClientManager {
             println!("*** @@@@_DEBUG: ThunderClientManager: ThunderAsyncRequest received");
 
             tokio::spawn(async move {
+                println!(
+                    "@@@NNA...transfer to thunderasync client...with req_tr:{:?}",
+                    request_tr
+                );
                 tac.start(&thndr_endpoint_url, request_tr, status_check)
                     .await;
             });
@@ -396,6 +401,14 @@ impl ThunderClient {
             thunder_async_subscriptions: Some(Arc::new(RwLock::new(HashMap::new()))),
             thunder_async_callbacks: Some(Arc::new(RwLock::new(HashMap::new()))),
         }
+    }
+
+    #[cfg(test)]
+    pub async fn thunderclient_mock() -> ThunderClient {
+        let gateway_url = url::Url::parse(GATEWAY_DEFAULT).unwrap();
+        ThunderClientBuilder::start_thunder_client(gateway_url, true)
+            .await
+            .unwrap()
     }
 }
 

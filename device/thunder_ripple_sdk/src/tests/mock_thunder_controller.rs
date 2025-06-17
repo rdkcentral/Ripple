@@ -292,13 +292,13 @@ impl MockThunderController {
 
     // <pca>
     //pub fn start() -> mpsc::Sender<DeviceChannelRequest> {
-    pub fn start() -> (
-        mpsc::Sender<DeviceChannelRequest>,
-        mpsc::Receiver<ThunderAsyncResponse>,
-    ) {
-        // </pca>
-        MockThunderController::start_with_custom_handlers(None)
-    }
+    // pub fn start() -> (
+    //     mpsc::Sender<DeviceChannelRequest>,
+    //     mpsc::Receiver<ThunderAsyncResponse>,
+    // ) {
+    //     // </pca>
+    //     //MockThunderController::start_with_custom_handlers(None)
+    // }
 
     // <pca>
     // pub fn start_with_custom_handlers(
@@ -377,49 +377,52 @@ impl MockThunderController {
     //     (device_channel_request_tx, device_response_message_rx)
     // }
 
-    pub fn start_with_custom_handlers(
-        custom_handlers: Option<CustomHandler>,
-    ) -> (
-        mpsc::Sender<DeviceChannelRequest>,
-        mpsc::Receiver<ThunderAsyncResponse>,
-    ) {
-        println!("*** _DEBUG: start_with_custom_handlers: invoked");
-        let (device_channel_request_tx, mut device_channel_request_rx) = mpsc::channel(32);
-        //let (device_response_message_tx, mut device_response_message_rx) = mpsc::channel(32);
+    //<NNA>
+    // pub fn start_with_custom_handlers(
+    //     custom_handlers: Option<CustomHandler>,
+    // ) -> (
+    //     mpsc::Sender<DeviceChannelRequest>,
+    //     mpsc::Receiver<ThunderAsyncResponse>,
+    // ) {
+    //     println!("*** _DEBUG: start_with_custom_handlers: invoked");
+    //     let (device_channel_request_tx, mut device_channel_request_rx) = mpsc::channel(32);
+    //     //let (device_response_message_tx, mut device_response_message_rx) = mpsc::channel(32);
 
-        let (device_response_message_tx, mut device_response_message_rx) =
-            mpsc::channel::<ThunderAsyncResponse>(32);
+    //     let (device_response_message_tx, mut device_response_message_rx) =
+    //         mpsc::channel::<ThunderAsyncResponse>(32);
 
-        tokio::spawn(async move {
-            let mut mock_controller = MockThunderController::default();
-            if let Some(ch) = custom_handlers {
-                mock_controller.custom_handlers = ch;
-            }
-            while let Some(device_channel_request) = device_channel_request_rx.recv().await {
-                println!("*** _DEBUG: MockThunderController: start_with_custom_handlers: received request: {:?}", device_channel_request);
+    //     tokio::spawn(async move {
+    //         let mut mock_controller = MockThunderController::default();
+    //         if let Some(ch) = custom_handlers {
+    //             mock_controller.custom_handlers = ch;
+    //         }
+    //         while let Some(device_channel_request) = device_channel_request_rx.recv().await {
+    //             println!("*** _DEBUG: MockThunderController: start_with_custom_handlers: received request: {:?}", device_channel_request);
 
-                match device_channel_request {
-                    DeviceChannelRequest::Call(msg) => {
-                        println!("*** _DEBUG: start_with_custom_handlers: DeviceChannelRequest::Call req received : {:?}", msg);
-                        mock_controller
-                            .handle_thunder_call(msg, device_response_message_tx.clone())
-                            .await;
-                    }
-                    DeviceChannelRequest::Subscribe(msg) => {
-                        println!("*** _DEBUG: start_with_custom_handlers: DeviceChannelRequest::Subscribe req received : {:?}", msg);
-                        // mock_controller
-                        //     .handle_thunder_sub(msg, device_response_message_tx.clone())
-                        //     .await;
-                    }
-                    DeviceChannelRequest::Unsubscribe(msg) => {
-                        //dmock_controller.handle_thunder_unsub(msg).await;
-                    }
-                }
-            }
-        });
+    //             match device_channel_request {
+    //                 DeviceChannelRequest::Call(msg) => {
+    //                     println!("*** _DEBUG: start_with_custom_handlers: DeviceChannelRequest::Call req received : {:?}", msg);
+    //                     mock_controller
+    //                         .handle_thunder_call(msg, device_response_message_tx.clone())
+    //                         .await;
+    //                 }
+    //                 DeviceChannelRequest::Subscribe(msg) => {
+    //                     println!("*** _DEBUG: start_with_custom_handlers: DeviceChannelRequest::Subscribe req received : {:?}", msg);
+    //                     // mock_controller
+    //                     //     .handle_thunder_sub(msg, device_response_message_tx.clone())
+    //                     //     .await;
+    //                 }
+    //                 DeviceChannelRequest::Unsubscribe(msg) => {
+    //                     //dmock_controller.handle_thunder_unsub(msg).await;
+    //                 }
+    //             }
+    //         }
+    //     });
 
-        (device_channel_request_tx, device_response_message_rx)
-    }
+    //     (device_channel_request_tx, device_response_message_rx)
+    // }
+    //</NNA>
+
     // </pca>
 
     /**
@@ -436,18 +439,22 @@ impl MockThunderController {
     //     let thunder_state = ThunderState::new(extn_client, thunder_client);
     //     CachedState::new(thunder_state)
     // }
-    pub fn state_with_mock(custom_thunder: Option<CustomHandler>) -> CachedState {
-        println!("*** _DEBUG: state_with_mock: invoked");
-        let (device_channel_request_tx, device_response_message_rx) =
-            MockThunderController::start_with_custom_handlers(custom_thunder);
 
-        let thunder_client =
-            ThunderClient::start_mock(device_channel_request_tx, device_response_message_rx);
-        let extn_client = ExtnClient::new_main();
-        let thunder_state = ThunderState::new(extn_client, thunder_client);
-        //(CachedState::new(thunder_state), device_response_message_rx)
-        CachedState::new(thunder_state)
-    }
+    //<NNA>
+    // pub fn state_with_mock(custom_thunder: Option<CustomHandler>) -> CachedState {
+    //     println!("*** _DEBUG: state_with_mock: invoked");
+    //     let (device_channel_request_tx, device_response_message_rx) =
+    //         MockThunderController::start_with_custom_handlers(custom_thunder);
+
+    //     let thunder_client =
+    //         ThunderClient::start_mock(device_channel_request_tx, device_response_message_rx);
+    //     let extn_client = ExtnClient::new_main();
+    //     let thunder_state = ThunderState::new(extn_client, thunder_client);
+    //     //(CachedState::new(thunder_state), device_response_message_rx)
+    //     CachedState::new(thunder_state)
+    // }
+    //</NNA>
+
     // </pca>
 
     pub fn get_thunder_state_mock_with_handler(_handler: Option<CustomHandler>) -> ThunderState {
@@ -465,5 +472,22 @@ impl MockThunderController {
      */
     pub fn get_thunder_state_mock() -> ThunderState {
         Self::get_thunder_state_mock_with_handler(None)
+    }
+
+    //new changes:
+    pub async fn state_with_mock(_custom_thunder: Option<CustomHandler>) -> CachedState {
+        println!("*** _DEBUG: state_with_mock: invoked");
+        // let (device_channel_request_tx, device_response_message_rx) =
+        //     MockThunderController::start_with_custom_handlers(custom_thunder);
+
+        // let thunder_client =
+        //     ThunderClient::start_mock(device_channel_request_tx, device_response_message_rx);
+
+        let thunder_client = ThunderClient::thunderclient_mock().await;
+
+        let extn_client = ExtnClient::new_main();
+        let thunder_state = ThunderState::new(extn_client, thunder_client);
+        //(CachedState::new(thunder_state), device_response_message_rx)
+        CachedState::new(thunder_state)
     }
 }
