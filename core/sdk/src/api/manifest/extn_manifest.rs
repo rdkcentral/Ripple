@@ -93,7 +93,7 @@ pub struct ExtnManifestEntry {
     pub resolution: Option<Vec<ExtnResolutionEntry>>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct ExtnSymbol {
     pub id: String,
@@ -119,15 +119,6 @@ impl ExtnSymbol {
             }
         }
         None
-    }
-
-    pub fn default() -> Self {
-        ExtnSymbol {
-            id: String::new(),
-            uses: Vec::new(),
-            fulfills: Vec::new(),
-            config: None,
-        }
     }
 }
 

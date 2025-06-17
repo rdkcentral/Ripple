@@ -326,16 +326,14 @@ impl ExtnClient {
                                                 error!("Error handling service message: {:?}", e);
                                             })
                                         }
-                                    } else {
-                                        if let Ok(extn_message) = ExtnMessage::try_from(message) {
-                                            if let Some(ts) = extn_message.ts {
-                                                let latency = Utc::now().timestamp_millis() - ts;
-                                                if latency > 1000 {
-                                                    error!("IEC Latency {:?}", msg);
-                                                }
+                                    } else if let Ok(extn_message) = ExtnMessage::try_from(message) {
+                                        if let Some(ts) = extn_message.ts {
+                                            let latency = Utc::now().timestamp_millis() - ts;
+                                            if latency > 1000 {
+                                                error!("IEC Latency {:?}", msg);
                                             }
-                                            self.handle_message(extn_message);
                                         }
+                                        self.handle_message(extn_message);
                                     };
                                 }
                                 else if let Message::Close(_) = msg {

@@ -32,11 +32,9 @@ pub fn route_service_message(
     trace!("Received Service Message: {:?}", sm);
     match sm.message {
         JsonRpcMessage::Request(json_rpc_request) => {
-            //if let Some(sender) = &self.service_sender {
-            let ctx = sm.context.as_ref().map_or_else(
-                || CallContext::default(),
-                |v| serde_json::from_value(v.clone()).unwrap_or_default(),
-            );
+            let ctx = sm.context.as_ref().map_or_else(CallContext::default, |v| {
+                serde_json::from_value(v.clone()).unwrap_or_default()
+            });
             let req: RpcRequest = RpcRequest {
                 ctx: ctx.clone(),
                 method: json_rpc_request.method,
@@ -44,7 +42,6 @@ pub fn route_service_message(
             };
 
             let sender = sender.clone();
-            //let state = self.get_service_router_state();
             let state_clone = state.clone();
             tokio::spawn(async move {
                 let router_state = state_clone.clone();
@@ -61,7 +58,7 @@ pub fn route_service_message(
                             message: msg,
                             context: sm.context.clone(),
                         };
-                        let _ = sender.try_send(sm_resp.into()).map_err(|e| {
+                        let _ = sender.try_send(sm_resp).map_err(|e| {
                             error!("Error sending service response: {:?}", e);
                             RippleError::InvalidInput
                         });
@@ -74,17 +71,13 @@ pub fn route_service_message(
                             None,
                             json_rpc_request.id.clone(),
                         );
-                        let _ = sender.try_send(sm_resp.into()).map_err(|e| {
+                        let _ = sender.try_send(sm_resp).map_err(|e| {
                             error!("Error sending service error response: {:?}", e);
                             RippleError::InvalidInput
                         });
                     }
                 }
             });
-            //} else {
-            //    error!("Service sender is missing");
-            //    return Err(RippleError::SenderMissing);
-            //};
         }
         JsonRpcMessage::Notification(_json_rpc_notification) => {}
         JsonRpcMessage::Success(_json_rpc_success) => {}
