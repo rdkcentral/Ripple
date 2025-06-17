@@ -153,9 +153,10 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
                     // extn_id without any symbol in the manifest
                     info!("Extn not found for extn_id={} in {:?}", extn_id, cfg.extns);
                     // Accept the connection, the service will be registered later.
-                    let mut extn_symbol = ExtnSymbol::default();
-                    extn_symbol.id = extn_id.clone();
-
+                    let extn_symbol = ExtnSymbol {
+                        id: extn_id.clone(),
+                        ..Default::default()
+                    };
                     ClientIdentity {
                         session_id: Uuid::new_v4().to_string(),
                         app_id: extn_id.clone(),
