@@ -16,7 +16,7 @@
 //
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
-use futures::{SinkExt, StreamExt};
+use futures::{stream::SplitStream, SinkExt, StreamExt};
 use ripple_sdk::{
     api::{
         gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse},
@@ -42,6 +42,7 @@ use ripple_sdk::{
 use crate::{
     broker::endpoint_broker::{BrokerCallback, BrokerOutput},
     firebolt::firebolt_ws::ClientIdentity,
+    service::extn::ripple_client::RippleClient,
     state::{platform_state::PlatformState, session_state::Session},
 };
 
@@ -185,6 +186,7 @@ impl ServiceControllerState {
     fn is_contract_used_for_routing(symbol: &ExtnSymbol) -> bool {
         !symbol.uses.is_empty() || !symbol.fulfills.is_empty()
     }
+
     pub async fn handle_service_connection(
         _client_addr: SocketAddr,
         ws_stream: WebSocketStream<TcpStream>,
@@ -210,38 +212,30 @@ impl ServiceControllerState {
         let (message_tx, mut message_rx) = mpsc::channel::<Message>(32);
         let (api_message_tx, mut api_message_rx) = mpsc::channel::<ApiMessage>(32);
 
-        // Add the Message channel to the service registry
-        let service_info = ServiceInfo::new(
+        let _ = Self::register_service_channel(
+            &state,
+            app_id.clone(),
             connection_id.clone(),
             message_tx.clone(),
-            false, // Initially not registered
-        );
-
-        let _ = state
-            .service_controller_state
-            .add_service_info(app_id.clone(), service_info.clone())
-            .await;
+        )
+        .await;
 
         let is_using_extn_contracts = Self::is_contract_used_for_routing(&symbol);
 
         if is_using_extn_contracts {
-            // Add the ApiMessage sender to RippleClient to support sending ApiMessages
-            let session = Session::new(identity.app_id.clone(), Some(api_message_tx.clone()));
-
-            if let Some(sender) = session.get_sender() {
-                // Gateway will probably not necessarily be ready when extensions start
-                state
-                    .session_state
-                    .add_session(session_id.clone(), session.clone());
-                client
-                    .get_extn_client()
-                    .add_sender(app_id.clone(), symbol.clone(), sender);
-            }
+            // Register the session for extensions
+            Self::register_extn_contract_session(
+                &state,
+                &client,
+                &identity,
+                &app_id,
+                &session_id,
+                &symbol,
+                api_message_tx.clone(),
+            );
         }
 
         let (sender, mut receiver) = ws_stream.split();
-
-        // Wrap `sender` in an `Arc<Mutex<_>>` to allow shared ownership
         let sender_wrap = Arc::new(Mutex::new(sender));
 
         // Spawn a task to handle outgoing `Message`
@@ -257,8 +251,8 @@ impl ServiceControllerState {
             }
         });
 
+        // Spawn a task to handle outgoing `ApiMessage`
         if is_using_extn_contracts {
-            // Spawn a task to handle outgoing `ApiMessage`
             let sender_clone = Arc::clone(&sender_wrap);
             tokio::spawn(async move {
                 while let Some(api_message) = api_message_rx.recv().await {
@@ -278,50 +272,105 @@ impl ServiceControllerState {
             });
         }
 
-        // Handle incoming messages for extensions/service
+        // Handle incoming messages for extensions/service (blocking)
+        Self::handle_incoming_service_messages(
+            &mut receiver,
+            &state,
+            &connection_id,
+            &identity,
+            &client,
+        )
+        .await;
+
+        // Cleanup service connection session
+        Self::cleanup_service_connection(
+            &connection_id,
+            &app_id,
+            &session_id,
+            is_using_extn_contracts,
+            &client,
+            symbol,
+            &state,
+        )
+        .await;
+    }
+
+    async fn register_service_channel(
+        state: &PlatformState,
+        app_id: String,
+        connection_id: String,
+        message_tx: mpsc::Sender<Message>,
+    ) -> Result<(), RippleError> {
+        // Add the Message channel to the service registry
+        let service_info = ServiceInfo::new(
+            connection_id.clone(),
+            message_tx.clone(),
+            false, // Initially not registered
+        );
+
+        state
+            .service_controller_state
+            .add_service_info(app_id, service_info)
+            .await
+    }
+
+    fn register_extn_contract_session(
+        state: &PlatformState,
+        client: &RippleClient,
+        identity: &ClientIdentity,
+        app_id: &str,
+        session_id: &str,
+        symbol: &ExtnSymbol,
+        api_message_tx: mpsc::Sender<ApiMessage>,
+    ) {
+        // Add the ApiMessage sender to RippleClient to support sending ApiMessages
+        let session = Session::new(identity.app_id.clone(), Some(api_message_tx.clone()));
+
+        if let Some(sender) = session.get_sender() {
+            // Gateway will probably not necessarily be ready when extensions start
+            state
+                .session_state
+                .add_session(session_id.to_string(), session.clone());
+            client
+                .get_extn_client()
+                .add_sender(app_id.to_string(), symbol.clone(), sender);
+        }
+    }
+
+    async fn handle_incoming_service_messages(
+        receiver: &mut SplitStream<WebSocketStream<TcpStream>>,
+        state: &PlatformState,
+        connection_id: &str,
+        identity: &ClientIdentity,
+        client: &RippleClient,
+    ) {
         while let Some(msg) = receiver.next().await {
             match msg {
-                Ok(msg) => {
-                    if msg.is_text() && !msg.is_empty() {
-                        let req_text = String::from(msg.to_text().unwrap());
+                Ok(msg) if msg.is_text() && !msg.is_empty() => {
+                    let req_text = msg.to_text().unwrap().to_string();
 
-                        if let Ok(sm) = serde_json::from_str::<ServiceMessage>(&req_text) {
-                            Self::process_inbound_service_message(
-                                &state,
-                                &connection_id,
-                                &sm,
-                                identity.app_id.clone(),
-                                identity.session_id.clone(),
-                            )
-                            .await;
-                        } else {
-                            match ExtnMessage::try_from(req_text.clone()) {
-                                Ok(extn_msg) => {
-                                    // If the message is an ExtnMessage, handle it
-                                    client.get_extn_client().handle_message(extn_msg);
-                                }
-                                Err(e) => {
-                                    // If the message is not a ServiceMessage or ExtnMessage, log an error
-                                    error!("Failed to parse service message: {}", req_text);
-                                    return_invalid_service_error_message(&state, &connection_id, e)
-                                        .await;
-                                }
-                            }
-                            // If the message is not a ServiceMessage, try to parse it as an ExtnMessage
-                            if let Ok(extn_msg) = ExtnMessage::try_from(req_text.clone()) {
-                                client.get_extn_client().handle_message(extn_msg);
-                            } else {
-                                error!("Failed to parse service message: {}", req_text);
-                                return_invalid_service_error_message(
-                                    &state,
-                                    &connection_id,
-                                    RippleError::ParseError,
-                                )
-                                .await;
-                            }
-                        }
+                    if let Ok(sm) = serde_json::from_str::<ServiceMessage>(&req_text) {
+                        Self::process_inbound_service_message(
+                            state,
+                            connection_id,
+                            &sm,
+                            identity.app_id.clone(),
+                            identity.session_id.clone(),
+                        )
+                        .await;
+                    } else if let Ok(extn_msg) = ExtnMessage::try_from(req_text.clone()) {
+                        client.get_extn_client().handle_message(extn_msg);
+                    } else {
+                        error!("Failed to parse incoming message: {}", req_text);
+                        return_invalid_service_error_message(
+                            state,
+                            connection_id,
+                            RippleError::ParseError,
+                        )
+                        .await;
                     }
                 }
+                Ok(_) => {}
                 Err(e) => {
                     error!(
                         "WebSocket error for service connection_id={}: {:?}",
@@ -330,19 +379,31 @@ impl ServiceControllerState {
                 }
             }
         }
-        // Cleanup service connection session
+    }
+
+    async fn cleanup_service_connection(
+        connection_id: &str,
+        app_id: &str,
+        session_id: &str,
+        is_using_extn_contracts: bool,
+        client: &RippleClient,
+        symbol: ExtnSymbol,
+        state: &PlatformState,
+    ) {
         info!(
             "Unregistering service connection_id={} app_id={} session_id={}",
             connection_id, app_id, session_id
         );
 
         if is_using_extn_contracts {
-            client.get_extn_client().remove_sender(app_id, symbol);
+            client
+                .get_extn_client()
+                .remove_sender(app_id.to_string(), symbol);
         }
 
         let _ = state
             .service_controller_state
-            .remove_service_info(&connection_id)
+            .remove_service_info(&connection_id.to_string())
             .await;
     }
 

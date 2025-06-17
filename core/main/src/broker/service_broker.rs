@@ -107,7 +107,7 @@ impl ServiceBroker {
                 .emit_debug();
 
                 let request_id = broker_request.rpc.ctx.call_id;
-                // set the Broker callback in service Registry for sending broker response
+                // set the Broker callback in service controller for sending broker response
                 if let Some(workflow_callback) = broker_request.workflow_callback.clone() {
                     let _ = ps_c
                         .service_controller_state
