@@ -149,8 +149,6 @@ impl DeviceOperator for ThunderClient {
             async_client.send(async_request).await;
         }
 
-        // <pca> Naveen: I think you need something to execute the callback (tx), otherwise you'll never get a response here. </pca>
-
         match rx.await {
             Ok(response) => {
                 println!("*** _DEBUG: ThunderClient: call: response= {:?}", response);
@@ -197,11 +195,9 @@ impl ThunderClient {
         request: &ThunderAsyncRequest,
         dev_resp_callback: Sender<DeviceResponseMessage>,
     ) {
-        println!(
-            "*** _DEBUG: add_callback invoked for : ThunderAsyncRequest: {}",
-            request
-        );
+        println!("*** _DEBUG: add_callback: request= {:?}", request);
         if let Some(callbacks_arc) = &self.thunder_async_callbacks {
+            println!("*** _DEBUG: add_callback: request.id= {}", request.id);
             let mut callbacks = callbacks_arc.write().unwrap();
             callbacks.insert(request.id, Some(dev_resp_callback));
         } else {
