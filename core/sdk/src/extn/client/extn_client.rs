@@ -22,7 +22,7 @@ use log::{debug, error, info, trace};
 use std::{
     collections::HashMap,
     ops::ControlFlow,
-    sync::{Arc, RwLock},
+    sync::{mpsc::Sender, Arc, RwLock},
 };
 use tokio_tungstenite::tungstenite::Message;
 
@@ -126,6 +126,20 @@ impl ExtnClient {
             ripple_context: Arc::new(RwLock::new(RippleContext::default())),
         }
     }
+
+    // <pca> 2
+    pub fn new_main_with_sender(sender: tokio::sync::mpsc::Sender<ApiMessage>) -> ExtnClient {
+        Self {
+            sender: ExtnSender::new_main_with_sender(sender),
+            extn_sender_map: Arc::new(RwLock::new(HashMap::new())),
+            contract_map: Arc::new(RwLock::new(HashMap::new())),
+            response_processors: Arc::new(RwLock::new(HashMap::new())),
+            request_processors: Arc::new(RwLock::new(HashMap::new())),
+            event_processors: Arc::new(RwLock::new(HashMap::new())),
+            ripple_context: Arc::new(RwLock::new(RippleContext::default())),
+        }
+    }
+    //</pca>
 
     pub fn new_extn(symbol: ExtnSymbol) -> (ExtnClient, mpsc::Receiver<ApiMessage>) {
         let (tx, tr) = mpsc::channel::<ApiMessage>(32);

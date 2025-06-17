@@ -804,6 +804,7 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     async fn platform_build_info(state: CachedState, msg: ExtnMessage) -> bool {
+        println!("*** _DEBUG: platform_build_info: entry");
         let resp = state
             .get_thunder_client()
             .call(DeviceCallRequest {
@@ -811,6 +812,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
+        println!("*** _DEBUG: platform_build_info: resp= {:?}", resp);
         if let Ok(tsv) = serde_json::from_value::<SystemVersion>(resp.message) {
             let release_regex = Regex::new(r"([^_]*)_(.*)_(VBN|PROD[^_]*)_(.*)").unwrap();
             let non_release_regex =
@@ -859,6 +861,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 if let ExtnPayload::Response(r) =
                     DeviceResponse::PlatformBuildInfo(info).get_extn_payload()
                 {
+                    println!("*** _DEBUG: platform_build_info: r= {:?}", r);
                     Self::respond(state.get_client(), msg, r).await.is_ok()
                 } else {
                     Self::handle_error(state.get_client(), msg, RippleError::ProcessorError).await
@@ -942,6 +945,7 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
         msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
+        println!("*** _DEBUG: process_request: {:?}", extracted_message);
         match extracted_message {
             DeviceInfoRequest::Model => Self::model(state.clone(), msg).await,
             DeviceInfoRequest::Audio => Self::audio(state.clone(), msg).await,
@@ -1003,6 +1007,7 @@ pub mod tests {
     use std::sync::Arc;
     use tokio::sync::oneshot;
 
+    use crate::client::thunder_async_client::ThunderAsyncResponse;
     use crate::{
         client::{
             device_operator::{DeviceCallRequest, DeviceResponseMessage},
@@ -1012,20 +1017,88 @@ pub mod tests {
         processors::thunder_device_info::ThunderDeviceInfoRequestProcessor,
         tests::mock_thunder_controller::{CustomHandler, MockThunderController, ThunderHandlerFn},
     };
+    use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
 
+    // <pca>
+    // macro_rules! run_platform_info_test {
+    //     ($build_name:expr) => {
+    //         test_platform_build_info_with_build_name($build_name, Arc::new(|_msg: DeviceCallRequest, device_response_message_tx: Sender<DeviceResponseMessage>| {
+
+    //             oneshot_send_and_log(
+    //                 device_response_message_tx,
+    //                 DeviceResponseMessage::call(json!({"success" : true, "stbVersion": $build_name, "receiverVersion": $build_name, "stbTimestamp": "".to_owned() })),
+    //                 "",
+    //             );
+    //         })).await;
+    //     };
+    // }
+    // macro_rules! run_platform_info_test {
+    //     ($build_name:expr) => {
+    //         test_platform_build_info_with_build_name($build_name, Arc::new(|_msg: DeviceCallRequest, device_response_message_tx: oneshot::Sender<DeviceResponseMessage>| {
+
+    //             println!("*** _DEBUG: run_platform_info_test: Custom handler: build_name={}", $build_name);
+    //             oneshot_send_and_log(
+    //                 device_response_message_tx,
+    //                 DeviceResponseMessage::call(json!({"success" : true, "stbVersion": $build_name, "receiverVersion": $build_name, "stbTimestamp": "".to_owned() })),
+    //                 "",
+    //             );
+    //         })).await;
+    //     };
+    // }
+
+    // <pca> 2
+    // macro_rules! run_platform_info_test {
+    //     ($build_name:expr) => {
+    //         test_platform_build_info_with_build_name($build_name, Arc::new(|_msg: DeviceCallRequest, async_resp_message_tx: oneshot::Sender<ThunderAsyncResponse>| {
+
+    //             println!("*** _DEBUG: run_platform_info_test: Custom handler: build_name={}", $build_name);
+    //         let thunderasyncresp = ThunderAsyncResponse {
+    //             id: None,
+    //             result: Ok(JsonRpcApiResponse {
+    //                 jsonrpc: "2.0".to_owned(),
+    //                 id: None,
+    //                 result: Some(json!({"success" : true, "stbVersion": $build_name, "receiverVersion": $build_name, "stbTimestamp": "".to_owned() })),
+    //                 error: None,
+    //                 method: None,
+    //                 params: None
+    //             }),
+    //         };
+
+    //         oneshot_send_and_log(
+    //                 async_resp_message_tx,
+    //                 thunderasyncresp,
+    //                 "",
+    //             );
+    //         })).await;
+    //     };
+    // }
     macro_rules! run_platform_info_test {
-        ($build_name:expr) => {
-            test_platform_build_info_with_build_name($build_name, Arc::new(|_msg: DeviceCallRequest| {
-                let (tx, _rx) = oneshot::channel::<DeviceResponseMessage>();
+        ($build_name:expr, $id:expr) => {
+            test_platform_build_info_with_build_name($build_name, Arc::new(|_msg: DeviceCallRequest, async_resp_message_tx: oneshot::Sender<ThunderAsyncResponse>| {
 
-                oneshot_send_and_log(
-                    tx,
-                    DeviceResponseMessage::call(json!({"success" : true, "stbVersion": $build_name, "receiverVersion": $build_name, "stbTimestamp": "".to_owned() })),
+                println!("*** _DEBUG: run_platform_info_test: Custom handler: build_name={}", $build_name);
+            let thunderasyncresp = ThunderAsyncResponse {
+                id: Some($id),
+                result: Ok(JsonRpcApiResponse {
+                    jsonrpc: "2.0".to_owned(),
+                    id: Some($id),
+                    result: Some(json!({"success" : true, "stbVersion": $build_name, "receiverVersion": $build_name, "stbTimestamp": "".to_owned() })),
+                    error: None,
+                    method: None,
+                    params: None
+                }),
+            };
+
+            oneshot_send_and_log(
+                    async_resp_message_tx,
+                    thunderasyncresp,
                     "",
                 );
             })).await;
         };
     }
+
+    // </pca>
 
     #[derive(Debug, Serialize, Deserialize)]
     struct BuildInfoTest {
@@ -1035,44 +1108,155 @@ pub mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_platform_build_info() {
-        run_platform_info_test!("SCXI11BEI_023.005.03.6.8p12s3_VBN_sdy");
-        run_platform_info_test!("SCXI11BEI_23_VBN_sdy");
-        run_platform_info_test!("SCXI11BEI_VBN_23_20231130001020sdy");
-        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_PRODLOG_sdy");
-        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_PROD_sdy");
-        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_VBN_sdy");
-        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_VBN_sey");
-        run_platform_info_test!("SCXI11BEI_023.003.00.6.8p7s1_PRODLOG_sdy_XOE");
-        run_platform_info_test!("SCXI11BEI_VBN_stable2_20231129231433sdy_XOE_NG");
-        run_platform_info_test!("SCXI11AIC_PROD_6.6_p1v_20231130001020sdy_NG");
-        run_platform_info_test!("SCXI11AIC_VBN_23Q4_sprint_20231129232625sdy_FG_NG");
-        run_platform_info_test!("SCXI11AIC_VBN_23Q4_sprint_20231129232625sey_FG_NG");
-        run_platform_info_test!("SCXI11BEI_PROD_some_branch_20231129233157sdy_FG_NG-signed");
-        run_platform_info_test!("SCXI11BEI_PROD_QS024_20231129231350sdy_XOE_NG");
-        run_platform_info_test!("COESST11AEI_VBN_23Q4_sprint_20231130233011sdy_DFL_FG_GRT");
-        run_platform_info_test!("COESST11AEI_23.40p11d24_EXP_PROD_sdy-signed");
+        run_platform_info_test!("SCXI11BEI_023.005.03.6.8p12s3_VBN_sdy", 1);
+        run_platform_info_test!("SCXI11BEI_23_VBN_sdy", 2);
+        run_platform_info_test!("SCXI11BEI_VBN_23_20231130001020sdy", 3);
+        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_PRODLOG_sdy", 4);
+        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_PROD_sdy", 5);
+        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_VBN_sdy", 6);
+        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_VBN_sey", 7);
+        run_platform_info_test!("SCXI11BEI_023.003.00.6.8p7s1_PRODLOG_sdy_XOE", 8);
+        run_platform_info_test!("SCXI11BEI_VBN_stable2_20231129231433sdy_XOE_NG", 9);
+        run_platform_info_test!("SCXI11AIC_PROD_6.6_p1v_20231130001020sdy_NG", 10);
+        run_platform_info_test!("SCXI11AIC_VBN_23Q4_sprint_20231129232625sdy_FG_NG", 11);
+        run_platform_info_test!("SCXI11AIC_VBN_23Q4_sprint_20231129232625sey_FG_NG", 12);
         run_platform_info_test!(
-            "SCXI11BEI_VBN_23Q4_sprint_20231113173051sdy_FG_EDGE_DISTPDEMO-signed"
+            "SCXI11BEI_PROD_some_branch_20231129233157sdy_FG_NG-signed",
+            13
         );
-        run_platform_info_test!("SCXI11BEI_somebuild");
-        run_platform_info_test!("SCXI11BEI_someVBNbuild");
+        run_platform_info_test!("SCXI11BEI_PROD_QS024_20231129231350sdy_XOE_NG", 14);
+        run_platform_info_test!(
+            "COESST11AEI_VBN_23Q4_sprint_20231130233011sdy_DFL_FG_GRT",
+            15
+        );
+        run_platform_info_test!("COESST11AEI_23.40p11d24_EXP_PROD_sdy-signed", 16);
+        run_platform_info_test!(
+            "SCXI11BEI_VBN_23Q4_sprint_20231113173051sdy_FG_EDGE_DISTPDEMO-signed",
+            17
+        );
+        run_platform_info_test!("SCXI11BEI_somebuild", 18);
+        run_platform_info_test!("SCXI11BEI_someVBNbuild", 19);
     }
 
+    // <pca>
+    // async fn test_platform_build_info_with_build_name(
+    //     _build_name: &'static str,
+    //     handler: Arc<ThunderHandlerFn>,
+    // ) {
+    //     let mut ch = CustomHandler::default();
+    //     ch.custom_request_handler.insert(
+    //         ThunderPlugin::System.unversioned_method("getSystemVersions"),
+    //         handler,
+    //     );
+
+    //     let state = MockThunderController::state_with_mock(Some(ch));
+
+    //     let msg = MockExtnClient::req(
+    //         RippleContract::DeviceInfo,
+    //         ExtnRequest::Device(DeviceRequest::DeviceInfo(
+    //             DeviceInfoRequest::PlatformBuildInfo,
+    //         )),
+    //     );
+
+    //     ThunderDeviceInfoRequestProcessor::process_request(
+    //         state,
+    //         msg,
+    //         DeviceInfoRequest::PlatformBuildInfo,
+    //     )
+    //     .await;
+
+    //     println!("*** _DEBUG: test_platform_build_info_with_build_name: Mark 1");
+
+    //     // let msg: ExtnMessage = r.recv().await.unwrap().try_into().unwrap();
+    //     // let resp_opt = msg.payload.extract::<DeviceResponse>();
+    //     // if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp_opt {
+    //     //     let exp = tests.iter().find(|x| x.build_name == build_name).unwrap();
+    //     //     assert_eq!(info, exp.info);
+    //     // } else {
+    //     //     panic!("Did not get the expected PlatformBuildInfo from extension call");
+    //     // }
+    // }
     async fn test_platform_build_info_with_build_name(
-        _build_name: &'static str,
+        build_name: &'static str,
         handler: Arc<ThunderHandlerFn>,
     ) {
+        println!(
+            "*** _DEBUG: test_platform_build_info_with_build_name: {}",
+            build_name
+        );
+
         let mut ch = CustomHandler::default();
         ch.custom_request_handler.insert(
             ThunderPlugin::System.unversioned_method("getSystemVersions"),
             handler,
         );
-        let state = MockThunderController::state_with_mock(Some(ch));
+
+        // <pca> 2
+        // let (state, mut thunder_async_response_rx) =
+        //     MockThunderController::state_with_mock(Some(ch));
+        let mock_thunder_controller_items = MockThunderController::state_with_mock(Some(ch));
+
+        let state = mock_thunder_controller_items.cached_state;
+        let mut thunder_async_response_rx = mock_thunder_controller_items.thunder_async_response_rx;
+        let mut api_message_rx = mock_thunder_controller_items.api_message_rx;
+        // </pca>
+
         let msg = MockExtnClient::req(
             RippleContract::DeviceInfo,
             ExtnRequest::Device(DeviceRequest::DeviceInfo(
                 DeviceInfoRequest::PlatformBuildInfo,
             )),
+        );
+
+        let cached_state = state.clone();
+        tokio::spawn(async move {
+            while let Some(thunder_async_response) = thunder_async_response_rx.recv().await {
+                println!("*** _DEBUG: test_platform_build_info_with_build_name: Received ThunderAsyncResponse: {:?}", thunder_async_response);
+                let thunder_client = cached_state.clone().get_thunder_client();
+                if let Some(id) = thunder_async_response.get_id() {
+                    println!(
+                        "*** _DEBUG: test_platform_build_info_with_build_name: id={}",
+                        id
+                    );
+                    if let Some(thunder_async_callbacks) = thunder_client.thunder_async_callbacks {
+                        let mut callbacks = thunder_async_callbacks.write().unwrap();
+                        if let Some(Some(callback)) = callbacks.remove(&id) {
+                            if let Some(device_response_message) =
+                                thunder_async_response.get_device_resp_msg(None)
+                            {
+                                oneshot_send_and_log(
+                                    callback,
+                                    device_response_message,
+                                    "ThunderResponse",
+                                );
+                            };
+                        }
+                    }
+                }
+            }
+        });
+
+        // <pca> 2
+        tokio::spawn(async move {
+            while let Some(api_message) = api_message_rx.recv().await {
+                println!("***************************************************************");
+                println!("***************************************************************");
+                println!("***************************************************************");
+                println!(
+                    "*** _DEBUG: test_platform_build_info_with_build_name: Received ApiMessage: {:?}",
+                    api_message
+                );
+                println!("***************************************************************");
+                println!("***************************************************************");
+                println!("***************************************************************");
+
+                // Naveen: This message is the final response containing the PlatformBuildInfo you will then evaluate with unit test assertions in here.
+            }
+        });
+        // </pca>
+
+        println!(
+            "*** _DEBUG: test_platform_build_info_with_build_name: Calling ThunderDeviceInfoRequestProcessor::process_request"
         );
 
         ThunderDeviceInfoRequestProcessor::process_request(
@@ -1081,6 +1265,7 @@ pub mod tests {
             DeviceInfoRequest::PlatformBuildInfo,
         )
         .await;
+
         // let msg: ExtnMessage = r.recv().await.unwrap().try_into().unwrap();
         // let resp_opt = msg.payload.extract::<DeviceResponse>();
         // if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp_opt {
@@ -1090,6 +1275,7 @@ pub mod tests {
         //     panic!("Did not get the expected PlatformBuildInfo from extension call");
         // }
     }
+    // </pca>
 
     macro_rules! check_offset {
         ($mock_response:expr, $timezone:expr, $expected_offset:expr, $expected_rounded_offset:expr) => {{
