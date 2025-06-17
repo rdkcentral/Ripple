@@ -17,7 +17,7 @@
 
 use crate::{
     api::gateway::rpc_gateway_api::{CallContext, RpcRequest},
-    log::{error, info, trace},
+    log::{debug, error, trace},
     processor::rpc_router::{RouterState, RpcRouter},
     service::service_message::{JsonRpcMessage, ServiceMessage},
     utils::error::RippleError,
