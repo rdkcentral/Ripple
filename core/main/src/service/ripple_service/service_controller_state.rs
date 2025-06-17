@@ -123,12 +123,15 @@ impl ServiceControllerState {
     ) {
         match &sm.message {
             JsonRpcMessage::Request(json_rpc_request) => {
-                // In Ripple Service Architecture Ripple Main will not honor any request originated from any connected service.re
-                // send a rejection response
+                // In Ripple Service Architecture Ripple Main will not honor any request originated from any connected service other than
+                // service registration and unregistration request
+                // (TBD) Handling register/unregister
+
+                // send a rejection for all other responses
                 //let request_id = sm.get_request_id();
                 let message = ServiceMessage::new_error(
                     -32600,
-                    "Ripple Main does not support any request from Service".to_string(),
+                    "Ripple Main does not support this request from Service".to_string(),
                     None,
                     Id::Number(sm.get_request_id() as i64),
                 );
