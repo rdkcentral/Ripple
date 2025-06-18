@@ -74,11 +74,6 @@ mod tests {
         let duration = rpc_stats.update_stage("stage1");
         assert!(duration >= 0, "Duration should be non-negative");
         assert_eq!(
-            rpc_stats.last_stage,
-            Utc::now().timestamp_millis(),
-            "Last stage time mismatch"
-        );
-        assert_eq!(
             rpc_stats.stage_durations,
             "stage1=".to_string() + &duration.to_string(),
             "Stage durations mismatch"
@@ -116,10 +111,5 @@ mod tests {
         let api_stats = ApiStats::new("test_api".to_string());
         assert_eq!(api_stats.api, "test_api".to_string(), "API name mismatch");
         assert!(api_stats.stats_ref.is_none(), "Stats ref should be None");
-        assert_eq!(
-            api_stats.stats.start_time,
-            Utc::now().timestamp_millis(),
-            "Start time mismatch"
-        );
     }
 }

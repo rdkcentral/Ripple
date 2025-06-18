@@ -17,6 +17,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use ripple_sdk::api::gateway::rpc_gateway_api::{JsonRpcApiRequest, JsonRpcApiResponse};
+
 const CONTROLLER_STATUS_METHOD: &str = "Controller.1.status@";
 const CONTROLLER_ACTIVATE_METHOD: &str = "Controller.1.activate";
 const CONTROLLER_REGISTER_METHOD: &str = "Controller.1.register";
@@ -359,6 +360,7 @@ macro_rules! read_broker_responses {
         assert_eq!(counter, $expected_count);
     };
 }
+
 #[macro_export]
 macro_rules! process_broker_output {
     ($broker_request:expr, $broker_output:expr) => {{
@@ -372,7 +374,7 @@ macro_rules! process_broker_output {
             .clone()
             .rule
             .transform
-            .get_transform_data(rules_engine::RuleTransformType::Response)
+            .get_transform_data(RuleTransformType::Response)
         {
             apply_response(filter, &rule_context_name, &mut response);
         } else if response.result.is_none() && response.error.is_none() {
@@ -398,7 +400,7 @@ macro_rules! process_broker_output_event_resposne {
             .clone()
             .rule
             .transform
-            .get_transform_data(rules_engine::RuleTransformType::Event(false))
+            .get_transform_data(RuleTransformType::Event(false))
         {
             let broker_request_clone = $broker_request.clone();
             let result = response.clone().result.unwrap();

@@ -71,7 +71,7 @@ fn start() {
                     let processor = RPCRequestProcessor::new(
                         client.clone(),
                         methods,
-                        ExtnId::new_channel(ExtnClassId::Gateway, "badger".into()),
+                        ExtnId::new_channel(ExtnClassId::Device, "mock_device".into()),
                     );
                     client.add_request_processor(processor);
                 }

@@ -32,7 +32,7 @@ use super::endpoint_broker::{
 };
 
 use crate::{
-    broker::rules_engine::{jq_compile, RuleTransformType},
+    broker::rules::rules_engine::{jq_compile, RuleTransformType},
     state::platform_state::PlatformState,
 };
 
@@ -227,7 +227,7 @@ mod tests {
 
     use crate::broker::{
         endpoint_broker::BrokerOutput,
-        rules_engine::{Rule, RuleEndpoint, RuleEndpointProtocol},
+        rules::rules_engine::{Rule, RuleEndpoint, RuleEndpointProtocol},
     };
 
     use super::*;

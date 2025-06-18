@@ -20,11 +20,13 @@ use jsonrpsee::core::RpcResult;
 use ripple_sdk::api::gateway::rpc_gateway_api::{CallContext, JsonRpcApiError, RpcRequest};
 use serde_json::Value;
 
+use super::endpoint_broker::BrokerCallback;
+
 pub struct BrokerUtils;
 
 impl BrokerUtils {
     pub async fn process_for_app_main_request(
-        state: &mut PlatformState,
+        state: &PlatformState,
         method: &str,
         params: Option<Value>,
         app_id: &str,
@@ -35,7 +37,7 @@ impl BrokerUtils {
     }
 
     pub async fn process_internal_main_request<'a>(
-        state: &mut PlatformState,
+        state: &PlatformState,
         method: &'a str,
         params: Option<Value>,
     ) -> RpcResult<Value> {
@@ -43,7 +45,7 @@ impl BrokerUtils {
     }
 
     pub async fn process_internal_request<'a>(
-        state: &mut PlatformState,
+        state: &PlatformState,
         on_behalf_of: Option<CallContext>,
         method: &'a str,
         params: Option<Value>,
@@ -55,10 +57,7 @@ impl BrokerUtils {
         Self::internal_request(state, rpc_request).await
     }
 
-    async fn internal_request(
-        state: &mut PlatformState,
-        rpc_request: RpcRequest,
-    ) -> RpcResult<Value> {
+    async fn internal_request(state: &PlatformState, rpc_request: RpcRequest) -> RpcResult<Value> {
         let method = rpc_request.method.clone();
         match state.internal_rpc_request(&rpc_request).await {
             Ok(res) => match res.as_value() {
@@ -73,5 +72,26 @@ impl BrokerUtils {
                 .with_message(format!("failed to get {} : {}", method, e))
                 .into()),
         }
+    }
+
+    pub async fn process_internal_subscription(
+        state: &mut PlatformState,
+        method: &str,
+        params: Option<Value>,
+        app_id: Option<String>,
+        callback: Option<BrokerCallback>,
+    ) -> bool {
+        let mut rpc_request = RpcRequest::internal(method, None).with_params(params);
+        if let Some(app_id) = app_id {
+            rpc_request.ctx.app_id = app_id.to_owned();
+        }
+        state.endpoint_state.handle_brokerage(
+            rpc_request,
+            None,
+            callback,
+            Vec::new(),
+            None,
+            Vec::new(),
+        )
     }
 }

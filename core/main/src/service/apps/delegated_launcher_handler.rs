@@ -23,12 +23,15 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        apps::{AppError, AppManagerResponse, AppMethod, AppSession, StateChange},
+        apps::{AppError, AppManagerResponse, AppMethod, AppSession, AppSession2_0, StateChange},
         device::{device_user_grants_data::EvaluateAt, entertainment_data::NavigationIntent},
         firebolt::{
             fb_capabilities::{DenyReason, DenyReasonWithCap, FireboltPermission},
             fb_discovery::DISCOVERY_EVENT_ON_NAVIGATE_TO,
-            fb_lifecycle::LifecycleState,
+            fb_lifecycle::{
+                Lifecycle2_0AppEvent, Lifecycle2_0AppEventData, LifecycleManagerState,
+                LifecycleState, LifecycleStateChangeEvent,
+            },
             fb_lifecycle_management::{
                 CompletedSessionResponse, PendingSessionResponse, SessionResponse,
                 LCM_EVENT_ON_SESSION_TRANSITION_CANCELED,
@@ -41,7 +44,7 @@ use ripple_sdk::{
     },
     log::{debug, error, warn},
     serde_json::{self},
-    tokio::sync::oneshot,
+    tokio::sync::{mpsc, oneshot},
     utils::{error::RippleError, time_utils::Timer},
     uuid::Uuid,
 };
@@ -68,7 +71,7 @@ use ripple_sdk::{
 use serde_json::{json, Value};
 
 use crate::{
-    broker::broker_utils::BrokerUtils,
+    broker::{broker_utils::BrokerUtils, endpoint_broker::BrokerCallback},
     service::{
         apps::app_events::AppEvents,
         extn::ripple_client::RippleClient,
@@ -101,6 +104,15 @@ pub struct App {
     pub is_app_init_params_invoked: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct App2_0 {
+    // Ripple currently only manages the session ID (app_instance_id) for App Lifecycle 2.0.
+    // No additional business logic is implemented.
+    // Extend this structure as more AI 2.0-specific features are added.
+    pub app_id: String,
+    pub current_session: AppSession2_0,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct AppManagerState {
     apps: Arc<RwLock<HashMap<String, App>>>,
@@ -112,6 +124,50 @@ pub struct AppManagerState {
     // This is a map <app_id, app_migrated_state>
     migrated_apps: Arc<RwLock<HashMap<String, Vec<String>>>>,
     migrated_apps_persist_path: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct AppManagerState2_0 {
+    // Ripple currently only manages the session ID (app_instance_id) for App Lifecycle 2.0.
+    // No additional business logic is implemented.
+    // Extend this structure as more AI 2.0-specific features are added.
+    apps: Arc<RwLock<HashMap<String, App2_0>>>,
+}
+
+impl AppManagerState2_0 {
+    pub fn new() -> Self {
+        AppManagerState2_0 {
+            apps: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    pub fn get(&self, app_id: &str) -> Option<App2_0> {
+        self.apps.read().unwrap().get(app_id).cloned()
+    }
+
+    pub fn insert(&self, app_id: String, app: App2_0) {
+        let mut apps = self.apps.write().unwrap();
+        let _ = apps.insert(app_id, app);
+    }
+
+    pub fn remove(&self, app_id: &str) -> Option<App2_0> {
+        let mut apps = self.apps.write().unwrap();
+        apps.remove(app_id)
+    }
+
+    pub fn get_app_id_from_session_id(&self, session_id: &str) -> Option<String> {
+        if let Some((_, app)) = self
+            .apps
+            .read()
+            .unwrap()
+            .iter()
+            .find(|(_, app)| app.current_session.app_instance_id.eq(session_id))
+        {
+            Some(app.app_id.clone())
+        } else {
+            None
+        }
+    }
 }
 
 impl AppManagerState {
@@ -396,7 +452,237 @@ impl DelegatedLauncherHandler {
         }
     }
 
+    #[allow(dead_code)]
+    fn create_new_app_session(platform_state: &PlatformState, event: LifecycleStateChangeEvent) {
+        let LifecycleStateChangeEvent {
+            app_id,
+            app_instance_id,
+            navigation_intent,
+            ..
+        } = event;
+
+        let mut session = AppSession2_0::new(app_id.clone(), app_instance_id);
+        if let Some(intent) = navigation_intent {
+            session.set_navigation_intent(intent);
+        }
+        platform_state.lifecycle2_app_state.insert(
+            app_id.clone(),
+            App2_0 {
+                app_id,
+                current_session: session,
+            },
+        );
+    }
+
+    #[allow(dead_code)]
+    async fn emit_lifecycle_app_event(
+        platform_state: &PlatformState,
+        app_id: &str,
+        event_ctor: fn(Lifecycle2_0AppEventData) -> Lifecycle2_0AppEvent,
+        old_state: LifecycleManagerState,
+        new_state: LifecycleManagerState,
+        source: Option<String>,
+    ) {
+        let event = event_ctor(Lifecycle2_0AppEventData {
+            previous: old_state.into(),
+            state: new_state.into(),
+            source,
+        });
+        AppEvents::emit_to_app(
+            platform_state,
+            app_id.to_string(),
+            event.as_event_name(),
+            &event.as_event_data_json().unwrap_or_default(),
+        )
+        .await;
+    }
+
+    async fn on_app_lifecycle_state_changed(
+        platform_state: &PlatformState,
+        event: LifecycleStateChangeEvent,
+    ) {
+        info!("on_app_lifecycle_2_state_changed: {:?}", event);
+        let LifecycleStateChangeEvent {
+            app_id,
+            old_state,
+            new_state,
+            ..
+        } = event.clone();
+
+        use Lifecycle2_0AppEvent::*;
+        use LifecycleManagerState::*;
+
+        // Update the navigation intent
+        if let Some(intent) = &event.navigation_intent {
+            // Get the App2_0 instance, update its session, and re-insert it
+            if let Some(mut app) = platform_state.lifecycle2_app_state.get(&app_id) {
+                app.current_session.set_navigation_intent(intent.clone());
+                platform_state
+                    .lifecycle2_app_state
+                    .insert(app_id.clone(), app);
+            }
+        }
+
+        match (old_state.clone(), new_state.clone()) {
+            (_, Loading) => {
+                Self::create_new_app_session(platform_state, event);
+            }
+            (_, Initializing) => {
+                // Ripple does not maintain the state of the app in the AppManagerState2_0
+                debug!(
+                    "on_app_lifecycle_state_changed : {} is in Initializing state",
+                    event.app_id
+                );
+            }
+            (Initializing, Paused) => {
+                Self::emit_lifecycle_app_event(
+                    platform_state,
+                    &app_id,
+                    OnStart,
+                    old_state,
+                    new_state,
+                    None,
+                )
+                .await;
+            }
+            (Initializing, Suspended) => {
+                Self::emit_lifecycle_app_event(
+                    platform_state,
+                    &app_id,
+                    OnStartSuspend,
+                    old_state,
+                    new_state,
+                    None,
+                )
+                .await;
+            }
+            (Paused, Active) => {
+                Self::emit_lifecycle_app_event(
+                    platform_state,
+                    &app_id,
+                    OnActivate,
+                    old_state,
+                    new_state,
+                    None,
+                )
+                .await;
+            }
+            (Active, Paused) => {
+                Self::emit_lifecycle_app_event(
+                    platform_state,
+                    &app_id,
+                    OnPause,
+                    old_state,
+                    new_state,
+                    None,
+                )
+                .await;
+            }
+            (Paused, Suspended) => {
+                Self::emit_lifecycle_app_event(
+                    platform_state,
+                    &app_id,
+                    OnSuspend,
+                    old_state,
+                    new_state,
+                    None,
+                )
+                .await;
+            }
+            (Suspended, Paused) => {
+                Self::emit_lifecycle_app_event(
+                    platform_state,
+                    &app_id,
+                    OnResume,
+                    old_state,
+                    new_state,
+                    None,
+                )
+                .await;
+            }
+            (Suspended, Hibernated) => {
+                Self::emit_lifecycle_app_event(
+                    platform_state,
+                    &app_id,
+                    OnHibernate,
+                    old_state,
+                    new_state,
+                    None,
+                )
+                .await;
+            }
+            (Hibernated, Suspended) => {
+                Self::emit_lifecycle_app_event(
+                    platform_state,
+                    &app_id,
+                    OnRestore,
+                    old_state,
+                    new_state,
+                    None,
+                )
+                .await;
+            }
+            (_, Terminating) => {
+                // Clean up the app session and the emit onDestroy app event.
+                platform_state.lifecycle2_app_state.remove(&app_id);
+                Self::emit_lifecycle_app_event(
+                    platform_state,
+                    &app_id,
+                    OnDestroy,
+                    old_state,
+                    new_state,
+                    None,
+                )
+                .await;
+            }
+            _ => {
+                debug!(
+                "on_app_lifecycle_state_changed : Unhandled state transition in Ripple: {:?} -> {:?}",
+                old_state.as_string(), new_state.as_string()
+            );
+            }
+        }
+    }
+
+    async fn set_up_lifecycle_manager_listener(&mut self) {
+        info!("Setting up lifecycle manager thunder listener");
+        let mut state = self.platform_state.clone();
+        let (sender, mut recv) = mpsc::channel(10);
+        let broker_callback = BrokerCallback { sender };
+        BrokerUtils::process_internal_subscription(
+            &mut state,
+            "lifecycle2.onAppLifecycleStateChanged",
+            Some(json!({"listen": true})),
+            None,
+            Some(broker_callback),
+        )
+        .await;
+        tokio::spawn(async move {
+            while let Some(e) = recv.recv().await {
+                debug!("Received lifecycle manager output: {:?}", e);
+                if let Some(p) = e.data.params {
+                    match serde_json::from_value::<LifecycleStateChangeEvent>(p) {
+                        Ok(event) => {
+                            Self::on_app_lifecycle_state_changed(&state, event).await;
+                        }
+                        Err(e) => {
+                            error!("Failed to deserialize LifecycleStateChangeEvent: {:?}", e);
+                        }
+                    }
+                }
+            }
+        });
+    }
+
     pub async fn start(&mut self) {
+        if std::env::var("RIPPLE_LIFECYCLE_2_ENABLED")
+            .ok()
+            .and_then(|s| s.parse::<bool>().ok())
+            .unwrap_or(false)
+        {
+            self.set_up_lifecycle_manager_listener().await;
+        }
+
         while let Some(data) = self.app_mgr_req_rx.recv().await {
             // App request
             debug!("DelegatedLauncherHandler: App request: data={:?}", data);

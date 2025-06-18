@@ -127,10 +127,10 @@ impl SettingsProcessor {
                         Some(SettingValue::bool(cp.share_watch_history))
                     }
                     SettingKey::DeviceName => {
-                        let mut s = state.clone();
+                        let s = state.clone();
                         Some(SettingValue::string(
                             broker_utils::BrokerUtils::process_internal_main_request(
-                                &mut s,
+                                &s,
                                 "device.name",
                                 None,
                             )
@@ -208,7 +208,7 @@ impl SettingsProcessor {
             match key {
                 SettingKey::VoiceGuidanceEnabled => {
                     resp = BrokerUtils::process_internal_request(
-                        &mut state.clone(),
+                        &state.clone(),
                         Some(request.context.clone()),
                         "sts.voiceguidance.onEnabledChanged",
                         serde_json::to_value(json!({"listen": true})).ok(),
@@ -218,7 +218,7 @@ impl SettingsProcessor {
                 }
                 SettingKey::ClosedCaptions => {
                     resp = BrokerUtils::process_internal_request(
-                        &mut state.clone(),
+                        &state.clone(),
                         Some(request.context.clone()),
                         "sts.closedcaptions.onEnabledChanged",
                         serde_json::to_value(json!({"listen": true})).ok(),
@@ -276,7 +276,7 @@ impl SettingsProcessor {
                 }
                 SettingKey::DeviceName => {
                     resp = BrokerUtils::process_internal_request(
-                        &mut state.clone(),
+                        &state.clone(),
                         Some(request.context.clone()),
                         "sts.device.onNameChanged",
                         serde_json::to_value(json!({"listen": true})).ok(),

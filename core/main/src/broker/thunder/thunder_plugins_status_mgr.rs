@@ -677,7 +677,7 @@ mod tests {
     use ripple_sdk::{
         api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
     };
-    use crate::broker::rules_engine::{Rule, RuleTransform};
+    use crate::broker::rules::rules_engine::{Rule, RuleTransform};
 
     #[tokio::test]
     async fn test_expired_broker_request() {

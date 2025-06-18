@@ -74,7 +74,7 @@ impl EventManagementUtility {
     }
 
     pub async fn advertising_policy_event_decorator(
-        mut platform_state: PlatformState,
+        platform_state: PlatformState,
         ctx: CallContext,
         value: Option<Value>,
     ) -> Result<Option<Value>, RippleError> {
