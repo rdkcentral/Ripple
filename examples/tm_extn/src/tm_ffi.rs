@@ -61,7 +61,7 @@ export_extn_metadata!(CExtnMetadata, init_library);
 fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     let _ = init_logger("tm".into());
     info!("Starting tm channel");
-    let mut client = ExtnClient::new(receiver, sender);
+    let mut client = ExtnClient::new_extn(receiver);
 
     if !client.check_contract_permitted(RippleContract::OperationalMetricListener) {
         let _ = client.event(ExtnStatus::Error);
