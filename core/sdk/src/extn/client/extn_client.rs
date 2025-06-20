@@ -290,7 +290,7 @@ impl ExtnClient {
                                         }
                                         self.handle_message(extn_message);
                                     } else {
-                                        error!("Failed to parse mssage {:?}", msg);
+                                        error!("Failed to parse message: {:?}", msg);
                                     }
                                 }
                             }
@@ -312,7 +312,7 @@ impl ExtnClient {
     }
 
     pub fn handle_message(&self, message: ExtnMessage) -> ControlFlow<()> {
-        info!("IEC recv: {:#?}", message);
+        trace!("IEC recv: {:#?}", message);
         if message.payload.is_response() {
             Self::handle_single(message, self.response_processors.clone());
         } else if message.payload.is_event() {
