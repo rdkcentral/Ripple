@@ -93,7 +93,7 @@ pub struct ExtnManifestEntry {
     pub resolution: Option<Vec<ExtnResolutionEntry>>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct ExtnSymbol {
     pub id: String,
