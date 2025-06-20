@@ -257,6 +257,26 @@ impl JsonRpcApiRequest {
         self
     }
 }
+impl From<JsonRpcApiRequest> for RpcRequest {
+    fn from(request: JsonRpcApiRequest) -> Self {
+        RpcRequest {
+            ctx: CallContext::default(),
+            method: request.method,
+            params_json: serde_json::to_string(&request.params.unwrap_or_default())
+                .unwrap_or_default(),
+        }
+    }
+}
+impl From<RpcRequest> for JsonRpcApiRequest {
+    fn from(request: RpcRequest) -> Self {
+        JsonRpcApiRequest {
+            jsonrpc: "2.0".to_owned(),
+            id: Some(request.clone().ctx.call_id),
+            method: request.clone().method,
+            params: request.get_params(),
+        }
+    }
+}
 
 #[derive(Clone, Default, Debug)]
 pub struct JsonRpcApiError {

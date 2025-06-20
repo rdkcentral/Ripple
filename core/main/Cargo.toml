@@ -45,7 +45,8 @@ contract_tests = [
 tdk=[]
 [dependencies]
 base64.workspace = true
-ripple_sdk = { workspace = true, features = ["full","local_dev"] }
+ripple_sdk = { git = "https://github.com/rdkcentral/Ripple.git", branch = "ssda", subdir = "core/sdk" }
+
 jsonrpsee = { workspace = true, features = ["macros"] }
 futures-channel.workspace = true
 futures.workspace = true
@@ -71,9 +72,11 @@ strum_macros = "0.24"
 
 openrpc_validator = { path = "../../openrpc_validator" }
 proc-macro2.workspace = true
-ssda_service = {path = "../../ssda/ssda_service/"}
-ssda_types = {path = "../../ssda/ssda_types/"}
+ssda_service = {path = "../../../ssda/ssda_service/"}
+ssda_types = {path = "../../../ssda/ssda_types/"}
 
+[patch. "https://github.com/rdkcentral/Ripple.git" ]
+ripple_sdk = { path = "../sdk" }
 
 
 [build-dependencies]
