@@ -1,5 +1,0 @@
-[workspace]
-resolver = "2"
-members = [ "example-service", "ssda_client","ssda_service", "ssda_tranports", "ssda_types"]
-
-

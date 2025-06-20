@@ -1,6 +1,0 @@
-[package]
-name = "ssda_tranports"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
