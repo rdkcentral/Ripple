@@ -32,7 +32,7 @@ use ripple_sdk::{
         device::device_peristence::SetBoolProperty,
         distributor::distributor_privacy::{
             ContentListenRequest, GetPropertyParams, PrivacyCloudRequest, PrivacySettings,
-            PrivacySettingsStoreRequest, SetPropertyParams, PrivacySettingsData,
+            PrivacySettingsData, PrivacySettingsStoreRequest, SetPropertyParams,
         },
         firebolt::{
             fb_capabilities::{CapabilityRole, FireboltCap, RoleInfo, CAPABILITY_NOT_AVAILABLE},
