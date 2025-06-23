@@ -243,34 +243,72 @@ impl ThunderClient {
         }
     }
 
-    pub fn start_mock(device_channel_request_tx: MpscSender<DeviceChannelRequest>) -> Self {
+    // <pca>
+    //     pub fn start_mock(device_channel_request_tx: MpscSender<DeviceChannelRequest>) -> Self {
+    //         let (thunder_async_response_tx, mut thunder_async_response_rx) = mpsc::channel(32);
+    //         let callback = AsyncCallback {
+    //             sender: thunder_async_response_tx,
+    //         };
+
+    //         let (thunder_async_request_tx, mut thunder_async_request_rx) = mpsc::channel(32);
+    //         let broker_sender = AsyncSender {
+    //             sender: thunder_async_request_tx,
+    //         };
+    //         let client = ThunderAsyncClient::new(callback, broker_sender);
+
+    //         // Handle requests from ThunderAsyncClient and forward to device_channel_request_tx
+    //         tokio::spawn(async move {
+    //             while let Some(thunder_async_request) = thunder_async_request_rx.recv().await {
+    //                 println!(
+    //                     "*** _DEBUG: ThunderClient: mock: thunder_async_request= {:?}",
+    //                     thunder_async_request
+    //                 );
+
+    //                 mpsc_send_and_log(
+    //                     &device_channel_request_tx,
+    //                     thunder_async_request.request,
+    //                     "DeviceChannelRequest",
+    //                 )
+    //                 .await;
+    //             }
+    //         });
+
+    //         // Process responses and forward to device_response_message_tx
+    //         //let device_response_message_tx_clone = device_response_message_tx.clone();
+    //         tokio::spawn(async move {
+    //             while let Some(thunder_async_response) = thunder_async_response_rx.recv().await {
+    //                 println!(
+    //                     "*** _DEBUG: ThunderClient: mock: thunder_async_response= {:?}",
+    //                     thunder_async_response
+    //                 );
+    //                 let (device_response_message_tx, _device_response_message_rx) =
+    //                     oneshot::channel::<DeviceResponseMessage>();
+
+    //                 if let Some(resp) = thunder_async_response.get_device_resp_msg(None) {
+    //                     let _ = device_response_message_tx.send(resp);
+    //                 };
+    //             }
+    //         });
+
+    //         ThunderClient {
+    //             id: Uuid::new_v4(),
+    //             thunder_async_client: Some(client),
+    //             thunder_async_subscriptions: Some(Arc::new(RwLock::new(HashMap::new()))),
+    //             thunder_async_callbacks: Some(Arc::new(RwLock::new(HashMap::new()))),
+    //         }
+    //     }
+    // }
+    pub fn start_mock(thunder_async_request_tx: MpscSender<ThunderAsyncRequest>) -> Self {
         let (thunder_async_response_tx, mut thunder_async_response_rx) = mpsc::channel(32);
         let callback = AsyncCallback {
             sender: thunder_async_response_tx,
         };
 
-        let (thunder_async_request_tx, mut thunder_async_request_rx) = mpsc::channel(32);
         let broker_sender = AsyncSender {
             sender: thunder_async_request_tx,
         };
+
         let client = ThunderAsyncClient::new(callback, broker_sender);
-
-        // Handle requests from ThunderAsyncClient and forward to device_channel_request_tx
-        tokio::spawn(async move {
-            while let Some(thunder_async_request) = thunder_async_request_rx.recv().await {
-                println!(
-                    "*** _DEBUG: ThunderClient: mock: thunder_async_request= {:?}",
-                    thunder_async_request
-                );
-
-                mpsc_send_and_log(
-                    &device_channel_request_tx,
-                    thunder_async_request.request,
-                    "DeviceChannelRequest",
-                )
-                .await;
-            }
-        });
 
         // Process responses and forward to device_response_message_tx
         //let device_response_message_tx_clone = device_response_message_tx.clone();
@@ -297,6 +335,7 @@ impl ThunderClient {
         }
     }
 }
+// </pca>
 
 impl ThunderClientBuilder {
     pub async fn start_thunder_client(
