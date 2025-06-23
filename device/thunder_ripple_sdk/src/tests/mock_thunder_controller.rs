@@ -198,32 +198,32 @@ impl MockThunderController {
         }
     }
 
-    // pub async fn handle_thunder_unsub(&mut self, _msg: DeviceUnsubscribeRequest) {}
-    // pub async fn handle_thunder_sub(
-    //     &mut self,
-    //     msg: DeviceSubscribeRequest,
-    //     handler: mpsc::Sender<DeviceResponseMessage>,
-    // ) {
-    //     let (tx, _rx) = oneshot::channel::<DeviceResponseMessage>();
-    //     if msg.module == "Controller.1" && msg.event_name == "statechange" {
-    //         self.on_state_change(handler).await;
-    //     } else if let Some(handler_fn) = self
-    //         .custom_handlers
-    //         .custom_subscription_handler
-    //         .get(&format!("{}.{}", msg.module, msg.event_name))
-    //     {
-    //         let response = handler_fn.call(handler.clone()).await;
-    //         if let Some(resp) = response {
-    //             mpsc_send_and_log(&handler, resp, "OnStatusChange").await;
-    //         }
-    //     } else {
-    //         println!(
-    //             "No mock subscription found for {}.{}",
-    //             msg.module, &msg.event_name
-    //         );
-    //     }
-    //     oneshot_send_and_log(tx, EMPTY_RESPONSE, "SubscribeAck");
-    // }
+    pub async fn handle_thunder_unsub(&mut self, _msg: DeviceUnsubscribeRequest) {}
+    pub async fn handle_thunder_sub(
+        &mut self,
+        msg: DeviceSubscribeRequest,
+        handler: mpsc::Sender<DeviceResponseMessage>,
+    ) {
+        let (tx, _rx) = oneshot::channel::<DeviceResponseMessage>();
+        if msg.module == "Controller.1" && msg.event_name == "statechange" {
+            self.on_state_change(handler).await;
+        } else if let Some(handler_fn) = self
+            .custom_handlers
+            .custom_subscription_handler
+            .get(&format!("{}.{}", msg.module, msg.event_name))
+        {
+            let response = handler_fn.call(handler.clone()).await;
+            if let Some(resp) = response {
+                mpsc_send_and_log(&handler, resp, "OnStatusChange").await;
+            }
+        } else {
+            println!(
+                "No mock subscription found for {}.{}",
+                msg.module, &msg.event_name
+            );
+        }
+        oneshot_send_and_log(tx, EMPTY_RESPONSE, "SubscribeAck");
+    }
 
     pub fn start() -> (
         mpsc::Sender<DeviceChannelRequest>,
@@ -260,14 +260,14 @@ impl MockThunderController {
                             .handle_thunder_call(msg, thunder_async_response_tx.clone())
                             .await;
                     }
-                    DeviceChannelRequest::Subscribe(msg) => {
-                        println!("*** _DEBUG: start_with_custom_handlers: DeviceChannelRequest::Subscribe req received : {:?}", msg);
+                    DeviceChannelRequest::Subscribe(_msg) => {
+                        // println!("*** _DEBUG: start_with_custom_handlers: DeviceChannelRequest::Subscribe req received : {:?}", msg);
                         // mock_controller
                         //     .handle_thunder_sub(msg, device_response_message_tx.clone())
                         //     .await;
                     }
-                    DeviceChannelRequest::Unsubscribe(msg) => {
-                        //dmock_controller.handle_thunder_unsub(msg).await;
+                    DeviceChannelRequest::Unsubscribe(_msg) => {
+                        //mock_controller.handle_thunder_unsub(msg).await;
                     }
                 }
             }

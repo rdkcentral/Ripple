@@ -988,7 +988,7 @@ pub mod tests {
     use crate::client::thunder_async_client::ThunderAsyncResponse;
     use ripple_sdk::api::device::device_info_request::DeviceResponse;
     use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
-    use ripple_sdk::extn::extn_client_message::ExtnPayload;
+    //use ripple_sdk::extn::extn_client_message::ExtnPayload;
     use ripple_sdk::{
         api::device::{
             device_info_request::{DeviceInfoRequest, PlatformBuildInfo},
@@ -1009,7 +1009,10 @@ pub mod tests {
 
     use crate::{
         client::{
-            device_operator::{DeviceCallRequest, DeviceResponseMessage},
+            device_operator::{
+                DeviceCallRequest,
+                //DeviceResponseMessage
+            },
             thunder_plugin::ThunderPlugin,
         },
         processors::thunder_device_info::ThunderDeviceInfoRequestProcessor,
@@ -1020,6 +1023,7 @@ pub mod tests {
         ($build_name:expr, $id:expr) => {
             test_platform_build_info_with_build_name($build_name, Arc::new(|_msg: DeviceCallRequest, async_resp_message_tx: oneshot::Sender<ThunderAsyncResponse>| {
 
+                println!("*** _DEBUG: NEW CHECK???");
                 println!("*** _DEBUG: run_platform_info_test: Custom handler: build_name={}", $build_name);
             let thunderasyncresp = ThunderAsyncResponse {
                 id: Some($id),
