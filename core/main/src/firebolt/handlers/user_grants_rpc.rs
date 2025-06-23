@@ -183,7 +183,6 @@ impl UserGrantsServer for UserGrantsImpl {
         user_grant_info: UserGrantInfo,
     ) -> RpcResult<()> {
         debug!("Handling set user grant request: {:?}", user_grant_info);
-        let app_id = user_grant_info.app_name.to_owned();
         let grant_entry = GrantEntry {
             role: user_grant_info.role,
             capability: user_grant_info.capability.to_owned(),
@@ -199,7 +198,7 @@ impl UserGrantsServer for UserGrantsImpl {
                     .saturating_sub(user_grant_info.last_modified_time.as_secs())
             }),
         };
-        &self
+        let _ = self
             .platform_state
             .cap_state
             .grant_state
@@ -208,7 +207,7 @@ impl UserGrantsServer for UserGrantsImpl {
     }
     async fn sync_user_grants_map(&self, _ctx: CallContext) -> RpcResult<()> {
         debug!("Handling sync grant map request");
-        &self
+        let _ = self
             .platform_state
             .cap_state
             .grant_state
@@ -218,7 +217,7 @@ impl UserGrantsServer for UserGrantsImpl {
     }
     async fn clear_user_grants(&self, _ctx: CallContext) -> RpcResult<()> {
         debug!("Handling clear user grants request");
-        &self
+        let _ = self
             .platform_state
             .cap_state
             .grant_state
