@@ -93,6 +93,11 @@ impl ServiceClientBuilder {
     }
 }
 
+impl Default for ServiceClientBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl ServiceClient {
     pub fn builder() -> ServiceClientBuilder {
         ServiceClientBuilder::new()
@@ -215,8 +220,6 @@ impl ServiceClient {
         self.service_router.clone()
     }
     pub fn get_stack_size(&self) -> Option<ExtnStackSize> {
-        self.extn_client
-            .as_ref()
-            .map_or(None, |ec| ec.get_stack_size())
+        self.extn_client.as_ref().and_then(|ec| ec.get_stack_size())
     }
 }
