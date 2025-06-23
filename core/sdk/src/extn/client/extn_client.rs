@@ -127,7 +127,6 @@ impl ExtnClient {
         }
     }
 
-    // <pca> 2
     pub fn new_main_with_sender(sender: tokio::sync::mpsc::Sender<ApiMessage>) -> ExtnClient {
         Self {
             sender: ExtnSender::new_main_with_sender(sender),
@@ -139,7 +138,6 @@ impl ExtnClient {
             ripple_context: Arc::new(RwLock::new(RippleContext::default())),
         }
     }
-    //</pca>
 
     pub fn new_extn(symbol: ExtnSymbol) -> (ExtnClient, mpsc::Receiver<ApiMessage>) {
         let (tx, tr) = mpsc::channel::<ApiMessage>(32);

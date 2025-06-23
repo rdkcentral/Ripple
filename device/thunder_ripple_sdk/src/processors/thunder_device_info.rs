@@ -1019,59 +1019,6 @@ pub mod tests {
     };
     use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
 
-    // <pca>
-    // macro_rules! run_platform_info_test {
-    //     ($build_name:expr) => {
-    //         test_platform_build_info_with_build_name($build_name, Arc::new(|_msg: DeviceCallRequest, device_response_message_tx: Sender<DeviceResponseMessage>| {
-
-    //             oneshot_send_and_log(
-    //                 device_response_message_tx,
-    //                 DeviceResponseMessage::call(json!({"success" : true, "stbVersion": $build_name, "receiverVersion": $build_name, "stbTimestamp": "".to_owned() })),
-    //                 "",
-    //             );
-    //         })).await;
-    //     };
-    // }
-    // macro_rules! run_platform_info_test {
-    //     ($build_name:expr) => {
-    //         test_platform_build_info_with_build_name($build_name, Arc::new(|_msg: DeviceCallRequest, device_response_message_tx: oneshot::Sender<DeviceResponseMessage>| {
-
-    //             println!("*** _DEBUG: run_platform_info_test: Custom handler: build_name={}", $build_name);
-    //             oneshot_send_and_log(
-    //                 device_response_message_tx,
-    //                 DeviceResponseMessage::call(json!({"success" : true, "stbVersion": $build_name, "receiverVersion": $build_name, "stbTimestamp": "".to_owned() })),
-    //                 "",
-    //             );
-    //         })).await;
-    //     };
-    // }
-
-    // <pca> 2
-    // macro_rules! run_platform_info_test {
-    //     ($build_name:expr) => {
-    //         test_platform_build_info_with_build_name($build_name, Arc::new(|_msg: DeviceCallRequest, async_resp_message_tx: oneshot::Sender<ThunderAsyncResponse>| {
-
-    //             println!("*** _DEBUG: run_platform_info_test: Custom handler: build_name={}", $build_name);
-    //         let thunderasyncresp = ThunderAsyncResponse {
-    //             id: None,
-    //             result: Ok(JsonRpcApiResponse {
-    //                 jsonrpc: "2.0".to_owned(),
-    //                 id: None,
-    //                 result: Some(json!({"success" : true, "stbVersion": $build_name, "receiverVersion": $build_name, "stbTimestamp": "".to_owned() })),
-    //                 error: None,
-    //                 method: None,
-    //                 params: None
-    //             }),
-    //         };
-
-    //         oneshot_send_and_log(
-    //                 async_resp_message_tx,
-    //                 thunderasyncresp,
-    //                 "",
-    //             );
-    //         })).await;
-    //     };
-    // }
     macro_rules! run_platform_info_test {
         ($build_name:expr, $id:expr) => {
             test_platform_build_info_with_build_name($build_name, Arc::new(|_msg: DeviceCallRequest, async_resp_message_tx: oneshot::Sender<ThunderAsyncResponse>| {
@@ -1098,8 +1045,6 @@ pub mod tests {
         };
     }
 
-    // </pca>
-
     #[derive(Debug, Serialize, Deserialize)]
     struct BuildInfoTest {
         build_name: String,
@@ -1109,73 +1054,37 @@ pub mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_platform_build_info() {
         run_platform_info_test!("SCXI11BEI_023.005.03.6.8p12s3_VBN_sdy", 1);
-        run_platform_info_test!("SCXI11BEI_23_VBN_sdy", 2);
-        run_platform_info_test!("SCXI11BEI_VBN_23_20231130001020sdy", 3);
-        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_PRODLOG_sdy", 4);
-        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_PROD_sdy", 5);
-        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_VBN_sdy", 6);
-        run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_VBN_sey", 7);
-        run_platform_info_test!("SCXI11BEI_023.003.00.6.8p7s1_PRODLOG_sdy_XOE", 8);
-        run_platform_info_test!("SCXI11BEI_VBN_stable2_20231129231433sdy_XOE_NG", 9);
-        run_platform_info_test!("SCXI11AIC_PROD_6.6_p1v_20231130001020sdy_NG", 10);
-        run_platform_info_test!("SCXI11AIC_VBN_23Q4_sprint_20231129232625sdy_FG_NG", 11);
-        run_platform_info_test!("SCXI11AIC_VBN_23Q4_sprint_20231129232625sey_FG_NG", 12);
-        run_platform_info_test!(
-            "SCXI11BEI_PROD_some_branch_20231129233157sdy_FG_NG-signed",
-            13
-        );
-        run_platform_info_test!("SCXI11BEI_PROD_QS024_20231129231350sdy_XOE_NG", 14);
-        run_platform_info_test!(
-            "COESST11AEI_VBN_23Q4_sprint_20231130233011sdy_DFL_FG_GRT",
-            15
-        );
-        run_platform_info_test!("COESST11AEI_23.40p11d24_EXP_PROD_sdy-signed", 16);
-        run_platform_info_test!(
-            "SCXI11BEI_VBN_23Q4_sprint_20231113173051sdy_FG_EDGE_DISTPDEMO-signed",
-            17
-        );
-        run_platform_info_test!("SCXI11BEI_somebuild", 18);
-        run_platform_info_test!("SCXI11BEI_someVBNbuild", 19);
+        // <pca> debug
+        // run_platform_info_test!("SCXI11BEI_23_VBN_sdy", 2);
+        // run_platform_info_test!("SCXI11BEI_VBN_23_20231130001020sdy", 3);
+        // run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_PRODLOG_sdy", 4);
+        // run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_PROD_sdy", 5);
+        // run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_VBN_sdy", 6);
+        // run_platform_info_test!("SCXI11BEI_024.004.00.6.9p8s1_VBN_sey", 7);
+        // run_platform_info_test!("SCXI11BEI_023.003.00.6.8p7s1_PRODLOG_sdy_XOE", 8);
+        // run_platform_info_test!("SCXI11BEI_VBN_stable2_20231129231433sdy_XOE_NG", 9);
+        // run_platform_info_test!("SCXI11AIC_PROD_6.6_p1v_20231130001020sdy_NG", 10);
+        // run_platform_info_test!("SCXI11AIC_VBN_23Q4_sprint_20231129232625sdy_FG_NG", 11);
+        // run_platform_info_test!("SCXI11AIC_VBN_23Q4_sprint_20231129232625sey_FG_NG", 12);
+        // run_platform_info_test!(
+        //     "SCXI11BEI_PROD_some_branch_20231129233157sdy_FG_NG-signed",
+        //     13
+        // );
+        // run_platform_info_test!("SCXI11BEI_PROD_QS024_20231129231350sdy_XOE_NG", 14);
+        // run_platform_info_test!(
+        //     "COESST11AEI_VBN_23Q4_sprint_20231130233011sdy_DFL_FG_GRT",
+        //     15
+        // );
+        // run_platform_info_test!("COESST11AEI_23.40p11d24_EXP_PROD_sdy-signed", 16);
+        // run_platform_info_test!(
+        //     "SCXI11BEI_VBN_23Q4_sprint_20231113173051sdy_FG_EDGE_DISTPDEMO-signed",
+        //     17
+        // );
+        // run_platform_info_test!("SCXI11BEI_somebuild", 18);
+        // run_platform_info_test!("SCXI11BEI_someVBNbuild", 19);
+        // </pca>
     }
 
-    // <pca>
-    // async fn test_platform_build_info_with_build_name(
-    //     _build_name: &'static str,
-    //     handler: Arc<ThunderHandlerFn>,
-    // ) {
-    //     let mut ch = CustomHandler::default();
-    //     ch.custom_request_handler.insert(
-    //         ThunderPlugin::System.unversioned_method("getSystemVersions"),
-    //         handler,
-    //     );
-
-    //     let state = MockThunderController::state_with_mock(Some(ch));
-
-    //     let msg = MockExtnClient::req(
-    //         RippleContract::DeviceInfo,
-    //         ExtnRequest::Device(DeviceRequest::DeviceInfo(
-    //             DeviceInfoRequest::PlatformBuildInfo,
-    //         )),
-    //     );
-
-    //     ThunderDeviceInfoRequestProcessor::process_request(
-    //         state,
-    //         msg,
-    //         DeviceInfoRequest::PlatformBuildInfo,
-    //     )
-    //     .await;
-
-    //     println!("*** _DEBUG: test_platform_build_info_with_build_name: Mark 1");
-
-    //     // let msg: ExtnMessage = r.recv().await.unwrap().try_into().unwrap();
-    //     // let resp_opt = msg.payload.extract::<DeviceResponse>();
-    //     // if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp_opt {
-    //     //     let exp = tests.iter().find(|x| x.build_name == build_name).unwrap();
-    //     //     assert_eq!(info, exp.info);
-    //     // } else {
-    //     //     panic!("Did not get the expected PlatformBuildInfo from extension call");
-    //     // }
-    // }
     async fn test_platform_build_info_with_build_name(
         build_name: &'static str,
         handler: Arc<ThunderHandlerFn>,
@@ -1191,15 +1100,11 @@ pub mod tests {
             handler,
         );
 
-        // <pca> 2
-        // let (state, mut thunder_async_response_rx) =
-        //     MockThunderController::state_with_mock(Some(ch));
         let mock_thunder_controller_items = MockThunderController::state_with_mock(Some(ch));
 
         let state = mock_thunder_controller_items.cached_state;
         let mut thunder_async_response_rx = mock_thunder_controller_items.thunder_async_response_rx;
         let mut api_message_rx = mock_thunder_controller_items.api_message_rx;
-        // </pca>
 
         let msg = MockExtnClient::req(
             RippleContract::DeviceInfo,
@@ -1236,7 +1141,6 @@ pub mod tests {
             }
         });
 
-        // <pca> 2
         tokio::spawn(async move {
             while let Some(api_message) = api_message_rx.recv().await {
                 println!("***************************************************************");
@@ -1253,7 +1157,6 @@ pub mod tests {
                 // Naveen: This message is the final response containing the PlatformBuildInfo you will then evaluate with unit test assertions in here.
             }
         });
-        // </pca>
 
         println!(
             "*** _DEBUG: test_platform_build_info_with_build_name: Calling ThunderDeviceInfoRequestProcessor::process_request"
@@ -1265,17 +1168,7 @@ pub mod tests {
             DeviceInfoRequest::PlatformBuildInfo,
         )
         .await;
-
-        // let msg: ExtnMessage = r.recv().await.unwrap().try_into().unwrap();
-        // let resp_opt = msg.payload.extract::<DeviceResponse>();
-        // if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp_opt {
-        //     let exp = tests.iter().find(|x| x.build_name == build_name).unwrap();
-        //     assert_eq!(info, exp.info);
-        // } else {
-        //     panic!("Did not get the expected PlatformBuildInfo from extension call");
-        // }
     }
-    // </pca>
 
     macro_rules! check_offset {
         ($mock_response:expr, $timezone:expr, $expected_offset:expr, $expected_rounded_offset:expr) => {{

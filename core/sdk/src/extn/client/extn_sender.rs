@@ -67,7 +67,6 @@ impl ExtnSender {
         }
     }
 
-    // <pca> 2
     pub fn new_main_with_sender(sender: Sender<ApiMessage>) -> Self {
         ExtnSender {
             tx: Some(sender),
@@ -77,7 +76,6 @@ impl ExtnSender {
             config: None,
         }
     }
-    // </pca>
 
     pub fn new_extn(tx: Sender<ApiMessage>, symbol: ExtnSymbol) -> Self {
         ExtnSender {

@@ -43,10 +43,7 @@ pub struct ThunderAsyncClient {
 #[derive(Clone, Debug)]
 pub struct ThunderAsyncRequest {
     pub id: u64,
-    // <pca>
-    //request: DeviceChannelRequest,
     pub request: DeviceChannelRequest,
-    // </pca>
 }
 
 impl std::fmt::Display for ThunderAsyncRequest {
