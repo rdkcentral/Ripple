@@ -287,7 +287,7 @@ impl MockThunderController {
         let (device_channel_request_tx, thunder_async_response_rx) =
             MockThunderController::start_with_custom_handlers(custom_thunder);
 
-        let thunder_client = ThunderClient::start_mock(device_channel_request_tx);
+        let thunder_client = ThunderClient::mock_thunderclient(device_channel_request_tx);
 
         let (api_message_tx, api_message_rx) = mpsc::channel::<ApiMessage>(32);
         let extn_client = ExtnClient::new_main_with_sender(api_message_tx);

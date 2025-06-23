@@ -229,7 +229,7 @@ impl ThunderClient {
         }
     }
 
-    pub fn start_mock(device_channel_request_tx: MpscSender<DeviceChannelRequest>) -> Self {
+    pub fn mock_thunderclient(device_channel_request_tx: MpscSender<DeviceChannelRequest>) -> Self {
         let (thunder_async_response_tx, _) = mpsc::channel(32);
         let callback = AsyncCallback {
             sender: thunder_async_response_tx,
