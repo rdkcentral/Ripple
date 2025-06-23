@@ -574,7 +574,6 @@ impl PrivacyImpl {
         match privacy_settings_storage_type {
             PrivacySettingsStorageType::Local | PrivacySettingsStorageType::Sync => {
                 let payload = PrivacySettingsStoreRequest::GetPrivacySettings(property);
-                // TOOD: DO I have to convert this to call rpc? Why cant we directly call StorageManager::get_bool? When we remove the contract/extn processor do we need to add & check any config?
                 let response = platform_state.get_client().send_extn_request(payload).await;
                 if let Ok(extn_msg) = response {
                     match extn_msg.payload {
@@ -640,7 +639,6 @@ impl PrivacyImpl {
         match privacy_settings_storage_type {
             PrivacySettingsStorageType::Local => {
                 let payload = PrivacySettingsStoreRequest::SetPrivacySettings(property, value);
-                // TOOD: DO I have to convert this to call rpc? Why cant we directly call StorageManager::set_bool? When we remove the contract/extn processor do we need to add & check any config?
                 let response = platform_state.get_client().send_extn_request(payload).await;
                 if let Ok(extn_msg) = response {
                     match extn_msg.payload {
@@ -754,14 +752,14 @@ impl PrivacyServer for PrivacyImpl {
         _ctx: CallContext,
         privacy_settings_data: PrivacySettingsData,
     ) -> RpcResult<bool> {
-        debug!("**** set_privacy_settings: {:?}", privacy_settings_data);
+        debug!("set_privacy_settings: {:?}", privacy_settings_data);
         let mut err = false;
         macro_rules! set_property {
             ($property:ident, $value:expr) => {
                 if let Some(value) = $value {
                     let res = StorageManager::set_bool(&self.state, $property, value, None).await;
                     if let Err(e) = res {
-                        error!("**** Unable to set property {:?} error: {:?}", $property, e);
+                        error!("Unable to set property {:?} error: {:?}", $property, e);
                         err = true;
                     }
                 }
