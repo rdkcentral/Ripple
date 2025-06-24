@@ -229,32 +229,31 @@ impl ThunderClient {
         }
     }
 
-    pub fn mock_thunderclient(device_channel_request_tx: MpscSender<DeviceChannelRequest>) -> Self {
-        let (thunder_async_response_tx, _) = mpsc::channel(32);
+    pub fn mock_thunderclient(thunder_async_request_tx: MpscSender<ThunderAsyncRequest>) -> Self {
+        let (thunder_async_response_tx, mut thunder_async_response_rx) = mpsc::channel(32);
         let callback = AsyncCallback {
             sender: thunder_async_response_tx,
         };
 
-        let (thunder_async_request_tx, mut thunder_async_request_rx) = mpsc::channel(32);
         let broker_sender = AsyncSender {
             sender: thunder_async_request_tx,
         };
+
         let client = ThunderAsyncClient::new(callback, broker_sender);
 
-        // Handle requests from ThunderAsyncClient and forward to device_channel_request_tx
+        // Process responses and forward to device_response_message_tx
         tokio::spawn(async move {
-            while let Some(thunder_async_request) = thunder_async_request_rx.recv().await {
+            while let Some(thunder_async_response) = thunder_async_response_rx.recv().await {
                 println!(
-                    "*** _DEBUG: ThunderClient: mock: thunder_async_request= {:?}",
-                    thunder_async_request
+                    "*** _DEBUG: ThunderClient: mock: thunder_async_response= {:?}",
+                    thunder_async_response
                 );
+                let (device_response_message_tx, _device_response_message_rx) =
+                    oneshot::channel::<DeviceResponseMessage>();
 
-                mpsc_send_and_log(
-                    &device_channel_request_tx,
-                    thunder_async_request.request,
-                    "DeviceChannelRequest",
-                )
-                .await;
+                if let Some(resp) = thunder_async_response.get_device_resp_msg(None) {
+                    let _ = device_response_message_tx.send(resp);
+                };
             }
         });
 
