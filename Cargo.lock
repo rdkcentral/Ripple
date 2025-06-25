@@ -3645,7 +3645,7 @@ dependencies = [
 [[package]]
 name = "ripple_sdk"
 version = "1.1.0"
-source = "git+https://github.com/rdkcentral/Ripple.git?branch=ssda#7c594aa0563a4db945a97622617a268356ac1af3"
+source = "git+https://github.com/rdkcentral/Ripple.git?branch=ssda#3e7a48a114e3b1d31845dcbb283384394d21f889"
 dependencies = [
  "async-trait",
  "chrono",
@@ -4172,6 +4172,7 @@ dependencies = [
 [[package]]
 name = "ssda_service"
 version = "0.1.0"
+source = "git+ssh://git@github.com/bobra200_comcast/ssda.git?branch=main#10562c88f7bacda9895c28047f8d36e99123525d"
 dependencies = [
  "async-trait",
  "futures-util",
@@ -4189,6 +4190,7 @@ dependencies = [
 [[package]]
 name = "ssda_types"
 version = "0.1.0"
+source = "git+ssh://git@github.com/bobra200_comcast/ssda.git?branch=main#10562c88f7bacda9895c28047f8d36e99123525d"
 dependencies = [
  "async-trait",
  "futures-util",
@@ -5144,7 +5146,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

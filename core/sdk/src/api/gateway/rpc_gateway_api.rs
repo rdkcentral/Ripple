@@ -256,6 +256,9 @@ impl JsonRpcApiRequest {
         self.id = Some(id);
         self
     }
+    pub fn as_json(&self) ->serde_json::Value {
+        serde_json::to_value(self).unwrap_or_default()
+    }
 }
 impl From<JsonRpcApiRequest> for RpcRequest {
     fn from(request: JsonRpcApiRequest) -> Self {
