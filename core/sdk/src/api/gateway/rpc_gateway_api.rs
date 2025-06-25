@@ -273,7 +273,7 @@ impl From<RpcRequest> for JsonRpcApiRequest {
             jsonrpc: "2.0".to_owned(),
             id: Some(request.clone().ctx.call_id),
             method: request.clone().method,
-            params: request.get_params(),
+            params: request.get_params_as_map(),
         }
     }
 }
@@ -673,6 +673,22 @@ impl RpcRequest {
             }
         }
         None
+    }
+    pub fn get_params_as_map(&self) -> Option<serde_json::Value> {
+        if let Ok(params) = serde_json::from_str::<Value>(&self.params_json.clone()) {
+            let params = params.as_array().unwrap_or(&vec![]).to_vec();
+            let mut params_map = serde_json::Map::new();
+            for param in &params {
+                let f = param.as_object().unwrap();
+                params_map.extend(f.clone());
+            }
+            if params_map.is_empty() {
+                return None;
+            }
+            return Some(Value::Object(params_map));
+        }
+
+        return None;
     }
 
     pub fn get_new_internal(method: String, params: Option<Value>) -> Self {

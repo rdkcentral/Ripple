@@ -3,6 +3,7 @@ use ripple_sdk::{
     log::{error, info},
     tokio::sync::mpsc,
 };
+use serde_json::Value;
 use ssda_types::gateway::{ServiceRoutingRequest, ServiceRoutingResponse};
 use ssda_types::ServiceRequestId;
 
@@ -53,6 +54,7 @@ impl EndpointBroker for ServiceBroker {
                     use tokio::sync::oneshot;
 
                     let (oneshot_tx, oneshot_rx) = oneshot::channel::<ServiceRoutingResponse>();
+
                     let service_request = ServiceRoutingRequest {
                         request_id: ServiceRequestId {
                             request_id: request.rpc.ctx.call_id,
@@ -60,6 +62,10 @@ impl EndpointBroker for ServiceBroker {
                         payload: request.rpc.clone(),
                         respond_to: oneshot_tx,
                     };
+                    info!(
+                        "ServiceBroker sending service request: {:?}",
+                        service_request
+                    );
 
                     services_tx.try_send(service_request).unwrap();
 
