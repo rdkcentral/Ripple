@@ -1199,7 +1199,7 @@ pub mod tests {
                         }
                     }
 
-                    // Optionally, panic if assertions were not run
+                    //panic if assertions were not run
                     assert!(
                         assertions_done,
                         "Did not extract PlatformBuildInfo from ApiMessage"

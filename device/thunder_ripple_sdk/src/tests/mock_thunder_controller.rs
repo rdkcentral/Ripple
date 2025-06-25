@@ -37,8 +37,8 @@ pub type ThunderHandlerFn =
     dyn Fn(DeviceCallRequest, oneshot::Sender<ThunderAsyncResponse>, u64) + Send + Sync;
 
 pub type ThunderSubscriberFn = dyn Fn(
-        Sender<DeviceResponseMessage>,
-    ) -> Pin<Box<dyn Future<Output = Option<DeviceResponseMessage>> + Send>>
+        Sender<ThunderAsyncResponse>,
+    ) -> Pin<Box<dyn Future<Output = Option<ThunderAsyncResponse>> + Send>>
     + Send
     + Sync;
 
@@ -51,8 +51,8 @@ impl MockThunderSubscriberfn {
     pub fn new<F>(f: F) -> Self
     where
         F: Fn(
-                Sender<DeviceResponseMessage>,
-            ) -> Pin<Box<dyn Future<Output = Option<DeviceResponseMessage>> + Send>>
+                Sender<ThunderAsyncResponse>,
+            ) -> Pin<Box<dyn Future<Output = Option<ThunderAsyncResponse>> + Send>>
             + Send
             + Sync
             + 'static,
@@ -62,7 +62,7 @@ impl MockThunderSubscriberfn {
         }
     }
 
-    async fn call(&self, sender: Sender<DeviceResponseMessage>) -> Option<DeviceResponseMessage> {
+    async fn call(&self, sender: Sender<ThunderAsyncResponse>) -> Option<ThunderAsyncResponse> {
         (self.fnc)(sender).await
     }
 }
@@ -75,7 +75,7 @@ pub struct CustomHandler {
 
 #[derive(Default)]
 pub struct MockThunderController {
-    state_subscribers: Vec<mpsc::Sender<DeviceResponseMessage>>,
+    state_subscribers: Vec<mpsc::Sender<ThunderAsyncResponse>>,
     plugin_states: HashMap<String, String>,
     custom_handlers: CustomHandler,
 }
@@ -108,8 +108,20 @@ impl MockThunderController {
             .insert(callsign.clone(), String::from("activated"));
         for s in &self.state_subscribers {
             let val = serde_json::to_value(event.clone()).unwrap_or_default();
-            let msg = DeviceResponseMessage::call(val);
-            mpsc_send_and_log(s, msg, "StateChange").await;
+            //let msg = DeviceResponseMessage::call(val);
+            let thunderasyncresp = ThunderAsyncResponse {
+                id: None,
+                result: Ok(JsonRpcApiResponse {
+                    jsonrpc: "2.0".to_owned(),
+                    id: None,
+                    result: Some(val),
+                    error: None,
+                    method: None,
+                    params: None,
+                }),
+            };
+
+            mpsc_send_and_log(s, thunderasyncresp, "StateChange").await;
         }
     }
 
@@ -121,7 +133,7 @@ impl MockThunderController {
         Vec::from([PluginStatus { state }])
     }
 
-    pub async fn on_state_change(&mut self, callback: mpsc::Sender<DeviceResponseMessage>) {
+    pub async fn on_state_change(&mut self, callback: mpsc::Sender<ThunderAsyncResponse>) {
         self.state_subscribers.push(callback);
     }
 
@@ -209,9 +221,9 @@ impl MockThunderController {
     pub async fn handle_thunder_sub(
         &mut self,
         msg: DeviceSubscribeRequest,
-        handler: mpsc::Sender<DeviceResponseMessage>,
+        handler: mpsc::Sender<ThunderAsyncResponse>,
     ) {
-        let (tx, _rx) = oneshot::channel::<DeviceResponseMessage>();
+        let (tx, _rx) = oneshot::channel::<ThunderAsyncResponse>();
         if msg.module == "Controller.1" && msg.event_name == "statechange" {
             self.on_state_change(handler).await;
         } else if let Some(handler_fn) = self
@@ -229,7 +241,7 @@ impl MockThunderController {
                 msg.module, &msg.event_name
             );
         }
-        oneshot_send_and_log(tx, EMPTY_RESPONSE, "SubscribeAck");
+        oneshot_send_and_log(tx, empty_response(), "SubscribeAck");
     }
 
     pub fn start() -> (
@@ -278,12 +290,12 @@ impl MockThunderController {
                     }
                     DeviceChannelRequest::Subscribe(msg) => {
                         println!("*** _DEBUG: start_with_custom_handlers: DeviceChannelRequest::Subscribe req received : {:?}", msg);
-                        // mock_controller
-                        //     .handle_thunder_sub(msg, device_response_message_tx.clone())
-                        //     .await;
+                        mock_controller
+                            .handle_thunder_sub(msg, thunder_async_response_tx.clone())
+                            .await;
                     }
-                    DeviceChannelRequest::Unsubscribe(_msg) => {
-                        //dmock_controller.handle_thunder_unsub(msg).await;
+                    DeviceChannelRequest::Unsubscribe(msg) => {
+                        mock_controller.handle_thunder_unsub(msg).await;
                     }
                 }
             }
@@ -317,10 +329,21 @@ impl MockThunderController {
         }
     }
 
-    pub fn get_thunder_state_mock_with_handler(_handler: Option<CustomHandler>) -> ThunderState {
-        let thunder_client = ThunderClient::mock();
+    //NNA changes
+    pub fn get_thunder_state_mock_with_handler(handler: Option<CustomHandler>) -> ThunderState {
+        // let thunder_client = ThunderClient::mock();
 
-        let extn_client = MockExtnClient::client();
+        // let extn_client = MockExtnClient::client();
+        // ThunderState::new(extn_client, thunder_client)
+
+        let (thunder_async_request_tx, _thunder_async_response_rx) =
+            MockThunderController::start_with_custom_handlers(handler);
+
+        let thunder_client = ThunderClient::mock_thunderclient(thunder_async_request_tx);
+
+        let (api_message_tx, api_message_rx) = mpsc::channel::<ApiMessage>(32);
+        let extn_client = ExtnClient::new_main_with_sender(api_message_tx);
+
         ThunderState::new(extn_client, thunder_client)
     }
 
