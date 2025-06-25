@@ -540,6 +540,14 @@ impl RpcRequest {
         self.ctx.cid = Some(cid);
         self
     }
+    pub fn as_json_rpc(&self) -> JsonRpcApiRequest {
+        JsonRpcApiRequest {
+            jsonrpc: "2.0".to_owned(),
+            id: Some(self.ctx.call_id),
+            method: self.method.clone(),
+            params: self.get_params_as_map(),
+        }
+    }
 }
 impl ExtnPayloadProvider for RpcRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
