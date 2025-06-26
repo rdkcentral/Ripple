@@ -74,8 +74,8 @@ openrpc_validator = { path = "../../openrpc_validator" }
 proc-macro2.workspace = true
 #ssda_service = {path = "../../../ssda/ssda_service/"}
 #ssda_types = {path = "../../../ssda/ssda_types/"}
-ssda_service = { git = "ssh://git@github.com/bobra200_comcast/ssda.git", branch = "main", subdir = "ssda_service" }
-ssda_types= { git = "ssh://git@github.com/bobra200_comcast/ssda.git", branch = "main", subdir = "ssda_types" }
+ssda_service = { git = "ssh://git@fireboltghec.comcast.com/bobra200_comcast/ssda.git", branch = "main", subdir = "ssda_service" }
+ssda_types= { git = "ssh://git@fireboltghec.comcast.com/bobra200_comcast/ssda.git", branch = "main", subdir = "ssda_types" }
 
 [patch. "https://github.com/rdkcentral/Ripple.git" ]
 ripple_sdk = { path = "../sdk" }

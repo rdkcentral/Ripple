@@ -256,7 +256,7 @@ impl JsonRpcApiRequest {
         self.id = Some(id);
         self
     }
-    pub fn as_json(&self) ->serde_json::Value {
+    pub fn as_json(&self) -> serde_json::Value {
         serde_json::to_value(self).unwrap_or_default()
     }
 }
@@ -411,6 +411,9 @@ impl JsonRpcApiResponse {
             method: None,
             params: None,
         }
+    }
+    pub fn from_value(value: Value) -> Result<Self, serde_json::Error> {
+        serde_json::from_value::<JsonRpcApiResponse>(value)
     }
 
     pub fn update_event_message(&mut self, request: &RpcRequest) {

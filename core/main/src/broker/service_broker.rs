@@ -85,12 +85,12 @@ impl EndpointBroker for ServiceBroker {
                                 ServiceRoutingResponse::Success(response) => {
                                     info!(
                                         "ServiceBroker received success response: {:?}",
-                                        response
+                                        response.response
                                     );
-                                    let win = JsonRpcApiResponse::default()
-                                        .with_id(response.request_id.request_id)
-                                        .with_result(Some(response.response))
-                                        .as_bytes();
+                                    let json_rpc_response =
+                                        JsonRpcApiResponse::from_value(response.response).unwrap();
+                                    let win: Vec<u8> = json_rpc_response.to_string().into_bytes();
+                                    info!("ServiceBroker sending response: {:?}", win);
                                     send_broker_response(&callback, &request, &win).await;
                                 }
                             }
