@@ -66,6 +66,7 @@ use super::{
         jq_compile, EventHandler, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine,
         RuleRetrievalError, RuleRetrieved, RuleType,
     },
+    service_broker::ServiceBroker,
     thunder_broker::ThunderBroker,
     websocket_broker::WebsocketBroker,
     workflow_broker::WorkflowBroker,
@@ -723,6 +724,10 @@ impl EndpointBrokerState {
             ),
             RuleEndpointProtocol::Extn => (
                 ExtnBroker::get_broker(ps, request, self.callback.clone(), self).get_sender(),
+                None,
+            ),
+            RuleEndpointProtocol::Service => (
+                ServiceBroker::get_broker(ps, request, self.callback.clone(), self).get_sender(),
                 None,
             ),
         };

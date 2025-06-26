@@ -14,17 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-pub mod broker_utils;
-pub mod endpoint_broker;
-pub mod event_management_utility;
-pub mod extn_broker;
-pub mod http_broker;
-pub mod provider_broker_state;
-pub mod rules;
-pub mod service_broker;
-#[cfg(test)]
-pub mod test;
-pub mod thunder;
-pub mod thunder_broker;
-pub mod websocket_broker;
-pub mod workflow_broker;
+pub mod service_client;
+pub mod service_message;
+pub mod service_rpc_router;
