@@ -268,11 +268,9 @@ pub struct TimeZone {
     pub offset: i64,
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::test_utils::test_extn_payload_provider;
     use rstest::rstest;
 
     #[rstest]

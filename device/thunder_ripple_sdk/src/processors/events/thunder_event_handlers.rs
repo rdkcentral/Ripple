@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::HashMap;
 use crate::{
     client::thunder_plugin::ThunderPlugin,
     events::thunder_event_processor::{
@@ -31,6 +30,7 @@ use crate::{
     },
     thunder_state::ThunderState,
 };
+use std::collections::HashMap;
 
 use super::super::thunder_device_info::ThunderDeviceInfoRequestProcessor;
 

@@ -28,7 +28,7 @@ use ripple_sdk::{
         device::{
             device_events::{DeviceEvent, DeviceEventCallback},
             device_request::{
-                AudioProfile, InternetConnectionStatus, NetworkResponse, SystemPowerState
+                AudioProfile, InternetConnectionStatus, NetworkResponse, SystemPowerState,
             },
         },
     },

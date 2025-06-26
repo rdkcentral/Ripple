@@ -15,8 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::HashMap;
 use jsonrpsee::core::RpcResult;
+use std::collections::HashMap;
 
 use ripple_sdk::{
     api::{
@@ -106,7 +106,6 @@ async fn voice_guidance_settings_enabled(state: &PlatformState) -> RpcResult<boo
         ))),
     }
 }
-
 
 impl SettingsProcessor {
     pub fn new(state: PlatformState) -> SettingsProcessor {
