@@ -1091,15 +1091,10 @@ pub mod tests {
             handler,
         );
 
-        // <pca> 2
-        // let (state, mut thunder_async_response_rx) =
-        //     MockThunderController::state_with_mock(Some(ch));
         let mock_thunder_controller_items = MockThunderController::state_with_mock(Some(ch));
 
         let state = mock_thunder_controller_items.cached_state;
-        let mut thunder_async_response_rx = mock_thunder_controller_items.thunder_async_response_rx;
         let mut api_message_rx = mock_thunder_controller_items.api_message_rx;
-        // </pca>
 
         let msg = MockExtnClient::req(
             RippleContract::DeviceInfo,
@@ -1108,35 +1103,6 @@ pub mod tests {
             )),
         );
 
-        let cached_state = state.clone();
-        tokio::spawn(async move {
-            while let Some(thunder_async_response) = thunder_async_response_rx.recv().await {
-                println!("*** _DEBUG: test_platform_build_info_with_build_name: Received ThunderAsyncResponse: {:?}", thunder_async_response);
-                let thunder_client = cached_state.clone().get_thunder_client();
-                if let Some(id) = thunder_async_response.get_id() {
-                    println!(
-                        "*** _DEBUG: test_platform_build_info_with_build_name: id={}",
-                        id
-                    );
-                    if let Some(thunder_async_callbacks) = thunder_client.thunder_async_callbacks {
-                        let mut callbacks = thunder_async_callbacks.write().unwrap();
-                        if let Some(Some(callback)) = callbacks.remove(&id) {
-                            if let Some(device_response_message) =
-                                thunder_async_response.get_device_resp_msg(None)
-                            {
-                                oneshot_send_and_log(
-                                    callback,
-                                    device_response_message,
-                                    "ThunderResponse",
-                                );
-                            };
-                        }
-                    }
-                }
-            }
-        });
-
-        // <pca> 2
         tokio::spawn(async move {
             while let Some(api_message) = api_message_rx.recv().await {
                 println!("***************************************************************");
