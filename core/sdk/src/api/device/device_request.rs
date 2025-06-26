@@ -15,11 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::{
-    api::firebolt::fb_openrpc::FireboltSemanticVersion,
-    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
-    framework::ripple_contract::RippleContract,
-};
+use crate::api::firebolt::fb_openrpc::FireboltSemanticVersion;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -272,34 +268,9 @@ pub struct TimeZone {
     pub offset: i64,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct VoiceGuidanceState {
-    pub state: bool,
-}
-
-impl ExtnPayloadProvider for VoiceGuidanceState {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Event(ExtnEvent::VoiceGuidanceState(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<VoiceGuidanceState> {
-        if let ExtnPayload::Event(ExtnEvent::VoiceGuidanceState(r)) = payload {
-            return Some(r);
-        }
-
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::VoiceGuidance
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::test_utils::test_extn_payload_provider;
     use rstest::rstest;
 
     #[rstest]
@@ -377,12 +348,4 @@ mod tests {
     //     let tz = "{\"value\":\"America/New_York\"}";
     //     assert!(serde_json::from_str::<TimezoneProperty>(tz).is_ok());
     // }
-
-    #[test]
-    fn test_extn_payload_provider_for_voice_guidance_state() {
-        let voice_guidance_state = VoiceGuidanceState { state: true };
-
-        let contract_type: RippleContract = RippleContract::VoiceGuidance;
-        test_extn_payload_provider(voice_guidance_state, contract_type);
-    }
 }

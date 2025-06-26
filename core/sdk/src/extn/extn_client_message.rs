@@ -36,7 +36,7 @@ use crate::{
         device::{
             device_events::DeviceEventRequest,
             device_peristence::StorageData,
-            device_request::{DeviceRequest, NetworkResponse, TimeZone, VoiceGuidanceState},
+            device_request::{DeviceRequest, NetworkResponse, TimeZone},
         },
         distributor::{
             distributor_permissions::{PermissionRequest, PermissionResponse},
@@ -534,7 +534,6 @@ pub enum ExtnEvent {
     AppEvent(AppEventRequest),
     OperationalMetrics(TelemetryPayload),
     Context(RippleContext),
-    VoiceGuidanceState(VoiceGuidanceState),
     TimeZone(TimeZone),
 }
 

@@ -29,7 +29,6 @@ use ripple_sdk::{
             device_events::{DeviceEvent, DeviceEventCallback},
             device_request::{
                 AudioProfile, InternetConnectionStatus, NetworkResponse, SystemPowerState,
-                VoiceGuidanceState,
             },
         },
     },
@@ -76,7 +75,6 @@ pub enum ThunderEventMessage {
     Network(NetworkResponse),
     Internet(InternetConnectionStatus),
     PowerState(SystemPowerState),
-    VoiceGuidance(VoiceGuidanceState),
     Audio(HashMap<AudioProfile, bool>),
     Custom(Value),
     TimeZone(TimeZoneChangedThunderEvent),
@@ -88,11 +86,6 @@ impl ThunderEventMessage {
                 DeviceEvent::InputChanged => {
                     if let Ok(v) = serde_json::from_value(value.clone()) {
                         return Some(ThunderEventMessage::ActiveInput(v));
-                    }
-                }
-                DeviceEvent::VoiceGuidanceEnabledChanged => {
-                    if let Ok(v) = serde_json::from_value(value.clone()) {
-                        return Some(ThunderEventMessage::VoiceGuidance(v));
                     }
                 }
                 DeviceEvent::AudioChanged => {
