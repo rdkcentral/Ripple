@@ -40,7 +40,7 @@ use crate::{
 };
 
 use super::events::thunder_event_handlers::{
-    AudioChangedEvent, HDCPEventHandler, VoiceGuidanceEnabledChangedEventHandler,
+    AudioChangedEvent, HDCPEventHandler,
 };
 
 #[derive(Debug)]
@@ -107,12 +107,7 @@ impl ExtnRequestProcessor for ThunderOpenEventsProcessor {
                 listen,
                 id.clone(),
                 HDCPEventHandler::provide(id, callback_type),
-            )),
-            DeviceEvent::VoiceGuidanceEnabledChanged => Some(state.handle_listener(
-                listen,
-                id.clone(),
-                VoiceGuidanceEnabledChangedEventHandler::provide(id, callback_type),
-            )),
+            ))
         } {
             v.await;
             Self::ack(state.get_client(), msg).await.is_ok()
