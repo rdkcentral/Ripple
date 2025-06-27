@@ -58,8 +58,12 @@ impl RouterState {
         }
     }
 
-    fn get_methods(&self) -> Methods {
+    pub fn get_methods(&self) -> Methods {
         self.methods.read().unwrap().clone()
+    }
+
+    pub fn get_resources(&self) -> Resources {
+        self.resources.clone()
     }
 }
 
