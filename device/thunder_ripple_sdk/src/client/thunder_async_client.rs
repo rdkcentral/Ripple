@@ -43,7 +43,10 @@ pub struct ThunderAsyncClient {
 #[derive(Clone, Debug)]
 pub struct ThunderAsyncRequest {
     pub id: u64,
-    request: DeviceChannelRequest,
+    // <pca>
+    //request: DeviceChannelRequest,
+    pub request: DeviceChannelRequest,
+    // </pca>
 }
 
 impl std::fmt::Display for ThunderAsyncRequest {
@@ -275,6 +278,7 @@ impl ThunderAsyncClient {
         mut thunder_async_request_rx: Receiver<ThunderAsyncRequest>,
         status_check: bool,
     ) {
+        println!("@@@NNA.... we reached thundersyncclient start fn..");
         loop {
             info!("start: (re)establishing websocket connection: url={}", url);
             let resp = WebSocketUtils::get_ws_stream(url, None).await;
@@ -319,63 +323,67 @@ impl ThunderAsyncClient {
 
             loop {
                 tokio::select! {
-                    Some(value) = &mut subscriptions_socket => {
-                        match value {
-                            Ok(message) => {
-                                self.handle_response(message).await;
+                            Some(value) = &mut subscriptions_socket => {
+                                match value {
+                                    Ok(message) => {
+                                        self.handle_response(message).await;
+                                    },
+                                    Err(e) => {
+                                        error!("Thunder_async_client Websocket error on read {:?}", e);
+                                        break;
+                                    }
+                                }
                             },
-                            Err(e) => {
-                                error!("Thunder_async_client Websocket error on read {:?}", e);
-                                break;
-                            }
-                        }
-                    },
-                    Some(request) = thunder_async_request_rx.recv() => {
-                        match self.check_plugin_status_n_prepare_request(&request) {
-                            Ok(updated_request) => {
-                                if let Ok(jsonrpc_request) = serde_json::from_str::<JsonRpcApiRequest>(&updated_request) {
-                                    if jsonrpc_request.method.ends_with(".register") {
-                                        if let Some(Value::Object(ref params)) = jsonrpc_request.params {
-                                            if let Some(Value::String(event)) = params.get("event") {
-                                                debug!("thunder_async_request_rx: Rerouting subscription request for {}", event);
+                            Some(request) = thunder_async_request_rx.recv() => {
+                                println!(
+                    "*** _DEBUG: thunderasyncclient::start: thunderasync request{}",
+                    request
+                );
+                                match self.check_plugin_status_n_prepare_request(&request) {
+                                    Ok(updated_request) => {
+                                        if let Ok(jsonrpc_request) = serde_json::from_str::<JsonRpcApiRequest>(&updated_request) {
+                                            if jsonrpc_request.method.ends_with(".register") {
+                                                if let Some(Value::Object(ref params)) = jsonrpc_request.params {
+                                                    if let Some(Value::String(event)) = params.get("event") {
+                                                        debug!("thunder_async_request_rx: Rerouting subscription request for {}", event);
 
-                                                // Store the subscription request in the subscriptions list in case we need to
-                                                // resubscribe later due to a socket disconnect.
-                                                self.subscriptions.insert(event.to_string(), jsonrpc_request.clone());
-                                                debug!("thunder_async_request_rx: subscription request={}", updated_request);
-                                                // Reroute subsubscription requests through the persistent websocket so all notifications
-                                                // are sent to the same websocket connection.
+                                                        // Store the subscription request in the subscriptions list in case we need to
+                                                        // resubscribe later due to a socket disconnect.
+                                                        self.subscriptions.insert(event.to_string(), jsonrpc_request.clone());
+                                                        debug!("thunder_async_request_rx: subscription request={}", updated_request);
+                                                        // Reroute subsubscription requests through the persistent websocket so all notifications
+                                                        // are sent to the same websocket connection.
+                                                        let _feed = thunder_tx.feed(Message::Text(updated_request)).await;
+                                                        let _flush = thunder_tx.flush().await;
+                                                    } else {
+                                                        error!("thunder_async_request_rx: Missing 'event' parameter");
+                                                    }
+                                                } else {
+                                                    error!("thunder_async_request_rx: Missing 'params' object");
+                                                }
+                                            }
+                                            else {
+                                                debug!("thunder_async_request_rx: call request={}", updated_request);
                                                 let _feed = thunder_tx.feed(Message::Text(updated_request)).await;
                                                 let _flush = thunder_tx.flush().await;
-                                            } else {
-                                                error!("thunder_async_request_rx: Missing 'event' parameter");
                                             }
-                                        } else {
-                                            error!("thunder_async_request_rx: Missing 'params' object");
                                         }
                                     }
-                                    else {
-                                        debug!("thunder_async_request_rx: call request={}", updated_request);
-                                        let _feed = thunder_tx.feed(Message::Text(updated_request)).await;
-                                        let _flush = thunder_tx.flush().await;
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                match e {
-                                    RippleError::ServiceNotReady => {
-                                        info!("Thunder Service not ready, request is now in pending list {:?}", request);
-                                    },
-                                    _ => {
-                                        error!("error preparing request {:?}", e);
-                                        let response = ThunderAsyncResponse::new_error(request.id,e.clone());
-                                        self.callback.send(response).await;
+                                    Err(e) => {
+                                        match e {
+                                            RippleError::ServiceNotReady => {
+                                                info!("Thunder Service not ready, request is now in pending list {:?}", request);
+                                            },
+                                            _ => {
+                                                error!("error preparing request {:?}", e);
+                                                let response = ThunderAsyncResponse::new_error(request.id,e.clone());
+                                                self.callback.send(response).await;
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                }
             }
         }
     }
@@ -391,6 +399,7 @@ impl ThunderAsyncClient {
     }
 
     pub async fn send(&self, request: ThunderAsyncRequest) {
+        println!("@@@NNA....at thunderasync send fn");
         if let Err(e) = self.sender.send(request).await {
             error!("Failed to send thunder Async Request: {:?}", e);
         }
