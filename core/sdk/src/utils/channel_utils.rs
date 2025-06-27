@@ -23,6 +23,7 @@ pub async fn mpsc_send_and_log<T: std::fmt::Debug>(
     message: T,
     channel_id: &str,
 ) {
+    println!("@@@NNA....mpsc send fn");
     match tx.send(message).await {
         Ok(_) => {
             trace!("Successfully sent message through mpsc channel")
