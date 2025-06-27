@@ -32,7 +32,7 @@ use ripple_sdk::{
         device::device_peristence::SetBoolProperty,
         distributor::distributor_privacy::{
             ContentListenRequest, GetPropertyParams, PrivacyCloudRequest, PrivacySettings,
-            PrivacySettingsStoreRequest, SetPropertyParams,
+            PrivacySettingsData, PrivacySettingsStoreRequest, SetPropertyParams,
         },
         firebolt::{
             fb_capabilities::{CapabilityRole, FireboltCap, RoleInfo, CAPABILITY_NOT_AVAILABLE},
@@ -40,9 +40,16 @@ use ripple_sdk::{
         },
         gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
         storage_property::{
-            StorageProperty, EVENT_ALLOW_ACR_COLLECTION_CHANGED,
-            EVENT_ALLOW_APP_CONTENT_AD_TARGETING_CHANGED, EVENT_ALLOW_CAMERA_ANALYTICS_CHANGED,
-            EVENT_ALLOW_PERSONALIZATION_CHANGED, EVENT_ALLOW_PRIMARY_BROWSE_AD_TARGETING_CHANGED,
+            StorageProperty::{
+                self, AllowAcrCollection, AllowAppContentAdTargeting, AllowBusinessAnalytics,
+                AllowCameraAnalytics, AllowPersonalization, AllowPrimaryBrowseAdTargeting,
+                AllowPrimaryContentAdTargeting, AllowProductAnalytics, AllowRemoteDiagnostics,
+                AllowResumePoints, AllowUnentitledPersonalization, AllowUnentitledResumePoints,
+                AllowWatchHistory,
+            },
+            EVENT_ALLOW_ACR_COLLECTION_CHANGED, EVENT_ALLOW_APP_CONTENT_AD_TARGETING_CHANGED,
+            EVENT_ALLOW_CAMERA_ANALYTICS_CHANGED, EVENT_ALLOW_PERSONALIZATION_CHANGED,
+            EVENT_ALLOW_PRIMARY_BROWSE_AD_TARGETING_CHANGED,
             EVENT_ALLOW_PRIMARY_CONTENT_AD_TARGETING_CHANGED,
             EVENT_ALLOW_PRODUCT_ANALYTICS_CHANGED, EVENT_ALLOW_REMOTE_DIAGNOSTICS_CHANGED,
             EVENT_ALLOW_RESUME_POINTS_CHANGED, EVENT_ALLOW_UNENTITLED_PERSONALIZATION_CHANGED,
@@ -51,7 +58,7 @@ use ripple_sdk::{
     },
     extn::extn_client_message::ExtnPayload,
     extn::extn_client_message::ExtnResponse,
-    log::debug,
+    log::{debug, error},
     serde_json::{from_value, json},
 };
 
@@ -328,6 +335,12 @@ pub trait Privacy {
 
     #[method(name = "ripple.getAllowAppContentAdTargetting")]
     async fn get_content_ad_targeting(&self) -> RpcResult<bool>;
+    #[method(name = "ripple.setPrivacySettings")]
+    async fn set_privacy_settings(
+        &self,
+        ctx: CallContext,
+        privacy_settings_data: PrivacySettingsData,
+    ) -> RpcResult<bool>;
 }
 
 pub async fn get_allow_app_content_ad_targeting_settings(
@@ -734,6 +747,82 @@ impl PrivacyImpl {
 
 #[async_trait]
 impl PrivacyServer for PrivacyImpl {
+    async fn set_privacy_settings(
+        &self,
+        _ctx: CallContext,
+        privacy_settings_data: PrivacySettingsData,
+    ) -> RpcResult<bool> {
+        debug!("set_privacy_settings: {:?}", privacy_settings_data);
+        let mut err = false;
+        macro_rules! set_property {
+            ($property:ident, $value:expr) => {
+                if let Some(value) = $value {
+                    let res = StorageManager::set_bool(&self.state, $property, value, None).await;
+                    if let Err(e) = res {
+                        error!("Unable to set property {:?} error: {:?}", $property, e);
+                        err = true;
+                    }
+                }
+            };
+        }
+        set_property!(
+            AllowAcrCollection,
+            privacy_settings_data.allow_acr_collection
+        );
+        set_property!(AllowResumePoints, privacy_settings_data.allow_resume_points);
+        set_property!(
+            AllowAppContentAdTargeting,
+            privacy_settings_data.allow_app_content_ad_targeting
+        );
+        // business analytics is a special case, if it is not set, we set it to true
+        if privacy_settings_data.allow_business_analytics.is_none() {
+            set_property!(AllowBusinessAnalytics, Some(true));
+        } else {
+            set_property!(
+                AllowBusinessAnalytics,
+                privacy_settings_data.allow_business_analytics
+            );
+        }
+        set_property!(
+            AllowCameraAnalytics,
+            privacy_settings_data.allow_camera_analytics
+        );
+        set_property!(
+            AllowPersonalization,
+            privacy_settings_data.allow_personalization
+        );
+        set_property!(
+            AllowPrimaryBrowseAdTargeting,
+            privacy_settings_data.allow_primary_browse_ad_targeting
+        );
+        set_property!(
+            AllowPrimaryContentAdTargeting,
+            privacy_settings_data.allow_primary_content_ad_targeting
+        );
+        set_property!(
+            AllowProductAnalytics,
+            privacy_settings_data.allow_product_analytics
+        );
+        set_property!(
+            AllowRemoteDiagnostics,
+            privacy_settings_data.allow_remote_diagnostics
+        );
+        set_property!(
+            AllowUnentitledPersonalization,
+            privacy_settings_data.allow_unentitled_personalization
+        );
+        set_property!(
+            AllowUnentitledResumePoints,
+            privacy_settings_data.allow_unentitled_resume_points
+        );
+        set_property!(AllowWatchHistory, privacy_settings_data.allow_watch_history);
+        if err {
+            return Err(jsonrpsee::core::Error::Custom(
+                "One or more properties failed to set".to_owned(),
+            ));
+        }
+        Ok(true)
+    }
     async fn privacy_allow_acr_collection(&self, ctx: CallContext) -> RpcResult<bool> {
         Self::handle_allow_get_requests(&ctx.method, &self.state).await
     }
