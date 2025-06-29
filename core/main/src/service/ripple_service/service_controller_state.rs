@@ -17,9 +17,12 @@
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use futures::{stream::SplitStream, SinkExt, StreamExt};
+use jsonrpsee::tracing::debug;
 use ripple_sdk::{
     api::{
-        gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse},
+        gateway::rpc_gateway_api::{
+            ApiMessage, ApiProtocol, CallContext, JsonRpcApiResponse, RpcRequest,
+        },
         manifest::extn_manifest::ExtnSymbol,
     },
     extn::{
@@ -41,7 +44,7 @@ use ripple_sdk::{
 
 use crate::{
     broker::endpoint_broker::{BrokerCallback, BrokerOutput},
-    firebolt::firebolt_ws::ClientIdentity,
+    firebolt::{firebolt_gateway::FireboltGatewayCommand, firebolt_ws::ClientIdentity},
     service::extn::ripple_client::RippleClient,
     state::{platform_state::PlatformState, session_state::Session},
 };
@@ -130,34 +133,56 @@ impl ServiceControllerState {
 
                 // send a rejection for all other responses
                 //let request_id = sm.get_request_id();
-                let message = ServiceMessage::new_error(
-                    -32600,
-                    "Ripple Main does not support this request from Service".to_string(),
-                    None,
-                    Id::Number(sm.get_request_id() as i64),
-                );
-                error!(
-                    "Error handling inbound service message: {} {} ",
-                    json_rpc_request, message
-                );
+                // let message = ServiceMessage::new_error(
+                //     -32600,
+                //     "Ripple Main does not support this request from Service".to_string(),
+                //     None,
+                //     Id::Number(sm.get_request_id() as i64),
+                // );
+                // error!(
+                //     "Error handling inbound service message: {} {} ",
+                //     json_rpc_request, message
+                // );
                 // send the error message back to the service through the service connection
-                if let Some(sender) = state
-                    .service_controller_state
-                    .get_sender(&connection_id.to_string())
-                    .await
-                {
-                    if let Err(err) = sender
-                        .send(Message::Text(serde_json::to_string(&message).unwrap()))
-                        .await
-                    {
-                        error!("Failed to send error message back to service: {}", err);
-                    }
-                } else {
-                    error!(
-                        "No sender found for service connection_id: {}",
-                        connection_id
-                    );
-                }
+                // if let Some(sender) = state
+                //     .service_controller_state
+                //     .get_sender(&connection_id.to_string())
+                //     .await
+                // {
+                //     if let Err(err) = sender
+                //         .send(Message::Text(serde_json::to_string(&message).unwrap()))
+                //         .await
+                //     {
+                //         error!("Failed to send error message back to service: {}", err);
+                //     }
+                // } else {
+                //     error!(
+                //         "No sender found for service connection_id: {}",
+                //         connection_id
+                //     );
+                // }
+
+                // Send service message request to Ripple main
+
+                // let request = RpcRequest {
+                //     ctx: CallContext {
+                //         session_id: "123".to_string(),
+                //         request_id: "123".to_string(),
+                //         app_id: "123".to_string(),
+                //         call_id: 111 as u64,
+                //         protocol: ApiProtocol::Extn,
+                //         method: "123".to_string(),
+                //         cid: None,
+                //         gateway_secure: false,
+                //         context: Vec::new()                    },
+                //     method: json_rpc_request.method.clone(),
+                //     params_json: json_rpc_request.params.clone().unwrap_or_default().to_string(),
+                // };
+
+                let msg = FireboltGatewayCommand::HandleRpcForService { msg: sm.clone() };
+                if let Err(e) = state.get_client().send_gateway_command(msg) {
+                    error!("failed to send request {:?}", e);
+                };
             }
             JsonRpcMessage::Notification(_) => {
                 // TBD: Handle notifications.

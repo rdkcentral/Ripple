@@ -30,10 +30,15 @@ use ripple_sdk::{
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
     log::{debug, error, info, trace},
+    service::service_message::{
+        Id as ServiceMessageId, JsonRpcMessage as ServiceJsonRpcMessage,
+        JsonRpcSuccess as ServiceJsonRpcSuccess, ServiceMessage,
+    },
     tokio::{
         self,
         sync::mpsc::{self, Receiver, Sender},
     },
+    tokio_tungstenite::tungstenite::Message,
     utils::error::RippleError,
 };
 use serde_json::{json, Value};
@@ -1482,6 +1487,72 @@ impl BrokerOutputForwarder {
                                         .await;
                                     } else {
                                         return_extn_response(message, extn_message, client)
+                                    }
+                                }
+                            } else if matches!(rpc_request.ctx.protocol, ApiProtocol::Service) {
+                                let ctx = rpc_request.ctx.clone();
+                                let mut service_id = "unknown".to_string();
+                                let context = rpc_request.ctx.clone().context;
+                                if context.len() > 1 {
+                                    service_id = context[1].to_string();
+                                } else {
+                                    error!("Context does not contain a valid service id");
+                                    return;
+                                }
+
+                                let service_sender = platform_state
+                                    .service_controller_state
+                                    .get_sender(&service_id)
+                                    .await;
+                                if let Some(sender) = service_sender {
+                                    let json_rpc_response =
+                                        serde_json::from_str::<serde_json::Value>(
+                                            &message.jsonrpc_msg.clone().as_str(),
+                                        )
+                                        .unwrap();
+
+                                    let result = json_rpc_response
+                                        .get("result")
+                                        .cloned()
+                                        .unwrap_or_default();
+                                    let jsonrpc = serde_json::to_string(
+                                        &json_rpc_response
+                                            .get("jsonrpc")
+                                            .cloned()
+                                            .unwrap_or_default(),
+                                    )
+                                    .unwrap();
+                                    let id = ServiceMessageId::String(message.request_id.clone());
+
+                                    let service_message = ServiceMessage {
+                                        message: ServiceJsonRpcMessage::Success(
+                                            ServiceJsonRpcSuccess {
+                                                result,
+                                                jsonrpc,
+                                                id,
+                                            },
+                                        ),
+                                        context: Some(
+                                            serde_json::to_value(rpc_request.ctx.clone())
+                                                .unwrap_or_default(),
+                                        ),
+                                    };
+                                    let msg_str = serde_json::to_string(&service_message).unwrap();
+                                    let mes = Message::Text(msg_str.clone());
+                                    debug!(
+                                        "Sending response to service {} message: {:?}",
+                                        service_id, mes
+                                    );
+                                    if let Err(err) = sender.try_send(mes) {
+                                        error!(
+                                            "Failed to send request to service {}: {:?}",
+                                            service_id, err
+                                        );
+                                    } else {
+                                        debug!(
+                                            "Successfully sent request to service: {}",
+                                            service_id
+                                        );
                                     }
                                 }
                             } else if let Some(session) = platform_state

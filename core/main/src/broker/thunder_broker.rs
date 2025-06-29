@@ -24,7 +24,9 @@ use super::{
     thunder::user_data_migrator::UserDataMigrator,
 };
 use crate::state::platform_state::PlatformState;
+use core::error;
 use futures_util::{SinkExt, StreamExt};
+use ripple_sdk::api::gateway::rpc_gateway_api::ApiProtocol;
 use ripple_sdk::{
     api::{
         gateway::rpc_gateway_api::{JsonRpcApiResponse, RpcRequest},
@@ -33,6 +35,7 @@ use ripple_sdk::{
     log::{debug, error, info, trace},
     tokio::{
         self,
+        sync::mpsc::{Receiver, Sender},
         sync::{mpsc, Mutex},
         time,
     },
@@ -136,10 +139,20 @@ impl ThunderBroker {
         custom_callback_list.insert(id, callback);
     }
 
+    // pub async fn register_service_callback(&self, id: u64, callback: Sender<Message>) {
+    //     let mut service_callback_list = self.service_callback_list.lock().await;
+    //     service_callback_list.insert(id, callback);
+    // }
+
     pub async fn unregister_custom_callback(&self, id: u64) {
         let mut custom_callback_list = self.custom_callback_list.lock().await;
         custom_callback_list.remove(&id);
     }
+
+    // pub async fn unregister_service_callback(&self, id: u64) {
+    //     let mut service_callback_list = self.service_callback_list.lock().await;
+    //     service_callback_list.remove(&id);
+    // }
 
     async fn get_broker_callback(&self, id: Option<u64>) -> BrokerCallback {
         if id.is_none() {
@@ -259,6 +272,9 @@ impl ThunderBroker {
             tokio::pin! {
                 let read = ws_rx.next();
             }
+
+            // let ps = platform_state.clone();
+
             let diagnostic_context: Arc<Mutex<Option<BrokerRequest>>> = Arc::new(Mutex::new(None));
             loop {
                 tokio::select! {

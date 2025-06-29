@@ -15,28 +15,35 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use futures_util::{SinkExt, StreamExt};
-use jsonrpsee::core::server::rpc_module::Methods;
-use log::{debug, error, info, trace, warn};
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::Sender as MSender;
-use tokio_tungstenite::tungstenite::Message;
-
-use crate::api::{gateway::rpc_gateway_api::ApiMessage, manifest::extn_manifest::ExtnSymbol};
+use crate::api::gateway::rpc_gateway_api::CallContext;
+use crate::api::{
+    gateway::rpc_gateway_api::{ApiMessage, ApiProtocol},
+    manifest::extn_manifest::ExtnSymbol,
+};
 use crate::extn::extn_id::ExtnId;
 use crate::extn::{client::extn_client::ExtnClient, extn_client_message::ExtnMessage};
 use crate::processor::rpc_router::RouterState;
+use crate::service::service_message::{Id, JsonRpcMessage};
 use crate::service::service_rpc_router::route_service_message;
 use crate::utils::extn_utils::ExtnStackSize;
 use crate::utils::{error::RippleError, ws_utils::WebSocketUtils};
+use futures_util::{SinkExt, StreamExt};
+use jsonrpsee::core::server::rpc_module::Methods;
+use log::{debug, error, info, trace, warn};
+use serde_json::Value;
+use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc::Sender as MSender, oneshot::Sender as OSender};
+use tokio_tungstenite::tungstenite::Message;
 
 use super::service_message::ServiceMessage;
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ServiceClient {
     pub service_sender: Option<MSender<ServiceMessage>>,
     pub service_router: Arc<RwLock<RouterState>>,
+    response_processors: Arc<RwLock<HashMap<String, OSender<ServiceMessage>>>>,
     pub extn_client: Option<ExtnClient>,
     // TBD: Remove this field after implementing service.register API call.
     pub service_id: Option<ExtnId>,
@@ -44,6 +51,12 @@ pub struct ServiceClient {
 
 pub struct ServiceClientBuilder {
     extn_symbol: Option<ExtnSymbol>,
+}
+
+impl Default for ServiceClientBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ServiceClientBuilder {
@@ -74,6 +87,7 @@ impl ServiceClientBuilder {
                     service_router,
                     extn_client: Some(extn_client),
                     service_id: Some(ExtnId::try_from(symbol.id.clone()).unwrap()),
+                    response_processors: Arc::new(RwLock::new(HashMap::new())),
                 },
                 Some(ext_tr),
                 Some(service_tr),
@@ -85,6 +99,7 @@ impl ServiceClientBuilder {
                     service_router,
                     extn_client: None,
                     service_id: None,
+                    response_processors: Arc::new(RwLock::new(HashMap::new())),
                 },
                 None,
                 Some(service_tr),
@@ -139,17 +154,60 @@ impl ServiceClient {
                 if let Message::Text(message) = msg.clone() {
                     // Service message
                     if let Ok(sm) = serde_json::from_str::<ServiceMessage>(&message) {
-                        debug!("Received Service Message: {:#?}", sm);
-                        if let Some(sender) = &self.service_sender {
-                            route_service_message(
-                                sender,
-                                &self.service_router.read().unwrap(),
-                                sm.clone(),
-                            )
-                            .unwrap_or_else(|e| {
-                                error!("Error handling service message: {:?}", e);
-                            })
+                        match sm.message {
+                            JsonRpcMessage::Request(ref _json_rpc_request) => {
+                                if let Some(sender) = &self.service_sender {
+                                    route_service_message(
+                                        sender,
+                                        &self.service_router.read().unwrap(),
+                                        sm.clone(),
+                                    )
+                                    .unwrap_or_else(|e| {
+                                        error!("Error handling service message: {:?}", e);
+                                    })
+                                } else {
+                                    error!("Service sender is not available");
+                                }
+                            }
+                            JsonRpcMessage::Notification(_json_rpc_notification) => todo!(),
+                            JsonRpcMessage::Success(ref json_rpc_success) => {
+                                debug!(
+                                    "Received Service Success: {:?} context {:?}",
+                                    json_rpc_success,
+                                    sm.context.clone().unwrap()
+                                );
+
+                                let sender_id = if let Some(context) = &sm.context {
+                                    // assign first array value of context.context to sender_id
+                                    if let Some(Value::String(id)) = context
+                                        .get("context")
+                                        .and_then(|c| c.as_array())
+                                        .and_then(|a| a.first())
+                                    {
+                                        id.to_string()
+                                    } else {
+                                        warn!("Context does not contain a valid sender_id");
+                                        "unknown".to_string()
+                                    }
+                                } else {
+                                    "unknown".to_string()
+                                };
+
+                                if let Some(processor) =
+                                    self.response_processors.write().unwrap().remove(&sender_id)
+                                {
+                                    if let Err(e) = processor.send(sm.clone()) {
+                                        error!("Failed to send service response: {:?}", e);
+                                    }
+                                } else {
+                                    warn!("No processor found for id: {}", sender_id);
+                                }
+                            }
+                            JsonRpcMessage::Error(json_rpc_error) => {
+                                error!("Received Service Error: {:?}", json_rpc_error)
+                            }
                         }
+
                     // Extension message
                     } else if let Ok(extn_message) = ExtnMessage::try_from(message) {
                         if let Some(extn_client) = &self.extn_client {
@@ -215,8 +273,74 @@ impl ServiceClient {
         self.service_router.clone()
     }
     pub fn get_stack_size(&self) -> Option<ExtnStackSize> {
-        self.extn_client
-            .as_ref()
-            .map_or(None, |ec| ec.get_stack_size())
+        self.extn_client.as_ref().and_then(|ec| ec.get_stack_size())
+    }
+    pub async fn request_with_timeout_main(
+        &mut self,
+        req: Option<Value>,
+        method: String,
+        ctx: &CallContext,
+        timeout_in_msecs: u64,
+        service_id: String,
+    ) -> Result<ServiceMessage, RippleError> {
+        let resp = tokio::time::timeout(
+            std::time::Duration::from_millis(timeout_in_msecs),
+            self.send_rpc_main(req, method, ctx, service_id),
+        )
+        .await;
+
+        match resp {
+            Ok(Ok(message)) => Ok(message),
+            Ok(Err(e)) => Err(e),
+            Err(_) => Err(RippleError::TimeoutError),
+        }
+    }
+
+    pub async fn send_rpc_main(
+        &mut self,
+        req: Option<Value>,
+        method: String,
+        ctx: &CallContext,
+        service_id: String,
+    ) -> Result<ServiceMessage, RippleError> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let (tx, rx) = oneshot::channel();
+        add_single_processor(id.clone(), Some(tx), self.response_processors.clone());
+
+        let mut service_request =
+            ServiceMessage::new_request(method.to_owned(), req, Id::String(id.clone()));
+
+        let mut context = ctx.clone();
+        context.protocol = ApiProtocol::Service;
+        let vec = vec![id, service_id];
+        context.context = vec;
+
+        let service_message_context = serde_json::to_value(context).unwrap();
+        service_request.set_context(Some(service_message_context));
+
+        if let Some(sender) = &self.service_sender {
+            match sender.try_send(service_request) {
+                Ok(_) => {
+                    if let Ok(r) = rx.await {
+                        return Ok(r);
+                    }
+                    Err(RippleError::ExtnError)
+                }
+                Err(e) => {
+                    error!("Error sending service request: {:?}", e);
+                    Err(RippleError::ServiceError)
+                }
+            }
+        } else {
+            error!("Service sender is not available");
+            Err(RippleError::ServiceError)
+        }
+    }
+}
+
+fn add_single_processor<P>(id: String, processor: Option<P>, map: Arc<RwLock<HashMap<String, P>>>) {
+    if let Some(processor) = processor {
+        let mut processor_state = map.write().unwrap();
+        processor_state.insert(id, processor);
     }
 }
