@@ -35,7 +35,12 @@ use ripple_sdk::{
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
     log::{debug, error, info},
+    service::service_message::{
+        Id as ServiceMessageId, JsonRpcMessage as ServiceJsonRpcMessage,
+        JsonRpcSuccess as ServiceJsonRpcSuccess, ServiceMessage,
+    },
     tokio,
+    tokio_tungstenite::tungstenite::Message,
     utils::error::RippleError,
 };
 use std::sync::{Arc, RwLock};
@@ -241,6 +246,89 @@ impl RpcRouter {
             let client = platform_state.get_client().get_extn_client();
             if let Ok(msg) = resolve_route(&mut platform_state, methods, resources, req).await {
                 return_extn_response(msg, extn_msg, client);
+            }
+        });
+    }
+
+    // TODO - send response back to the client using sender in ServiceRegistry
+    pub async fn route_service_protocol(state: &PlatformState, req: RpcRequest) {
+        let methods = state.router_state.get_methods();
+        let resources = state.router_state.resources.clone();
+
+        let mut platform_state = state.clone();
+        LogSignal::new(
+            "rpc_router".to_string(),
+            "route_extn_protocol".into(),
+            req.clone(),
+        )
+        .emit_debug();
+        tokio::spawn(async move {
+            if let Ok(msg) =
+                resolve_route(&mut platform_state, methods, resources, req.clone()).await
+            {
+                let mut service_id = "unknown".to_string();
+                let context = req.ctx.clone().context;
+                if context.len() > 1 {
+                    service_id = context[1].to_string();
+                } else {
+                    error!("Context does not contain a valid service id");
+                    return;
+                }
+                let service_sender = platform_state
+                    .service_controller_state
+                    .get_sender(&service_id)
+                    .await;
+                if let Some(sender) = service_sender {
+                    let json_rpc_response = serde_json::from_str::<serde_json::Value>(
+                        &msg.jsonrpc_msg.clone().as_str(),
+                    )
+                    .unwrap();
+
+                    let result = json_rpc_response.get("result").cloned().unwrap_or_default();
+                    let jsonrpc = serde_json::to_string(
+                        &json_rpc_response
+                            .get("jsonrpc")
+                            .cloned()
+                            .unwrap_or_default(),
+                    )
+                    .unwrap();
+                    let id = ServiceMessageId::String(msg.request_id.clone());
+
+                    let service_message = ServiceMessage {
+                        message: ServiceJsonRpcMessage::Success(ServiceJsonRpcSuccess {
+                            result,
+                            jsonrpc,
+                            id,
+                        }),
+                        context: Some(serde_json::to_value(req.ctx.clone()).unwrap_or_default()),
+                    };
+                    let msg_str = serde_json::to_string(&service_message).unwrap();
+                    let message = Message::Text(msg_str.clone());
+                    debug!("Sending response to service {}: {:?}", service_id, message);
+                    if let Err(err) = sender.try_send(message) {
+                        error!(
+                            "Failed to send request to service {}: {:?}",
+                            service_id, err
+                        );
+                    } else {
+                        debug!("Successfully sent request to service: {}", service_id);
+                    }
+                } else {
+                    error!(
+                        "Failed to find service sender for service_id: {}",
+                        service_id
+                    );
+                    return;
+                }
+            } else {
+                error!("Failed to resolve service route for request");
+                let error_msg = ServiceMessage::new_error(
+                    -32603,
+                    "Service route resolution failed".to_string(),
+                    None,
+                    ServiceMessageId::Number(req.ctx.call_id as i64),
+                );
+                error!("Error response: {:?}", error_msg);
             }
         });
     }
