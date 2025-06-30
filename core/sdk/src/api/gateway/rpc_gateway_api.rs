@@ -17,7 +17,7 @@
 
 use jsonrpsee::types::ErrorObject;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
@@ -690,18 +690,10 @@ impl RpcRequest {
     }
     pub fn get_params_as_map(&self) -> Option<serde_json::Value> {
         if let Ok(params) = serde_json::from_str::<Value>(&self.params_json.clone()) {
-            let params = params.as_array().unwrap_or(&vec![]).to_vec();
-            let mut params_map = serde_json::Map::new();
-            for param in &params {
-                let f = param.as_object().unwrap();
-                params_map.extend(f.clone());
-            }
-            if params_map.is_empty() {
-                return None;
-            }
+            let params_map: Map<String, Value> = params.as_object().unwrap_or(&Map::new()).clone();
+
             return Some(Value::Object(params_map));
         }
-
         return None;
     }
 
@@ -1101,5 +1093,15 @@ mod tests {
         let new = RpcRequest::mock().get_unsubscribe();
         let request = serde_json::from_str::<ListenRequest>(&new.params_json).unwrap();
         assert!(!request.listen);
+    }
+    #[test]
+    fn test_params_as_map() {
+        let mut rpc_request = RpcRequest::mock();
+        rpc_request.params_json = r#"{"param1": {"key": "value"}}"#.to_string();
+        let params = rpc_request.get_params_as_map().unwrap();
+        assert!(params.is_object());
+        let map = params.as_object().unwrap();
+        assert!(map.contains_key("param1"));
+        assert_eq!(map.get("param1").unwrap(), &json!({"key": "value"}));
     }
 }
