@@ -1669,7 +1669,12 @@ impl BrokerOutputForwarder {
             None
         };
         let parse_result = serde_json::from_slice::<Value>(data);
-        debug!("parse result {:?}", parse_result);
+        debug!(
+            "parse result {:?} processing: {:?}, which is: {:?}",
+            parse_result,
+            data,
+            String::from_utf8_lossy(data)
+        );
         if parse_result.is_err() {
             return Err(RippleError::ParseError);
         }

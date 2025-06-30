@@ -79,8 +79,12 @@ impl EndpointBroker for ServiceBroker {
                                         .with_id(e.request_id.request_id)
                                         .with_message(e.error)
                                         .to_response();
-                                    send_broker_response(&callback, &request, &err.as_bytes())
-                                        .await;
+                                    BrokerOutputForwarder::send_json_rpc_response_to_broker(
+                                        err,
+                                        callback.clone(),
+                                    );
+                                    // send_broker_response(&callback, &request, &err.as_bytes())
+                                    //     .await;
                                 }
                                 ServiceRoutingResponse::Success(response) => {
                                     info!(
@@ -89,9 +93,17 @@ impl EndpointBroker for ServiceBroker {
                                     );
                                     let json_rpc_response =
                                         JsonRpcApiResponse::from_value(response.response).unwrap();
+                                    info!(
+                                        "ServiceBroker creating JSON-RPC response: {:?}",
+                                        json_rpc_response
+                                    );
+                                    // Convert the response to
                                     let win: Vec<u8> = json_rpc_response.to_string().into_bytes();
                                     info!("ServiceBroker sending response: {:?}", win);
-                                    send_broker_response(&callback, &request, &win).await;
+                                    BrokerOutputForwarder::send_json_rpc_response_to_broker(
+                                        json_rpc_response,
+                                        callback.clone(),
+                                    );
                                 }
                             }
                         }

@@ -32,20 +32,6 @@ use futures::SinkExt;
 use futures::StreamExt;
 use jsonrpsee::types::{error::INVALID_REQUEST_CODE, ErrorObject, ErrorResponse, Id};
 use ripple_sdk::{
-    api::manifest::extn_manifest::ExtnSymbol,
-    extn::{
-        extn_client_message::{ExtnMessage, ExtnPayload, ExtnResponse},
-        extn_id::ExtnId,
-    },
-    framework::ripple_contract::RippleContract,
-    log::trace,
-    tokio_tungstenite::{
-        tungstenite::{self, Message},
-        WebSocketStream,
-    },
-    utils::error::RippleError,
-};
-use ripple_sdk::{
     api::{
         gateway::rpc_gateway_api::{
             ApiMessage, ApiProtocol, ClientContext, JsonRpcApiResponse, RpcRequest, RPC_V2,
@@ -59,6 +45,24 @@ use ripple_sdk::{
     },
     utils::channel_utils::oneshot_send_and_log,
     uuid::Uuid,
+};
+use ripple_sdk::{
+    api::{
+        gateway::rpc_gateway_api::{CallContext, JsonRpcApiRequest},
+        manifest::extn_manifest::ExtnSymbol,
+    },
+    chrono::format::format,
+    extn::{
+        extn_client_message::{ExtnMessage, ExtnPayload, ExtnResponse},
+        extn_id::ExtnId,
+    },
+    framework::ripple_contract::RippleContract,
+    log::trace,
+    tokio_tungstenite::{
+        tungstenite::{self, Message},
+        WebSocketStream,
+    },
+    utils::error::RippleError,
 };
 use ripple_sdk::{log::debug, tokio};
 use ssda_service::ApiGateway;
@@ -436,6 +440,7 @@ impl FireboltWs {
         let (mut sender, mut receiver) = ws_stream.split();
         let mut platform_state = state.clone();
         let context_clone = ctx.clone();
+        let spawn_state = state.clone();
 
         tokio::spawn(async move {
             while let Some(api_message) = resp_rx.recv().await {
@@ -469,11 +474,38 @@ impl FireboltWs {
                                 stats.stats_ref,
                                 stats.stats.get_total_time()
                             );
-                            debug!(
-                                "Full Firebolt Split: {:?},{}",
-                                stats.stats_ref,
-                                stats.stats.get_stage_durations()
-                            );
+                            if let Some(stats_ref) = stats.stats_ref {
+                                let split = format!(
+                                    "Firebolt Split: {:?},{}",
+                                    stats_ref.clone(),
+                                    stats.stats.get_total_time()
+                                );
+                                let request = JsonRpcApiRequest::new(
+                                    "telemetry.event".to_string(),
+                                    Some(serde_json::json!({
+                                        "payload": split,
+
+                                    })),
+                                );
+                                let request = request.as_json().to_string();
+                                debug!("telemetry event request: {}", request);
+
+                                let rpc_request = RpcRequest::new(
+                                    String::from("telemetry.event"),
+                                    request,
+                                    CallContext::default(),
+                                );
+                                spawn_state
+                                    .endpoint_state
+                                    .handle_brokerage(rpc_request, None, None, vec![], None, vec![])
+                                    .await;
+                                debug!(
+                                    "Full Firebolt Split: {:?},{}",
+                                    stats_ref,
+                                    stats.stats.get_stage_durations()
+                                );
+                            }
+
                             platform_state
                                 .metrics
                                 .remove_api_stats(&api_message.request_id);
