@@ -21,9 +21,7 @@ use serde_json::Value;
 
 use crate::{
     client::{
-        device_operator::{
-            DeviceCallRequest, DeviceChannelRequest, DeviceResponseMessage, DeviceSubscribeRequest,
-        },
+        device_operator::{DeviceCallRequest, DeviceChannelRequest, DeviceSubscribeRequest},
         jsonrpc_method_locator::JsonRpcMethodLocator,
         plugin_manager::{PluginState, PluginStateChangeEvent, PluginStatus},
         thunder_async_client::{ThunderAsyncRequest, ThunderAsyncResponse},
