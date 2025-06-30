@@ -66,6 +66,7 @@ use super::{
         jq_compile, EventHandler, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine,
         RuleRetrievalError, RuleRetrieved, RuleType,
     },
+    service_broker::ServiceBroker,
     thunder_broker::ThunderBroker,
     websocket_broker::WebsocketBroker,
     workflow_broker::WorkflowBroker,
@@ -725,6 +726,10 @@ impl EndpointBrokerState {
                 ExtnBroker::get_broker(ps, request, self.callback.clone(), self).get_sender(),
                 None,
             ),
+            RuleEndpointProtocol::Service => (
+                ServiceBroker::get_broker(ps, request, self.callback.clone(), self).get_sender(),
+                None,
+            ),
         };
         self.add_endpoint(key, broker);
 
@@ -976,7 +981,10 @@ impl EndpointBrokerState {
                 RenderedRequest::JsonRpc(data) => {
                     tokio::spawn(async move {
                         if let Err(err) = broker_callback.sender.try_send(BrokerOutput::new(data)) {
-                            error!("Error sending json rpc response to broker {:?}", err);
+                            error!(
+                                "Error sending RenderedRequest json rpc response to broker {:?}",
+                                err
+                            );
                         }
                     });
                     Ok(response)
@@ -1031,7 +1039,7 @@ impl EndpointBrokerState {
                             .sender
                             .try_send(BrokerOutput::new(json_rpc_api_response))
                         {
-                            error!("Error sending json rpc response to broker {:?}", err);
+                            error!("Error sending RenderedRequest provider json rpc response to broker {:?}", err);
                         }
                     });
                     Ok(response)
