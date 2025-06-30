@@ -23,7 +23,6 @@ use crate::{
     client::{
         device_operator::{
             DeviceCallRequest, DeviceChannelRequest, DeviceResponseMessage, DeviceSubscribeRequest,
-            DeviceUnsubscribeRequest,
         },
         jsonrpc_method_locator::JsonRpcMethodLocator,
         plugin_manager::{PluginState, PluginStateChangeEvent, PluginStatus},
@@ -40,6 +39,7 @@ pub type ThunderHandlerFn =
     dyn Fn(DeviceCallRequest, oneshot::Sender<ThunderAsyncResponse>, u64) + Send + Sync;
 
 pub type ThunderSubscriberFn = dyn Fn(
+        DeviceSubscribeRequest,
         Sender<ThunderAsyncResponse>,
         u64,
     ) -> Pin<Box<dyn Future<Output = Option<ThunderAsyncResponse>> + Send>>
@@ -55,6 +55,7 @@ impl MockThunderSubscriberfn {
     pub fn new<F>(f: F) -> Self
     where
         F: Fn(
+                DeviceSubscribeRequest,
                 Sender<ThunderAsyncResponse>,
                 u64,
             ) -> Pin<Box<dyn Future<Output = Option<ThunderAsyncResponse>> + Send>>
@@ -62,17 +63,16 @@ impl MockThunderSubscriberfn {
             + Sync
             + 'static,
     {
-        Self {
-            fnc: Arc::new(Box::new(f)),
-        }
+        Self { fnc: Arc::new(f) }
     }
 
-    async fn call(
+    pub async fn call(
         &self,
+        req: DeviceSubscribeRequest,
         sender: Sender<ThunderAsyncResponse>,
         id: u64,
     ) -> Option<ThunderAsyncResponse> {
-        (self.fnc)(sender, id).await
+        (self.fnc)(req, sender, id).await
     }
 }
 
@@ -225,30 +225,43 @@ impl MockThunderController {
         }
     }
 
-    pub async fn handle_thunder_unsub(&mut self, _msg: DeviceUnsubscribeRequest) {}
+    pub async fn handle_thunder_unsub(&mut self, _msg: ThunderAsyncRequest) {}
+
     pub async fn handle_thunder_sub(
         &mut self,
-        msg: ThunderAsyncRequest,
+        thunder_async_request: ThunderAsyncRequest,
         handler: mpsc::Sender<ThunderAsyncResponse>,
     ) {
         let (tx, _rx) = oneshot::channel::<ThunderAsyncResponse>();
 
-        if msg.module == "Controller.1" && msg.event_name == "statechange" {
+        // Extract DeviceSubscribeRequest, module, and event_name from the ThunderAsyncRequest
+        let (sub_req, module, event_name, id) = match &thunder_async_request.request {
+            DeviceChannelRequest::Subscribe(sub_req) => (
+                sub_req.clone(),
+                sub_req.module.clone(),
+                sub_req.event_name.clone(),
+                thunder_async_request.id,
+            ),
+            _ => {
+                println!("handle_thunder_sub called with non-Subscribe request");
+                oneshot_send_and_log(tx, empty_response(), "SubscribeAck");
+                return;
+            }
+        };
+
+        if module == "Controller.1" && event_name == "statechange" {
             self.on_state_change(handler).await;
         } else if let Some(handler_fn) = self
             .custom_handlers
             .custom_subscription_handler
-            .get(&format!("{}.{}", msg.module, msg.event_name))
+            .get(&format!("{}.{}", module, event_name))
         {
-            let response = handler_fn.call(handler.clone()).await;
+            let response = handler_fn.call(sub_req, handler.clone(), id).await;
             if let Some(resp) = response {
                 mpsc_send_and_log(&handler, resp, "OnStatusChange").await;
             }
         } else {
-            println!(
-                "No mock subscription found for {}.{}",
-                msg.module, &msg.event_name
-            );
+            println!("No mock subscription found for {}.{}", module, event_name);
         }
         oneshot_send_and_log(tx, empty_response(), "SubscribeAck");
     }
@@ -291,7 +304,7 @@ impl MockThunderController {
                             )
                             .await;
                     }
-                    DeviceChannelRequest::Subscribe(msg) => {
+                    DeviceChannelRequest::Subscribe(ref msg) => {
                         println!("*** _DEBUG: start_with_custom_handlers: DeviceChannelRequest::Subscribe req received : {:?}", msg);
                         mock_controller
                             .handle_thunder_sub(
@@ -300,7 +313,7 @@ impl MockThunderController {
                             )
                             .await;
                     }
-                    DeviceChannelRequest::Unsubscribe(msg) => {
+                    DeviceChannelRequest::Unsubscribe(ref _msg) => {
                         mock_controller
                             .handle_thunder_unsub(thunder_async_request)
                             .await;
