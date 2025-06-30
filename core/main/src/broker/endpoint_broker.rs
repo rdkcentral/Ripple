@@ -1493,16 +1493,12 @@ impl BrokerOutputForwarder {
                                     }
                                 }
                             } else if matches!(rpc_request.ctx.protocol, ApiProtocol::Service) {
-                                let ctx = rpc_request.ctx.clone();
-                                let mut service_id = "unknown".to_string();
                                 let context = rpc_request.ctx.clone().context;
-                                if context.len() > 1 {
-                                    service_id = context[1].to_string();
-                                } else {
+                                if context.len() < 2 {
                                     error!("Context does not contain a valid service id");
                                     return;
                                 }
-
+                                let service_id = context[1].to_string();
                                 let service_sender = platform_state
                                     .service_controller_state
                                     .get_sender(&service_id)
@@ -1510,7 +1506,7 @@ impl BrokerOutputForwarder {
                                 if let Some(sender) = service_sender {
                                     let json_rpc_response =
                                         serde_json::from_str::<serde_json::Value>(
-                                            &message.jsonrpc_msg.clone().as_str(),
+                                            message.jsonrpc_msg.clone().as_str(),
                                         )
                                         .unwrap();
 

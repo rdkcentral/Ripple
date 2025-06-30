@@ -266,23 +266,20 @@ impl RpcRouter {
             if let Ok(msg) =
                 resolve_route(&mut platform_state, methods, resources, req.clone()).await
             {
-                let mut service_id = "unknown".to_string();
                 let context = req.ctx.clone().context;
-                if context.len() > 1 {
-                    service_id = context[1].to_string();
-                } else {
+                if context.len() < 2 {
                     error!("Context does not contain a valid service id");
                     return;
                 }
+                let service_id = context[1].to_string();
                 let service_sender = platform_state
                     .service_controller_state
                     .get_sender(&service_id)
                     .await;
                 if let Some(sender) = service_sender {
-                    let json_rpc_response = serde_json::from_str::<serde_json::Value>(
-                        &msg.jsonrpc_msg.clone().as_str(),
-                    )
-                    .unwrap();
+                    let json_rpc_response =
+                        serde_json::from_str::<serde_json::Value>(msg.jsonrpc_msg.clone().as_str())
+                            .unwrap();
 
                     let result = json_rpc_response.get("result").cloned().unwrap_or_default();
                     let jsonrpc = serde_json::to_string(
@@ -318,7 +315,6 @@ impl RpcRouter {
                         "Failed to find service sender for service_id: {}",
                         service_id
                     );
-                    return;
                 }
             } else {
                 error!("Failed to resolve service route for request");

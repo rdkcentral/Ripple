@@ -24,9 +24,7 @@ use super::{
     thunder::user_data_migrator::UserDataMigrator,
 };
 use crate::state::platform_state::PlatformState;
-use core::error;
 use futures_util::{SinkExt, StreamExt};
-use ripple_sdk::api::gateway::rpc_gateway_api::ApiProtocol;
 use ripple_sdk::{
     api::{
         gateway::rpc_gateway_api::{JsonRpcApiResponse, RpcRequest},
@@ -35,7 +33,6 @@ use ripple_sdk::{
     log::{debug, error, info, trace},
     tokio::{
         self,
-        sync::mpsc::{Receiver, Sender},
         sync::{mpsc, Mutex},
         time,
     },

@@ -15,9 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::HashMap;
-
-use hyper::client::service;
 use jsonrpsee::{core::server::rpc_module::Methods, types::TwoPointZero};
 use ripple_sdk::{
     api::{
@@ -41,6 +38,7 @@ use ripple_sdk::{
     tokio::{self, runtime::Handle, sync::mpsc::Sender},
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::{
     broker::endpoint_broker::BrokerOutput,
@@ -56,7 +54,7 @@ use crate::{
     utils::router_utils::{capture_stage, get_rpc_header_with_status},
 };
 
-use super::rpc_router::{RouterState, RpcRouter};
+use super::rpc_router::RpcRouter;
 
 pub struct FireboltGateway {
     state: BootstrapState,

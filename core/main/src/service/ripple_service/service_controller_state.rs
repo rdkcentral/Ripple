@@ -17,21 +17,16 @@
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use futures::{stream::SplitStream, SinkExt, StreamExt};
-use jsonrpsee::tracing::debug;
+use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
 use ripple_sdk::{
-    api::{
-        gateway::rpc_gateway_api::{
-            ApiMessage, ApiProtocol, CallContext, JsonRpcApiResponse, RpcRequest,
-        },
-        manifest::extn_manifest::ExtnSymbol,
-    },
+    api::{gateway::rpc_gateway_api::ApiMessage, manifest::extn_manifest::ExtnSymbol},
     extn::{
         extn_client_message::{ExtnMessage, ExtnPayload, ExtnResponse},
         extn_id::ExtnId,
     },
     framework::ripple_contract::RippleContract,
     log::{error, info, trace},
-    service::service_message::{Id, JsonRpcMessage, ServiceMessage},
+    service::service_message::{JsonRpcMessage, ServiceMessage},
     tokio::{
         self,
         net::TcpStream,
@@ -120,13 +115,13 @@ impl ServiceControllerState {
     // This is not the brokerage path.
     async fn process_inbound_service_message(
         state: &PlatformState,
-        connection_id: &str,
+        _connection_id: &str,
         sm: &ServiceMessage,
         app_id: String,
         _session_id: String,
     ) {
         match &sm.message {
-            JsonRpcMessage::Request(json_rpc_request) => {
+            JsonRpcMessage::Request(_json_rpc_request) => {
                 // In Ripple Service Architecture Ripple Main will not honor any request originated from any connected service other than
                 // service registration and unregistration request
                 // (TBD) Handling register/unregister
@@ -438,8 +433,8 @@ impl ServiceControllerState {
     ) -> Result<BrokerOutput, RippleError> {
         let data = sm.message.clone();
         // get JsonRpcApiResponse from JsonRpcApiResponse
-        let resposne = serde_json::to_string(&data).map_err(|_| RippleError::ParseError)?;
-        let data = match serde_json::from_str::<JsonRpcApiResponse>(&resposne) {
+        let response = serde_json::to_string(&data).map_err(|_| RippleError::ParseError)?;
+        let data = match serde_json::from_str::<JsonRpcApiResponse>(&response) {
             Ok(data) => data,
             Err(_) => {
                 error!("Failed to parse JsonRpcApiResponse from service message");
