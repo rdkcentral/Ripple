@@ -94,10 +94,10 @@ pub struct MockThunderControllerItems {
     pub api_message_rx: mpsc::Receiver<ApiMessage>,
 }
 
-const EMPTY_RESPONSE: DeviceResponseMessage = DeviceResponseMessage {
-    message: Value::Null,
-    sub_id: None,
-};
+// const EMPTY_RESPONSE: DeviceResponseMessage = DeviceResponseMessage {
+//     message: Value::Null,
+//     sub_id: None,
+// };
 
 fn empty_response() -> ThunderAsyncResponse {
     ThunderAsyncResponse {
