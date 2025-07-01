@@ -230,6 +230,7 @@ impl MockThunderController {
         thunder_async_request: ThunderAsyncRequest,
         handler: mpsc::Sender<ThunderAsyncResponse>,
     ) {
+        println!("@@@NNA.... we reached  handle_thunder_sub...");
         let (tx, _rx) = oneshot::channel::<ThunderAsyncResponse>();
 
         // Extract DeviceSubscribeRequest, module, and event_name from the ThunderAsyncRequest

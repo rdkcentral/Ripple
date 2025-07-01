@@ -143,6 +143,10 @@ impl CachedState {
         }
     }
 
+    pub fn get_thunder_state(&self) -> ThunderState {
+        self.state.clone()
+    }
+
     fn get_client(&self) -> ExtnClient {
         self.state.get_client()
     }
