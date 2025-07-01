@@ -176,35 +176,14 @@ impl ServiceClient {
                                     json_rpc_success,
                                     sm.context.clone().unwrap()
                                 );
-
-                                let sender_id = if let Some(context) = &sm.context {
-                                    // assign first array value of context.context to sender_id
-                                    if let Some(Value::String(id)) = context
-                                        .get("context")
-                                        .and_then(|c| c.as_array())
-                                        .and_then(|a| a.first())
-                                    {
-                                        id.to_string()
-                                    } else {
-                                        warn!("Context does not contain a valid sender_id");
-                                        "unknown".to_string()
-                                    }
-                                } else {
-                                    "unknown".to_string()
-                                };
-
-                                if let Some(processor) =
-                                    self.response_processors.write().unwrap().remove(&sender_id)
-                                {
-                                    if let Err(e) = processor.send(sm.clone()) {
-                                        error!("Failed to send service response: {:?}", e);
-                                    }
-                                } else {
-                                    warn!("No processor found for id: {}", sender_id);
-                                }
+                                self.send_service_response(sm.clone());
                             }
-                            JsonRpcMessage::Error(json_rpc_error) => {
-                                error!("Received Service Error: {:?}", json_rpc_error)
+                            JsonRpcMessage::Error(ref json_rpc_error) => {
+                                error!("Received Service Error: {:?}", json_rpc_error);
+                                let mut service_message = sm.clone();
+                                service_message.message =
+                                    JsonRpcMessage::Error(json_rpc_error.clone());
+                                self.send_service_response(service_message.clone());
                             }
                         }
 
@@ -263,6 +242,29 @@ impl ServiceClient {
         }
         debug!("Initialize Ended Abruptly");
     }
+
+    fn send_service_response(&self, sm: ServiceMessage) {
+        if let Some(context) = &sm.context {
+            if let Some(Value::String(id)) = context
+                .get("context")
+                .and_then(|c| c.as_array())
+                .and_then(|a| a.first())
+            {
+                if let Some(processor) = self.response_processors.write().unwrap().remove(id) {
+                    if let Err(e) = processor.send(sm) {
+                        error!("Failed to send service response: {:?}", e);
+                    }
+                } else {
+                    warn!("No processor found for id: {}", id);
+                }
+            } else {
+                warn!("Context does not contain a valid sender_id");
+            }
+        } else {
+            warn!("Service message context is None");
+        }
+    }
+
     pub fn get_extn_client(&self) -> Option<ExtnClient> {
         self.extn_client.clone()
     }

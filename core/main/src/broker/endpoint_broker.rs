@@ -1251,7 +1251,6 @@ impl BrokerOutputForwarder {
                             broker_request.clone().telemetry_response_listeners;
                         let sub_processed = broker_request.is_subscription_processed();
                         let rpc_request = broker_request.rpc.clone();
-                        let session_id = rpc_request.ctx.get_id();
                         let is_subscription = rpc_request.is_subscription();
                         let mut apply_response_needed = false;
 
@@ -1433,133 +1432,14 @@ impl BrokerOutputForwarder {
                                 .sender
                                 .try_send(BrokerOutput::new(response.clone()));
                         } else {
-                            let tm_str = get_rpc_header(&rpc_request);
-
-                            if is_event {
-                                response.update_event_message(&rpc_request);
-                            }
-
-                            // Step 2: Create the message
-                            let mut message = ApiMessage::new(
-                                rpc_request.ctx.protocol.clone(),
-                                serde_json::to_string(&response).unwrap(),
-                                rpc_request.ctx.request_id.clone(),
-                            );
-                            let mut status_code: i64 = 1;
-                            if let Some(e) = &response.error {
-                                if let Some(Value::Number(n)) = e.get("code") {
-                                    if let Some(v) = n.as_i64() {
-                                        status_code = v;
-                                    }
-                                }
-                            }
-
-                            platform_state.metrics.update_api_stats_ref(
-                                &rpc_request.ctx.request_id,
-                                add_telemetry_status_code(
-                                    &tm_str,
-                                    status_code.to_string().as_str(),
-                                ),
-                            );
-
-                            if let Some(api_stats) = platform_state
-                                .metrics
-                                .get_api_stats(&rpc_request.ctx.request_id)
-                            {
-                                message.stats = Some(api_stats);
-
-                                if rpc_request.ctx.app_id.eq_ignore_ascii_case("internal") {
-                                    platform_state
-                                        .metrics
-                                        .remove_api_stats(&rpc_request.ctx.request_id);
-                                }
-                            }
-
-                            // Step 3: Handle Non Extension
-                            if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
-                                if let Ok(extn_message) =
-                                    platform_state.endpoint_state.get_extn_message(id, is_event)
-                                {
-                                    let client = platform_state.get_client().get_extn_client();
-                                    if is_event {
-                                        forward_extn_event(
-                                            &extn_message,
-                                            response.clone(),
-                                            &platform_state,
-                                        )
-                                        .await;
-                                    } else {
-                                        return_extn_response(message, extn_message, client)
-                                    }
-                                }
-                            } else if matches!(rpc_request.ctx.protocol, ApiProtocol::Service) {
-                                let context = rpc_request.ctx.clone().context;
-                                if context.len() < 2 {
-                                    error!("Context does not contain a valid service id");
-                                    return;
-                                }
-                                let service_id = context[1].to_string();
-                                let service_sender = platform_state
-                                    .service_controller_state
-                                    .get_sender(&service_id)
-                                    .await;
-                                if let Some(sender) = service_sender {
-                                    let json_rpc_response =
-                                        serde_json::from_str::<serde_json::Value>(
-                                            message.jsonrpc_msg.clone().as_str(),
-                                        )
-                                        .unwrap();
-
-                                    let result = json_rpc_response
-                                        .get("result")
-                                        .cloned()
-                                        .unwrap_or_default();
-                                    let jsonrpc = serde_json::to_string(
-                                        &json_rpc_response
-                                            .get("jsonrpc")
-                                            .cloned()
-                                            .unwrap_or_default(),
-                                    )
-                                    .unwrap();
-                                    let id = ServiceMessageId::String(message.request_id.clone());
-
-                                    let service_message = ServiceMessage {
-                                        message: ServiceJsonRpcMessage::Success(
-                                            ServiceJsonRpcSuccess {
-                                                result,
-                                                jsonrpc,
-                                                id,
-                                            },
-                                        ),
-                                        context: Some(
-                                            serde_json::to_value(rpc_request.ctx.clone())
-                                                .unwrap_or_default(),
-                                        ),
-                                    };
-                                    let msg_str = serde_json::to_string(&service_message).unwrap();
-                                    let mes = Message::Text(msg_str.clone());
-                                    debug!(
-                                        "Sending response to service {} message: {:?}",
-                                        service_id, mes
-                                    );
-                                    if let Err(err) = sender.try_send(mes) {
-                                        error!(
-                                            "Failed to send request to service {}: {:?}",
-                                            service_id, err
-                                        );
-                                    } else {
-                                        debug!(
-                                            "Successfully sent request to service: {}",
-                                            service_id
-                                        );
-                                    }
-                                }
-                            } else if let Some(session) = platform_state
-                                .session_state
-                                .get_session_for_connection_id(&session_id)
-                            {
-                                let _ = session.send_json_rpc(message).await;
-                            }
+                            Self::handle_non_workflow_request(
+                                &rpc_request,
+                                &mut response,
+                                is_event,
+                                id,
+                                &mut platform_state,
+                            )
+                            .await;
                         }
 
                         for listener in telemetry_response_listeners {
@@ -1580,6 +1460,128 @@ impl BrokerOutputForwarder {
                 }
             }
         });
+    }
+
+    async fn handle_non_workflow_request(
+        rpc_request: &RpcRequest,
+        response: &mut JsonRpcApiResponse,
+        is_event: bool,
+        id: u64,
+        platform_state: &mut PlatformState,
+    ) {
+        let tm_str = get_rpc_header(rpc_request);
+        let session_id = rpc_request.ctx.get_id();
+
+        if is_event {
+            response.update_event_message(rpc_request);
+        }
+
+        // Step 2: Create the message
+        let mut message = ApiMessage::new(
+            rpc_request.ctx.protocol.clone(),
+            serde_json::to_string(&response).unwrap(),
+            rpc_request.ctx.request_id.clone(),
+        );
+        let mut status_code: i64 = 1;
+        if let Some(e) = &response.error {
+            if let Some(Value::Number(n)) = e.get("code") {
+                if let Some(v) = n.as_i64() {
+                    status_code = v;
+                }
+            }
+        }
+
+        platform_state.metrics.update_api_stats_ref(
+            &rpc_request.ctx.request_id,
+            add_telemetry_status_code(&tm_str, status_code.to_string().as_str()),
+        );
+
+        if let Some(api_stats) = platform_state
+            .metrics
+            .get_api_stats(&rpc_request.ctx.request_id)
+        {
+            message.stats = Some(api_stats);
+
+            if rpc_request.ctx.app_id.eq_ignore_ascii_case("internal") {
+                platform_state
+                    .metrics
+                    .remove_api_stats(&rpc_request.ctx.request_id);
+            }
+        }
+
+        // Step 3: Handle Non Extension
+        if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
+            if let Ok(extn_message) = platform_state.endpoint_state.get_extn_message(id, is_event) {
+                let client = platform_state.get_client().get_extn_client();
+                if is_event {
+                    forward_extn_event(&extn_message, response.clone(), platform_state).await;
+                } else {
+                    return_extn_response(message, extn_message, client)
+                }
+            }
+        } else if matches!(rpc_request.ctx.protocol, ApiProtocol::Service) {
+            Self::handle_service_message(rpc_request, &message, platform_state).await;
+        } else if let Some(session) = platform_state
+            .session_state
+            .get_session_for_connection_id(&session_id)
+        {
+            let _ = session.send_json_rpc(message).await;
+        }
+    }
+
+    async fn handle_service_message(
+        rpc_request: &RpcRequest,
+        message: &ApiMessage,
+        platform_state: &PlatformState,
+    ) {
+        let context = rpc_request.ctx.clone().context;
+        if context.len() < 2 {
+            error!("Context does not contain a valid service id");
+            return;
+        }
+        let service_id = context[1].to_string();
+        let service_sender = platform_state
+            .service_controller_state
+            .get_sender(&service_id)
+            .await;
+        if let Some(sender) = service_sender {
+            let json_rpc_response =
+                serde_json::from_str::<serde_json::Value>(message.jsonrpc_msg.clone().as_str())
+                    .unwrap();
+
+            let result = json_rpc_response.get("result").cloned().unwrap_or_default();
+            let jsonrpc = serde_json::to_string(
+                &json_rpc_response
+                    .get("jsonrpc")
+                    .cloned()
+                    .unwrap_or_default(),
+            )
+            .unwrap();
+            let id = ServiceMessageId::String(message.request_id.clone());
+
+            let service_message = ServiceMessage {
+                message: ServiceJsonRpcMessage::Success(ServiceJsonRpcSuccess {
+                    result,
+                    jsonrpc,
+                    id,
+                }),
+                context: Some(serde_json::to_value(rpc_request.ctx.clone()).unwrap_or_default()),
+            };
+            let msg_str = serde_json::to_string(&service_message).unwrap();
+            let mes = Message::Text(msg_str.clone());
+            debug!(
+                "Sending response to service {} message: {:?}",
+                service_id, mes
+            );
+            if let Err(err) = sender.try_send(mes) {
+                error!(
+                    "Failed to send request to service {}: {:?}",
+                    service_id, err
+                );
+            } else {
+                debug!("Successfully sent request to service: {}", service_id);
+            }
+        }
     }
 
     async fn handle_event(

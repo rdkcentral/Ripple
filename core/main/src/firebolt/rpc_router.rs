@@ -250,7 +250,6 @@ impl RpcRouter {
         });
     }
 
-    // TODO - send response back to the client using sender in ServiceRegistry
     pub async fn route_service_protocol(state: &PlatformState, req: RpcRequest) {
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();

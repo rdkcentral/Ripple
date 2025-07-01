@@ -136,20 +136,10 @@ impl ThunderBroker {
         custom_callback_list.insert(id, callback);
     }
 
-    // pub async fn register_service_callback(&self, id: u64, callback: Sender<Message>) {
-    //     let mut service_callback_list = self.service_callback_list.lock().await;
-    //     service_callback_list.insert(id, callback);
-    // }
-
     pub async fn unregister_custom_callback(&self, id: u64) {
         let mut custom_callback_list = self.custom_callback_list.lock().await;
         custom_callback_list.remove(&id);
     }
-
-    // pub async fn unregister_service_callback(&self, id: u64) {
-    //     let mut service_callback_list = self.service_callback_list.lock().await;
-    //     service_callback_list.remove(&id);
-    // }
 
     async fn get_broker_callback(&self, id: Option<u64>) -> BrokerCallback {
         if id.is_none() {
@@ -269,9 +259,6 @@ impl ThunderBroker {
             tokio::pin! {
                 let read = ws_rx.next();
             }
-
-            // let ps = platform_state.clone();
-
             let diagnostic_context: Arc<Mutex<Option<BrokerRequest>>> = Arc::new(Mutex::new(None));
             loop {
                 tokio::select! {
