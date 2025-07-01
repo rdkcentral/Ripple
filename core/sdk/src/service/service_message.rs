@@ -262,11 +262,4 @@ impl ServiceMessage {
             }
         }
     }
-
-    pub fn get_result(&self) -> Option<Value> {
-        match &self.message {
-            JsonRpcMessage::Success(success) => Some(success.result.clone()),
-            _ => None,
-        }
-    }
 }
