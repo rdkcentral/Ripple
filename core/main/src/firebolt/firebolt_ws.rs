@@ -476,33 +476,26 @@ impl FireboltWs {
                             );
                             if let Some(stats_ref) = stats.stats_ref {
                                 let split = format!(
-                                    "Firebolt Split: {:?},{}",
+                                    "Full Firebolt Split: {:?},{}",
                                     stats_ref.clone(),
-                                    stats.stats.get_total_time()
+                                    stats.stats.get_stage_durations()
                                 );
-                                let request = JsonRpcApiRequest::new(
-                                    "telemetry.event".to_string(),
-                                    Some(serde_json::json!({
-                                        "payload": split,
-
-                                    })),
-                                );
-                                let request = request.as_json().to_string();
-                                debug!("telemetry event request: {}", request);
+                                
 
                                 let rpc_request = RpcRequest::new(
                                     String::from("telemetry.event"),
-                                    request,
+                                    serde_json::json!({
+                                        "payload": split,
+                                    }).to_string(),
                                     CallContext::default(),
                                 );
+                                
                                 spawn_state
                                     .endpoint_state
                                     .handle_brokerage(rpc_request, None, None, vec![], None, vec![])
                                     .await;
                                 debug!(
-                                    "Full Firebolt Split: {:?},{}",
-                                    stats_ref,
-                                    stats.stats.get_stage_durations()
+                                   "{}", split
                                 );
                             }
 
