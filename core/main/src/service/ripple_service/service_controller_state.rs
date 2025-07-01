@@ -548,3 +548,23 @@ async fn return_invalid_service_error_message(
         let _ = session.send_json_rpc(msg.into()).await;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_validate_sender() {
+        let context = serde_json::json!({
+            "context": ["some_value", "ripple:channel:gateway:badger"]
+        });
+        let result = ServiceControllerState::validate_sender(context).await;
+        assert!(result, "{}", true);
+
+        let context = serde_json::json!({
+            "context": ["some_value", "invalid_service_id"]
+        });
+        let result = ServiceControllerState::validate_sender(context).await;
+        assert!(!result, "{}", false);
+    }
+}
