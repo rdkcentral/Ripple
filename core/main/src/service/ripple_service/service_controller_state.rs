@@ -126,9 +126,9 @@ impl ServiceControllerState {
         _session_id: String,
     ) {
         match &sm.message {
-            JsonRpcMessage::Request(_json_rpc_request) => {
-                // In Ripple Service Architecture Ripple Main will not honor any request originated from any connected service other than
-                // service registration and unregistration request
+            JsonRpcMessage::Request(json_rpc_request) => {
+                // In Ripple Service Architecture Ripple Main will not honor any request originated from any connected service that is not included in `ALLOWED_SERVICES_LIST`
+                // other than service registration and unregistration request
                 // (TBD) Handling register/unregister
 
                 if let Some(context) = sm.context.clone() {
@@ -138,6 +138,10 @@ impl ServiceControllerState {
                             "Ripple Main does not support this request from Service".to_string(),
                             None,
                             Id::Number(sm.get_request_id() as i64),
+                        );
+                        error!(
+                            "Error handling inbound service message: {} {} ",
+                            json_rpc_request, message
                         );
 
                         //send the error message back to the service through the service connection
@@ -206,7 +210,6 @@ impl ServiceControllerState {
                         }
                         let id = context[1].as_str();
                         if let Some(service_id) = id {
-                            info!("^^&&&  service id: {}", service_id);
                             if !ALLOWED_SERVICES_LIST.contains(&service_id) {
                                 error!(
                                     "Service id {:?} is not allowed to send messages to Ripple Main",
