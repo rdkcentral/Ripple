@@ -1250,30 +1250,38 @@ impl BrokerOutputForwarder {
                         let is_subscription = rpc_request.is_subscription();
 
                         let apply_response_needed = if let Some(result) = response.result.clone() {
-                            if Self::handle_event_output(
-                                &broker_request,
-                                &rpc_request,
-                                &mut response,
-                                is_event,
-                                &platform_state,
-                                &event_utility_clone,
-                                result.clone(),
-                            )
-                            .await
+                            if is_event {
+                                LogSignal::new(
+                                    "handle_event_output".to_string(),
+                                    "processing event".to_string(),
+                                    broker_request.clone(),
+                                )
+                                .emit_debug();
+                                if Self::handle_event_output(
+                                    &broker_request,
+                                    &rpc_request,
+                                    &mut response,
+                                    &platform_state,
+                                    &event_utility_clone,
+                                    result.clone(),
+                                )
+                                .await
+                                {
+                                    continue;
+                                }
+                            } else if is_subscription
+                                && Self::handle_subscription_response(
+                                    &broker_request,
+                                    &rpc_request,
+                                    &mut response,
+                                    sub_processed,
+                                    &platform_state,
+                                    id,
+                                )
                             {
                                 continue;
                             }
-                            if Self::handle_subscription_response(
-                                &broker_request,
-                                &rpc_request,
-                                &mut response,
-                                is_subscription,
-                                sub_processed,
-                                &platform_state,
-                                id,
-                            ) {
-                                continue;
-                            }
+
                             !is_event && !is_subscription
                         } else {
                             LogSignal::new(
@@ -1414,105 +1422,94 @@ impl BrokerOutputForwarder {
         broker_request: &BrokerRequest,
         rpc_request: &RpcRequest,
         response: &mut JsonRpcApiResponse,
-        is_event: bool,
         platform_state: &PlatformState,
         event_utility: &Arc<EventManagementUtility>,
         result: Value,
     ) -> bool {
-        if is_event {
+        if let Some(event_handler) = broker_request.rule.event_handler.clone() {
+            let platform_state_c = platform_state.clone();
+            let rpc_request_c = rpc_request.clone();
+            let response_c = response.clone();
+            let broker_request_c = broker_request.clone();
+
             LogSignal::new(
                 "handle_event_output".to_string(),
-                "processing event".to_string(),
+                "spawning event handler".to_string(),
                 broker_request.clone(),
             )
             .emit_debug();
 
-            if let Some(event_handler) = broker_request.rule.event_handler.clone() {
+            tokio::spawn(Self::handle_event(
+                platform_state_c,
+                event_handler,
+                broker_request_c,
+                rpc_request_c,
+                response_c,
+            ));
+            return true;
+        }
+
+        if let Some(filter) = broker_request.rule.transform.get_transform_data(
+            super::rules::rules_engine::RuleTransformType::Event(
+                rpc_request.ctx.context.contains(&RPC_V2.into()),
+            ),
+        ) {
+            apply_rule_for_event(broker_request, &result, rpc_request, &filter, response);
+        }
+
+        if !apply_filter(broker_request, &result, rpc_request) {
+            LogSignal::new(
+                "handle_event_output".to_string(),
+                "event filtered out".to_string(),
+                broker_request.clone(),
+            )
+            .emit_debug();
+            return true;
+        }
+
+        if let Some(decorator_method) = broker_request.rule.transform.event_decorator_method.clone()
+        {
+            if let Some(func) = event_utility.get_function(&decorator_method) {
+                LogSignal::new(
+                    "handle_event_output".to_string(),
+                    "event decorator method found".to_string(),
+                    rpc_request.ctx.clone(),
+                )
+                .emit_debug();
+                let session_id = rpc_request.ctx.get_id();
+                let request_id = rpc_request.ctx.call_id;
+                let protocol = rpc_request.ctx.protocol.clone();
                 let platform_state_c = platform_state.clone();
-                let rpc_request_c = rpc_request.clone();
-                let response_c = response.clone();
-                let broker_request_c = broker_request.clone();
-
+                let ctx = rpc_request.ctx.clone();
+                let mut response_c = response.clone();
+                tokio::spawn(async move {
+                    if let Ok(value) =
+                        func(platform_state_c.clone(), ctx.clone(), Some(result.clone())).await
+                    {
+                        response_c.result = Some(value.expect("REASON"));
+                    }
+                    response_c.id = Some(request_id);
+                    let message = ApiMessage::new(
+                        protocol,
+                        serde_json::to_string(&response_c).unwrap(),
+                        ctx.request_id.clone(),
+                    );
+                    if let Some(session) = platform_state_c
+                        .session_state
+                        .get_session_for_connection_id(&session_id)
+                    {
+                        let _ = session.send_json_rpc(message).await;
+                    }
+                });
+                return true;
+            } else {
                 LogSignal::new(
                     "handle_event_output".to_string(),
-                    "spawning event handler".to_string(),
-                    broker_request.clone(),
+                    "event decorator method not found".to_string(),
+                    rpc_request.ctx.clone(),
                 )
                 .emit_debug();
-
-                tokio::spawn(Self::handle_event(
-                    platform_state_c,
-                    event_handler,
-                    broker_request_c,
-                    rpc_request_c,
-                    response_c,
-                ));
-                return true;
-            }
-
-            if let Some(filter) = broker_request.rule.transform.get_transform_data(
-                super::rules::rules_engine::RuleTransformType::Event(
-                    rpc_request.ctx.context.contains(&RPC_V2.into()),
-                ),
-            ) {
-                apply_rule_for_event(broker_request, &result, rpc_request, &filter, response);
-            }
-
-            if !apply_filter(broker_request, &result, rpc_request) {
-                LogSignal::new(
-                    "handle_event_output".to_string(),
-                    "event filtered out".to_string(),
-                    broker_request.clone(),
-                )
-                .emit_debug();
-                return true;
-            }
-
-            if let Some(decorator_method) =
-                broker_request.rule.transform.event_decorator_method.clone()
-            {
-                if let Some(func) = event_utility.get_function(&decorator_method) {
-                    LogSignal::new(
-                        "handle_event_output".to_string(),
-                        "event decorator method found".to_string(),
-                        rpc_request.ctx.clone(),
-                    )
-                    .emit_debug();
-                    let session_id = rpc_request.ctx.get_id();
-                    let request_id = rpc_request.ctx.call_id;
-                    let protocol = rpc_request.ctx.protocol.clone();
-                    let platform_state_c = platform_state.clone();
-                    let ctx = rpc_request.ctx.clone();
-                    let mut response_c = response.clone();
-                    tokio::spawn(async move {
-                        if let Ok(value) =
-                            func(platform_state_c.clone(), ctx.clone(), Some(result.clone())).await
-                        {
-                            response_c.result = Some(value.expect("REASON"));
-                        }
-                        response_c.id = Some(request_id);
-                        let message = ApiMessage::new(
-                            protocol,
-                            serde_json::to_string(&response_c).unwrap(),
-                            ctx.request_id.clone(),
-                        );
-                        if let Some(session) = platform_state_c
-                            .session_state
-                            .get_session_for_connection_id(&session_id)
-                        {
-                            let _ = session.send_json_rpc(message).await;
-                        }
-                    });
-                    return true;
-                } else {
-                    LogSignal::new(
-                        "handle_event_output".to_string(),
-                        "event decorator method not found".to_string(),
-                        rpc_request.ctx.clone(),
-                    )
-                    .emit_debug();
-                    error!("Failed to invoke decorator method {:?}", decorator_method);
-                }
+                error!("Failed to invoke decorator method {:?}", decorator_method);
             }
         }
         false
@@ -1522,7 +1519,6 @@ impl BrokerOutputForwarder {
         broker_request: &BrokerRequest,
         rpc_request: &RpcRequest,
         response: &mut JsonRpcApiResponse,
-        is_subscription: bool,
         sub_processed: bool,
         platform_state: &PlatformState,
         id: u64,
@@ -1534,31 +1530,27 @@ impl BrokerOutputForwarder {
         )
         .emit_debug();
 
-        if is_subscription {
-            if sub_processed {
-                LogSignal::new(
-                    "handle_subscription_response".to_string(),
-                    "subscription already processed".to_string(),
-                    broker_request.clone(),
-                )
-                .emit_debug();
-                return true;
-            }
-            response.result = Some(json!({
-                "listening" : rpc_request.is_listening(),
-                "event" : rpc_request.ctx.method
-            }));
-            platform_state.endpoint_state.update_unsubscribe_request(id);
-
+        if sub_processed {
             LogSignal::new(
                 "handle_subscription_response".to_string(),
-                "subscription response set".to_string(),
+                "subscription already processed".to_string(),
                 broker_request.clone(),
             )
             .emit_debug();
-
             return true;
         }
+        response.result = Some(json!({
+            "listening" : rpc_request.is_listening(),
+            "event" : rpc_request.ctx.method
+        }));
+        platform_state.endpoint_state.update_unsubscribe_request(id);
+
+        LogSignal::new(
+            "handle_subscription_response".to_string(),
+            "subscription response set".to_string(),
+            broker_request.clone(),
+        )
+        .emit_debug();
         false
     }
 

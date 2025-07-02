@@ -357,6 +357,36 @@ impl ServiceClient {
             Err(RippleError::ServiceError)
         }
     }
+
+    pub fn request_transient(
+        &self,
+        req: Option<Value>,
+        method: String,
+        ctx: &CallContext,
+        service_id: String,
+    ) -> Result<String, RippleError> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let mut service_request =
+            ServiceMessage::new_request(method.to_owned(), req, Id::String(id.clone()));
+        let mut context = ctx.clone();
+        context.protocol = ApiProtocol::Service;
+        let vec = vec![id.clone(), service_id];
+        context.context = vec;
+        let service_message_context = serde_json::to_value(context).unwrap();
+        service_request.set_context(Some(service_message_context));
+        if let Some(sender) = &self.service_sender {
+            match sender.try_send(service_request) {
+                Ok(_) => Ok(id),
+                Err(e) => {
+                    error!("Error sending service request: {:?}", e);
+                    Err(RippleError::ServiceError)
+                }
+            }
+        } else {
+            error!("Service sender is not available");
+            Err(RippleError::ServiceError)
+        }
+    }
 }
 
 fn add_single_processor<P>(id: String, processor: Option<P>, map: Arc<RwLock<HashMap<String, P>>>) {
