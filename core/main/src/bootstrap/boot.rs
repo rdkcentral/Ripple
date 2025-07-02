@@ -56,12 +56,12 @@ use super::{
 
 ///
 pub async fn boot(state: BootstrapState) -> RippleResponse {
-    log_memory_usage("boot-Begining");    
+    log_memory_usage("boot-Begining");
     let bootstrap = Bootstrap::new(state);
     execute_step(LoggingBootstrapStep, &bootstrap).await?;
-    log_memory_usage("After-LoggingBootstrapStep");    
+    log_memory_usage("After-LoggingBootstrapStep");
     execute_step(StartWsStep, &bootstrap).await?;
-    log_memory_usage("After-StartWsStep");    
+    log_memory_usage("After-StartWsStep");
     execute_step(StartCommunicationBroker, &bootstrap).await?;
     log_memory_usage("After-StartCommunicationBroker");
     execute_step(SetupExtnClientStep, &bootstrap).await?;

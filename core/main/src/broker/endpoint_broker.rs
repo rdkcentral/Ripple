@@ -740,7 +740,6 @@ impl EndpointBrokerState {
             cleaner_list.push(cleaner);
         }
         ripple_sdk::utils::test_utils::log_memory_usage("After-build_endpoint");
-
     }
 
     fn handle_static_request(&self, rpc_request: RpcRequest) -> JsonRpcApiResponse {

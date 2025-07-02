@@ -45,7 +45,7 @@ impl Bootstep<BootstrapState> for StartCommunicationBroker {
             BrokerOutputForwarder::start_forwarder(ps.clone(), rx)
         }
         // Setup the endpoints from the manifests
-        let mut endpoint_state = &mut ps.clone().endpoint_state;
+        let endpoint_state = &mut ps.clone().endpoint_state;
         endpoint_state.build_thunder_endpoint(Some(state.platform_state.clone()));
         Ok(())
     }
@@ -63,13 +63,16 @@ impl Bootstep<BootstrapState> for StartOtherBrokers {
         let ps = state.platform_state.clone();
         // Start the Broker Reciever
         if let Ok(rx) = state.channels_state.get_broker_receiver() {
-            ripple_sdk::utils::test_utils::log_memory_usage("Before-BrokerOutputForwarder::start_forwarder");
+            ripple_sdk::utils::test_utils::log_memory_usage(
+                "Before-BrokerOutputForwarder::start_forwarder",
+            );
             BrokerOutputForwarder::start_forwarder(ps.clone(), rx);
-            ripple_sdk::utils::test_utils::log_memory_usage("After-BrokerOutputForwarder::start_forwarder");
-
+            ripple_sdk::utils::test_utils::log_memory_usage(
+                "After-BrokerOutputForwarder::start_forwarder",
+            );
         }
         // Setup the endpoints from the manifests
-        let mut endpoint_state = &mut ps.clone().endpoint_state;
+        let endpoint_state = &mut ps.clone().endpoint_state;
         endpoint_state.build_other_endpoints(ps.clone(), ps.session_state.get_account_session());
         Ok(())
     }

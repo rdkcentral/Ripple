@@ -439,8 +439,11 @@ impl FireboltWs {
                             gateway_secure,
                             context,
                         ) {
-                            info!("Received Firebolt request {} Memory Usage {:.2} MB ", request.params_json, 
-                                ripple_sdk::utils::test_utils::get_memory_usage_mb());
+                            info!(
+                                "Received Firebolt request {} Memory Usage {:.2} MB ",
+                                request.params_json,
+                                ripple_sdk::utils::test_utils::get_memory_usage_mb()
+                            );
                             let msg = FireboltGatewayCommand::HandleRpc { request };
                             if let Err(e) = client.clone().send_gateway_command(msg) {
                                 error!("failed to send request {:?}", e);
