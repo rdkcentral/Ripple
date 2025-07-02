@@ -18,8 +18,8 @@
 use std::collections::HashMap;
 
 use crate::{
-    broker::broker_utils::BrokerUtils, firebolt::rpc::RippleRPCProvider,
-    state::platform_state::PlatformState, utils::rpc_utils::rpc_add_event_listener,
+    firebolt::rpc::RippleRPCProvider, state::platform_state::PlatformState,
+    utils::rpc_utils::rpc_add_event_listener,
 };
 use jsonrpsee::{
     core::{async_trait, RpcResult},
@@ -31,7 +31,7 @@ use ripple_sdk::api::{
         fb_general::{ListenRequest, ListenerResponse},
         fb_secondscreen::SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST,
     },
-    gateway::rpc_gateway_api::{rpc_value_result_to_string_result, CallContext},
+    gateway::rpc_gateway_api::CallContext,
 };
 
 pub const EVENT_SECOND_SCREEN_ON_CLOSE_REQUEST: &str = "secondscreen.onCloseRequest";
@@ -39,8 +39,6 @@ pub const EVENT_SECOND_SCREEN_ON_FRIENDLY_NAME_CHANGED: &str = "secondscreen.onF
 
 #[rpc(server)]
 pub trait SecondScreen {
-    #[method(name = "secondscreen.friendlyName")]
-    async fn friendly_name(&self, ctx: CallContext) -> RpcResult<String>;
     #[method(name = "secondscreen.protocols")]
     async fn protocols(&self, _ctx: CallContext) -> RpcResult<HashMap<String, bool>>;
     #[method(name = "secondscreen.onLaunchRequest")]
@@ -55,12 +53,6 @@ pub trait SecondScreen {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
-    #[method(name = "secondscreen.onFriendlyNameChanged")]
-    async fn on_friendly_name_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
 }
 
 pub struct SecondScreenImpl {
@@ -69,14 +61,6 @@ pub struct SecondScreenImpl {
 
 #[async_trait]
 impl SecondScreenServer for SecondScreenImpl {
-    async fn friendly_name(&self, _ctx: CallContext) -> RpcResult<String> {
-        let s = self.state.clone();
-        rpc_value_result_to_string_result(
-            BrokerUtils::process_internal_main_request(&s, "device.name", None).await,
-            None,
-        )
-    }
-
     async fn protocols(&self, _ctx: CallContext) -> RpcResult<HashMap<String, bool>> {
         let mut protocols = HashMap::<String, bool>::new();
         protocols.insert("dial2".into(), true);
@@ -107,20 +91,6 @@ impl SecondScreenServer for SecondScreenImpl {
             ctx,
             request,
             EVENT_SECOND_SCREEN_ON_CLOSE_REQUEST,
-        )
-        .await
-    }
-
-    async fn on_friendly_name_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(
-            &self.state,
-            ctx,
-            request,
-            EVENT_SECOND_SCREEN_ON_FRIENDLY_NAME_CHANGED,
         )
         .await
     }
