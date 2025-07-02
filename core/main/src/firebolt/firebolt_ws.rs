@@ -389,9 +389,10 @@ impl FireboltWs {
                             .get_api_stats(&api_message.request_id)
                         {
                             info!(
-                                "Sending Firebolt response: {:?},{}",
+                                "Sending Firebolt response: {:?},{} Memory Usage {:.2} MB",
                                 stats.stats_ref,
-                                stats.stats.get_total_time()
+                                stats.stats.get_total_time(),
+                                ripple_sdk::utils::test_utils::get_memory_usage_mb()
                             );
                             debug!(
                                 "Full Firebolt Split: {:?},{}",
@@ -438,7 +439,8 @@ impl FireboltWs {
                             gateway_secure,
                             context,
                         ) {
-                            info!("Received Firebolt request {}", request.params_json);
+                            info!("Received Firebolt request {} Memory Usage {:.2} MB ", request.params_json, 
+                                ripple_sdk::utils::test_utils::get_memory_usage_mb());
                             let msg = FireboltGatewayCommand::HandleRpc { request };
                             if let Err(e) = client.clone().send_gateway_command(msg) {
                                 error!("failed to send request {:?}", e);
