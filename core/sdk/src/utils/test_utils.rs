@@ -43,7 +43,6 @@ pub fn log_memory_usage(label: &str) {
     }
 }
 
-// add a function to return the memory usage in MB
 pub fn get_memory_usage_mb() -> f64 {
     let mut sys = System::new();
     sys.refresh_process(sysinfo::get_current_pid().unwrap());
