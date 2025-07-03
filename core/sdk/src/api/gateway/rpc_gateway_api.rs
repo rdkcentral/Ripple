@@ -694,7 +694,7 @@ impl RpcRequest {
 
             return Some(Value::Object(params_map));
         }
-        return None;
+        None
     }
 
     pub fn get_new_internal(method: String, params: Option<Value>) -> Self {

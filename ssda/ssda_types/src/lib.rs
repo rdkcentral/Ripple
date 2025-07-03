@@ -1,20 +1,12 @@
-use std::fs::File;
-use std::sync::Arc;
-use std::time::Duration;
-
 use futures_util::{SinkExt, StreamExt};
 use gateway::ServiceRoutingRequest;
-use jsonrpsee::types::response;
-use jsonrpsee::{Methods, RpcModule};
-use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiRequest;
+use jsonrpsee::Methods;
 use ripple_sdk::api::rules_engine::{Rule, RuleTransform};
 use ripple_sdk::log::{debug, error, info};
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
-use service::{
-    APIClientMessages, APIGatewayServiceRegistrationRequest, ServiceRegistration,
-    ServiceRequestHandler,
-};
+use service::{APIClientMessages, APIGatewayServiceRegistrationRequest};
 
 /*
 Who what why
@@ -593,15 +585,14 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use url::Url;
 
 use crate::service::{
-    FireboltMethodHandlerAPIRegistration, FireboltMethodHandlerRegistration,
-    ServiceCallErrorResponse, ServiceCallResponse, ServiceCallSuccessResponse,
+    FireboltMethodHandlerAPIRegistration, ServiceCallErrorResponse, ServiceCallSuccessResponse,
 };
 
 impl WebsocketAPIGatewayClient {
     pub fn new(rpc_server: Methods, service_id: ServiceId) -> WebsocketAPIGatewayClient {
         WebsocketAPIGatewayClient {
-            rpc_server: rpc_server,
-            service_id: service_id,
+            rpc_server,
+            service_id,
         }
     }
     pub async fn handle_messages(
@@ -609,7 +600,7 @@ impl WebsocketAPIGatewayClient {
             tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
         >,
         rpc_server: Methods,
-        firebolt_handlers: Vec<FireboltMethodHandlerAPIRegistration>,
+        _api_gateway_clientfirebolt_handlers: Vec<FireboltMethodHandlerAPIRegistration>,
         // handler: Arc<dyn ServiceRequestHandler>,
         //registration: ServiceRegistration,
     ) {
@@ -684,7 +675,7 @@ impl WebsocketAPIGatewayClient {
                                             let error_response =
                                                 APIClientMessages::ServiceCallErrorResponse(
                                                     ServiceCallErrorResponse {
-                                                        request_id: request_id,
+                                                        request_id,
                                                         error: e.to_string(),
                                                     },
                                                 );
@@ -709,7 +700,7 @@ impl WebsocketAPIGatewayClient {
                                                 response
                                             );
                                             let success_response = ServiceCallSuccessResponse {
-                                                request_id: request_id,
+                                                request_id,
                                                 response,
                                             };
                                             let success_response =
@@ -736,7 +727,7 @@ impl WebsocketAPIGatewayClient {
                                         let error_response =
                                             APIClientMessages::ServiceCallErrorResponse(
                                                 ServiceCallErrorResponse {
-                                                    request_id: request_id,
+                                                    request_id,
                                                     error: nope.to_string(),
                                                 },
                                             );
@@ -784,8 +775,6 @@ impl WebsocketAPIGatewayClient {
         loop {
             match connect_async(url.clone()).await {
                 Ok((ws_stream, _)) => {
-                    //let handler = self.handler.clone();
-                    ///let registration = self.registration.clone();
                     let rpc_server = self.rpc_server.clone();
                     println!("✅ Connected to WebSocket");
 

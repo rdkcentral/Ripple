@@ -3,31 +3,29 @@ use ripple_sdk::{
     log::{error, info},
     tokio::sync::mpsc,
 };
-use serde_json::Value;
 use ssda_types::gateway::{ServiceRoutingRequest, ServiceRoutingResponse};
 use ssda_types::ServiceRequestId;
 
 use super::endpoint_broker::{
-    BrokerCallback, BrokerCleaner, BrokerOutputForwarder, BrokerRequest, BrokerSender,
-    EndpointBroker, BROKER_CHANNEL_BUFFER_SIZE,
+    BrokerCleaner, BrokerOutputForwarder, BrokerSender, EndpointBroker, BROKER_CHANNEL_BUFFER_SIZE,
 };
 use ripple_sdk::tokio;
 
 pub struct ServiceBroker {
     broker_sender: BrokerSender,
 }
-async fn send_broker_response(callback: &BrokerCallback, request: &BrokerRequest, body: &[u8]) {
-    match BrokerOutputForwarder::handle_non_jsonrpc_response(
-        body,
-        callback.clone(),
-        request.clone(),
-    ) {
-        Ok(_) => {}
-        Err(e) => {
-            error!("Error message from service broker {:?}", e)
-        }
-    }
-}
+// async fn send_broker_response(callback: &BrokerCallback, request: &BrokerRequest, body: &[u8]) {
+//     match BrokerOutputForwarder::handle_non_jsonrpc_response(
+//         body,
+//         callback.clone(),
+//         request.clone(),
+//     ) {
+//         Ok(_) => {}
+//         Err(e) => {
+//             error!("Error message from service broker {:?}", e)
+//         }
+//     }
+// }
 
 impl ServiceBroker {}
 impl EndpointBroker for ServiceBroker {

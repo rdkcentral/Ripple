@@ -1,25 +1,18 @@
-use std::sync::Arc;
-
 use jsonrpsee::RpcModule;
-use ssda_types::{
-    service::{ServiceRegistration, ServiceRequestHandler},
-    APIGatewayClient, WebsocketAPIGatewayClient,
-};
+use ssda_types::{service::ServiceRegistration, APIGatewayClient, WebsocketAPIGatewayClient};
 pub enum APIGatewayClientTransport {
     WebSocket,
 }
-pub struct APIGatewayClientBuilder<T> {
+pub struct APIGatewayClientBuilder {
     transport: APIGatewayClientTransport,
     service_registration: ServiceRegistration,
-    rpc_server: Option<RpcModule<T>>,
 }
 
-impl<T> APIGatewayClientBuilder<T> {
+impl APIGatewayClientBuilder {
     pub fn new(service_registration: ServiceRegistration) -> Self {
         APIGatewayClientBuilder {
             transport: APIGatewayClientTransport::WebSocket,
             service_registration,
-            rpc_server: None,
         }
     }
     pub fn with_service_registration(
@@ -36,7 +29,7 @@ impl<T> APIGatewayClientBuilder<T> {
         self
     }
 
-    pub fn build(&self, rpc_server: RpcModule<T>) -> Box<dyn APIGatewayClient> {
+    pub fn build<T>(&self, rpc_server: RpcModule<T>) -> Box<dyn APIGatewayClient> {
         let methods = rpc_server.clone();
         match self.transport {
             APIGatewayClientTransport::WebSocket => Box::new(WebsocketAPIGatewayClient::new(
