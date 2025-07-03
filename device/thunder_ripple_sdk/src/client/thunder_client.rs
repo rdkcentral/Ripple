@@ -230,6 +230,7 @@ impl ThunderClient {
     }
 
     pub fn mock_thunderclient(thunder_async_request_tx: MpscSender<ThunderAsyncRequest>) -> Self {
+        println!("@@@NNA...we entered into mock_thunderclient");
         let (thunder_async_response_tx, mut thunder_async_response_rx) = mpsc::channel(32);
         let callback = AsyncCallback {
             sender: thunder_async_response_tx,

@@ -231,7 +231,6 @@ impl MockThunderController {
         handler: mpsc::Sender<ThunderAsyncResponse>,
     ) {
         println!("@@@NNA.... we reached  handle_thunder_sub...");
-        let (tx, _rx) = oneshot::channel::<ThunderAsyncResponse>();
 
         // Extract DeviceSubscribeRequest, module, and event_name from the ThunderAsyncRequest
         let (sub_req, module, event_name, id) = match &thunder_async_request.request {
@@ -243,13 +242,15 @@ impl MockThunderController {
             ),
             _ => {
                 println!("handle_thunder_sub called with non-Subscribe request");
-                oneshot_send_and_log(tx, empty_response(), "SubscribeAck");
+                // Optionally send an error or ack via handler if needed
+                let _ = mpsc_send_and_log(&handler, empty_response(), "SubscribeAck").await;
                 return;
             }
         };
 
         if module == "Controller.1" && event_name == "statechange" {
-            self.on_state_change(handler).await;
+            self.on_state_change(handler.clone()).await;
+            let _ = mpsc_send_and_log(&handler, empty_response(), "SubscribeAck").await;
         } else if let Some(handler_fn) = self
             .custom_handlers
             .custom_subscription_handler
@@ -261,9 +262,54 @@ impl MockThunderController {
             }
         } else {
             println!("No mock subscription found for {}.{}", module, event_name);
+            // Optionally send an error or ack via handler if needed
+            // let _ = mpsc_send_and_log(&handler, empty_response(), "SubscribeAck").await;
+            return;
         }
-        oneshot_send_and_log(tx, empty_response(), "SubscribeAck");
     }
+
+    // pub async fn handle_thunder_sub(
+    //     &mut self,
+    //     thunder_async_request: ThunderAsyncRequest,
+    //     handler: mpsc::Sender<ThunderAsyncResponse>,
+    // ) {
+    //     println!("@@@NNA.... we reached  handle_thunder_sub...");
+    //     let (tx, _rx) = oneshot::channel::<ThunderAsyncResponse>();
+
+    //     // Extract DeviceSubscribeRequest, module, and event_name from the ThunderAsyncRequest
+    //     let (sub_req, module, event_name, id) = match &thunder_async_request.request {
+    //         DeviceChannelRequest::Subscribe(sub_req) => (
+    //             sub_req.clone(),
+    //             sub_req.module.clone(),
+    //             sub_req.event_name.clone(),
+    //             thunder_async_request.id,
+    //         ),
+    //         _ => {
+    //             println!("handle_thunder_sub called with non-Subscribe request");
+    //             oneshot_send_and_log(tx, empty_response(), "SubscribeAck");
+    //             return;
+    //         }
+    //     };
+
+    //     if module == "Controller.1" && event_name == "statechange" {
+    //         self.on_state_change(handler).await;
+    //         oneshot_send_and_log(tx, empty_response(), "SubscribeAck");
+    //     } else if let Some(handler_fn) = self
+    //         .custom_handlers
+    //         .custom_subscription_handler
+    //         .get(&format!("{}.{}", module, event_name))
+    //     {
+    //         let response = handler_fn.call(sub_req, handler.clone(), id).await;
+    //         if let Some(resp) = response {
+    //             mpsc_send_and_log(&handler, resp, "OnStatusChange").await;
+    //         }
+    //     } else {
+    //         println!("No mock subscription found for {}.{}", module, event_name);
+    //         //oneshot_send_and_log(tx, empty_response(), "SubscribeAck");
+    //         return;
+    //     }
+    //     // oneshot_send_and_log(tx, empty_response(), "SubscribeAck");
+    // }
 
     pub fn start() -> (
         mpsc::Sender<ThunderAsyncRequest>,
@@ -348,13 +394,13 @@ impl MockThunderController {
         // receive thunderasyncresposne here
         tokio::spawn(async move {
             while let Some(thunder_async_response) = thunder_async_response_rx.recv().await {
-                println!("*** _DEBUG: test_platform_build_info_with_build_name: Received ThunderAsyncResponse: {:?}", thunder_async_response);
+                println!(
+                    "*** _DEBUG: state_with_mock: Received ThunderAsyncResponse: {:?}",
+                    thunder_async_response
+                );
                 let thndr_client = cache_for_task.state.get_thunder_client();
                 if let Some(id) = thunder_async_response.get_id() {
-                    println!(
-                        "*** _DEBUG: test_platform_build_info_with_build_name: id={}",
-                        id
-                    );
+                    println!("*** _DEBUG: state_with_mock: id={}", id);
                     if let Some(thunder_async_callbacks) = thndr_client.thunder_async_callbacks {
                         let mut callbacks = thunder_async_callbacks.write().unwrap();
                         if let Some(Some(callback)) = callbacks.remove(&id) {
