@@ -75,10 +75,10 @@ pub struct FireboltWs {}
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct ClientIdentity {
-    session_id: String,
-    app_id: String,
-    rpc_v2: bool,
-    service_info: Option<ExtnSymbol>,
+    pub session_id: String,
+    pub app_id: String,
+    pub rpc_v2: bool,
+    pub service_info: Option<ExtnSymbol>,
 }
 #[derive(Debug, Clone)]
 struct ServiceConnection {
@@ -480,23 +480,21 @@ impl FireboltWs {
                                     stats_ref.clone(),
                                     stats.stats.get_stage_durations()
                                 );
-                                
 
                                 let rpc_request = RpcRequest::new(
                                     String::from("telemetry.event"),
                                     serde_json::json!({
                                         "payload": split,
-                                    }).to_string(),
+                                    })
+                                    .to_string(),
                                     CallContext::default(),
                                 );
-                                
+
                                 spawn_state
                                     .endpoint_state
                                     .handle_brokerage(rpc_request, None, None, vec![], None, vec![])
                                     .await;
-                                debug!(
-                                   "{}", split
-                                );
+                                debug!("{}", split);
                             }
 
                             platform_state

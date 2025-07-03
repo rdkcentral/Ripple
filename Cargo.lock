@@ -2662,15 +2662,15 @@ dependencies = [
  "querystring",
  "rand 0.8.5",
  "regex",
- "ripple_sdk 1.1.0 (git+https://github.com/rdkcentral/Ripple.git?branch=ssda)",
+ "ripple_sdk",
  "ripple_tdk",
  "rstest",
  "sd-notify",
  "serde",
  "serde_json",
  "serial_test",
- "ssda_service 0.1.0 (git+ssh://git@fireboltghec.comcast.com/bobra200_comcast/ssda.git?branch=main)",
- "ssda_types 0.1.0 (git+ssh://git@fireboltghec.comcast.com/bobra200_comcast/ssda.git?branch=main)",
+ "ssda_service",
+ "ssda_types",
  "strum 0.24.1",
  "strum_macros 0.24.3",
  "url",
@@ -2804,7 +2804,7 @@ version = "1.0.0"
 dependencies = [
  "http 0.2.12",
  "jsonrpsee 0.16.3",
- "ripple_sdk 1.1.0",
+ "ripple_sdk",
  "ripple_tdk",
  "serde",
  "serde_json",
@@ -3959,7 +3959,7 @@ dependencies = [
  "mock_app_gw",
  "mockall",
  "regex",
- "ripple_sdk 1.1.0",
+ "ripple_sdk",
  "rstest",
  "semver",
  "serde",
@@ -3975,42 +3975,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "ripple_sdk"
-version = "1.1.0"
-source = "git+https://github.com/rdkcentral/Ripple.git?branch=ssda#a9d9004d79c23ad86dcafaf2661cc5771e2ba8e9"
-dependencies = [
- "async-trait",
- "chrono",
- "fern",
- "futures",
- "futures-channel",
- "futures-util",
- "jaq-core",
- "jaq-interpret",
- "jaq-parse",
- "jaq-std",
- "jsonrpsee 0.16.3",
- "lazy_static",
- "libloading",
- "log",
- "mockall",
- "regex",
- "semver",
- "serde",
- "serde_json",
- "serde_millis",
- "serde_yaml",
- "tokio",
- "tokio-tungstenite",
- "url",
- "uuid",
-]
-
-[[package]]
 name = "ripple_tdk"
 version = "1.1.0"
 dependencies = [
- "ripple_sdk 1.1.0",
+ "ripple_sdk",
  "serde_json",
 ]
 
@@ -4519,9 +4487,9 @@ version = "0.1.0"
 dependencies = [
  "jsonrpsee 0.24.9",
  "log",
- "ripple_sdk 1.1.0",
+ "ripple_sdk",
  "serde",
- "ssda_types 0.1.0",
+ "ssda_types",
  "tokio",
  "url",
  "ws",
@@ -4537,28 +4505,9 @@ dependencies = [
  "http 0.2.12",
  "log",
  "mockall",
- "ripple_sdk 1.1.0",
+ "ripple_sdk",
  "serde_json",
- "ssda_types 0.1.0",
- "tokio",
- "tokio-tungstenite",
- "url",
-]
-
-[[package]]
-name = "ssda_service"
-version = "0.1.0"
-source = "git+ssh://git@fireboltghec.comcast.com/bobra200_comcast/ssda.git?branch=main#33ccf6af0d71adb30dcacf7c1f5aa9edb4ee4202"
-dependencies = [
- "async-trait",
- "env_logger",
- "futures-util",
- "http 0.2.12",
- "log",
- "mockall",
- "ripple_sdk 1.1.0 (git+https://github.com/rdkcentral/Ripple.git?branch=ssda)",
- "serde_json",
- "ssda_types 0.1.0 (git+ssh://git@fireboltghec.comcast.com/bobra200_comcast/ssda.git?branch=main)",
+ "ssda_types",
  "tokio",
  "tokio-tungstenite",
  "url",
@@ -4575,27 +4524,7 @@ dependencies = [
  "jsonrpsee 0.24.9",
  "mockall",
  "pprof",
- "ripple_sdk 1.1.0",
- "serde",
- "serde_json",
- "tokio",
- "tokio-tungstenite",
- "url",
-]
-
-[[package]]
-name = "ssda_types"
-version = "0.1.0"
-source = "git+ssh://git@fireboltghec.comcast.com/bobra200_comcast/ssda.git?branch=main#33ccf6af0d71adb30dcacf7c1f5aa9edb4ee4202"
-dependencies = [
- "async-trait",
- "env_logger",
- "futures-util",
- "http 0.2.12",
- "jsonrpsee 0.24.9",
- "mockall",
- "pprof",
- "ripple_sdk 1.1.0 (git+https://github.com/rdkcentral/Ripple.git?branch=ssda)",
+ "ripple_sdk",
  "serde",
  "serde_json",
  "tokio",
@@ -4900,7 +4829,7 @@ dependencies = [
  "pact_consumer",
  "regex",
  "reqwest",
- "ripple_sdk 1.1.0",
+ "ripple_sdk",
  "ripple_tdk",
  "rstest",
  "serde",

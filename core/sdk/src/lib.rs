@@ -20,6 +20,7 @@ pub mod extn;
 pub mod framework;
 pub mod manifest;
 pub mod processor;
+pub mod service;
 pub mod utils;
 
 // Externalize the reusable crates to avoid version
@@ -37,7 +38,6 @@ pub extern crate serde_yaml;
 pub extern crate tokio;
 pub extern crate tokio_tungstenite;
 pub extern crate uuid;
-
 pub trait Mockable {
     fn mock() -> Self;
 }

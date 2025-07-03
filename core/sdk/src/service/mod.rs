@@ -14,9 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-
-pub mod apps;
-pub mod extn;
-pub mod ripple_service;
-pub mod telemetry_builder;
-pub mod user_grants;
+pub mod service_client;
+pub mod service_message;
+pub mod service_rpc_router;
