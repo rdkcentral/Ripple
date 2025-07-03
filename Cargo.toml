@@ -22,7 +22,10 @@ members = [
     "device/thunder_ripple_sdk",
     "core/main",
     "device/mock_device",
-    "openrpc_validator"]
+    "openrpc_validator", 
+    "ssda/ssda_types",
+    "ssda/ssda_client",
+    "ssda/ssda_service"]
 
 [workspace.package]
 version = "1.1.0"
