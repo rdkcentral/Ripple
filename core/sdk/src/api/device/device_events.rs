@@ -38,7 +38,6 @@ pub const VOICE_GUIDANCE_SPEED_CHANGED: &str = "voiceguidance.onSpeedChanged";
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum DeviceEvent {
     InputChanged,
-    VoiceGuidanceEnabledChanged,
     AudioChanged,
 }
 
@@ -48,7 +47,6 @@ impl FromStr for DeviceEvent {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "device.onHdcpChanged" => Ok(Self::InputChanged),
-            "voiceguidance.onEnabledChanged" => Ok(Self::VoiceGuidanceEnabledChanged),
             "device.onAudioChanged" => Ok(Self::AudioChanged),
             _ => Err(()),
         }
@@ -92,9 +90,6 @@ impl ExtnPayloadProvider for DeviceEventRequest {
     fn get_contract(&self) -> RippleContract {
         match self.event {
             DeviceEvent::InputChanged => RippleContract::DeviceEvents(EventAdjective::Input),
-            DeviceEvent::VoiceGuidanceEnabledChanged => {
-                RippleContract::DeviceEvents(EventAdjective::VoiceGuidance)
-            }
             DeviceEvent::AudioChanged => RippleContract::DeviceEvents(EventAdjective::Audio),
         }
     }

@@ -87,11 +87,6 @@ where
     serializer.serialize_f64(s)
 }
 
-#[derive(Default, Debug, Clone)]
-pub struct VoiceGuidanceEnabledChangedEventData {
-    pub state: bool,
-}
-
 #[derive(Default, Debug, Serialize, Clone)]
 pub struct AudioDescriptionSettings {
     pub enabled: bool,
