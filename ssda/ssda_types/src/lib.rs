@@ -37,19 +37,19 @@ pub mod api_gateway_client;
 pub mod api_gateway_server;
 pub mod service_api;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 
 pub struct JqRule {
     pub alias: String,
     pub rule: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct StaticRule {
     pub alias: String,
     pub rule: String,
 }
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 
 pub struct HandlerId {
     pub handler_id: String,
@@ -253,7 +253,7 @@ pub mod service {
     pub struct FireboltMethodHandlerRegistration {
         pub firebolt_method: Handler,
     }
-    #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+    #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
     pub struct FireboltMethodHandlerAPIRegistration {
         pub firebolt_method: String,
         pub jq_rule: Option<JqRule>,
@@ -581,6 +581,8 @@ pub struct WebsocketAPIGatewayClient {
     service_id: ServiceId,
 }
 
+use serde_json::json;
+use std::collections::HashSet;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use url::Url;
 
@@ -823,4 +825,243 @@ impl APIGatewayClient for WebsocketAPIGatewayClient {
     // async fn stop(&self) {
     //     todo!()
     // }
+}
+pub mod tests {
+    use super::*;
+
+    #[test]
+    fn test_service_id_equality() {
+        let id1 = ServiceId::new("service1".to_string());
+        let id2 = ServiceId::new("service1".to_string());
+        let id3 = ServiceId::new("service2".to_string());
+        assert_eq!(id1, id2);
+        assert_ne!(id1, id3);
+    }
+
+    #[test]
+    fn test_service_id_hash() {
+        let id1 = ServiceId::new("service1".to_string());
+        let id2 = ServiceId::new("service1".to_string());
+        let mut set = HashSet::new();
+        set.insert(id1);
+        assert!(set.contains(&id2));
+    }
+
+    #[test]
+    fn test_service_id_display() {
+        let id = ServiceId::new("abc".to_string());
+        assert_eq!(format!("{}", id), "abc");
+    }
+
+    #[test]
+    fn test_service_request_id_equality() {
+        let id1 = ServiceRequestId::new(1);
+        let id2 = ServiceRequestId::new(1);
+        let id3 = ServiceRequestId::new(2);
+        assert_eq!(id1, id2);
+        assert_ne!(id1, id3);
+    }
+
+    #[test]
+    fn test_service_request_id_hash() {
+        let id1 = ServiceRequestId::new(1);
+        let id2 = ServiceRequestId::new(1);
+        let mut set = HashSet::new();
+        set.insert(id1);
+        assert!(set.contains(&id2));
+    }
+
+    #[test]
+    fn test_handler_display() {
+        let jq = Handler::JqRule(JqRule {
+            alias: "jq".to_string(),
+            rule: ".foo".to_string(),
+        });
+        let static_rule = Handler::StaticRule(StaticRule {
+            alias: "static".to_string(),
+            rule: "bar".to_string(),
+        });
+        let none = Handler::None;
+        assert_eq!(format!("{}", jq), "jq");
+        assert_eq!(format!("{}", static_rule), "static");
+        assert_eq!(format!("{}", none), "none");
+    }
+
+    #[test]
+    fn test_handler_into_rule() {
+        let jq = Handler::JqRule(JqRule {
+            alias: "jq".to_string(),
+            rule: ".foo".to_string(),
+        });
+        let rule: Rule = jq.clone().into();
+        assert_eq!(rule.alias, "jq");
+        assert_eq!(rule.filter, Some(".foo".to_string()));
+
+        let static_rule = Handler::StaticRule(StaticRule {
+            alias: "static".to_string(),
+            rule: "bar".to_string(),
+        });
+        let rule: Rule = static_rule.clone().into();
+        assert_eq!(rule.alias, "static");
+        assert_eq!(rule.filter, Some("bar".to_string()));
+
+        let none = Handler::None;
+        let rule: Rule = none.into();
+        assert_eq!(rule.alias, "none");
+        assert!(rule.filter.is_none());
+    }
+
+    #[test]
+    fn test_service_registration_builder() {
+        let service_id = ServiceId::new("svc".to_string());
+        let mut builder = service::ServiceRegistrationBuilder::new(service_id.clone());
+        builder.add_handler(Handler::JqRule(JqRule {
+            alias: "jq".to_string(),
+            rule: ".foo".to_string(),
+        }));
+        let reg = builder.build();
+        assert_eq!(reg.service_id, service_id);
+        assert_eq!(reg.firebolt_handlers.len(), 1);
+        assert_eq!(reg.firebolt_handlers[0].firebolt_method, "jq");
+    }
+
+    #[test]
+    fn test_service_registration_get_rule_registrations() {
+        let reg = service::ServiceRegistration {
+            service_id: ServiceId::new("svc".to_string()),
+            firebolt_handlers: vec![service::FireboltMethodHandlerAPIRegistration {
+                firebolt_method: "foo".to_string(),
+                jq_rule: None,
+            }],
+        };
+        let rules = reg.get_rule_registrations();
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].firebolt_method, "foo");
+    }
+
+    #[test]
+    fn test_service_call_into_jsonrpc_api_request() {
+        let call = service::ServiceCall {
+            request_id: ServiceRequestId::new(42),
+            method: "test".to_string(),
+            payload: json!({"foo": "bar"}),
+        };
+        let req: ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiRequest = call.into();
+        assert_eq!(req.id, Some(42));
+        assert_eq!(req.method, "test");
+        assert_eq!(req.params, Some(json!({"foo": "bar"})));
+    }
+
+    #[test]
+    fn test_apigatewayserviceregistrationrequest_into_response() {
+        let req = service::APIGatewayServiceRegistrationRequest {
+            firebolt_handlers: vec![service::FireboltMethodHandlerAPIRegistration {
+                firebolt_method: "foo".to_string(),
+                jq_rule: None,
+            }],
+        };
+        let resp: service::APIGatewayServiceRegistrationResponse = req.clone().into();
+        assert_eq!(resp.firebolt_handlers, req.firebolt_handlers);
+    }
+
+    #[test]
+    fn test_websocketserviceresponse_get_id() {
+        let id = ServiceRequestId::new(7);
+        let resp = service::WebsocketServiceResponse::Success(id.clone(), json!({}));
+        assert_eq!(resp.get_id(), id);
+        let resp = service::WebsocketServiceResponse::Error(id.clone(), "err".to_string());
+        assert_eq!(resp.get_id(), id);
+    }
+
+    #[test]
+    fn test_apiclientmessages_default() {
+        let msg = service::APIClientMessages::default();
+        match msg {
+            service::APIClientMessages::Register(_) => {}
+            _ => panic!("Default should be Register"),
+        }
+    }
+
+    #[test]
+    fn test_servicecallresponse_serialization() {
+        let resp = service::ServiceCallResponse::Success(service::ServiceCallSuccessResponse {
+            request_id: ServiceRequestId::new(1),
+            response: json!({"foo": "bar"}),
+        });
+        let s = serde_json::to_string(&resp).unwrap();
+        let de: service::ServiceCallResponse = serde_json::from_str(&s).unwrap();
+        match de {
+            service::ServiceCallResponse::Success(success) => {
+                assert_eq!(success.request_id, ServiceRequestId::new(1));
+                assert_eq!(success.response, json!({"foo": "bar"}));
+            }
+            _ => panic!("Expected Success"),
+        }
+    }
+
+    #[test]
+    fn test_servicecallerrorresponse_serialization() {
+        let resp = service::ServiceCallResponse::Error(service::ServiceCallErrorResponse {
+            request_id: ServiceRequestId::new(2),
+            error: "fail".to_string(),
+        });
+        let s = serde_json::to_string(&resp).unwrap();
+        let de: service::ServiceCallResponse = serde_json::from_str(&s).unwrap();
+        match de {
+            service::ServiceCallResponse::Error(err) => {
+                assert_eq!(err.request_id, ServiceRequestId::new(2));
+                assert_eq!(err.error, "fail");
+            }
+            _ => panic!("Expected Error"),
+        }
+    }
+
+    #[test]
+    fn test_handlerid_serialize_deserialize() {
+        let handler_id = HandlerId {
+            handler_id: "abc".to_string(),
+        };
+        let s = serde_json::to_string(&handler_id).unwrap();
+        let de: HandlerId = serde_json::from_str(&s).unwrap();
+        assert_eq!(handler_id, de);
+    }
+
+    #[test]
+    fn test_jqrule_serialize_deserialize() {
+        let jq = JqRule {
+            alias: "a".to_string(),
+            rule: "b".to_string(),
+        };
+        let s = serde_json::to_string(&jq).unwrap();
+        let de: JqRule = serde_json::from_str(&s).unwrap();
+        assert_eq!(jq, de);
+    }
+
+    #[test]
+    fn test_statirule_serialize_deserialize() {
+        let sr = StaticRule {
+            alias: "a".to_string(),
+            rule: "b".to_string(),
+        };
+        let s = serde_json::to_string(&sr).unwrap();
+        let de: StaticRule = serde_json::from_str(&s).unwrap();
+        assert_eq!(sr, de);
+    }
+
+    #[test]
+    fn test_servicehandler_serialize_deserialize() {
+        let handler = ServiceHandler {
+            handler_id: HandlerId {
+                handler_id: "id".to_string(),
+            },
+            handler_type: Handler::None,
+        };
+        let s = serde_json::to_string(&handler).unwrap();
+        let de: ServiceHandler = serde_json::from_str(&s).unwrap();
+        assert_eq!(handler.handler_id, de.handler_id);
+        match de.handler_type {
+            Handler::None => {}
+            _ => panic!("Expected None"),
+        }
+    }
 }
