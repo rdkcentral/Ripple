@@ -581,8 +581,6 @@ pub struct WebsocketAPIGatewayClient {
     service_id: ServiceId,
 }
 
-use serde_json::json;
-use std::collections::HashSet;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use url::Url;
 
@@ -826,8 +824,17 @@ impl APIGatewayClient for WebsocketAPIGatewayClient {
     //     todo!()
     // }
 }
+#[cfg(test)]
 pub mod tests {
-    use super::*;
+    use std::collections::HashSet;
+
+    use ripple_sdk::api::rules_engine::Rule;
+    use serde_json::json;
+
+    use crate::{
+        service, Handler, HandlerId, JqRule, ServiceHandler, ServiceId, ServiceRequestId,
+        StaticRule,
+    };
 
     #[test]
     fn test_service_id_equality() {
