@@ -153,4 +153,8 @@ impl RippleClient {
     pub fn get_broker_sender(&self) -> Sender<BrokerOutput> {
         self.broker_sender.clone()
     }
+
+    pub fn get_gateway_sender(&self) -> Sender<FireboltGatewayCommand> {
+        self.gateway_sender.clone()
+    }
 }
