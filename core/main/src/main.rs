@@ -31,15 +31,19 @@ pub mod state;
 pub mod utils;
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
+use ripple_sdk::utils::test_utils::log_memory_usage;
+
 #[tokio::main(worker_threads = 2)]
 async fn main() {
     // Init logger
+    log_memory_usage("Main-Begining");
     if let Err(e) = init_and_configure_logger(SEMVER_LIGHTWEIGHT, "gateway".into(), None) {
         println!("{:?} logger init error", e);
         return;
     }
     info!("version {}", SEMVER_LIGHTWEIGHT);
     let bootstate = BootstrapState::build().expect("Failure to init state for bootstrap");
+    log_memory_usage("After BootstrapState::build()");
 
     // bootstrap
     match boot(bootstate).await {
