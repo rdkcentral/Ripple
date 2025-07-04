@@ -225,7 +225,7 @@ pub struct TelemetryUtil;
 impl TelemetryUtil {
     pub fn send_telemetry(client: &ExtnClient, payload: TelemetryPayload) {
         if let Err(e) = client.request_transient(RpcRequest::get_new_internal(
-            "ripple.sendTelemetry".to_owned(),
+            "y".to_owned(),
             Some(serde_json::to_value(payload).unwrap()),
         )) {
             error!("Error sending telemetry {:?}", e);

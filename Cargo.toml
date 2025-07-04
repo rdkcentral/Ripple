@@ -22,12 +22,16 @@ members = [
     "device/thunder_ripple_sdk",
     "core/main",
     "device/mock_device",
-    "openrpc_validator"]
+    "openrpc_validator", 
+    "ssda/ssda_types",
+    "ssda/ssda_client",
+    "ssda/ssda_service"]
 
 [workspace.package]
 version = "1.1.0"
 
 [workspace.dependencies]
+base64ct= {version = "=1.7.3"}
 base64 = { version = "0.22.1", default-features = false, features=["alloc"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 futures = { version = "0.3.21", default-features = false }
@@ -39,7 +43,7 @@ serde_json = { version = "1.0", default-features = false}
 serde = { version = "1.0", features = ["derive"], default-features =  false  }
 tokio = { version = "1.44.1", default-features = false }
 tokio-tungstenite = { version = "0.20.1", default-features = false }
-url = { version = "=2.5.0", default-features = false}
+url = { version = "=2.5.4", default-features = false}
 urlencoding = { version = "2.1.0", default-features = false}
 uuid = { version = "1.13.1", default-features = false }
 ripple_sdk = { path = "./core/sdk" }

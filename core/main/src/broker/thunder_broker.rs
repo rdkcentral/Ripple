@@ -692,15 +692,12 @@ impl EndpointBroker for ThunderBroker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::broker::thunder_broker::tests::rules_engine::RuleTransformType;
+
     use crate::{
         broker::{
             endpoint_broker::{
                 apply_response, apply_rule_for_event, BrokerCallback, BrokerConnectRequest,
                 BrokerOutput, BrokerRequest, EndpointBroker,
-            },
-            rules::rules_engine::{
-                self, EventHandler, Rule, RuleEndpoint, RuleEndpointProtocol, RuleTransform,
             },
             test::mock_thunder_lite_server::MockThunderLiteServer,
         },
@@ -710,7 +707,10 @@ mod tests {
         utils::test_utils::{MockWebsocket, WSMockData},
     };
     use ripple_sdk::{
-        api::gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
+        api::{
+            gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
+            rules_engine::{EventHandler, Rule, RuleEndpoint, RuleEndpointProtocol, RuleTransform},
+        },
         uuid::Uuid,
     };
     use serde_json::json;
@@ -812,7 +812,7 @@ mod tests {
 
         let endpoint = RuleEndpoint {
             url: format!("ws://127.0.0.1:{}", port),
-            protocol: crate::broker::rules::rules_engine::RuleEndpointProtocol::Websocket,
+            protocol: RuleEndpointProtocol::Websocket,
             jsonrpc: false,
         };
         let (tx, _) = mpsc::channel(1);
