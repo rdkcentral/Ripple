@@ -17,14 +17,17 @@
 
 use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::{
-    api::{gateway::rpc_gateway_api::ApiMessage, manifest::ripple_manifest_loader::RippleManifestLoader},
+    api::{
+        gateway::rpc_gateway_api::ApiMessage,
+        manifest::ripple_manifest_loader::RippleManifestLoader,
+    },
     export_extn_channel,
     extn::{
         client::extn_client::ExtnClient,
         extn_id::{ExtnClassId, ExtnId},
         ffi::ffi_channel::ExtnChannel,
     },
-    log::{error, debug},
+    log::error,
     processor::rpc_request_processor::RPCRequestProcessor,
     tokio::{self, runtime::Runtime},
     utils::logger::init_and_configure_logger,
@@ -54,13 +57,6 @@ pub async fn start_service() {
         error!("Error initializing manifests");
         return;
     };
-    let runtime = match Runtime::new() {
-        Ok(r) => r,
-        Err(err) => {
-            error!("Error creating runtime: {}", err);
-            return;
-        }
-    };
 
     let id = ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.to_string()).to_string();
     let symbol = extn_manifest.get_extn_symbol(&id);
@@ -69,36 +65,32 @@ pub async fn start_service() {
         return;
     }
     let symbol = symbol.unwrap();
-    let (mut client, tr) = ExtnClient::new_extn(symbol);
+    let (client, tr) = ExtnClient::new_extn(symbol);
 
     init(client.clone(), tr).await;
-
 }
 
-async fn init(
-    mut client: ExtnClient,
-    tr: mpsc::Receiver<ApiMessage>
-) {
-        let client_c = client.clone();
-        tokio::spawn(async move {
-            match boot_ws_server(client.clone()).await {
-                Ok(server) => {
-                    let state = MockDeviceState::new(server);
+async fn init(mut client: ExtnClient, tr: mpsc::Receiver<ApiMessage>) {
+    let client_c = client.clone();
+    tokio::spawn(async move {
+        match boot_ws_server(client.clone()).await {
+            Ok(server) => {
+                let state = MockDeviceState::new(server);
 
-                    let mut methods = Methods::new();
-                    let _ = methods.merge(MockDeviceController::new(state).into_rpc());
-                    let processor = RPCRequestProcessor::new(
-                        client.clone(),
-                        methods,
-                        ExtnId::new_channel(ExtnClassId::Device, "mock_device".into()),
-                    );
-                    client.add_request_processor(processor);
-                }
-                Err(err) => panic!("websocket server failed to start. {}", err),
-            };
-        });
+                let mut methods = Methods::new();
+                let _ = methods.merge(MockDeviceController::new(state).into_rpc());
+                let processor = RPCRequestProcessor::new(
+                    client.clone(),
+                    methods,
+                    ExtnId::new_channel(ExtnClassId::Device, "mock_device".into()),
+                );
+                client.add_request_processor(processor);
+            }
+            Err(err) => panic!("websocket server failed to start. {}", err),
+        };
+    });
 
-        client_c.initialize(tr).await;
+    client_c.initialize(tr).await;
 }
 
 fn start() {
@@ -121,7 +113,7 @@ fn start() {
         return;
     }
     let symbol = symbol.unwrap();
-    let (mut client, tr) = ExtnClient::new_extn(symbol);
+    let (client, tr) = ExtnClient::new_extn(symbol);
     runtime.block_on(async move {
         init(client.clone(), tr).await;
     });
