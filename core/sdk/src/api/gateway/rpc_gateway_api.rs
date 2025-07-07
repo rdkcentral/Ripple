@@ -657,6 +657,19 @@ impl RpcRequest {
         None
     }
 
+    pub fn get_internal_context_for_service_message(method: String) -> CallContext {
+        CallContext::new(
+            Uuid::new_v4().to_string(),
+            Uuid::new_v4().to_string(),
+            "internal".into(),
+            1,
+            crate::api::gateway::rpc_gateway_api::ApiProtocol::Service,
+            method.clone(),
+            None,
+            false,
+        )
+    }
+
     pub fn get_new_internal(method: String, params: Option<Value>) -> Self {
         let ctx = CallContext::new(
             Uuid::new_v4().to_string(),

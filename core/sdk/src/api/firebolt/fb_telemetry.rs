@@ -20,12 +20,13 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::{
-    api::gateway::rpc_gateway_api::{CallContext, RpcRequest},
+    api::gateway::rpc_gateway_api::CallContext,
     extn::{
-        client::extn_client::ExtnClient,
+        //client::extn_client::ExtnClient,
         extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
     },
     framework::ripple_contract::RippleContract,
+    service::service_client::ServiceClient,
 };
 
 use super::fb_metrics::{
@@ -223,26 +224,30 @@ pub enum OperationalMetricRequest {
 pub struct TelemetryUtil;
 
 impl TelemetryUtil {
-    pub fn send_telemetry(client: &ExtnClient, payload: TelemetryPayload) {
-        if let Err(e) = client.request_transient(RpcRequest::get_new_internal(
-            "ripple.sendTelemetry".to_owned(),
+    pub fn send_telemetry(client: &ServiceClient, payload: TelemetryPayload) {
+        if let Err(e) = client.request_transient(
             Some(serde_json::to_value(payload).unwrap()),
-        )) {
+            "ripple.sendTelemetry".to_owned(),
+            None,
+            "ripple:channel:distributor:eos".to_string(),
+        ) {
             error!("Error sending telemetry {:?}", e);
         }
     }
 
-    pub fn update_telemetry_session_id(client: &ExtnClient, session_id: String) {
-        if let Err(e) = client.request_transient(RpcRequest::get_new_internal(
-            "ripple.setTelemetrySessionId".to_owned(),
+    pub fn update_telemetry_session_id(client: &ServiceClient, session_id: String) {
+        if let Err(e) = client.request_transient(
             Some(serde_json::to_value(session_id).unwrap()),
-        )) {
+            "ripple.setTelemetrySessionId".to_owned(),
+            None,
+            "ripple:channel:distributor:eos".to_string(),
+        ) {
             error!("Error sending telemetry {:?}", e);
         }
     }
 
     pub fn send_initialize(
-        client: &ExtnClient,
+        client: &ServiceClient,
         ctx: &CallContext,
         internal_initialize_params: &InternalInitializeParams,
         ripple_session_id: String,
@@ -257,7 +262,7 @@ impl TelemetryUtil {
     }
 
     pub fn send_error(
-        client: &ExtnClient,
+        client: &ServiceClient,
         app_id: &str,
         error_params: ErrorParams,
         ripple_session_id: String,
