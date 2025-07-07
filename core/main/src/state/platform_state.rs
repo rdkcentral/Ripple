@@ -25,7 +25,7 @@ use ripple_sdk::{
             exclusory::ExclusoryImpl,
             extn_manifest::ExtnManifest,
         },
-        rules_engine::RuleEngineProvider,
+        rules_engine::{RuleEngine, RuleEngineProvider},
         session::SessionAdjective,
     },
     extn::{
@@ -33,10 +33,14 @@ use ripple_sdk::{
         extn_id::ExtnId,
     },
     framework::ripple_contract::RippleContract,
-    tokio,
+    tokio::{
+        self,
+        sync::{Mutex, RwLock},
+    },
     utils::error::RippleError,
     uuid::Uuid,
 };
+use ssda_service::ApiGateway;
 use ssda_types::gateway::ApiGatewayServer;
 use std::{collections::HashMap, fmt, sync::Arc};
 
@@ -52,6 +56,7 @@ use crate::{
         extn::ripple_client::RippleClient,
         ripple_service::service_controller_state::ServiceControllerState,
     },
+    state::bootstrap_state::ChannelsState,
 };
 
 use super::{
@@ -147,6 +152,31 @@ impl std::fmt::Debug for PlatformState {
             .field("metrics", &self.metrics)
             .field("device_session_id", &self.device_session_id)
             .finish()
+    }
+}
+#[cfg(test)]
+impl Default for PlatformState {
+    fn default() -> Self {
+        let extn_manifest = ExtnManifest::default();
+        let rules_engine: Arc<tokio::sync::RwLock<Box<dyn RuleEngineProvider + Send + Sync>>> =
+            Arc::new(tokio::sync::RwLock::new(Box::new(RuleEngine::build(
+                &extn_manifest,
+            ))));
+
+        let api_gateway: Arc<tokio::sync::Mutex<Box<dyn ApiGatewayServer + Send + Sync>>> =
+            Arc::new(tokio::sync::Mutex::new(Box::new(
+                ssda_service::ApiGateway::new(rules_engine.clone()),
+            )));
+
+        PlatformState::new(
+            ExtnManifest::default(),
+            DeviceManifest::default(),
+            RippleClient::new(ChannelsState::default()),
+            Vec::new(),
+            None,
+            api_gateway,
+            rules_engine,
+        )
     }
 }
 impl PlatformState {

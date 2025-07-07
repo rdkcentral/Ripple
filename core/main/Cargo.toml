@@ -43,9 +43,11 @@ contract_tests = [
     "websocket_contract_tests",
 ]
 tdk=[]
+ssda=[]
 [dependencies]
 base64.workspace = true
 ripple_sdk = { path = "../sdk" }
+
 
 jsonrpsee = { workspace = true, features = ["macros"] }
 futures-channel.workspace = true

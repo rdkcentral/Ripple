@@ -69,7 +69,6 @@ use super::{
     extn_broker::ExtnBroker,
     http_broker::HttpBroker,
     provider_broker_state::{ProvideBrokerState, ProviderResult},
-    service_broker::ServiceBroker,
     thunder_broker::ThunderBroker,
     websocket_broker::WebsocketBroker,
     workflow_broker::WorkflowBroker,
@@ -793,12 +792,14 @@ impl EndpointBrokerState {
                 None,
             ),
             RuleEndpointProtocol::Service => {
-                let service_broker =
-                    ServiceBroker::get_broker(ps, request, self.callback.clone(), self);
-                (
-                    service_broker.get_sender(),
-                    Some(service_broker.get_cleaner()),
-                )
+                self.get_service_broker(ps, request)
+
+                // let service_broker =
+                //     SsdaServiceBroker::get_broker(ps, request, self.callback.clone(), self);
+                // (
+                //     service_broker.get_sender(),
+                //     Some(service_broker.get_cleaner()),
+                // )
             }
         };
         self.add_endpoint(key, broker);
@@ -807,6 +808,34 @@ impl EndpointBrokerState {
             let mut cleaner_list = self.cleaner_list.write().unwrap();
             cleaner_list.push(cleaner);
         }
+    }
+    #[cfg(not(feature = "ssda"))]
+    fn get_service_broker(
+        &mut self,
+        ps: Option<PlatformState>,
+        request: BrokerConnectRequest,
+    ) -> (BrokerSender, Option<BrokerCleaner>) {
+        use crate::broker::service_broker::ServiceBroker;
+        let service_broker = ServiceBroker::get_broker(ps, request, self.callback.clone(), self);
+        (
+            service_broker.get_sender(),
+            Some(service_broker.get_cleaner()),
+        )
+    }
+
+    #[cfg(feature = "ssda")]
+    fn get_service_broker(
+        &mut self,
+        ps: Option<PlatformState>,
+        request: BrokerConnectRequest,
+    ) -> (BrokerSender, Option<BrokerCleaner>) {
+        use super::ssda_service_broker::SsdaServiceBroker;
+        let service_broker =
+            SsdaServiceBroker::get_broker(ps, request, self.callback.clone(), self);
+        (
+            service_broker.get_sender(),
+            Some(service_broker.get_cleaner()),
+        )
     }
 
     fn handle_static_request(&self, rpc_request: RpcRequest) -> JsonRpcApiResponse {
