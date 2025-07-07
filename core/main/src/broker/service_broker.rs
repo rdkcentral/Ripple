@@ -211,17 +211,9 @@ impl EndpointBroker for ServiceBroker {
 mod tests {
     use super::*;
     use crate::broker::endpoint_broker::BrokerOutput;
-    // use crate::service::extn::ripple_client::RippleClient;
-    // use crate::state::bootstrap_state::ChannelsState;
     use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
-    // use ripple_sdk::api::manifest::device_manifest::DeviceManifest;
-    // use ripple_sdk::api::manifest::extn_manifest::ExtnManifest;
     use ripple_sdk::api::rules_engine::Rule;
     use ripple_sdk::Mockable;
-    // use ssda_service::ApiGateway;
-    // use std::sync::Arc;
-    // use tokio::sync::Mutex;
-    // use tokio::sync::RwLock;
 
     #[tokio::test]
     pub async fn test_log_error_and_send_broker_failure_response() {
