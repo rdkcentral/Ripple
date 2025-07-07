@@ -25,7 +25,7 @@ use ripple_sdk::{
             exclusory::ExclusoryImpl,
             extn_manifest::ExtnManifest,
         },
-        rules_engine::{RuleEngine, RuleEngineProvider},
+        rules_engine::RuleEngineProvider,
         session::SessionAdjective,
     },
     extn::{
@@ -33,14 +33,10 @@ use ripple_sdk::{
         extn_id::ExtnId,
     },
     framework::ripple_contract::RippleContract,
-    tokio::{
-        self,
-        sync::{Mutex, RwLock},
-    },
     utils::error::RippleError,
     uuid::Uuid,
 };
-use ssda_service::ApiGateway;
+
 use ssda_types::gateway::ApiGatewayServer;
 use std::{collections::HashMap, fmt, sync::Arc};
 
@@ -56,7 +52,6 @@ use crate::{
         extn::ripple_client::RippleClient,
         ripple_service::service_controller_state::ServiceControllerState,
     },
-    state::bootstrap_state::ChannelsState,
 };
 
 use super::{
@@ -84,7 +79,7 @@ pub struct DeviceSessionIdentifier {
 /// that implements the `Debug` trait.
 #[derive(Clone)]
 pub struct DebuggableApiGatewayServer(
-    pub Arc<tokio::sync::Mutex<Box<dyn ApiGatewayServer + Send + Sync>>>,
+    pub Arc<ripple_sdk::tokio::sync::Mutex<Box<dyn ApiGatewayServer + Send + Sync>>>,
 );
 
 impl fmt::Debug for DebuggableApiGatewayServer {
@@ -133,7 +128,8 @@ pub struct PlatformState {
     pub endpoint_state: EndpointBrokerState,
     pub lifecycle2_app_state: AppManagerState2_0,
     pub service_controller_state: ServiceControllerState,
-    pub services_gateway_api: Arc<tokio::sync::Mutex<Box<dyn ApiGatewayServer + Send + Sync>>>,
+    pub services_gateway_api:
+        Arc<ripple_sdk::tokio::sync::Mutex<Box<dyn ApiGatewayServer + Send + Sync>>>,
 }
 impl std::fmt::Debug for PlatformState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -157,16 +153,18 @@ impl std::fmt::Debug for PlatformState {
 #[cfg(test)]
 impl Default for PlatformState {
     fn default() -> Self {
+        use crate::state::bootstrap_state::ChannelsState;
+        use ripple_sdk::api::rules_engine::RuleEngine;
+        use ripple_sdk::tokio::sync::Mutex;
+        use ripple_sdk::tokio::sync::RwLock;
         let extn_manifest = ExtnManifest::default();
-        let rules_engine: Arc<tokio::sync::RwLock<Box<dyn RuleEngineProvider + Send + Sync>>> =
-            Arc::new(tokio::sync::RwLock::new(Box::new(RuleEngine::build(
-                &extn_manifest,
-            ))));
+        let rules_engine: Arc<RwLock<Box<dyn RuleEngineProvider + Send + Sync>>> =
+            Arc::new(RwLock::new(Box::new(RuleEngine::build(&extn_manifest))));
 
-        let api_gateway: Arc<tokio::sync::Mutex<Box<dyn ApiGatewayServer + Send + Sync>>> =
-            Arc::new(tokio::sync::Mutex::new(Box::new(
-                ssda_service::ApiGateway::new(rules_engine.clone()),
-            )));
+        let api_gateway: Arc<Mutex<Box<dyn ApiGatewayServer + Send + Sync>>> =
+            Arc::new(Mutex::new(Box::new(ssda_service::ApiGateway::new(
+                rules_engine.clone(),
+            ))));
 
         PlatformState::new(
             ExtnManifest::default(),
@@ -186,8 +184,12 @@ impl PlatformState {
         client: RippleClient,
         app_library: Vec<AppLibraryEntry>,
         version: Option<String>,
-        services_gateway_api: Arc<tokio::sync::Mutex<Box<dyn ApiGatewayServer + Send + Sync>>>,
-        rule_engine: Arc<tokio::sync::RwLock<Box<dyn RuleEngineProvider + Send + Sync>>>,
+        services_gateway_api: Arc<
+            ripple_sdk::tokio::sync::Mutex<Box<dyn ApiGatewayServer + Send + Sync>>,
+        >,
+        rule_engine: Arc<
+            ripple_sdk::tokio::sync::RwLock<Box<dyn RuleEngineProvider + Send + Sync>>,
+        >,
     ) -> PlatformState {
         let exclusory = ExclusoryImpl::get(&manifest);
         let broker_sender = client.get_broker_sender();
@@ -315,14 +317,15 @@ mod tests {
             )
             .unwrap();
             extn_manifest.provider_registrations = default_providers();
-            let rules_engine: Arc<tokio::sync::RwLock<Box<dyn RuleEngineProvider + Send + Sync>>> =
-                Arc::new(tokio::sync::RwLock::new(Box::new(RuleEngine::build(
-                    &extn_manifest,
-                ))));
+            let rules_engine: Arc<
+                ripple_sdk::tokio::sync::RwLock<Box<dyn RuleEngineProvider + Send + Sync>>,
+            > = Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                RuleEngine::build(&extn_manifest),
+            )));
 
             let api_gateway_state: Arc<
-                tokio::sync::Mutex<Box<dyn ApiGatewayServer + Send + Sync>>,
-            > = Arc::new(tokio::sync::Mutex::new(Box::new(
+                ripple_sdk::tokio::sync::Mutex<Box<dyn ApiGatewayServer + Send + Sync>>,
+            > = Arc::new(ripple_sdk::tokio::sync::Mutex::new(Box::new(
                 ssda_service::ApiGateway::new(rules_engine.clone()),
             )));
             Self::new(
