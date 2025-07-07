@@ -59,4 +59,5 @@ pub async fn send_to_analytics_plugin(
             )),
         })
         .await
+        .expect("Failed to send analytics event")
 }

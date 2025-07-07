@@ -398,7 +398,7 @@ impl PluginManager {
                 )),
             })
             .await;
-        if let Ok(plugin_error) = serde_json::from_value::<ThunderError>(resp.message) {
+        if let Ok(plugin_error) = serde_json::from_value::<ThunderError>(resp.unwrap().message) {
             return plugin_error.get_plugin_state();
         }
         PluginState::Activated
@@ -406,7 +406,7 @@ impl PluginManager {
 
     pub async fn current_plugin_state(&self, callsign: String) -> PluginState {
         let status_meth = Controller.method(format!("status@{}", callsign).as_str());
-        let resp = self
+        let response = self
             .thunder_client
             .clone()
             .call(DeviceCallRequest {
@@ -414,6 +414,17 @@ impl PluginManager {
                 params: None,
             })
             .await;
+
+        let resp = match response {
+            Ok(res) => {
+                info!("Thunder call response msg: {}", res.message);
+                res
+            }
+            Err(e) => {
+                error!("Thunder call failed: {}", e);
+                return PluginState::Missing;
+            }
+        };
 
         // For an unavailable plugin Thunder responds with a Code and Message
         if let Ok(plugin_error) = serde_json::from_value::<ThunderError>(resp.message.clone()) {

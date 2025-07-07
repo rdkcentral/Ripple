@@ -183,14 +183,23 @@ pub struct ThunderNetworkService;
 
 impl ThunderNetworkService {
     pub async fn has_internet(state: &ThunderState) -> bool {
-        let response = state
+        let resp = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::Network.method("isConnectedToInternet"),
                 params: None,
             })
             .await;
-        info!("{}", response.message);
+        let response = match resp {
+            Ok(res) => {
+                info!("Thunder call response msg: {}", res.message);
+                res
+            }
+            Err(e) => {
+                error!("Thunder call failed: {}", e);
+                return false;
+            }
+        };
         let response = response.message.get("connectedToInternet");
         if response.is_none() {
             return false;
@@ -251,14 +260,24 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     pub async fn get_serial_number(state: &ThunderState) -> String {
-        let resp = state
+        let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::System.method("getSerialNumber"),
                 params: None,
             })
             .await;
-        info!("{}", resp.message);
+
+        let resp = match response {
+            Ok(res) => {
+                info!("Thunder call response msg: {}", res.message);
+                res
+            }
+            Err(e) => {
+                error!("Thunder call failed: {}", e);
+                return "".to_string();
+            }
+        };
 
         resp.message["serialNumber"]
             .as_str()
@@ -266,14 +285,25 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     pub async fn model_info(state: &ThunderState) -> String {
-        let resp = state
+        let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::System.method("getSystemVersions"),
                 params: None,
             })
             .await;
-        info!("{}", resp.message);
+
+        let resp = match response {
+            Ok(res) => {
+                info!("Thunder call response msg: {}", res.message);
+                res
+            }
+            Err(e) => {
+                error!("Thunder call failed: {}", e);
+                return "".to_string();
+            }
+        };
+
         let resp = resp.message.get("stbVersion");
         if resp.is_none() {
             return "NA".to_owned();
@@ -302,20 +332,30 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     async fn get_audio(state: &CachedState) -> HashMap<AudioProfile, bool> {
-        let response = state
+        let response_result = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::DisplaySettings.method("getAudioFormat"),
                 params: None,
             })
             .await;
-        info!("{}", response.message);
+        let response = match response_result {
+            Ok(resp) => {
+                info!("Thunder call response msg: {}", resp.message);
+                resp
+            }
+            Err(e) => {
+                error!("Thunder call failed: {}", e);
+                return HashMap::new();
+            }
+        };
+
         if !check_thunder_response_success(&response) {
             error!("{}", response.message);
             return HashMap::new();
         }
 
-        get_audio_profile_from_value(response.message)
+        get_audio_profile_from_value(response.message.clone())
     }
 
     async fn audio(state: CachedState, req: ExtnMessage) -> bool {
@@ -336,14 +376,25 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     pub async fn get_hdcp_support(state: ThunderState) -> HashMap<HdcpProfile, bool> {
-        let response = state
+        let resp = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::Hdcp.method("getSettopHDCPSupport"),
                 params: None,
             })
             .await;
-        info!("{}", response.message);
+
+        let response = match resp {
+            Ok(res) => {
+                info!("Thunder call response msg: {}", res.message);
+                res
+            }
+            Err(e) => {
+                error!("Thunder call failed: {}", e);
+                return HashMap::new();
+            }
+        };
+
         let mut hdcp_response = HashMap::new();
         let resp = response.message.get("supportedHDCPVersion");
 
@@ -398,13 +449,25 @@ impl ThunderDeviceInfoRequestProcessor {
 
     async fn get_hdcp_status(state: &CachedState) -> HDCPStatus {
         let mut response: HDCPStatus = HDCPStatus::default();
-        let resp = state
+        let res = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::Hdcp.method("getHDCPStatus"),
                 params: None,
             })
             .await;
+
+        let resp = match res {
+            Ok(res) => {
+                info!("Thunder call response msg: {}", res.message);
+                res
+            }
+            Err(e) => {
+                error!("Thunder call failed: {}", e);
+                return HDCPStatus::default();
+            }
+        };
+
         info!("{}", resp.message);
         if let Ok(thdcp) = serde_json::from_value::<ThunderHDCPStatus>(resp.message) {
             response = thdcp.hdcp_status;
@@ -431,13 +494,25 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     pub async fn get_hdr(state: ThunderState) -> HashMap<HdrProfile, bool> {
-        let response = state
+        let resp = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::DisplaySettings.method("getTVHDRCapabilities"),
                 params: None,
             })
             .await;
+
+        let response = match resp {
+            Ok(res) => {
+                info!("Thunder call response msg: {}", res.message);
+                res
+            }
+            Err(e) => {
+                error!("Thunder call failed: {}", e);
+                return HashMap::new();
+            }
+        };
+
         info!("{}", response.message);
         let supported_cap: u32 = response.message["capabilities"]
             .to_string()
@@ -469,14 +544,25 @@ impl ThunderDeviceInfoRequestProcessor {
 
     pub async fn get_firmware_version(state: &ThunderState) -> FireboltSemanticVersion {
         let version: FireboltSemanticVersion;
-        let resp = state
+        let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::System.method("getSystemVersions"),
                 params: None,
             })
             .await;
-        info!("{}", resp.message);
+
+        let resp = match response {
+            Ok(res) => {
+                info!("Thunder call response msg: {}", res.message);
+                res
+            }
+            Err(e) => {
+                error!("Thunder call failed: {}", e);
+                return FireboltSemanticVersion::default();
+            }
+        };
+
         if let Ok(tsv) = serde_json::from_value::<SystemVersion>(resp.message) {
             let tsv_split = tsv.receiver_version.split('.');
             let tsv_vec: Vec<&str> = tsv_split.collect();
@@ -535,14 +621,25 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     async fn available_memory(state: CachedState, req: ExtnMessage) -> bool {
-        let response = state
+        let resp = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::RDKShell.method("getSystemMemory"),
                 params: None,
             })
             .await;
-        info!("{}", response.message);
+
+        let response = match resp {
+            Ok(res) => {
+                info!("Thunder call response msg: {}", res.message);
+                res
+            }
+            Err(e) => {
+                error!("Thunder call failed: {}", e);
+                return false;
+            }
+        };
+
         if check_thunder_response_success(&response) {
             if let Some(v) = response.message["freeRam"].as_u64() {
                 return Self::respond(state.get_client(), req, ExtnResponse::Value(json!(v)))
@@ -555,13 +652,24 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     async fn get_timezone_value(state: &ThunderState) -> Result<String, RippleError> {
-        let response = state
+        let resp = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::System.method("getTimeZoneDST"),
                 params: None,
             })
             .await;
+
+        let response = match resp {
+            Ok(res) => {
+                info!("getTimeZoneDST: {}", res.message);
+                res
+            }
+            Err(e) => {
+                error!("Thunder call failed: {}", e);
+                return Err(RippleError::ServiceError);
+            }
+        };
 
         info!("getTimeZoneDST: {}", response.message);
         if check_thunder_response_success(&response) {
@@ -616,13 +724,24 @@ impl ThunderDeviceInfoRequestProcessor {
             .to_string(),
         ));
 
-        let response = state
+        let resp = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::System.method("getTimeZones"),
                 params,
             })
             .await;
+
+        let response = match resp {
+            Ok(res) => {
+                info!("Thunder call response msg: {}", res.message);
+                res
+            }
+            Err(e) => {
+                error!("Thunder call failed: {}", e);
+                return Err(RippleError::ServiceError);
+            }
+        };
 
         if !check_thunder_response_success(&response) {
             return Err(RippleError::ProcessorError);
@@ -674,13 +793,25 @@ impl ThunderDeviceInfoRequestProcessor {
         }
     }
     async fn voice_guidance_enabled(state: CachedState, request: ExtnMessage) -> bool {
-        let response = state
+        let resp = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::TextToSpeech.method("isttsenabled"),
                 params: None,
             })
             .await;
+
+        let response = match resp {
+            Ok(res) => {
+                info!("Thunder call response msg: {}", res.message);
+                res
+            }
+            Err(e) => {
+                error!("Thunder call failed: {}", e);
+                return false;
+            }
+        };
+
         if let Some(v) = response.message["isenabled"].as_bool() {
             return Self::respond(state.get_client(), request, ExtnResponse::Boolean(v))
                 .await
@@ -700,13 +831,25 @@ impl ThunderDeviceInfoRequestProcessor {
             })
             .to_string(),
         ));
-        let response = state
+        let resp = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::TextToSpeech.method("enabletts"),
                 params,
             })
             .await;
+
+        let response = match resp {
+            Ok(res) => {
+                info!("Thunder call response msg: {}", res.message);
+                res
+            }
+            Err(e) => {
+                error!("Thunder call failed: {}", e);
+                return false;
+            }
+        };
+
         if check_thunder_response_success(&response) {
             return Self::ack(state.get_client(), request).await.is_ok();
         }
@@ -714,13 +857,25 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     async fn voice_guidance_speed(state: CachedState, request: ExtnMessage) -> bool {
-        let response = state
+        let resp = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::TextToSpeech.method("getttsconfiguration"),
                 params: None,
             })
             .await;
+
+        let response = match resp {
+            Ok(res) => {
+                info!("Thunder call response msg: {}", res.message);
+                res
+            }
+            Err(e) => {
+                error!("Thunder call failed: {}", e);
+                return false;
+            }
+        };
+
         if let Some(rate) = response.message["rate"].as_f64() {
             return Self::respond(
                 state.get_client(),
@@ -734,13 +889,24 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     pub async fn get_voice_guidance_speed(state: ThunderState) -> Result<f32, ()> {
-        let response = state
+        let resp = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::TextToSpeech.method("getttsconfiguration"),
                 params: None,
             })
             .await;
+
+        let response = match resp {
+            Ok(res) => {
+                info!("Thunder call response msg: {}", res.message);
+                res
+            }
+            Err(e) => {
+                error!("Thunder call failed: {}", e);
+                return Err(());
+            }
+        };
 
         if let Some(rate) = response.message["rate"].as_f64() {
             return Ok(scale_voice_speed_from_thunder_to_firebolt(rate as f32));
@@ -760,13 +926,25 @@ impl ThunderDeviceInfoRequestProcessor {
             })
             .to_string(),
         ));
-        let response = state
+        let resp = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::TextToSpeech.method("setttsconfiguration"),
                 params,
             })
             .await;
+
+        let response = match resp {
+            Ok(res) => {
+                info!("Thunder call response msg: {}", res.message);
+                res
+            }
+            Err(e) => {
+                error!("Thunder call failed: {}", e);
+                return false;
+            }
+        };
+
         if check_thunder_response_success(&response) {
             return Self::ack(state.get_client(), request).await.is_ok();
         }
@@ -774,13 +952,24 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     pub async fn get_power_state(state: &ThunderState) -> Result<PowerState, RippleError> {
-        let dev_response = state
+        let resp = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::System.method("getPowerState"),
                 params: None,
             })
             .await;
+
+        let dev_response = match resp {
+            Ok(res) => {
+                info!("getPowerState call response msg: {}", res.message);
+                res
+            }
+            Err(e) => {
+                error!("getPowerState call failed: {}", e);
+                return Err(RippleError::ServiceError);
+            }
+        };
 
         if let Some(response) = dev_response.message.get("powerState").cloned() {
             if let Ok(v) = serde_json::from_value(response) {
@@ -804,13 +993,25 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     async fn platform_build_info(state: CachedState, msg: ExtnMessage) -> bool {
-        let resp = state
+        let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::System.method("getSystemVersions"),
                 params: None,
             })
             .await;
+
+        let resp = match response {
+            Ok(res) => {
+                info!("getSystemVersions call response msg: {}", res.message);
+                res
+            }
+            Err(e) => {
+                error!("getSystemVersions call failed: {}", e);
+                return false;
+            }
+        };
+
         if let Ok(tsv) = serde_json::from_value::<SystemVersion>(resp.message) {
             let release_regex = Regex::new(r"([^_]*)_(.*)_(VBN|PROD[^_]*)_(.*)").unwrap();
             let non_release_regex =
