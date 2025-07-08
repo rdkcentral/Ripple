@@ -179,10 +179,11 @@ impl UserGrantsImpl {
 impl UserGrantsServer for UserGrantsImpl {
     async fn set_user_grant(
         &self,
-        ctx: CallContext,
+        _ctx: CallContext,
         user_grant_info: UserGrantInfo,
     ) -> RpcResult<()> {
         debug!("Handling set user grant request: {:?}", user_grant_info);
+        let app_id = user_grant_info.app_name.to_owned();
         let grant_entry = GrantEntry {
             role: user_grant_info.role,
             capability: user_grant_info.capability.to_owned(),
@@ -202,7 +203,7 @@ impl UserGrantsServer for UserGrantsImpl {
             .platform_state
             .cap_state
             .grant_state
-            .update_grant_entry(Some(ctx.app_id), grant_entry);
+            .update_grant_entry(app_id, grant_entry);
         Ok(())
     }
     async fn sync_user_grants_map(&self, _ctx: CallContext) -> RpcResult<()> {
