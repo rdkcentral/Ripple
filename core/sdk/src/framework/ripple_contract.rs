@@ -81,8 +81,6 @@ pub enum RippleContract {
     AppEvents,
     /// Device channel specific events which get cascaded across Main and Extensions like Power, HDCP
     DeviceEvents(EventAdjective),
-    /// Contract for controlling Voice guidance typically offered by the Device Channel or the browser.
-    VoiceGuidance,
     /// Contract which controls User Privacy Settings will become an Adjective in near future
     PrivacySettings,
     /// Contract to allow Extensions to  get and set Settings.
