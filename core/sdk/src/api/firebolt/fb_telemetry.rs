@@ -21,10 +21,7 @@ use std::collections::HashMap;
 
 use crate::{
     api::gateway::rpc_gateway_api::CallContext,
-    extn::{
-        //client::extn_client::ExtnClient,
-        extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
-    },
+    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
     framework::ripple_contract::RippleContract,
     service::service_client::ServiceClient,
 };
