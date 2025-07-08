@@ -20,6 +20,7 @@ pub mod extn;
 pub mod framework;
 pub mod manifest;
 pub mod processor;
+pub mod service;
 pub mod utils;
 
 // Externalize the reusable crates to avoid version
