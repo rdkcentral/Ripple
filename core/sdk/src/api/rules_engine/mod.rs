@@ -436,7 +436,9 @@ impl RuleEngine {
 
         match filtered_rules.len() {
             1 => Ok(RuleRetrieved::WildcardMatch(filtered_rules[0].clone())),
-            0 => Err(RuleRetrievalError::RuleNotFoundAsWildcard),
+            0 => Err(RuleRetrievalError::RuleNotFoundAsWildcard(
+                method.to_string(),
+            )),
             _ => Err(RuleRetrievalError::TooManyWildcardMatches),
         }
     }
@@ -491,7 +493,7 @@ impl From<RuleRetrieved> for Rule {
 #[derive(Debug)]
 pub enum RuleRetrievalError {
     RuleNotFound(String),
-    RuleNotFoundAsWildcard,
+    RuleNotFoundAsWildcard(String),
     TooManyWildcardMatches,
 }
 
@@ -645,7 +647,9 @@ impl RuleEngineProvider for RuleEngine {
 
         match filtered_rules.len() {
             1 => Ok(RuleRetrieved::WildcardMatch(filtered_rules[0].clone())),
-            0 => Err(RuleRetrievalError::RuleNotFoundAsWildcard),
+            0 => Err(RuleRetrievalError::RuleNotFoundAsWildcard(
+                method.to_string(),
+            )),
             _ => Err(RuleRetrievalError::TooManyWildcardMatches),
         }
     }
@@ -854,10 +858,9 @@ mod tests {
         };
 
         let result = rule_engine.get_rule(&rpc_request);
-        assert!(matches!(
-            result,
-            Err(RuleRetrievalError::RuleNotFoundAsWildcard)
-        ));
+        assert!(
+            matches!(result, Err(RuleRetrievalError::RuleNotFound(method)) if method == "nonexistent.method")
+        );
     }
 
     #[test]

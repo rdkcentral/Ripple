@@ -395,8 +395,11 @@ impl From<RuleRetrievalError> for HandleBrokerageError {
     fn from(value: RuleRetrievalError) -> Self {
         match value {
             RuleRetrievalError::RuleNotFound(e) => HandleBrokerageError::RuleNotFound(e),
-            RuleRetrievalError::RuleNotFoundAsWildcard => {
-                HandleBrokerageError::RuleNotFound("Rule Not found as wildcard".to_string())
+            RuleRetrievalError::RuleNotFoundAsWildcard(method) => {
+                HandleBrokerageError::RuleNotFound(format!(
+                    "Rule Not found as wildcard for method {}",
+                    method
+                ))
             }
             RuleRetrievalError::TooManyWildcardMatches => {
                 HandleBrokerageError::RuleNotFound("Too many wildcard matches".to_string())
