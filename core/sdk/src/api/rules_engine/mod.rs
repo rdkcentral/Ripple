@@ -858,8 +858,9 @@ mod tests {
         };
 
         let result = rule_engine.get_rule(&rpc_request);
+        println!("Result: {:?}", result);
         assert!(
-            matches!(result, Err(RuleRetrievalError::RuleNotFound(method)) if method == "nonexistent.method")
+            matches!(result, Err(RuleRetrievalError::RuleNotFoundAsWildcard(method)) if method == "nonexistent.method")
         );
     }
 
