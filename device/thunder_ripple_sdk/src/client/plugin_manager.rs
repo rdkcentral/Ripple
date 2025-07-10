@@ -227,7 +227,7 @@ impl PluginManager {
             }
         });
 
-        thunder_client
+        let resp = thunder_client
             .clone()
             .subscribe(
                 DeviceSubscribeRequest {
@@ -238,8 +238,16 @@ impl PluginManager {
                 },
                 sub_tx,
             )
-            .await
-            .ok();
+            .await;
+
+        if let Ok(response) = resp.as_ref() {
+            if let Some(error) = response.message.get("error") {
+                error!("Failed to subscribe to statechange, error:{:?}", error);
+            } else {
+                info!("Successfully subscribed to statechange");
+            }
+        }
+
         // Spawn command thread
         tokio::spawn(async move {
             while let Some(command) = rx.recv().await {

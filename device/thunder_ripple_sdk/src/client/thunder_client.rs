@@ -285,7 +285,7 @@ impl DeviceOperator for ThunderClient {
             self.send_message(msg).await;
             let result = rx.await;
             if let Err(ref e) = result {
-                error!("subscribe: e={:?}", e);
+                error!("subscribe: error={:?}", e);
             }
             result
         } else if let Some(subscribe_request) =
@@ -298,7 +298,7 @@ impl DeviceOperator for ThunderClient {
             }
             let result = rx.await;
             if let Err(ref e) = result {
-                error!("subscribe: e={:?}", e);
+                error!("subscribe: error={:?}", e);
             }
             result
         } else {
