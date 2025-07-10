@@ -427,7 +427,7 @@ impl MockThunderController {
                 );
                 println!("@@@NNa... Entered ThunderAsyncResponse handler block");
                 let thndr_client = cache_for_task.state.get_thunder_client();
-                //if let Some(id) = thunder_async_response.get_id() {
+                ///if let Some(id) = thunder_async_response.get_id() {
                 if let Some(id) = thunder_async_response.id {
                     println!("@@@NNa... ThunderAsyncResponse has id={}", id);
                     if let Some(thunder_async_callbacks) = thndr_client.thunder_async_callbacks {
