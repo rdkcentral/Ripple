@@ -108,16 +108,17 @@ pub fn get_next_mock_service_response(
     let mock_queue = get_mock_service_queue();
     let mut mock_queues = mock_queue.write().unwrap();
     if let Some(queue) = mock_queues.get_mut(&test_context) {
-        let response = queue.pop_front();
+        queue.pop_front()
         /*
+        let response = queue.pop_front();
                 // Print the remaining size for debugging
                 println!(
                     "Retrieved mock response for context '{}'. Remaining queue size: {}",
                     test_context,
                     queue.len()
                 );
-        */
         response
+        */
     } else {
         //println!("No mock queue found for context '{}'", test_context);
         None
@@ -131,16 +132,17 @@ pub fn get_next_mock_response(test_context: &str) -> Option<Result<ExtnMessage, 
     let mut mock_queues = mock_queue.write().unwrap();
 
     if let Some(queue) = mock_queues.get_mut(test_context) {
-        let response = queue.pop_front();
+        queue.pop_front()
         /*
+        let response = queue.pop_front();
                 // Print the remaining size for debugging
                 println!(
                     "Retrieved mock response for context '{}'. Remaining queue size: {}",
                     test_context,
                     queue.len()
                 );
-        */
         response
+        */
     } else {
         //println!("No mock queue found for context '{}'", test_context);
         None
