@@ -15,8 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::HashMap;
-
 use jsonrpsee::{core::server::rpc_module::Methods, types::TwoPointZero};
 use ripple_sdk::{
     api::{
@@ -26,7 +24,9 @@ use ripple_sdk::{
         },
         gateway::{
             rpc_error::RpcError,
-            rpc_gateway_api::{ApiMessage, ApiProtocol, JsonRpcApiResponse, RpcRequest},
+            rpc_gateway_api::{
+                ApiMessage, ApiProtocol, CallContext, JsonRpcApiResponse, RpcRequest,
+            },
         },
         observability::{log_signal::LogSignal, metrics_util::ApiStats},
     },
@@ -34,9 +34,11 @@ use ripple_sdk::{
     extn::extn_client_message::ExtnMessage,
     log::{debug, error, info, trace, warn},
     serde_json::{self, Value},
+    service::service_message::{JsonRpcMessage as JsonRpcServiceMessage, ServiceMessage},
     tokio::{self, runtime::Handle, sync::mpsc::Sender},
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::{
     broker::endpoint_broker::BrokerOutput,
@@ -89,6 +91,9 @@ pub enum FireboltGatewayCommand {
     },
     HandleRpcForExtn {
         msg: ExtnMessage,
+    },
+    HandleRpcForService {
+        msg: ServiceMessage,
     },
     HandleResponse {
         response: JsonRpcApiResponse,
@@ -149,6 +154,25 @@ impl FireboltGateway {
                 HandleRpcForExtn { msg } => {
                     if let Some(request) = msg.payload.clone().extract() {
                         self.handle(request, Some(msg)).await
+                    } else {
+                        error!("Not a valid RPC Request {:?}", msg);
+                    }
+                }
+                HandleRpcForService { msg } => {
+                    if let JsonRpcServiceMessage::Request(json_rpc_request) = msg.message {
+                        let ctx = msg.context.as_ref().map_or_else(CallContext::default, |v| {
+                            serde_json::from_value(v.clone()).unwrap_or_default()
+                        });
+                        let request: RpcRequest = RpcRequest {
+                            ctx: ctx.clone(),
+                            method: json_rpc_request.method,
+                            params_json: RpcRequest::prepend_ctx(
+                                json_rpc_request.params,
+                                &ctx.clone(),
+                            ),
+                        };
+
+                        self.handle(request, None).await
                     } else {
                         error!("Not a valid RPC Request {:?}", msg);
                     }
@@ -242,6 +266,7 @@ impl FireboltGateway {
             request.params_json
         );
         let mut extn_request = false;
+        let mut service_request = false;
         LogSignal::new(
             "firebolt_gateway".into(),
             "start_processing_request".into(),
@@ -252,6 +277,9 @@ impl FireboltGateway {
         match request.ctx.protocol {
             ApiProtocol::Extn => {
                 extn_request = true;
+            }
+            ApiProtocol::Service => {
+                service_request = true;
             }
             _ => {
                 if !self
@@ -306,8 +334,7 @@ impl FireboltGateway {
             }
 
             capture_stage(&platform_state.metrics, &request_c, "openrpc_val");
-
-            let result = if extn_request {
+            let result = if extn_request || service_request {
                 // extn protocol means its an internal Ripple request skip permissions.
                 Ok(Vec::new())
             } else {
@@ -367,6 +394,10 @@ impl FireboltGateway {
                                 } else {
                                     error!("missing invalid message not forwarding");
                                 }
+                            }
+                            ApiProtocol::Service => {
+                                RpcRouter::route_service_protocol(&platform_state, request.clone())
+                                    .await
                             }
                             _ => {
                                 if let Some(session) = session {
