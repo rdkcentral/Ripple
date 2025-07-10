@@ -284,8 +284,8 @@ impl ServiceClient {
     #[allow(unused_variables)]
     pub async fn request_with_timeout_main(
         &mut self,
-        req: Option<Value>,
         method: String,
+        params: Option<Value>,
         ctx: &CallContext,
         timeout_in_msecs: u64,
         service_id: String,
@@ -294,7 +294,7 @@ impl ServiceClient {
         {
             let resp = tokio::time::timeout(
                 std::time::Duration::from_millis(timeout_in_msecs),
-                self.send_rpc_main(req, method, ctx, service_id),
+                self.send_rpc_main(method, params, ctx, service_id),
             )
             .await;
 
@@ -320,8 +320,8 @@ impl ServiceClient {
 
     pub async fn send_rpc_main(
         &mut self,
-        req: Option<Value>,
         method: String,
+        params: Option<Value>,
         ctx: &CallContext,
         service_id: String,
     ) -> Result<ServiceMessage, RippleError> {
@@ -330,7 +330,7 @@ impl ServiceClient {
         add_single_processor(id.clone(), Some(tx), self.response_processors.clone());
 
         let mut service_request =
-            ServiceMessage::new_request(method.to_owned(), req, Id::String(id.clone()));
+            ServiceMessage::new_request(method.to_owned(), params, Id::String(id.clone()));
 
         let mut context = ctx.clone();
         context.protocol = ApiProtocol::Service;
@@ -373,8 +373,8 @@ impl ServiceClient {
     }
     pub fn request_transient(
         &self,
-        req: Option<Value>,
         method: String,
+        params: Option<Value>,
         ctx: Option<&CallContext>,
         service_id: String,
     ) -> Result<String, RippleError> {
@@ -390,7 +390,7 @@ impl ServiceClient {
 
         let id = Uuid::new_v4().to_string();
         let mut service_request =
-            ServiceMessage::new_request(method.to_owned(), req, Id::String(id.clone()));
+            ServiceMessage::new_request(method.to_owned(), params, Id::String(id.clone()));
         let mut context = ctx.clone();
         context.protocol = ApiProtocol::Service;
         let vec = vec![id.clone(), service_id];
@@ -499,7 +499,7 @@ pub mod tests {
             false,
         );
         let result: Result<ServiceMessage, RippleError> = client
-            .request_with_timeout_main(None, "method.1".to_string(), &context, 5000, id)
+            .request_with_timeout_main("method.1".to_string(), None, &context, 5000, id)
             .await;
         println!("result: {:?}", result);
         assert!(result.is_ok());

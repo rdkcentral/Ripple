@@ -223,8 +223,8 @@ pub struct TelemetryUtil;
 impl TelemetryUtil {
     pub fn send_telemetry(client: &ServiceClient, payload: TelemetryPayload) {
         if let Err(e) = client.request_transient(
-            Some(serde_json::to_value(payload).unwrap()),
             "ripple.sendTelemetry".to_owned(),
+            Some(serde_json::to_value(payload).unwrap()),
             None,
             "ripple:channel:distributor:eos".to_string(),
         ) {
@@ -234,8 +234,8 @@ impl TelemetryUtil {
 
     pub fn update_telemetry_session_id(client: &ServiceClient, session_id: String) {
         if let Err(e) = client.request_transient(
-            Some(serde_json::to_value(session_id).unwrap()),
             "ripple.setTelemetrySessionId".to_owned(),
+            Some(serde_json::to_value(session_id).unwrap()),
             None,
             "ripple:channel:distributor:eos".to_string(),
         ) {
