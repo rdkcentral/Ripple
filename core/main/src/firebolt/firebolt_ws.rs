@@ -32,7 +32,7 @@ use futures::SinkExt;
 use futures::StreamExt;
 use jsonrpsee::types::{error::INVALID_REQUEST_CODE, ErrorObject, ErrorResponse, Id};
 use ripple_sdk::{
-    api::{gateway::rpc_gateway_api::CallContext, manifest::extn_manifest::ExtnSymbol},
+    api::manifest::extn_manifest::ExtnSymbol,
     extn::{
         extn_client_message::{ExtnMessage, ExtnPayload, ExtnResponse},
         extn_id::ExtnId,
@@ -360,6 +360,28 @@ impl FireboltWs {
             guard.service_connect(service_id, ws_stream).await.unwrap();
         }
     }
+    #[cfg(feature = "ssda")]
+    async fn send_t2_event(state: &PlatformState, payload: String) {
+        use ripple_sdk::api::gateway::rpc_gateway_api::CallContext;
+        let rpc_request = RpcRequest::new(
+            String::from("telemetry.event"),
+            serde_json::json!({
+                "payload": payload,
+            })
+            .to_string(),
+            CallContext::default(),
+        );
+
+        state
+            .endpoint_state
+            .handle_brokerage(rpc_request, None, None, vec![], None, vec![])
+            .await;
+    }
+    #[cfg(not(feature = "ssda"))]
+    async fn send_t2_event(_state: &PlatformState, payload: String) {
+        debug!("{}", payload);
+    }
+
     async fn handle_connection(
         _client_addr: SocketAddr,
         ws_stream: WebSocketStream<TcpStream>,
@@ -476,21 +498,7 @@ impl FireboltWs {
                                     stats_ref.clone(),
                                     stats.stats.get_stage_durations()
                                 );
-
-                                let rpc_request = RpcRequest::new(
-                                    String::from("telemetry.event"),
-                                    serde_json::json!({
-                                        "payload": split,
-                                    })
-                                    .to_string(),
-                                    CallContext::default(),
-                                );
-
-                                spawn_state
-                                    .endpoint_state
-                                    .handle_brokerage(rpc_request, None, None, vec![], None, vec![])
-                                    .await;
-                                debug!("{}", split);
+                                Self::send_t2_event(&spawn_state, split).await;
                             }
 
                             platform_state
