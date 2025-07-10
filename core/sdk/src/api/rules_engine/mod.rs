@@ -439,7 +439,10 @@ impl RuleEngine {
             0 => Err(RuleRetrievalError::RuleNotFoundAsWildcard(
                 method.to_string(),
             )),
-            _ => Err(RuleRetrievalError::TooManyWildcardMatches),
+            _ => Err(RuleRetrievalError::TooManyWildcardMatches(format!(
+                "too many matches for method={}. Rules that match={:?}",
+                method, filtered_rules
+            ))),
         }
     }
 
@@ -494,7 +497,7 @@ impl From<RuleRetrieved> for Rule {
 pub enum RuleRetrievalError {
     RuleNotFound(String),
     RuleNotFoundAsWildcard(String),
-    TooManyWildcardMatches,
+    TooManyWildcardMatches(String),
 }
 
 /// Compiles and executes a JQ filter on a given JSON input value.
@@ -650,7 +653,9 @@ impl RuleEngineProvider for RuleEngine {
             0 => Err(RuleRetrievalError::RuleNotFoundAsWildcard(
                 method.to_string(),
             )),
-            _ => Err(RuleRetrievalError::TooManyWildcardMatches),
+            _ => Err(RuleRetrievalError::TooManyWildcardMatches(
+                method.to_string(),
+            )),
         }
     }
     fn get_rule(&self, rpc_request: &RpcRequest) -> Result<RuleRetrieved, RuleRetrievalError> {
@@ -890,7 +895,7 @@ mod tests {
         let result = rule_engine.get_rule(&rpc_request);
         assert!(matches!(
             result,
-            Err(RuleRetrievalError::TooManyWildcardMatches)
+            Err(RuleRetrievalError::TooManyWildcardMatches(_))
         ));
     }
 }

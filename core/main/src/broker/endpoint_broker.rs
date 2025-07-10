@@ -401,8 +401,11 @@ impl From<RuleRetrievalError> for HandleBrokerageError {
                     method
                 ))
             }
-            RuleRetrievalError::TooManyWildcardMatches => {
-                HandleBrokerageError::RuleNotFound("Too many wildcard matches".to_string())
+            RuleRetrievalError::TooManyWildcardMatches(method) => {
+                HandleBrokerageError::RuleNotFound(format!(
+                    "Too many wildcard matches for method {}",
+                    method
+                ))
             }
         }
     }
