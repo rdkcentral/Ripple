@@ -50,7 +50,7 @@ pub async fn send_to_analytics_plugin(
 ) -> DeviceResponseMessage {
     let method: String = ThunderPlugin::Analytics.method("sendEvent");
 
-    thunder_state
+    match thunder_state
         .get_thunder_client()
         .call(DeviceCallRequest {
             method,
@@ -59,5 +59,11 @@ pub async fn send_to_analytics_plugin(
             )),
         })
         .await
-        .expect("Failed to send analytics event")
+    {
+        Ok(response) => response,
+        Err(_) => DeviceResponseMessage {
+            message: Value::Null,
+            sub_id: None,
+        },
+    }
 }

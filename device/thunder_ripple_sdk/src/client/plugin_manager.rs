@@ -398,10 +398,16 @@ impl PluginManager {
                 )),
             })
             .await;
-        if let Ok(plugin_error) = serde_json::from_value::<ThunderError>(resp.unwrap().message) {
-            return plugin_error.get_plugin_state();
+
+        match resp {
+            Ok(resp) => {
+                if let Ok(plugin_error) = serde_json::from_value::<ThunderError>(resp.message) {
+                    return plugin_error.get_plugin_state();
+                }
+                PluginState::Activated
+            }
+            Err(_) => PluginState::Missing,
         }
-        PluginState::Activated
     }
 
     pub async fn current_plugin_state(&self, callsign: String) -> PluginState {
