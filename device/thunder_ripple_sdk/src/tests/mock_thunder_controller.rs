@@ -40,9 +40,10 @@ pub type ThunderSubscriberFn = dyn Fn(
         DeviceSubscribeRequest,
         Sender<ThunderAsyncResponse>,
         u64,
-    ) -> Pin<Box<dyn Future<Output = Option<ThunderAsyncResponse>> + Send>>
+    ) -> Pin<Box<dyn Future<Output = Option<ThunderAsyncResponse>> + Send + 'static>>
     + Send
-    + Sync;
+    + Sync
+    + 'static;
 
 #[derive(Clone)]
 pub struct MockThunderSubscriberfn {
@@ -70,6 +71,10 @@ impl MockThunderSubscriberfn {
         sender: Sender<ThunderAsyncResponse>,
         id: u64,
     ) -> Option<ThunderAsyncResponse> {
+        println!(
+            "MockThunderSubscriberfn call fn gets invoked for DeviceSubscribeRequest : {:?}",
+            req
+        );
         (self.fnc)(req, sender, id).await
     }
 }
@@ -100,6 +105,13 @@ pub struct MockThunderControllerItems {
 fn empty_response() -> ThunderAsyncResponse {
     ThunderAsyncResponse {
         id: None,
+        result: Ok(JsonRpcApiResponse::default()),
+    }
+}
+
+fn empty_response_with_id(id: u64) -> ThunderAsyncResponse {
+    ThunderAsyncResponse {
+        id: Some(id),
         result: Ok(JsonRpcApiResponse::default()),
     }
 }
@@ -231,24 +243,33 @@ impl MockThunderController {
         handler: mpsc::Sender<ThunderAsyncResponse>,
     ) {
         println!("@@@NNA.... we reached  handle_thunder_sub...");
-
         // Extract DeviceSubscribeRequest, module, and event_name from the ThunderAsyncRequest
-        let (sub_req, module, event_name, id) = match &thunder_async_request.request {
-            DeviceChannelRequest::Subscribe(sub_req) => (
-                sub_req.clone(),
-                sub_req.module.clone(),
-                sub_req.event_name.clone(),
-                thunder_async_request.id,
-            ),
-            _ => {
-                println!("handle_thunder_sub called with non-Subscribe request");
-                // Optionally send an error or ack via handler if needed
-                let _ = mpsc_send_and_log(&handler, empty_response(), "SubscribeAck").await;
-                return;
-            }
-        };
+        // let (sub_req, module, event_name, id) = match &thunder_async_request.request {
+        //     DeviceChannelRequest::Subscribe(sub_req) => (
+        //         sub_req.clone(),
+        //         sub_req.module.clone(),
+        //         sub_req.event_name.clone(),
+        //         thunder_async_request.id,
+        //     ),
+        //     _ => {
+        //         println!("handle_thunder_sub called with non-Subscribe request");
+        //         // Optionally send an error or ack via handler if needed
+        //         let _ = mpsc_send_and_log(&handler, empty_response(), "SubscribeAck").await;
+        //         return;
+        //     }
+        // };
+
+        let sub_req = thunder_async_request
+            .request
+            .get_dev_subscribe_request()
+            .unwrap();
+
+        let module = sub_req.module.clone();
+        let event_name = sub_req.event_name.clone();
+        let id = thunder_async_request.id;
 
         if module == "Controller.1" && event_name == "statechange" {
+            println!("Controller.1 inside with statechange");
             self.on_state_change(handler.clone()).await;
             let _ = mpsc_send_and_log(&handler, empty_response(), "SubscribeAck").await;
         } else if let Some(handler_fn) = self
@@ -256,15 +277,21 @@ impl MockThunderController {
             .custom_subscription_handler
             .get(&format!("{}.{}", module, event_name))
         {
+            println!("before handler_fn.call");
             let response = handler_fn.call(sub_req, handler.clone(), id).await;
             if let Some(resp) = response {
+                println!(" handler_fn.call inside if");
                 mpsc_send_and_log(&handler, resp, "OnStatusChange").await;
+            } else {
+                println!(" handler_fn.call inside else");
+                // Always send an ack to avoid hanging if handler returns None
+                let _ =
+                    mpsc_send_and_log(&handler, empty_response_with_id(id), "SubscribeAck").await;
             }
         } else {
             println!("No mock subscription found for {}.{}", module, event_name);
-            // Optionally send an error or ack via handler if needed
-            // let _ = mpsc_send_and_log(&handler, empty_response(), "SubscribeAck").await;
-            return;
+            // Always send an ack to avoid hanging
+            let _ = mpsc_send_and_log(&handler, empty_response(), "SubscribeAck").await;
         }
     }
 
@@ -398,23 +425,36 @@ impl MockThunderController {
                     "*** _DEBUG: state_with_mock: Received ThunderAsyncResponse: {:?}",
                     thunder_async_response
                 );
+                println!("@@@NNa... Entered ThunderAsyncResponse handler block");
                 let thndr_client = cache_for_task.state.get_thunder_client();
-                if let Some(id) = thunder_async_response.get_id() {
-                    println!("*** _DEBUG: state_with_mock: id={}", id);
+                //if let Some(id) = thunder_async_response.get_id() {
+                if let Some(id) = thunder_async_response.id {
+                    println!("@@@NNa... ThunderAsyncResponse has id={}", id);
                     if let Some(thunder_async_callbacks) = thndr_client.thunder_async_callbacks {
+                        println!("@@@NNa... thunder_async_callbacks found");
                         let mut callbacks = thunder_async_callbacks.write().unwrap();
                         if let Some(Some(callback)) = callbacks.remove(&id) {
+                            println!("@@@NNa... Callback found for id={}", id);
                             if let Some(device_response_message) =
                                 thunder_async_response.get_device_resp_msg(None)
                             {
+                                println!("@@@NNa... Sending device_response_message for id={}", id);
                                 oneshot_send_and_log(
                                     callback,
                                     device_response_message,
                                     "ThunderResponse",
                                 );
-                            };
+                            } else {
+                                println!("@@@NNa... No device_response_message for id={}", id);
+                            }
+                        } else {
+                            println!("@@@NNa... No callback found for id={}", id);
                         }
+                    } else {
+                        println!("@@@NNa... thunder_async_callbacks is None");
                     }
+                } else {
+                    println!("@@@NNa... ThunderAsyncResponse has no id");
                 }
             }
         });
