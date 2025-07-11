@@ -359,7 +359,7 @@ impl ServiceClient {
         }
     }
 
-    fn get_default_service_call_context(method: String) -> CallContext {
+    pub fn get_default_service_call_context(&self, method: String) -> CallContext {
         CallContext::new(
             Uuid::new_v4().to_string(),
             Uuid::new_v4().to_string(),
@@ -383,7 +383,7 @@ impl ServiceClient {
         let ctx = match ctx {
             Some(c) => c,
             None => {
-                default_ctx = Self::get_default_service_call_context(method.clone());
+                default_ctx = self.get_default_service_call_context(method.clone());
                 &default_ctx
             }
         };
