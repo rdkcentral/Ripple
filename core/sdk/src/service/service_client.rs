@@ -33,8 +33,9 @@ use crate::utils::extn_utils::ExtnStackSize;
 use crate::utils::mock_utils::get_next_mock_service_response;
 use crate::utils::{error::RippleError, ws_utils::WebSocketUtils};
 use futures_util::{SinkExt, StreamExt};
-use jsonrpsee::core::server::rpc_module::Methods;
+use jsonrpsee::core::{server::rpc_module::Methods, RpcResult};
 use log::{debug, error, info, trace, warn};
+use serde::de::DeserializeOwned;
 use serde_json::Value;
 use tokio::sync::{mpsc, oneshot};
 use tokio::sync::{mpsc::Sender as MSender, oneshot::Sender as OSender};
@@ -281,15 +282,55 @@ impl ServiceClient {
         self.extn_client.as_ref().and_then(|ec| ec.get_stack_size())
     }
 
+    pub async fn call_and_parse_ripple_main_rpc<T: DeserializeOwned>(
+        &mut self,
+        method: &str,
+        params: Option<serde_json::Value>,
+        ctx: Option<&CallContext>,
+        timeout: u64,
+        service_id: &str,
+        error_msg: &str,
+    ) -> RpcResult<T> {
+        let res = self
+            .request_with_timeout_main(
+                method.to_string(),
+                params,
+                ctx,
+                timeout,
+                service_id.to_string(),
+            )
+            .await
+            .map_err(|_| jsonrpsee::core::Error::Custom(error_msg.to_string()))?;
+
+        match res.message {
+            JsonRpcMessage::Success(v) => serde_json::from_value::<T>(v.result).map_err(|_| {
+                jsonrpsee::core::Error::Custom(format!("Failed to parse response for {}", method))
+            }),
+            _ => Err(jsonrpsee::core::Error::Custom(format!(
+                "Failed to get Success response for {}",
+                method
+            ))),
+        }
+    }
+
     #[allow(unused_variables)]
     pub async fn request_with_timeout_main(
         &mut self,
         method: String,
         params: Option<Value>,
-        ctx: &CallContext,
+        ctx: Option<&CallContext>,
         timeout_in_msecs: u64,
         service_id: String,
     ) -> Result<ServiceMessage, RippleError> {
+        let default_ctx;
+        let ctx = match ctx {
+            Some(c) => c,
+            None => {
+                default_ctx = self.get_default_service_call_context(method.clone());
+                &default_ctx
+            }
+        };
+
         #[cfg(all(not(feature = "mock"), not(test)))]
         {
             let resp = tokio::time::timeout(
@@ -499,7 +540,7 @@ pub mod tests {
             false,
         );
         let result: Result<ServiceMessage, RippleError> = client
-            .request_with_timeout_main("method.1".to_string(), None, &context, 5000, id)
+            .request_with_timeout_main("method.1".to_string(), None, Some(&context), 5000, id)
             .await;
         println!("result: {:?}", result);
         assert!(result.is_ok());
