@@ -381,7 +381,45 @@ impl FireboltWs {
     async fn send_t2_event(_state: &PlatformState, payload: String) {
         debug!("{}", payload);
     }
+    #[cfg(not(feature = "ssda"))]
+    async fn handle_connection(
+        _client_addr: SocketAddr,
+        ws_stream: WebSocketStream<TcpStream>,
+        connect_rx: oneshot::Receiver<ClientIdentity>,
+        state: PlatformState,
+        gateway_secure: bool,
+    ) {
+        use crate::service::ripple_service::service_controller_state::ServiceControllerState;
+        let identity = connect_rx.await.unwrap();
 
+        // Generate a unique connection ID
+        let connection_id = Uuid::new_v4().to_string();
+
+        if let Some(symbol) = identity.service_info.clone() {
+            // Handle service connection
+            ServiceControllerState::handle_service_connection(
+                _client_addr,
+                ws_stream,
+                state,
+                identity,
+                connection_id,
+                symbol,
+            )
+            .await;
+        } else {
+            // Handle app connection
+            Self::handle_app_connection(
+                _client_addr,
+                ws_stream,
+                state,
+                identity,
+                connection_id,
+                gateway_secure,
+            )
+            .await;
+        }
+    }
+    #[cfg(feature = "ssda")]
     async fn handle_connection(
         _client_addr: SocketAddr,
         ws_stream: WebSocketStream<TcpStream>,
@@ -587,6 +625,168 @@ impl FireboltWs {
                 .get_extn_client()
                 .remove_sender(app_id_c.clone(), symbol);
         }
+        let msg = FireboltGatewayCommand::UnregisterSession {
+            session_id: identity.session_id.clone(),
+            cid: connection_id,
+        };
+        if let Err(e) = client.send_gateway_command(msg) {
+            error!("Error Unregistering {:?}", e);
+        }
+    }
+    #[cfg(not(feature = "ssda"))]
+    async fn handle_app_connection(
+        _client_addr: SocketAddr,
+        ws_stream: WebSocketStream<TcpStream>,
+        state: PlatformState,
+        identity: ClientIdentity,
+        connection_id: String,
+        gateway_secure: bool,
+    ) {
+        info!(
+            "Creating new app connection_id={} app_id={} session_id={}, gateway_secure={}, port={}",
+            connection_id,
+            identity.app_id,
+            identity.session_id,
+            gateway_secure,
+            _client_addr.port()
+        );
+
+        let client = state.get_client();
+        let app_id = identity.app_id.clone();
+        let (session_tx, mut resp_rx) = mpsc::channel(32);
+        let ctx = ClientContext {
+            session_id: identity.session_id.clone(),
+            app_id: app_id.clone(),
+            gateway_secure,
+        };
+        let session = Session::new(identity.app_id.clone(), Some(session_tx.clone()));
+        let app_id_c = app_id.clone();
+        let session_id_c = identity.session_id.clone();
+        let connection_id_c = connection_id.clone();
+
+        let msg = FireboltGatewayCommand::RegisterSession {
+            session_id: connection_id.clone(),
+            session: session.clone(),
+        };
+        if let Err(e) = client.send_gateway_command(msg) {
+            error!("Error registering the app connection: {:?}", e);
+            return;
+        }
+
+        if !gateway_secure
+            && PermissionHandler::fetch_and_store(&state, &identity.app_id, false)
+                .await
+                .is_err()
+        {
+            error!("Couldnt pre cache permissions");
+        }
+
+        let mut context = vec![];
+        if identity.rpc_v2 {
+            context.push(RPC_V2.to_string());
+        }
+
+        let rpc_context: Arc<RwLock<Vec<String>>> = Arc::new(RwLock::new(context));
+        let (mut sender, mut receiver) = ws_stream.split();
+        let mut platform_state = state.clone();
+        let context_clone = ctx.clone();
+
+        tokio::spawn(async move {
+            while let Some(api_message) = resp_rx.recv().await {
+                let send_result = sender
+                    .send(Message::Text(api_message.jsonrpc_msg.clone()))
+                    .await;
+                match send_result {
+                    Ok(_) => {
+                        platform_state
+                            .metrics
+                            .update_api_stage(&api_message.request_id, "response");
+
+                        LogSignal::new(
+                            "sent_firebolt_response".to_string(),
+                            "firebolt message sent".to_string(),
+                            context_clone.clone(),
+                        )
+                        .with_diagnostic_context_item("cid", &connection_id_c.clone())
+                        .with_diagnostic_context_item("result", &api_message.jsonrpc_msg.clone())
+                        .emit_debug();
+                        if let Some(stats) = platform_state
+                            .metrics
+                            .get_api_stats(&api_message.request_id)
+                        {
+                            info!(
+                                "Sending Firebolt response: {:?},{}",
+                                stats.stats_ref,
+                                stats.stats.get_total_time()
+                            );
+                            debug!(
+                                "Full Firebolt Split: {:?},{}",
+                                stats.stats_ref,
+                                stats.stats.get_stage_durations()
+                            );
+                            platform_state
+                                .metrics
+                                .remove_api_stats(&api_message.request_id);
+                        }
+
+                        info!(
+                            "Sent Firebolt response cid={} msg={}",
+                            connection_id_c.clone(),
+                            api_message.jsonrpc_msg
+                        );
+                    }
+                    Err(err) => error!("{:?}", err),
+                }
+            }
+            debug!(
+                "api msg rx closed {} {} {}",
+                app_id_c.clone(),
+                session_id_c.clone(),
+                connection_id_c.clone()
+            );
+        });
+        let session_id_c = identity.session_id.clone();
+        let app_id_c = identity.app_id.clone();
+        while let Some(msg) = receiver.next().await {
+            match msg {
+                Ok(msg) => {
+                    if msg.is_text() && !msg.is_empty() {
+                        debug!("Received JsonRpc Request {}", msg);
+                        let req_id = Uuid::new_v4().to_string();
+                        let req_text = String::from(msg.to_text().unwrap());
+                        let context = { rpc_context.read().unwrap().clone() };
+                        if let Ok(request) = RpcRequest::parse(
+                            req_text.clone(),
+                            app_id_c.clone(),
+                            session_id_c.clone(),
+                            req_id.clone(),
+                            Some(connection_id.clone()),
+                            gateway_secure,
+                            context,
+                        ) {
+                            info!("Received Firebolt request {}", request.params_json);
+                            let msg = FireboltGatewayCommand::HandleRpc { request };
+                            if let Err(e) = client.clone().send_gateway_command(msg) {
+                                error!("failed to send request {:?}", e);
+                            }
+                        } else if let Some(response) = JsonRpcApiResponse::get_response(&req_text) {
+                            let msg = FireboltGatewayCommand::HandleResponse { response };
+                            if let Err(e) = client.clone().send_gateway_command(msg) {
+                                error!("failed to send request {:?}", e);
+                            }
+                        } else {
+                            return_invalid_format_error_message(req_id, &state, &connection_id)
+                                .await;
+                            error!("invalid message {}", req_text)
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("ws error cid={} error={:?}", connection_id, e);
+                }
+            }
+        }
+        debug!("SESSION DEBUG Unregistering {}", connection_id);
         let msg = FireboltGatewayCommand::UnregisterSession {
             session_id: identity.session_id.clone(),
             cid: connection_id,
