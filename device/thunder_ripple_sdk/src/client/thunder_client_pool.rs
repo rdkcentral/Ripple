@@ -289,7 +289,10 @@ mod tests {
                         params: None,
                     })
                     .await;
-                assert_eq!(resp.message, "testMethod Request Response".to_string());
+                assert_eq!(
+                    resp.unwrap().message,
+                    "testMethod Request Response".to_string()
+                );
             });
         }
 
@@ -334,7 +337,10 @@ mod tests {
                 params: None,
             })
             .await;
-        assert_eq!(resp.message, "testMethod Request Response".to_string());
+        assert_eq!(
+            resp.unwrap().message,
+            "testMethod Request Response".to_string()
+        );
 
         // 5. test unsubscribe
         client

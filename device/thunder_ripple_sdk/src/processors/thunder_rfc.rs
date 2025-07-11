@@ -118,10 +118,19 @@ impl ExtnRequestProcessor for ThunderRFCProcessor {
                 params: Some(DeviceChannelParams::Json(rfc_request)),
             })
             .await;
+
+        let response = match resp {
+            Ok(res) => res,
+            Err(e) => {
+                error!("Thunder call failed: {}", e);
+                return false;
+            }
+        };
+
         Self::respond(
             state.get_client(),
             msg,
-            match serde_json::from_value::<ThunderRFCResponse>(resp.message) {
+            match serde_json::from_value::<ThunderRFCResponse>(response.message) {
                 Ok(rfc_response) => rfc_response.get_extn_response(&extracted_message),
                 Err(e) => {
                     error!("rfc serialization error {:?}", e);

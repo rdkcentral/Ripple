@@ -244,7 +244,7 @@ impl ThunderClient {
 
 #[async_trait]
 impl DeviceOperator for ThunderClient {
-    async fn call(&self, request: DeviceCallRequest) -> DeviceResponseMessage {
+    async fn call(&self, request: DeviceCallRequest) -> Result<DeviceResponseMessage, RecvError> {
         if !self.use_thunder_async {
             let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
             let message = ThunderMessage::ThunderCallMessage(ThunderCallMessage {
@@ -254,7 +254,7 @@ impl DeviceOperator for ThunderClient {
             });
             self.send_message(message).await;
 
-            rx.await.unwrap()
+            rx.await
         } else {
             let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
             let async_request = ThunderAsyncRequest::new(DeviceChannelRequest::Call(request));
@@ -262,7 +262,7 @@ impl DeviceOperator for ThunderClient {
             if let Some(async_client) = &self.thunder_async_client {
                 async_client.send(async_request).await;
             }
-            rx.await.unwrap()
+            rx.await
         }
     }
 
@@ -285,7 +285,7 @@ impl DeviceOperator for ThunderClient {
             self.send_message(msg).await;
             let result = rx.await;
             if let Err(ref e) = result {
-                error!("subscribe: e={:?}", e);
+                error!("subscribe: error={:?}", e);
             }
             result
         } else if let Some(subscribe_request) =
@@ -298,7 +298,7 @@ impl DeviceOperator for ThunderClient {
             }
             let result = rx.await;
             if let Err(ref e) = result {
-                error!("subscribe: e={:?}", e);
+                error!("subscribe: error={:?}", e);
             }
             result
         } else {

@@ -227,7 +227,7 @@ impl PluginManager {
             }
         });
 
-        thunder_client
+        let resp = thunder_client
             .clone()
             .subscribe(
                 DeviceSubscribeRequest {
@@ -238,8 +238,16 @@ impl PluginManager {
                 },
                 sub_tx,
             )
-            .await
-            .ok();
+            .await;
+
+        if let Ok(response) = resp.as_ref() {
+            if let Some(error) = response.message.get("error") {
+                error!("Failed to subscribe to statechange, error:{:?}", error);
+            } else {
+                info!("Successfully subscribed to statechange");
+            }
+        }
+
         // Spawn command thread
         tokio::spawn(async move {
             while let Some(command) = rx.recv().await {
@@ -398,15 +406,21 @@ impl PluginManager {
                 )),
             })
             .await;
-        if let Ok(plugin_error) = serde_json::from_value::<ThunderError>(resp.message) {
-            return plugin_error.get_plugin_state();
+
+        match resp {
+            Ok(resp) => {
+                if let Ok(plugin_error) = serde_json::from_value::<ThunderError>(resp.message) {
+                    return plugin_error.get_plugin_state();
+                }
+                PluginState::Activated
+            }
+            Err(_) => PluginState::Missing,
         }
-        PluginState::Activated
     }
 
     pub async fn current_plugin_state(&self, callsign: String) -> PluginState {
         let status_meth = Controller.method(format!("status@{}", callsign).as_str());
-        let resp = self
+        let response = self
             .thunder_client
             .clone()
             .call(DeviceCallRequest {
@@ -414,6 +428,17 @@ impl PluginManager {
                 params: None,
             })
             .await;
+
+        let resp = match response {
+            Ok(res) => {
+                info!("Thunder call response msg: {}", res.message);
+                res
+            }
+            Err(e) => {
+                error!("Thunder call failed: {}", e);
+                return PluginState::Missing;
+            }
+        };
 
         // For an unavailable plugin Thunder responds with a Code and Message
         if let Ok(plugin_error) = serde_json::from_value::<ThunderError>(resp.message.clone()) {
