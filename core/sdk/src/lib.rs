@@ -38,10 +38,11 @@ pub extern crate serde_yaml;
 pub extern crate tokio;
 pub extern crate tokio_tungstenite;
 pub extern crate uuid;
-
 pub trait Mockable {
     fn mock() -> Self;
 }
+#[cfg(feature = "jsonrpsee-server")]
+pub use jsonrpsee;
 
 pub type JsonRpcErrorType = jsonrpsee::core::error::Error;
 pub type JsonRpcErrorCode = jsonrpsee::types::error::ErrorCode;
