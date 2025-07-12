@@ -32,6 +32,8 @@ use super::fb_metrics::{
 
 use log::error;
 
+const EOS_DISTRIBUTOR_SERVICE_ID: &str = "ripple:channel:distributor:eos";
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppLoadStart {
     pub app_id: String,
@@ -226,7 +228,7 @@ impl TelemetryUtil {
             "ripple.sendTelemetry".to_owned(),
             Some(serde_json::to_value(payload).unwrap()),
             None,
-            "ripple:channel:distributor:eos".to_string(),
+            EOS_DISTRIBUTOR_SERVICE_ID.to_string(),
         ) {
             error!("Error sending telemetry {:?}", e);
         }
@@ -237,7 +239,7 @@ impl TelemetryUtil {
             "ripple.setTelemetrySessionId".to_owned(),
             Some(serde_json::to_value(session_id).unwrap()),
             None,
-            "ripple:channel:distributor:eos".to_string(),
+            EOS_DISTRIBUTOR_SERVICE_ID.to_string(),
         ) {
             error!("Error sending telemetry {:?}", e);
         }
