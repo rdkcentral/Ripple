@@ -16,6 +16,7 @@
 //
 
 use jsonrpsee::core::server::rpc_module::Methods;
+use ripple_sdk::service::service_client::ServiceClient;
 use ripple_sdk::{
     api::{
         gateway::rpc_gateway_api::ApiMessage,
@@ -23,12 +24,12 @@ use ripple_sdk::{
     },
     export_extn_channel,
     extn::{
-        client::extn_client::ExtnClient,
         extn_id::{ExtnClassId, ExtnId},
         ffi::ffi_channel::ExtnChannel,
     },
-    log::error,
+    log::{error, info},
     processor::rpc_request_processor::RPCRequestProcessor,
+    service::service_message::ServiceMessage,
     tokio::{self, runtime::Runtime},
     utils::logger::init_and_configure_logger,
 };
@@ -52,7 +53,7 @@ pub async fn start_service() {
             ("device_manifest".to_string(), log_lev),
         ]),
     );
-
+    info!("Starting mock device channel");
     let Ok((extn_manifest, _device_manifest)) = RippleManifestLoader::initialize() else {
         error!("Error initializing manifests");
         return;
@@ -64,33 +65,46 @@ pub async fn start_service() {
         error!("Error getting symbol");
         return;
     }
-    let symbol = symbol.unwrap();
-    let (client, tr) = ExtnClient::new_extn(symbol);
+    let (service_client, ext_tr_opt, service_tr_opt) = if let Some(symbol) = symbol {
+        ServiceClient::builder().with_extension(symbol).build()
+    } else {
+        ServiceClient::builder().build()
+    };
 
-    init(client.clone(), tr).await;
+    init(service_client.clone(), ext_tr_opt, service_tr_opt).await;
 }
 
-async fn init(mut client: ExtnClient, tr: mpsc::Receiver<ApiMessage>) {
-    let client_c = client.clone();
-    tokio::spawn(async move {
-        match boot_ws_server(client.clone()).await {
-            Ok(server) => {
-                let state = MockDeviceState::new(server);
+async fn init(
+    client: ServiceClient,
+    ext_tr_opt: Option<mpsc::Receiver<ApiMessage>>,
+    service_tr_opt: Option<mpsc::Receiver<ServiceMessage>>,
+) {
+    if let Some(mut extn_client) = client.get_extn_client() {
+        let client_c_for_init = client.clone();
+        tokio::spawn(async move {
+            match boot_ws_server(extn_client.clone()).await {
+                Ok(server) => {
+                    let state = MockDeviceState::new(server);
 
-                let mut methods = Methods::new();
-                let _ = methods.merge(MockDeviceController::new(state).into_rpc());
-                let processor = RPCRequestProcessor::new(
-                    client.clone(),
-                    methods,
-                    ExtnId::new_channel(ExtnClassId::Device, "mock_device".into()),
-                );
-                client.add_request_processor(processor);
-            }
-            Err(err) => panic!("websocket server failed to start. {}", err),
-        };
-    });
+                    let mut methods = Methods::new();
+                    let _ = methods.merge(MockDeviceController::new(state).into_rpc());
+                    let processor = RPCRequestProcessor::new(
+                        extn_client.clone(),
+                        methods,
+                        ExtnId::new_channel(ExtnClassId::Device, "mock_device".into()),
+                    );
+                    extn_client.add_request_processor(processor);
+                }
+                Err(err) => panic!("websocket server failed to start. {}", err),
+            };
+        });
 
-    client_c.initialize(tr).await;
+        client_c_for_init
+            .initialize(ext_tr_opt, service_tr_opt)
+            .await;
+    } else {
+        error!("Service client does not hold an extn client. Cannot start eos extension.");
+    }
 }
 
 fn start() {
@@ -112,10 +126,14 @@ fn start() {
         error!("Error getting symbol");
         return;
     }
-    let symbol = symbol.unwrap();
-    let (client, tr) = ExtnClient::new_extn(symbol);
+    let (service_client, ext_tr_opt, service_tr_opt) = if let Some(symbol) = symbol {
+        ServiceClient::builder().with_extension(symbol).build()
+    } else {
+        ServiceClient::builder().build()
+    };
+
     runtime.block_on(async move {
-        init(client.clone(), tr).await;
+        init(service_client.clone(), ext_tr_opt, service_tr_opt).await;
     });
 }
 
