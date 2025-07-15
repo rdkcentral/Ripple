@@ -20,6 +20,7 @@ use jsonrpsee::{
     proc_macros::rpc,
     RpcModule,
 };
+use serde_json::Number;
 use std::collections::HashMap;
 
 use ripple_sdk::{
@@ -169,13 +170,13 @@ pub struct MediaSeekedParams {
 pub struct MediaRateChangeParams {
     #[serde(rename = "entityId")]
     pub entity_id: String,
-    pub rate: u32,
+    pub rate: Number,
 }
 #[derive(Deserialize, Debug, Clone)]
 pub struct MediaRenditionChangeParams {
     #[serde(rename = "entityId")]
     pub entity_id: String,
-    pub bitrate: u32,
+    pub bitrate: Number,
     pub width: u32,
     pub height: u32,
     pub profile: Option<String>,

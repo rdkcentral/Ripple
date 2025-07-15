@@ -19,7 +19,7 @@ use std::collections::{HashMap, HashSet};
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Number, Value};
 
 use crate::{
     api::{gateway::rpc_gateway_api::CallContext, session::AccountSession},
@@ -349,13 +349,13 @@ impl From<&MediaSeeked> for Option<f32> {
 pub struct MediaRateChanged {
     pub context: BehavioralMetricContext,
     pub entity_id: String,
-    pub rate: u32,
+    pub rate: Number,
 }
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MediaRenditionChanged {
     pub context: BehavioralMetricContext,
     pub entity_id: String,
-    pub bitrate: u32,
+    pub bitrate: Number,
     pub width: u32,
     pub height: u32,
     pub profile: Option<String>,
