@@ -170,7 +170,7 @@ pub struct MediaSeekedParams {
 pub struct MediaRateChangeParams {
     #[serde(rename = "entityId")]
     pub entity_id: String,
-    pub rate: u32,
+    pub rate: Number,
 }
 #[derive(Deserialize, Debug, Clone)]
 pub struct MediaRenditionChangeParams {
