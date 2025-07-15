@@ -349,7 +349,7 @@ impl From<&MediaSeeked> for Option<f32> {
 pub struct MediaRateChanged {
     pub context: BehavioralMetricContext,
     pub entity_id: String,
-    pub rate: u32,
+    pub rate: Number,
 }
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct MediaRenditionChanged {
