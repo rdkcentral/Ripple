@@ -2,10 +2,7 @@ use std::{collections::HashMap, future::Future, pin::Pin, str::FromStr, sync::Ar
 
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::ApiMessage,
-    extn::{
-        client::extn_client::ExtnClient,
-        //mock_extension_client::MockExtnClient
-    },
+    extn::client::extn_client::ExtnClient,
     serde_json,
     tokio::{
         self,
@@ -15,7 +12,6 @@ use ripple_sdk::{
         },
     },
     utils::channel_utils::{mpsc_send_and_log, oneshot_send_and_log},
-    //Mockable,
 };
 use serde_json::Value;
 
@@ -97,11 +93,6 @@ pub struct MockThunderControllerItems {
     pub api_message_rx: mpsc::Receiver<ApiMessage>,
 }
 
-// const EMPTY_RESPONSE: DeviceResponseMessage = DeviceResponseMessage {
-//     message: Value::Null,
-//     sub_id: None,
-// };
-
 fn empty_response() -> ThunderAsyncResponse {
     ThunderAsyncResponse {
         id: None,
@@ -126,7 +117,6 @@ impl MockThunderController {
             .insert(callsign.clone(), String::from("activated"));
         for s in &self.state_subscribers {
             let val = serde_json::to_value(event.clone()).unwrap_or_default();
-            //let msg = DeviceResponseMessage::call(val);
             let thunderasyncresp = ThunderAsyncResponse {
                 id: None,
                 result: Ok(JsonRpcApiResponse {
@@ -164,14 +154,10 @@ impl MockThunderController {
             "*** _DEBUG: handle_thunder_call: DeviceChannelRequest::Call req received : {:?}",
             thunder_async_request
         );
-
-        // <pca> Naveen: You'll need to refactor this method to also handle cases where thunder_async_request.request is
-        // not a DeviceCallRequest, I'm just unwrapping here to show you how to access the request.
         let msg = thunder_async_request
             .request
             .get_dev_call_request()
             .unwrap();
-        // </pca>
 
         let locator = JsonRpcMethodLocator::from_str(&msg.method).unwrap();
         let module = locator.module.unwrap();
@@ -243,22 +229,6 @@ impl MockThunderController {
         handler: mpsc::Sender<ThunderAsyncResponse>,
     ) {
         println!("@@@NNA.... we reached  handle_thunder_sub...");
-        // Extract DeviceSubscribeRequest, module, and event_name from the ThunderAsyncRequest
-        // let (sub_req, module, event_name, id) = match &thunder_async_request.request {
-        //     DeviceChannelRequest::Subscribe(sub_req) => (
-        //         sub_req.clone(),
-        //         sub_req.module.clone(),
-        //         sub_req.event_name.clone(),
-        //         thunder_async_request.id,
-        //     ),
-        //     _ => {
-        //         println!("handle_thunder_sub called with non-Subscribe request");
-        //         // Optionally send an error or ack via handler if needed
-        //         let _ = mpsc_send_and_log(&handler, empty_response(), "SubscribeAck").await;
-        //         return;
-        //     }
-        // };
-
         let sub_req = thunder_async_request
             .request
             .get_dev_subscribe_request()
@@ -294,49 +264,6 @@ impl MockThunderController {
             let _ = mpsc_send_and_log(&handler, empty_response(), "SubscribeAck").await;
         }
     }
-
-    // pub async fn handle_thunder_sub(
-    //     &mut self,
-    //     thunder_async_request: ThunderAsyncRequest,
-    //     handler: mpsc::Sender<ThunderAsyncResponse>,
-    // ) {
-    //     println!("@@@NNA.... we reached  handle_thunder_sub...");
-    //     let (tx, _rx) = oneshot::channel::<ThunderAsyncResponse>();
-
-    //     // Extract DeviceSubscribeRequest, module, and event_name from the ThunderAsyncRequest
-    //     let (sub_req, module, event_name, id) = match &thunder_async_request.request {
-    //         DeviceChannelRequest::Subscribe(sub_req) => (
-    //             sub_req.clone(),
-    //             sub_req.module.clone(),
-    //             sub_req.event_name.clone(),
-    //             thunder_async_request.id,
-    //         ),
-    //         _ => {
-    //             println!("handle_thunder_sub called with non-Subscribe request");
-    //             oneshot_send_and_log(tx, empty_response(), "SubscribeAck");
-    //             return;
-    //         }
-    //     };
-
-    //     if module == "Controller.1" && event_name == "statechange" {
-    //         self.on_state_change(handler).await;
-    //         oneshot_send_and_log(tx, empty_response(), "SubscribeAck");
-    //     } else if let Some(handler_fn) = self
-    //         .custom_handlers
-    //         .custom_subscription_handler
-    //         .get(&format!("{}.{}", module, event_name))
-    //     {
-    //         let response = handler_fn.call(sub_req, handler.clone(), id).await;
-    //         if let Some(resp) = response {
-    //             mpsc_send_and_log(&handler, resp, "OnStatusChange").await;
-    //         }
-    //     } else {
-    //         println!("No mock subscription found for {}.{}", module, event_name);
-    //         //oneshot_send_and_log(tx, empty_response(), "SubscribeAck");
-    //         return;
-    //     }
-    //     // oneshot_send_and_log(tx, empty_response(), "SubscribeAck");
-    // }
 
     pub fn start() -> (
         mpsc::Sender<ThunderAsyncRequest>,
@@ -465,13 +392,7 @@ impl MockThunderController {
         }
     }
 
-    //NNA changes
     pub fn get_thunder_state_mock_with_handler(handler: Option<CustomHandler>) -> ThunderState {
-        // let thunder_client = ThunderClient::mock();
-
-        // let extn_client = MockExtnClient::client();
-        // ThunderState::new(extn_client, thunder_client)
-
         let (thunder_async_request_tx, _thunder_async_response_rx) =
             MockThunderController::start_with_custom_handlers(handler);
 

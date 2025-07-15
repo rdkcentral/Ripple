@@ -992,7 +992,6 @@ pub mod tests {
     use crate::client::thunder_async_client::ThunderAsyncResponse;
     use ripple_sdk::api::device::device_info_request::DeviceResponse;
     use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
-    //use ripple_sdk::extn::extn_client_message::ExtnPayload;
     use ripple_sdk::{
         api::device::{
             device_info_request::{DeviceInfoRequest, PlatformBuildInfo},
@@ -1012,13 +1011,7 @@ pub mod tests {
     use tokio::sync::oneshot;
 
     use crate::{
-        client::{
-            device_operator::{
-                DeviceCallRequest,
-                //DeviceResponseMessage
-            },
-            thunder_plugin::ThunderPlugin,
-        },
+        client::{device_operator::DeviceCallRequest, thunder_plugin::ThunderPlugin},
         processors::thunder_device_info::ThunderDeviceInfoRequestProcessor,
         tests::mock_thunder_controller::{CustomHandler, MockThunderController, ThunderHandlerFn},
     };
@@ -1026,8 +1019,6 @@ pub mod tests {
     macro_rules! run_platform_info_test {
         ($build_name:expr) => {
             test_platform_build_info_with_build_name($build_name, Arc::new(|_msg: DeviceCallRequest, async_resp_message_tx: oneshot::Sender<ThunderAsyncResponse>, id: u64| {
-
-                println!("*** _DEBUG: run_platform_info_test: Custom handler: build_name={}", $build_name);
             let thunderasyncresp = ThunderAsyncResponse {
                 id: Some(id),
                 result: Ok(JsonRpcApiResponse {
@@ -1108,33 +1099,10 @@ pub mod tests {
         );
 
         tokio::spawn(async move {
-            while let Some(api_message) = api_message_rx.recv().await {
-                println!("***************************************************************");
-                println!("***************************************************************");
-                println!("***************************************************************");
-                println!(
-                    "*** _DEBUG: test_platform_build_info_with_build_name: Received ApiMessage: {:?}",
-                    api_message
-                );
-                println!("***************************************************************");
-                println!("***************************************************************");
-                println!("***************************************************************");
-                // Additional assertions for PlatformBuildInfo responses
-
+            while let Some(_api_message) = api_message_rx.recv().await {
                 let mut assertions_done = false;
 
                 if let Some(api_message) = api_message_rx.recv().await {
-                    println!("***************************************************************");
-                    println!("***************************************************************");
-                    println!("***************************************************************");
-                    println!(
-                        "*** _DEBUG: test_platform_build_info_with_build_name: Received ApiMessage: {:?}",
-                        api_message
-                    );
-                    println!("***************************************************************");
-                    println!("***************************************************************");
-                    println!("***************************************************************");
-
                     if let Ok(jsonrpc_msg_value) =
                         serde_json::from_str::<serde_json::Value>(&api_message.jsonrpc_msg)
                     {
@@ -1177,10 +1145,6 @@ pub mod tests {
                 }
             }
         });
-
-        println!(
-            "*** _DEBUG: test_platform_build_info_with_build_name: Calling ThunderDeviceInfoRequestProcessor::process_request"
-        );
 
         ThunderDeviceInfoRequestProcessor::process_request(
             state,
