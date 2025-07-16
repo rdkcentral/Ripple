@@ -133,7 +133,7 @@ impl FireboltGatekeeper {
         filtered_perm_list: Vec<FireboltPermission>,
     ) -> Result<(), DenyReasonWithCap> {
         // permission checks
-        let open_rpc_state = state.clone().open_rpc_state;
+        let open_rpc_state = &state.clone().open_rpc_state;
         // check if the app or method is in permission exclusion list
         if open_rpc_state.is_excluded(request.clone().method, request.clone().ctx.app_id) {
             trace!("Method is exluded from permission check {}", request.method);

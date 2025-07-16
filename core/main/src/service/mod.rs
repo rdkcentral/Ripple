@@ -17,5 +17,6 @@
 
 pub mod apps;
 pub mod extn;
+pub mod ripple_service;
 pub mod telemetry_builder;
 pub mod user_grants;
