@@ -87,3 +87,67 @@ pub fn route_service_message(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::service::service_message::{Id, JsonRpcMessage, JsonRpcRequest, ServiceMessage};
+    use serde_json::json;
+    use std::sync::Arc;
+    use tokio::sync::mpsc;
+
+    fn dummy_router_state() -> RouterState {
+        // You may need to adjust this if RouterState has required fields
+        RouterState::default()
+    }
+
+    #[tokio::test]
+    async fn test_route_service_message_request() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let state = dummy_router_state();
+        let req = JsonRpcRequest {
+            jsonrpc: "2.0".to_string(),
+            method: "test_method".to_string(),
+            params: Some(json!({"foo": "bar"})),
+            id: Id::Number(1),
+        };
+        let sm = ServiceMessage {
+            message: JsonRpcMessage::Request(req),
+            context: None,
+        };
+        let _ = route_service_message(&tx, &state, sm);
+    }
+
+    #[tokio::test]
+    async fn test_route_service_message_notification() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let state = dummy_router_state();
+        let sm = ServiceMessage::new_notification("notify".to_string(), None);
+        let res = route_service_message(&tx, &state, sm);
+        assert!(res.is_ok());
+        // No message should be sent for notification
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn test_route_service_message_success() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let state = dummy_router_state();
+        let sm = ServiceMessage::new_success(json!({"ok": true}), Id::Number(2));
+        let res = route_service_message(&tx, &state, sm);
+        assert!(res.is_ok());
+        // No message should be sent for success
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn test_route_service_message_error() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let state = dummy_router_state();
+        let sm = ServiceMessage::new_error(-1, "fail".to_string(), None, Id::Number(3));
+        let res = route_service_message(&tx, &state, sm);
+        assert!(res.is_ok());
+        // No message should be sent for error
+        assert!(rx.try_recv().is_err());
+    }
+}
