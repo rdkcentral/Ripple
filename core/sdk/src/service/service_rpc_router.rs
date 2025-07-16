@@ -93,17 +93,15 @@ mod tests {
     use super::*;
     use crate::service::service_message::{Id, JsonRpcMessage, JsonRpcRequest, ServiceMessage};
     use serde_json::json;
-    use std::sync::Arc;
     use tokio::sync::mpsc;
 
     fn dummy_router_state() -> RouterState {
-        // You may need to adjust this if RouterState has required fields
         RouterState::default()
     }
 
     #[tokio::test]
     async fn test_route_service_message_request() {
-        let (tx, mut rx) = mpsc::channel(1);
+        let (tx, mut _rx) = mpsc::channel(1);
         let state = dummy_router_state();
         let req = JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
