@@ -103,9 +103,9 @@ impl BootstrapState {
             return Err(RippleError::BootstrapError);
         };
         log_memory_usage("After  RippleManifestLoader::initialize()");
-        
+
         let app_manifest_result = LoadAppLibraryStep::load_app_library();
-             log_memory_usage("After LoadAppLibraryStep::load_app_library()");
+        log_memory_usage("After LoadAppLibraryStep::load_app_library()");
         let platform_state = PlatformState::new(
             extn_manifest,
             device_manifest,

@@ -69,11 +69,10 @@ pub fn report_stats(api_stats: &ApiStats) {
         api_stats.stats.get_total_time(),
         get_memory_usage_mb()
     );
-
 }
-#[cfg(not(feature = "local_dev"))] 
+#[cfg(not(feature = "local_dev"))]
 pub fn report_stats(api_stats: &ApiStats) {
-// No-op in non-local development builds
+    // No-op in non-local development builds
     info!(
         "Sending Firebolt response: {:?},{}",
         api_stats.stats_ref,

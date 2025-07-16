@@ -32,7 +32,7 @@ use ripple_sdk::{
         extn_id::ExtnId,
     },
     framework::ripple_contract::RippleContract,
-    utils::error::RippleError,
+    utils::{async_utils::SharedRW, error::RippleError},
     uuid::Uuid,
 };
 use std::collections::HashMap;
@@ -275,7 +275,7 @@ impl Drop for PlatformState {
         );
     }
 }
-
+pub type SharedPlatformState = SharedRW<PlatformState>;
 #[cfg(test)]
 mod tests {
     use super::*;

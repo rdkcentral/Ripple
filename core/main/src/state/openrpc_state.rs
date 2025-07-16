@@ -68,7 +68,7 @@ impl ProviderRelationSet {
 
 #[derive(Debug, Clone)]
 pub struct OpenRpcState {
-    open_rpc: Arc< FireboltOpenRpc>,
+    open_rpc: Arc<FireboltOpenRpc>,
     exclusory: Option<ExclusoryImpl>,
     firebolt_cap_map: Arc<RwLock<HashMap<String, CapabilitySet>>>,
     ripple_cap_map: Arc<RwLock<HashMap<String, CapabilitySet>>>,
@@ -134,7 +134,7 @@ impl OpenRpcState {
             ripple_cap_map: Arc::new(RwLock::new(ripple_open_rpc.get_methods_caps())),
             exclusory,
             cap_policies: Arc::new(RwLock::new(version_manifest.capabilities)),
-            open_rpc:Arc::new(firebolt_open_rpc.clone()),
+            open_rpc: Arc::new(firebolt_open_rpc.clone()),
             extended_rpc: Arc::new(RwLock::new(Vec::new())),
             provider_relation_map: Arc::new(RwLock::new(HashMap::new())),
             openrpc_validator: Arc::new(RwLock::new(rpc_method_validator)),
