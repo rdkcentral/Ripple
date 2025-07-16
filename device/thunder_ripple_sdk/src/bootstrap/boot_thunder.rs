@@ -47,7 +47,7 @@ pub async fn boot_thunder(
     ext_client: ExtnClient,
     device_manifest: &DeviceManifest,
 ) -> Option<ThunderBootstrapStateWithClient> {
-    info!("Booting thunder initiated");
+    info!("Booting thunder initiated, Using thunder_async_clinet");
     let mut status_check = true;
 
     if let Some(status) = ext_client.get_config("thunder_plugin_status_check_at_broker_start_up") {
@@ -55,68 +55,64 @@ pub async fn boot_thunder(
             status_check = s;
         }
     };
-    let state = if ext_client.get_bool_config("use_with_thunder_async_client") {
-        info!("Using thunder_async_clinet");
-        let mut gateway_url = match url::Url::parse(GATEWAY_DEFAULT) {
-            Ok(url) => url,
-            Err(e) => {
-                error!(
-                    "Could not parse default gateway URL '{}': {}",
-                    GATEWAY_DEFAULT, e
-                );
-                return None;
-            }
+
+    let mut gateway_url = match url::Url::parse(GATEWAY_DEFAULT) {
+        Ok(url) => url,
+        Err(e) => {
+            error!(
+                "Could not parse default gateway URL '{}': {}",
+                GATEWAY_DEFAULT, e
+            );
+            return None;
+        }
+    };
+    serde_json::from_value(device_manifest.configuration.platform_parameters.clone())
+        .map(|thunder_parameters: ThunderPlatformParams| {
+            url::Url::parse(&thunder_parameters.gateway).map_or_else(
+                |_| {
+                    warn!(
+                        "Could not parse thunder gateway '{}', using default {}",
+                        thunder_parameters.gateway, GATEWAY_DEFAULT
+                    );
+                },
+                |gtway_url| {
+                    debug!("Got url from device manifest");
+                    gateway_url = gtway_url;
+                },
+            );
+        })
+        .unwrap_or_else(|_| {
+            warn!(
+                "Could not read thunder platform parameters, using default {}",
+                GATEWAY_DEFAULT
+            );
+        });
+
+    if let Ok(host_override) = std::env::var("DEVICE_HOST") {
+        gateway_url.set_host(Some(&host_override)).ok();
+    }
+
+    let state = if let Ok(thndr_client) =
+        ThunderClientBuilder::start_thunder_client(gateway_url.clone(), status_check).await
+    {
+        let thunder_state = ThunderState::new(ext_client.clone(), thndr_client);
+
+        let thndr_boot_statecfg = ThunderBootstrapStateWithConfig {
+            extn_client: ext_client,
+            url: gateway_url,
+            pool_size: None,
+            plugin_param: None,
+            thunder_connection_state: None,
         };
-        serde_json::from_value(device_manifest.configuration.platform_parameters.clone())
-            .map(|thunder_parameters: ThunderPlatformParams| {
-                url::Url::parse(&thunder_parameters.gateway).map_or_else(
-                    |_| {
-                        warn!(
-                            "Could not parse thunder gateway '{}', using default {}",
-                            thunder_parameters.gateway, GATEWAY_DEFAULT
-                        );
-                    },
-                    |gtway_url| {
-                        debug!("Got url from device manifest");
-                        gateway_url = gtway_url;
-                    },
-                );
-            })
-            .unwrap_or_else(|_| {
-                warn!(
-                    "Could not read thunder platform parameters, using default {}",
-                    GATEWAY_DEFAULT
-                );
-            });
 
-        if let Ok(host_override) = std::env::var("DEVICE_HOST") {
-            gateway_url.set_host(Some(&host_override)).ok();
-        }
+        let thndr_boot_stateclient = ThunderBootstrapStateWithClient {
+            prev: thndr_boot_statecfg,
+            state: thunder_state,
+        };
 
-        if let Ok(thndr_client) =
-            ThunderClientBuilder::start_thunder_client(gateway_url.clone(), status_check).await
-        {
-            let thunder_state = ThunderState::new(ext_client.clone(), thndr_client);
+        thndr_boot_stateclient.clone().state.start_event_thread();
 
-            let thndr_boot_statecfg = ThunderBootstrapStateWithConfig {
-                extn_client: ext_client,
-                url: gateway_url,
-                pool_size: None,
-                plugin_param: None,
-                thunder_connection_state: None,
-            };
-
-            let thndr_boot_stateclient = ThunderBootstrapStateWithClient {
-                prev: thndr_boot_statecfg,
-                state: thunder_state,
-            };
-
-            thndr_boot_stateclient.clone().state.start_event_thread();
-
-            Some(thndr_boot_stateclient)
-        } else {
-            None
-        }
+        Some(thndr_boot_stateclient)
     } else {
         error!("Unable to connect to Thunder, error in ThunderGetConfigStep");
         None
