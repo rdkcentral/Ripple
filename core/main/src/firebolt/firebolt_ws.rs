@@ -388,12 +388,13 @@ impl FireboltWs {
                             .metrics
                             .get_api_stats(&api_message.request_id)
                         {
-                            info!(
-                                "Sending Firebolt response: {:?},{} Memory Usage {:.2} MB",
-                                stats.stats_ref,
-                                stats.stats.get_total_time(),
-                                ripple_sdk::utils::test_utils::get_memory_usage_mb()
-                            );
+                            ripple_sdk::utils::test_utils::report_stats(&stats);
+                            // info!(
+                            //     "Sending Firebolt response: {:?},{} Memory Usage {:.2} MB",
+                            //     stats.stats_ref,
+                            //     stats.stats.get_total_time(),
+                            //     ripple_sdk::utils::test_utils::get_memory_usage_mb()
+                            // );
                             debug!(
                                 "Full Firebolt Split: {:?},{}",
                                 stats.stats_ref,

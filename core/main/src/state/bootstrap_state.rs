@@ -22,7 +22,7 @@ use ripple_sdk::{
     framework::bootstrap::TransientChannel,
     log::{error, info, warn},
     tokio::sync::mpsc::{self, Receiver, Sender},
-    utils::error::RippleError,
+    utils::{error::RippleError, test_utils::log_memory_usage},
 };
 
 use crate::{
@@ -97,11 +97,15 @@ impl BootstrapState {
     pub fn build() -> Result<BootstrapState, RippleError> {
         let channels_state = ChannelsState::new();
         let client = RippleClient::new(channels_state.clone());
+        log_memory_usage("After Ripple client::new(..)");
         let Ok((extn_manifest, device_manifest)) = RippleManifestLoader::initialize() else {
             error!("Error initializing manifests");
             return Err(RippleError::BootstrapError);
         };
+        log_memory_usage("After  RippleManifestLoader::initialize()");
+        
         let app_manifest_result = LoadAppLibraryStep::load_app_library();
+             log_memory_usage("After LoadAppLibraryStep::load_app_library()");
         let platform_state = PlatformState::new(
             extn_manifest,
             device_manifest,
@@ -109,6 +113,7 @@ impl BootstrapState {
             app_manifest_result,
             ripple_version_from_etc(),
         );
+        log_memory_usage("After PlatformState::new(..)");
 
         fn ripple_version_from_etc() -> Option<String> {
             static RIPPLE_VER_FILE_DEFAULT: &str = "/etc/rippleversion.txt";

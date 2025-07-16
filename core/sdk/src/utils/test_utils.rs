@@ -14,8 +14,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::api::observability::metrics_util::ApiStats;
 use crate::extn::extn_client_message::ExtnPayloadProvider;
 use crate::framework::ripple_contract::RippleContract;
+use log::info;
 use sysinfo::System;
 
 pub fn test_extn_payload_provider<T>(request: T, contract_type: RippleContract)
@@ -30,7 +32,7 @@ where
         panic!("Test failed for ExtnRequest variant: {:?}", request);
     }
 }
-
+#[cfg(feature = "local_dev")]
 pub fn log_memory_usage(label: &str) {
     let mut sys = System::new();
     sys.refresh_process(sysinfo::get_current_pid().unwrap());
@@ -42,6 +44,10 @@ pub fn log_memory_usage(label: &str) {
         println!("Failed to retrieve process information for memory usage.");
     }
 }
+#[cfg(not(feature = "local_dev"))]
+pub fn log_memory_usage(label: &str) {
+    // No-op in non-local development builds
+}
 
 pub fn get_memory_usage_mb() -> f64 {
     let mut sys = System::new();
@@ -52,4 +58,25 @@ pub fn get_memory_usage_mb() -> f64 {
     } else {
         0.0 // Return 0 if process info is not available
     }
+}
+#[cfg(feature = "local_dev")]
+pub fn report_stats(api_stats: &ApiStats) {
+    let memory_usage = get_memory_usage_mb();
+    println!("Current memory usage: {:.2} MB", memory_usage);
+    info!(
+        "Sending Firebolt response: {:?},{} Memory Usage {:.2} MB",
+        api_stats.stats_ref,
+        api_stats.stats.get_total_time(),
+        get_memory_usage_mb()
+    );
+
+}
+#[cfg(not(feature = "local_dev"))] 
+pub fn report_stats(api_stats: &ApiStats) {
+// No-op in non-local development builds
+    info!(
+        "Sending Firebolt response: {:?},{}",
+        api_stats.stats_ref,
+        api_stats.stats.get_total_time()
+    );
 }
