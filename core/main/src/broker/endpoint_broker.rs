@@ -497,7 +497,7 @@ impl EndpointBrokerState {
         self.rule_engine = Arc::new(RwLock::new(rule_engine));
         self
     }
-    pub fn add_rule(mut self, rule: Rule) -> Self {
+    pub fn add_rule(self, rule: Rule) -> Self {
         self.rule_engine.write().unwrap().add_rule(rule);
         self
     }
@@ -660,7 +660,13 @@ impl EndpointBrokerState {
     }
     pub fn build_thunder_endpoint(&mut self, ps: Option<PlatformState>) {
         let endpoint = {
-            self.rule_engine.write().unwrap().rules.endpoints.get("thunder").cloned()
+            self.rule_engine
+                .write()
+                .unwrap()
+                .rules
+                .endpoints
+                .get("thunder")
+                .cloned()
         };
         if let Some(endpoint) = endpoint {
             let request = BrokerConnectRequest::new(
@@ -1066,7 +1072,7 @@ impl EndpointBrokerState {
     }
 
     pub fn get_rule(&self, rpc_request: &RpcRequest) -> Result<RuleRetrieved, RuleRetrievalError> {
-        return self.rule_engine.read().unwrap().get_rule(rpc_request)
+        return self.rule_engine.read().unwrap().get_rule(rpc_request);
     }
 
     // Method to cleanup all subscription on App termination
