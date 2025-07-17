@@ -23,7 +23,9 @@ use jsonrpsee::{
 use ripple_sdk::{
     api::{
         apps::{AppManagerResponse, AppMethod, AppRequest, AppResponse},
-        device::device_user_grants_data::{GrantEntry, GrantStateModify},
+        device::device_user_grants_data::{
+            GrantEntry, GrantLifespan, GrantStateModify, PolicyPersistenceType,
+        },
         firebolt::{
             fb_capabilities::{DenyReason, FireboltPermission, CAPABILITY_NOT_PERMITTED},
             fb_user_grants::{
@@ -32,6 +34,7 @@ use ripple_sdk::{
             },
         },
         gateway::rpc_gateway_api::{AppIdentification, CallContext},
+        usergrant_entry::UserGrantInfo,
     },
     chrono::{DateTime, Utc},
     log::debug,
@@ -79,6 +82,16 @@ pub trait UserGrants {
         ctx: CallContext,
         request: UserGrantRequestParam,
     ) -> RpcResult<Vec<GrantInfo>>;
+    #[method(name = "ripple.clearUserGrants")]
+    async fn clear_user_grants(&self, ctx: CallContext) -> RpcResult<()>;
+    #[method(name = "ripple.setUserGrants")]
+    async fn set_user_grant(
+        &self,
+        ctx: CallContext,
+        user_grant_info: UserGrantInfo,
+    ) -> RpcResult<()>;
+    #[method(name = "ripple.syncGrantsMap")]
+    async fn sync_user_grants_map(&self, ctx: CallContext) -> RpcResult<()>;
 }
 
 #[derive(Debug)]
@@ -164,6 +177,54 @@ impl UserGrantsImpl {
 
 #[async_trait]
 impl UserGrantsServer for UserGrantsImpl {
+    async fn set_user_grant(
+        &self,
+        _ctx: CallContext,
+        user_grant_info: UserGrantInfo,
+    ) -> RpcResult<()> {
+        debug!("Handling set user grant request: {:?}", user_grant_info);
+        let app_id = user_grant_info.app_name.to_owned();
+        let grant_entry = GrantEntry {
+            role: user_grant_info.role,
+            capability: user_grant_info.capability.to_owned(),
+            status: user_grant_info.status,
+            lifespan: match user_grant_info.expiry_time {
+                Some(_) => Some(GrantLifespan::Seconds),
+                None => Some(GrantLifespan::Forever),
+            },
+            last_modified_time: user_grant_info.last_modified_time,
+            lifespan_ttl_in_secs: user_grant_info.expiry_time.map(|epoch_duration| {
+                epoch_duration
+                    .as_secs()
+                    .saturating_sub(user_grant_info.last_modified_time.as_secs())
+            }),
+        };
+        let _ = self
+            .platform_state
+            .cap_state
+            .grant_state
+            .update_grant_entry(app_id, grant_entry);
+        Ok(())
+    }
+    async fn sync_user_grants_map(&self, _ctx: CallContext) -> RpcResult<()> {
+        debug!("Handling sync grant map request");
+        let _ = self
+            .platform_state
+            .cap_state
+            .grant_state
+            .sync_grant_map_with_grant_policy(&self.platform_state)
+            .await;
+        Ok(())
+    }
+    async fn clear_user_grants(&self, _ctx: CallContext) -> RpcResult<()> {
+        debug!("Handling clear user grants request");
+        let _ = self
+            .platform_state
+            .cap_state
+            .grant_state
+            .clear_local_entries(&self.platform_state, PolicyPersistenceType::Account);
+        Ok(())
+    }
     async fn usergrants_app(
         &self,
         _ctx: CallContext,

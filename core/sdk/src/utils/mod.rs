@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-
+pub mod async_utils;
 pub mod channel_utils;
 pub mod error;
 pub mod extn_utils;

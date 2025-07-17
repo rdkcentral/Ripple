@@ -39,9 +39,7 @@ use crate::{
     thunder_state::ThunderState,
 };
 
-use super::events::thunder_event_handlers::{
-    AudioChangedEvent, HDCPEventHandler, VoiceGuidanceEnabledChangedEventHandler,
-};
+use super::events::thunder_event_handlers::{AudioChangedEvent, HDCPEventHandler};
 
 #[derive(Debug)]
 pub struct ThunderOpenEventsProcessor {
@@ -107,11 +105,6 @@ impl ExtnRequestProcessor for ThunderOpenEventsProcessor {
                 listen,
                 id.clone(),
                 HDCPEventHandler::provide(id, callback_type),
-            )),
-            DeviceEvent::VoiceGuidanceEnabledChanged => Some(state.handle_listener(
-                listen,
-                id.clone(),
-                VoiceGuidanceEnabledChangedEventHandler::provide(id, callback_type),
             )),
         } {
             v.await;

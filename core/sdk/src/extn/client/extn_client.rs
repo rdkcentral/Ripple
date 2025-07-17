@@ -312,7 +312,7 @@ impl ExtnClient {
     }
 
     pub fn handle_message(&self, message: ExtnMessage) -> ControlFlow<()> {
-        trace!("IEC recv: {:?}", message);
+        trace!("IEC recv: {:#?}", message);
         if message.payload.is_response() {
             Self::handle_single(message, self.response_processors.clone());
         } else if message.payload.is_event() {

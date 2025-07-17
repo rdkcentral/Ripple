@@ -21,6 +21,7 @@ use serde_json::{Map, Value};
 use std::{
     collections::{HashMap, HashSet},
     fs,
+    hash::{Hash, Hasher},
     path::Path,
 };
 
@@ -154,24 +155,14 @@ impl MergeConfig<CascadedRippleConfiguration> for RippleConfiguration {
             self.distributor_experience_id = cas_distributor_experience_id
         }
 
-        if let Some(cascaded_distributor_services) = cascaded.distributor_services {
-            match &mut self.distributor_services {
-                Some(existing_value) => {
-                    if existing_value.is_object() && cascaded_distributor_services.is_object() {
-                        let mut merged_object = existing_value.as_object().unwrap().clone();
-                        let cascaded_object = cascaded_distributor_services.as_object().unwrap();
-                        // Use the helper function here
-                        merge_json_objects(&mut merged_object, cascaded_object);
-                        self.distributor_services = Some(Value::Object(merged_object));
-                    } else {
-                        // Override with the new value
-                        self.distributor_services = Some(cascaded_distributor_services);
-                    }
-                }
-                None => {
-                    self.distributor_services = Some(cascaded_distributor_services);
-                }
+        if let Some(ref mut self_val) = &mut self.distributor_services {
+            if let Some(other_val) = cascaded.distributor_services {
+                merge_json_values(self_val, &other_val);
             }
+            // If self.distributor_services is Some and cascaded.distributor_services is None, do nothing.
+        } else if let Some(other_val) = cascaded.distributor_services {
+            self.distributor_services = Some(other_val);
+            // If both are None, do nothing.
         }
 
         if let Some(cascaded_exclusory) = cascaded.exclusory {
@@ -272,6 +263,7 @@ pub struct CascadedDefaultValues {
     pub skip_restriction: Option<String>,
     pub video_dimensions: Option<Vec<i32>>,
     pub lifecycle_transition_validate: Option<bool>,
+    #[serde(default, rename = "mediaProgressAsWatchedEvents")]
     pub media_progress_as_watched_events: Option<bool>,
     pub accessibility_audio_description_settings: Option<bool>,
     pub role_based_support: Option<bool>,
@@ -967,6 +959,70 @@ impl MergeConfig<CascadedDataGovernanceSettingTag> for DataGovernanceSettingTag 
         }
         if let Some(cas_tags) = cascaded.tags {
             self.tags.extend(cas_tags);
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+struct HashableValue(pub Value);
+
+impl Hash for HashableValue {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match &self.0 {
+            Value::Null => 0.hash(state),
+            Value::Bool(b) => b.hash(state),
+            Value::Number(n) => {
+                if let Some(i) = n.as_i64() {
+                    i.hash(state);
+                } else if let Some(u) = n.as_u64() {
+                    u.hash(state);
+                } else if let Some(f) = n.as_f64() {
+                    f.to_bits().hash(state);
+                }
+            }
+            Value::String(s) => s.hash(state),
+            Value::Array(arr) => {
+                for item in arr {
+                    HashableValue(item.clone()).hash(state);
+                }
+            }
+            Value::Object(obj) => {
+                let mut sorted_keys: Vec<_> = obj.keys().collect();
+                sorted_keys.sort_unstable();
+                for key in sorted_keys {
+                    key.hash(state);
+                    HashableValue(obj[key].clone()).hash(state);
+                }
+            }
+        }
+    }
+}
+
+fn merge_json_values(destination: &mut Value, source: &Value) {
+    match (destination, source) {
+        (Value::Object(dest_map), Value::Object(source_map)) => {
+            for (key, source_value) in source_map {
+                if let Some(dest_value) = dest_map.get_mut(key) {
+                    merge_json_values(dest_value, source_value);
+                } else {
+                    dest_map.insert(key.clone(), source_value.clone());
+                }
+            }
+        }
+        (Value::Array(dest_array), Value::Array(source_array)) => {
+            dest_array.extend(source_array.iter().cloned());
+            let mut seen = HashSet::new();
+            let mut unique_array = Vec::new();
+            for item in dest_array.drain(..) {
+                let hashable_item = HashableValue(item.clone());
+                if seen.insert(hashable_item) {
+                    unique_array.push(item);
+                }
+            }
+            *dest_array = unique_array;
+        }
+        (dest, src) => {
+            *dest = src.clone();
         }
     }
 }

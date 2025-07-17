@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use jsonrpsee::core::RpcResult;
 use std::collections::HashMap;
 
 use ripple_sdk::{
@@ -49,7 +50,6 @@ use crate::{
     firebolt::handlers::{
         capabilities_rpc::is_permitted, closed_captions_rpc::ClosedcaptionsImpl,
         discovery_rpc::DiscoveryImpl, privacy_rpc::PrivacyImpl,
-        voice_guidance_rpc::voice_guidance_settings_enabled,
     },
     service::apps::app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
     state::platform_state::PlatformState,
@@ -85,6 +85,26 @@ impl AppEventDecorator for SettingsChangeEventDecorator {
 pub struct SettingsProcessor {
     state: PlatformState,
     streamer: DefaultExtnStreamer,
+}
+
+async fn voice_guidance_settings_enabled(state: &PlatformState) -> RpcResult<bool> {
+    match BrokerUtils::process_internal_main_request(&state.clone(), "voiceguidance.enabled", None)
+        .await
+    {
+        Ok(enabled_value) => {
+            if let Value::Bool(enabled) = enabled_value {
+                Ok(enabled)
+            } else {
+                Err(jsonrpsee::core::Error::Custom(String::from(
+                    "voice_guidance_settings_enabled: Unexpected value type",
+                )))
+            }
+        }
+        Err(e) => Err(jsonrpsee::core::Error::Custom(format!(
+            "voice_guidance_settings_enabled: e={}",
+            e
+        ))),
+    }
 }
 
 impl SettingsProcessor {
