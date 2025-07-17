@@ -297,6 +297,11 @@ impl FireboltOpenRpc {
             rpc.methods.push(m.clone());
         }
     }
+
+    pub fn to_shrink(&mut self) {
+        self.methods.shrink_to_fit();
+        self.capabilities.shrink_to_fit();
+    }
 }
 
 #[derive(Deserialize, Debug, Clone)]

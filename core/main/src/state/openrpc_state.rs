@@ -68,7 +68,7 @@ impl ProviderRelationSet {
 
 #[derive(Debug, Clone)]
 pub struct OpenRpcState {
-    open_rpc: FireboltOpenRpc,
+    open_rpc: Arc<RwLock<FireboltOpenRpc>>,
     exclusory: Option<ExclusoryImpl>,
     firebolt_cap_map: Arc<RwLock<HashMap<String, CapabilitySet>>>,
     ripple_cap_map: Arc<RwLock<HashMap<String, CapabilitySet>>>,
@@ -123,18 +123,21 @@ impl OpenRpcState {
         let open_rpc_path = load_firebolt_open_rpc_path().expect("Need valid open-rpc file");
         let version_manifest: FireboltVersionManifest = serde_json::from_str(&open_rpc_path)
             .expect("Failed parsing FireboltVersionManifest from open RPC file");
-        let firebolt_open_rpc: FireboltOpenRpc = version_manifest.clone().into();
+        let mut firebolt_open_rpc: FireboltOpenRpc = version_manifest.clone().to_owned().into();
+        firebolt_open_rpc.to_shrink();
         let ripple_open_rpc: FireboltOpenRpc = FireboltOpenRpc::default();
-        let openrpc_validator: FireboltOpenRpcValidator = serde_json::from_str(&open_rpc_path)
+        let mut openrpc_validator: FireboltOpenRpcValidator = serde_json::from_str(&open_rpc_path)
             .expect("Failed parsing FireboltOpenRpcValidator from open RPC file");
+        openrpc_validator.apis.shrink_to_fit();
         let mut rpc_method_validator = RpcMethodValidator::new();
         rpc_method_validator.add_schema(openrpc_validator);
+        rpc_method_validator.validators.shrink_to_fit();
         let v = OpenRpcState {
             firebolt_cap_map: Arc::new(RwLock::new(firebolt_open_rpc.get_methods_caps())),
             ripple_cap_map: Arc::new(RwLock::new(ripple_open_rpc.get_methods_caps())),
             exclusory,
             cap_policies: Arc::new(RwLock::new(version_manifest.capabilities)),
-            open_rpc: firebolt_open_rpc.clone(),
+            open_rpc: Arc::new(RwLock::new(firebolt_open_rpc.to_owned())),
             extended_rpc: Arc::new(RwLock::new(Vec::new())),
             provider_relation_map: Arc::new(RwLock::new(HashMap::new())),
             openrpc_validator: Arc::new(RwLock::new(rpc_method_validator)),
@@ -237,7 +240,14 @@ impl OpenRpcState {
     }
 
     pub fn check_privacy_property(&self, property: &str) -> bool {
-        if let Some(method) = self.open_rpc.methods.iter().find(|x| x.is_named(property)) {
+        if let Some(method) = self
+            .open_rpc
+            .read()
+            .unwrap()
+            .methods
+            .iter()
+            .find(|x| x.is_named(property))
+        {
             // Checking if the property tag is havin x-allow-value extension.
             if let Some(tags) = &method.tags {
                 if tags
@@ -275,6 +285,8 @@ impl OpenRpcState {
     ) -> Option<FireboltOpenRpcMethod> {
         if let Some(v) = self
             .open_rpc
+            .read()
+            .unwrap()
             .methods
             .iter()
             .find(|x| {
@@ -316,7 +328,7 @@ impl OpenRpcState {
     }
 
     pub fn get_open_rpc(&self) -> FireboltOpenRpc {
-        self.open_rpc.clone()
+        self.open_rpc.read().unwrap().to_owned()
     }
 
     pub fn get_provider_relation_map(&self) -> HashMap<String, ProviderRelationSet> {
@@ -331,7 +343,7 @@ impl OpenRpcState {
     }
 
     pub fn get_version(&self) -> FireboltSemanticVersion {
-        self.open_rpc.info.clone()
+        self.open_rpc.read().unwrap().info.to_owned()
     }
 
     pub fn get_openrpc_validator(&self) -> RpcMethodValidator {
