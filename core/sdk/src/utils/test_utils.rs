@@ -31,6 +31,7 @@ where
     }
 }
 
+
 pub fn log_memory_usage(label: &str) {
     let mut sys = System::new();
     sys.refresh_process(sysinfo::get_current_pid().unwrap());
