@@ -35,10 +35,7 @@ use ripple_sdk::{
     utils::error::RippleError,
     uuid::Uuid,
 };
-use std::{
-    collections::HashMap,
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     broker::{endpoint_broker::EndpointBrokerState, rules::rules_engine::RuleEngine},
@@ -156,9 +153,7 @@ impl PlatformState {
     }
 
     pub fn has_internal_launcher(&self) -> bool {
-        self.extn_manifest
-            .get_launcher_capability()
-            .is_some()
+        self.extn_manifest.get_launcher_capability().is_some()
     }
 
     pub fn get_launcher_capability(&self) -> Option<ExtnId> {
@@ -166,21 +161,20 @@ impl PlatformState {
     }
 
     pub fn get_distributor_capability(&self) -> Option<ExtnId> {
-        self.extn_manifest
-            .get_distributor_capability()
+        self.extn_manifest.get_distributor_capability()
     }
 
     pub fn get_manifest(&self) -> ExtnManifest {
-            (*self.extn_manifest).clone()
-        }
+        (*self.extn_manifest).clone()
+    }
 
     pub fn get_rpc_aliases(&self) -> HashMap<String, Vec<String>> {
         self.extn_manifest.rpc_aliases.clone()
     }
 
     pub fn get_device_manifest(&self) -> DeviceManifest {
-            (*self.device_manifest).clone()
-        }
+        (*self.device_manifest).clone()
+    }
 
     pub fn get_client(&self) -> RippleClient {
         self.ripple_client.clone()
@@ -199,16 +193,12 @@ impl PlatformState {
 
     pub fn supports_session(&self) -> bool {
         let contract = RippleContract::Session(SessionAdjective::Account).as_clear_string();
-        self.extn_manifest
-            .required_contracts
-            .contains(&contract)
+        self.extn_manifest.required_contracts.contains(&contract)
     }
 
     pub fn supports_rfc(&self) -> bool {
         let contract = RippleContract::RemoteFeatureControl.as_clear_string();
-        self.extn_manifest
-            .required_contracts
-            .contains(&contract)
+        self.extn_manifest.required_contracts.contains(&contract)
     }
     ///
     /// War on dots
