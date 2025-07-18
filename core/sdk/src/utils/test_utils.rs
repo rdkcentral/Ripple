@@ -47,6 +47,7 @@ pub fn log_memory_usage(label: &str) {
 #[cfg(not(feature = "local_dev"))]
 pub fn log_memory_usage(label: &str) {
     // No-op in non-local development builds
+    println!("no Memory");
 }
 #[cfg(feature = "local_dev")]
 pub fn get_memory_usage_mb() -> f64 {
