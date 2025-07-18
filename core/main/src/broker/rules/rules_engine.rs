@@ -531,15 +531,14 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
     // which do not include filters in the standard library
     // such as `map`, `select` etc.
 
-    // Lock and use the shared ParseCtx
-    let mut defs = get_parse_ctx();
-
     // Parse the filter
     let (f, errs) = jaq_parse::parse(filter, jaq_parse::main());
     if !errs.is_empty() {
         error!("Error in rule {:?}: {:?}", reference, errs);
         return Err(RippleError::RuleError);
     }
+    // Lock and use the shared ParseCtx
+    let mut defs = get_parse_ctx();
     // compile the filter in the context of the given definitions
     let f = defs.compile(f.unwrap());
     if !defs.errs.is_empty() {
@@ -547,9 +546,9 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
         for (err, _) in &defs.errs {
             error!("reference={} {}", reference, err);
         }
+        defs.errs.clear(); // Clear errors before returning
         return Err(RippleError::RuleError);
     }
-
     let inputs = RcIter::new(core::iter::empty());
     // iterator over the output values
     let mut out = f.run((Ctx::new([], &inputs), Val::from(input)));
