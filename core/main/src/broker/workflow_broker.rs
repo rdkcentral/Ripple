@@ -307,6 +307,8 @@ write exhaustive tests for the WorkflowBroker
 #[cfg(test)]
 pub mod tests {
 
+    use std::sync::{Arc, RwLock};
+
     use ripple_sdk::{api::gateway::rpc_gateway_api::RpcRequest, tokio, Mockable};
     use serde_json::json;
 
@@ -366,7 +368,7 @@ pub mod tests {
         engine.unwrap()
     }
     pub fn endppoint_broker_state() -> EndpointBrokerState {
-        EndpointBrokerState::default().with_rules_engine(rule_engine())
+        EndpointBrokerState::default().with_rules_engine(Arc::new(RwLock::new(rule_engine())))
     }
 
     #[tokio::test]

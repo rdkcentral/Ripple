@@ -21,7 +21,7 @@ edition = "2021"
 repository = "https://github.com/rdkcentral/Ripple"
 
 [features]
-local_dev = ["jsonrpsee"]
+local_dev = ["jsonrpsee", "sysinfo"]
 default = []
 rpc = ["jsonrpsee"]
 tdk = []
@@ -73,6 +73,7 @@ tokio-tungstenite = { workspace = true, features = ["handshake", "connect"]}
 url.workspace = true
 futures-util = { version = "0.3.28", features = ["sink", "std"], default-features = false}
 mock_app_gw = { path = "src/service/mock_app_gw", optional = true}
+sysinfo = {version = "0.30", optional = true }
 
 [dev-dependencies]
 ripple_sdk = { path = ".", features=["tdk"]}

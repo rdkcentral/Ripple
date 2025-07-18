@@ -129,7 +129,8 @@ impl ExtnRequestProcessor for ConfigRequestProcessor {
                     .unwrap_or_default(),
             ),
             Config::Firebolt => ExtnResponse::Value(
-                serde_json::to_value(state.open_rpc_state.get_open_rpc()).unwrap_or_default(),
+                serde_json::to_value(&*state.open_rpc_state.get_open_rpc().clone())
+                    .unwrap_or_default(),
             ),
             Config::RFC(flag) => {
                 let mut resp =
