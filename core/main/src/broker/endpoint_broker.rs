@@ -493,8 +493,8 @@ impl EndpointBrokerState {
         state.reconnect_thread(_rec_tr, _ripple_client);
         state
     }
-    pub fn with_rules_engine(mut self, rule_engine: RuleEngine) -> Self {
-        self.rule_engine = Arc::new(RwLock::new(rule_engine));
+    pub fn with_rules_engine(mut self, rule_engine: Arc<RwLock<RuleEngine>>) -> Self {
+        self.rule_engine = rule_engine;
         self
     }
     pub fn add_rule(self, rule: Rule) -> Self {
