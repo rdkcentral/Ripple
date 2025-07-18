@@ -1071,10 +1071,6 @@ impl EndpointBrokerState {
         }
     }
 
-    pub fn get_rule(&self, rpc_request: &RpcRequest) -> Result<RuleRetrieved, RuleRetrievalError> {
-        return self.rule_engine.read().unwrap().get_rule(rpc_request);
-    }
-
     // Method to cleanup all subscription on App termination
     pub async fn cleanup_for_app(&self, app_id: &str) {
         let cleaners = { self.cleaner_list.read().unwrap().clone() };
