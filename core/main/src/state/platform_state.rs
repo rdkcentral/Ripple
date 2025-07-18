@@ -35,7 +35,10 @@ use ripple_sdk::{
     utils::error::RippleError,
     uuid::Uuid,
 };
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
 use crate::{
     broker::{endpoint_broker::EndpointBrokerState, rules::rules_engine::RuleEngine},
@@ -93,8 +96,8 @@ impl From<String> for DeviceSessionIdentifier {
 
 #[derive(Debug, Clone)]
 pub struct PlatformState {
-    pub extn_manifest: ExtnManifest,
-    device_manifest: DeviceManifest,
+    pub extn_manifest: Arc<RwLock<ExtnManifest>>,
+    device_manifest: Arc<RwLock<DeviceManifest>>,
     pub ripple_client: RippleClient,
     pub app_library_state: AppLibraryState,
     pub session_state: SessionState,
@@ -127,15 +130,15 @@ impl PlatformState {
         let provider_registations = extn_manifest.provider_registrations.clone();
         let metrics_state = OpMetricState::default();
         Self {
-            extn_manifest,
+            extn_manifest: Arc::new(RwLock::new(extn_manifest)),
             cap_state: CapState::new(manifest.clone()),
             session_state: SessionState::default(),
-            device_manifest: manifest.clone(),
+            device_manifest: Arc::new(RwLock::new(manifest.clone())),
             ripple_client: client.clone(),
             app_library_state: AppLibraryState::new(app_library),
             app_events_state: AppEventsState::default(),
             provider_broker_state: ProviderBrokerState::default(),
-            app_manager_state: AppManagerState::new(&manifest.configuration.saved_dir),
+            app_manager_state: AppManagerState::new(&manifest.configuration.saved_dir.clone()),
             open_rpc_state: OpenRpcState::new(Some(exclusory), extn_sdks, provider_registations),
             router_state: RouterState::new(),
             metrics: metrics_state.clone(),
@@ -153,27 +156,34 @@ impl PlatformState {
     }
 
     pub fn has_internal_launcher(&self) -> bool {
-        self.extn_manifest.get_launcher_capability().is_some()
+        self.extn_manifest
+            .read()
+            .unwrap()
+            .get_launcher_capability()
+            .is_some()
     }
 
     pub fn get_launcher_capability(&self) -> Option<ExtnId> {
-        self.extn_manifest.get_launcher_capability()
+        self.extn_manifest.read().unwrap().get_launcher_capability()
     }
 
     pub fn get_distributor_capability(&self) -> Option<ExtnId> {
-        self.extn_manifest.get_distributor_capability()
+        self.extn_manifest
+            .read()
+            .unwrap()
+            .get_distributor_capability()
     }
 
     pub fn get_manifest(&self) -> ExtnManifest {
-        self.extn_manifest.clone()
+        self.extn_manifest.read().unwrap().clone()
     }
 
     pub fn get_rpc_aliases(&self) -> HashMap<String, Vec<String>> {
-        self.extn_manifest.clone().rpc_aliases
+        self.extn_manifest.read().unwrap().rpc_aliases.clone()
     }
 
     pub fn get_device_manifest(&self) -> DeviceManifest {
-        self.device_manifest.clone()
+        self.device_manifest.read().unwrap().clone()
     }
 
     pub fn get_client(&self) -> RippleClient {
@@ -193,12 +203,20 @@ impl PlatformState {
 
     pub fn supports_session(&self) -> bool {
         let contract = RippleContract::Session(SessionAdjective::Account).as_clear_string();
-        self.extn_manifest.required_contracts.contains(&contract)
+        self.extn_manifest
+            .read()
+            .unwrap()
+            .required_contracts
+            .contains(&contract)
     }
 
     pub fn supports_rfc(&self) -> bool {
         let contract = RippleContract::RemoteFeatureControl.as_clear_string();
-        self.extn_manifest.required_contracts.contains(&contract)
+        self.extn_manifest
+            .read()
+            .unwrap()
+            .required_contracts
+            .contains(&contract)
     }
     ///
     /// War on dots

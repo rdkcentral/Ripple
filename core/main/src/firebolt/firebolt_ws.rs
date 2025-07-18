@@ -267,7 +267,7 @@ impl FireboltWs {
         let listener = try_socket.unwrap_or_else(|_| panic!("Failed to bind {:?}", server_addr));
         info!("Listening on: {} secure={}", server_addr, secure);
         let state_for_connection = state.clone();
-        let extns = state.extn_manifest.get_all_extns();
+        let extns = state.extn_manifest.read().unwrap().get_all_extns();
         let app_state = state.app_manager_state.clone();
         let app_state2_0 = state.lifecycle2_app_state.clone();
         let app_lifecycle_2_enabled = std::env::var("RIPPLE_LIFECYCLE_2_ENABLED")
