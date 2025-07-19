@@ -113,7 +113,7 @@ pub struct PlatformState {
 }
 
 impl PlatformState {
-    pub fn new(
+    pub fn new_instance(
         extn_manifest: ExtnManifest,
         manifest: DeviceManifest,
         client: RippleClient,
@@ -150,6 +150,21 @@ impl PlatformState {
             ),
             lifecycle2_app_state: AppManagerState2_0::new(),
         }
+    }
+    pub fn new(
+        extn_manifest: ExtnManifest,
+        manifest: DeviceManifest,
+        client: RippleClient,
+        app_library: Vec<AppLibraryEntry>,
+        version: Option<String>,
+    ) -> SharedPlatformState {
+        Arc::new(Self::new_instance(
+            extn_manifest,
+            manifest,
+            client,
+            app_library,
+            version,
+        ))
     }
 
     pub fn has_internal_launcher(&self) -> bool {
@@ -223,6 +238,8 @@ impl PlatformState {
             .await
     }
 }
+
+pub type SharedPlatformState = std::sync::Arc<PlatformState>;
 
 #[cfg(test)]
 mod tests {

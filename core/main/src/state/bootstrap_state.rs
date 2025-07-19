@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
 use ripple_sdk::{
     api::{apps::AppRequest, manifest::ripple_manifest_loader::RippleManifestLoader},
@@ -89,7 +89,7 @@ impl Default for ChannelsState {
 #[derive(Debug, Clone)]
 pub struct BootstrapState {
     pub start_time: Instant,
-    pub platform_state: PlatformState,
+    pub platform_state: Arc<PlatformState>,
     pub channels_state: ChannelsState,
 }
 

@@ -18,7 +18,7 @@
 use jsonrpsee::RpcModule;
 use ripple_sdk::log::error;
 
-use crate::state::platform_state::PlatformState;
+use crate::state::platform_state::{PlatformState, SharedPlatformState};
 
 struct RegisteredAlias {
     method: String,
@@ -29,15 +29,15 @@ pub trait RippleRPCProvider<I>
 where
     I: Send + Sync + 'static,
 {
-    fn provide_with_alias(state: PlatformState) -> RpcModule<I> {
+    fn provide_with_alias(state: SharedPlatformState) -> RpcModule<I> {
         let r: RpcModule<I> = Self::provide(state.clone());
         register_aliases(&state, r)
     }
-    fn provide(state: PlatformState) -> RpcModule<I>;
+    fn provide(state: SharedPlatformState) -> RpcModule<I>;
 }
 
 pub fn register_aliases<I>(
-    platform_state: &PlatformState,
+    platform_state: SharedPlatformState,
     mut rpc_module: RpcModule<I>,
 ) -> RpcModule<I>
 where

@@ -46,8 +46,10 @@ use crate::{
         telemetry_builder::TelemetryBuilder,
     },
     state::{
-        bootstrap_state::BootstrapState, openrpc_state::OpenRpcState,
-        platform_state::PlatformState, session_state::Session,
+        bootstrap_state::BootstrapState,
+        openrpc_state::OpenRpcState,
+        platform_state::{PlatformState, SharedPlatformState},
+        session_state::Session,
     },
     utils::router_utils::{capture_stage, get_rpc_header_with_status},
 };
@@ -165,7 +167,7 @@ impl FireboltGateway {
     }
 
     fn handle_broker_callback(
-        platform_state: PlatformState,
+        platform_state: SharedPlatformState,
         rpc_request: RpcRequest,
     ) -> Sender<BrokerOutput> {
         const REQUESTOR_CALLBACK_TIMEOUT_SECS: u64 = 10;

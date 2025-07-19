@@ -23,7 +23,10 @@ use crate::{
         app_events::AppEvents,
         provider_broker::{ProviderBroker, ProviderBrokerRequest},
     },
-    state::{openrpc_state::ProviderRelationSet, platform_state::PlatformState},
+    state::{
+        openrpc_state::ProviderRelationSet,
+        platform_state::{PlatformState, SharedPlatformState},
+    },
 };
 use jsonrpsee::{
     core::{server::rpc_module::Methods, Error, RpcResult},
@@ -676,7 +679,7 @@ impl ProviderRegistrar {
         Ok(None)
     }
 
-    pub fn register_methods(platform_state: &PlatformState, methods: &mut Methods) -> u32 {
+    pub fn register_methods(platform_state: SharedPlatformState, methods: &mut Methods) -> u32 {
         let provider_relation_map = platform_state.open_rpc_state.get_provider_relation_map();
         let mut registered_methods = 0;
 

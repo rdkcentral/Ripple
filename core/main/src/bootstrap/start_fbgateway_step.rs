@@ -35,7 +35,10 @@ use crate::{
         rpc::RippleRPCProvider,
     },
     service::telemetry_builder::TelemetryBuilder,
-    state::{bootstrap_state::BootstrapState, platform_state::PlatformState},
+    state::{
+        bootstrap_state::BootstrapState,
+        platform_state::{PlatformState, SharedPlatformState},
+    },
 };
 use jsonrpsee::core::{async_trait, server::rpc_module::Methods};
 use ripple_sdk::log::{debug, info};
@@ -43,12 +46,12 @@ use ripple_sdk::{framework::bootstrap::Bootstep, utils::error::RippleError};
 pub struct FireboltGatewayStep;
 
 impl FireboltGatewayStep {
-    async fn init_handlers(&self, state: PlatformState) -> Methods {
+    async fn init_handlers(&self, state: SharedPlatformState) -> Methods {
         let mut methods = Methods::new();
 
         // TODO: Ultimately this may be able to register all providers below, for now just does
         // those included by build_provider_relation_sets().
-        ProviderRegistrar::register_methods(&state, &mut methods);
+        ProviderRegistrar::register_methods(state.clone(), &mut methods);
 
         let _ = methods.merge(DeviceRPCProvider::provide_with_alias(state.clone()));
         let _ = methods.merge(WifiRPCProvider::provide_with_alias(state.clone()));

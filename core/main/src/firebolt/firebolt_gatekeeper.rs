@@ -25,6 +25,7 @@ use ripple_sdk::log::trace;
 
 use crate::service::user_grants::GrantState;
 use crate::state::openrpc_state::ApiSurface;
+use crate::state::platform_state::SharedPlatformState;
 use crate::state::{cap::permitted_state::PermissionHandler, platform_state::PlatformState};
 
 pub struct FireboltGatekeeper {}
@@ -77,7 +78,7 @@ impl FireboltGatekeeper {
     }
     // TODO return Deny Reason into ripple error
     pub async fn gate(
-        state: PlatformState,
+        state: SharedPlatformState,
         request: RpcRequest,
     ) -> Result<Vec<FireboltPermission>, DenyReasonWithCap> {
         let caps =

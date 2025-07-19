@@ -24,7 +24,8 @@ use super::firebolt_gateway::FireboltGatewayCommand;
 use crate::{
     service::apps::delegated_launcher_handler::{AppManagerState, AppManagerState2_0},
     state::{
-        cap::permitted_state::PermissionHandler, platform_state::PlatformState,
+        cap::permitted_state::PermissionHandler,
+        platform_state::{PlatformState, SharedPlatformState},
         session_state::Session,
     },
 };
@@ -258,7 +259,7 @@ impl tungstenite::handshake::server::Callback for ConnectionCallback {
 impl FireboltWs {
     pub async fn start(
         server_addr: &str,
-        state: PlatformState,
+        state: SharedPlatformState,
         secure: bool,
         internal_app_id: Option<String>,
     ) {
@@ -314,7 +315,7 @@ impl FireboltWs {
         _client_addr: SocketAddr,
         ws_stream: WebSocketStream<TcpStream>,
         connect_rx: oneshot::Receiver<ClientIdentity>,
-        state: PlatformState,
+        state: SharedPlatformState,
         gateway_secure: bool,
     ) {
         let identity = connect_rx.await.unwrap();
