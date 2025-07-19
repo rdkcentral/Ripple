@@ -74,7 +74,7 @@ pub struct ClientIdentity {
 
 struct ConnectionCallbackConfig {
     pub next: oneshot::Sender<ClientIdentity>,
-    pub app_state: AppManagerState,
+    pub app_state: Arc<AppManagerState>,
     pub app_state2_0: AppManagerState2_0,
     pub app_lifecycle_2_enabled: bool,
     pub secure: bool,

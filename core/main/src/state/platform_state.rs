@@ -102,7 +102,7 @@ pub struct PlatformStateContainer {
     pub cap_state: Arc<CapState>,
     pub app_events_state: AppEventsState,
     pub provider_broker_state: ProviderBrokerState,
-    pub app_manager_state: AppManagerState,
+    pub app_manager_state: Arc<AppManagerState>,
     pub open_rpc_state: Arc<OpenRpcState>,
     pub router_state: RouterState,
     pub metrics: Arc<RwLock<OpMetricState>>,
