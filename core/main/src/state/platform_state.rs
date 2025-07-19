@@ -92,7 +92,7 @@ impl From<String> for DeviceSessionIdentifier {
 }
 
 #[derive(Debug, Clone)]
-pub struct PlatformState {
+pub struct PlatformStateContainer {
     pub extn_manifest: Arc<ExtnManifest>,
     device_manifest: Arc<DeviceManifest>,
     pub ripple_client: RippleClient,
@@ -112,14 +112,14 @@ pub struct PlatformState {
     pub lifecycle2_app_state: AppManagerState2_0,
 }
 
-impl PlatformState {
+impl PlatformStateContainer {
     pub fn new_instance(
         extn_manifest: ExtnManifest,
         manifest: DeviceManifest,
         client: RippleClient,
         app_library: Vec<AppLibraryEntry>,
         version: Option<String>,
-    ) -> PlatformState {
+    ) -> PlatformStateContainer {
         let exclusory = ExclusoryImpl::get(&manifest);
         let broker_sender = client.get_broker_sender();
         let rule_engine = RuleEngine::build(&extn_manifest);
@@ -239,7 +239,7 @@ impl PlatformState {
     }
 }
 
-pub type SharedPlatformState = std::sync::Arc<PlatformState>;
+pub type PlatformState = std::sync::Arc<PlatformStateContainer>;
 
 #[cfg(test)]
 mod tests {
@@ -247,7 +247,7 @@ mod tests {
     use ripple_sdk::api::manifest::extn_manifest::default_providers;
     use ripple_tdk::utils::test_utils::Mockable;
 
-    impl Mockable for PlatformState {
+    impl Mockable for PlatformStateContainer {
         fn mock() -> Self {
             use crate::state::bootstrap_state::ChannelsState;
 
