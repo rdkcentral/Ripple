@@ -30,10 +30,11 @@ use ripple_sdk::{
     chrono::{DateTime, Utc},
     framework::RippleResponse,
     log::{error, trace},
+    tokio::sync::RwLock,
 };
 use serde_json::Value;
 
-use crate::state::platform_state::PlatformState;
+use crate::state::{ops_metrics_state::OpsMetrics, platform_state::PlatformState};
 
 pub struct TelemetryBuilder;
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
@@ -78,19 +79,19 @@ impl TelemetryBuilder {
         }
     }
 
-    pub fn update_session_id_and_send_telemetry(
-        ps: &PlatformState,
+    pub async fn update_session_id_and_send_telemetry(
+        ps: PlatformState,
         mut t: TelemetryPayload,
     ) -> RippleResponse {
-        let session_id = ps.metrics.get_device_session_id();
+        let session_id = OpsMetrics::get_device_session_id(ps.metrics.clone()).await;
         t.update_session_id(session_id);
-        Self::send_telemetry(ps, t)
+        Self::send_telemetry(ps.clone(), t).await
     }
 
-    pub fn send_telemetry(ps: &PlatformState, t: TelemetryPayload) -> RippleResponse {
+    pub async fn send_telemetry(ps: PlatformState, t: TelemetryPayload) -> RippleResponse {
         trace!("send_telemetry: t={:?}", t);
 
-        let listeners = ps.metrics.get_listeners();
+        let listeners = OpsMetrics::get_listeners(ps.metrics.clone()).await;
         let client = ps.get_client().get_extn_client();
         let mut result = Ok(());
         for id in listeners {
@@ -179,8 +180,8 @@ impl TelemetryBuilder {
         }
     }
 
-    pub fn send_fb_tt(
-        ps: &PlatformState,
+    pub async fn send_fb_tt(
+        ps: PlatformState,
         req: RpcRequest,
         tt: i64,
         success: bool,
@@ -201,10 +202,10 @@ impl TelemetryBuilder {
         };
         let response = serde_json::to_string(resp).unwrap_or_default();
         if let Err(e) = Self::send_telemetry(
-            ps,
+            ps.clone(),
             TelemetryPayload::FireboltInteraction(FireboltInteraction {
                 app_id: ctx.app_id.to_owned(),
-                ripple_session_id: ps.metrics.get_device_session_id(),
+                ripple_session_id: OpsMetrics::get_device_session_id(ps.metrics.clone()).await,
                 app_session_id: Some(ctx.session_id),
                 tt,
                 method,
@@ -212,7 +213,9 @@ impl TelemetryBuilder {
                 success,
                 response,
             }),
-        ) {
+        )
+        .await
+        {
             error!("send_telemetry={:?}", e)
         }
     }

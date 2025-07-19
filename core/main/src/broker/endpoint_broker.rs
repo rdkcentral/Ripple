@@ -32,7 +32,10 @@ use ripple_sdk::{
     log::{debug, error, info, trace},
     tokio::{
         self,
-        sync::mpsc::{self, Receiver, Sender},
+        sync::{
+            mpsc::{self, Receiver, Sender},
+            RwLock,
+        },
     },
     utils::error::RippleError,
 };
@@ -41,7 +44,7 @@ use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicU64, Ordering},
-        Arc, RwLock,
+        Arc,
     },
 };
 
@@ -373,7 +376,7 @@ pub struct EndpointBrokerState {
     cleaner_list: Arc<RwLock<Vec<BrokerCleaner>>>,
     reconnect_tx: Sender<BrokerConnectRequest>,
     provider_broker_state: ProvideBrokerState,
-    metrics_state: OpMetricState,
+    metrics_state: Arc<RwLock<OpMetricState>>,
 }
 
 #[derive(Debug)]
@@ -464,14 +467,14 @@ impl Default for EndpointBrokerState {
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx: mpsc::channel(2).0,
             provider_broker_state: ProvideBrokerState::default(),
-            metrics_state: OpMetricState::default(),
+            metrics_state: Arc::new(RwLock::new(OpMetricState::default())),
         }
     }
 }
 
 impl EndpointBrokerState {
     pub fn new(
-        metrics_state: OpMetricState,
+        metrics_state: Arc<RwLock<OpMetricState>>,
         tx: Sender<BrokerOutput>,
         rule_engine: RuleEngine,
         _ripple_client: RippleClient,
@@ -497,12 +500,12 @@ impl EndpointBrokerState {
         self.rule_engine = rule_engine;
         self
     }
-    pub fn add_rule(self, rule: Rule) -> Self {
-        self.rule_engine.write().unwrap().add_rule(rule);
+    pub async fn add_rule(self, rule: Rule) -> Self {
+        self.rule_engine.write().await.add_rule(rule);
         self
     }
-    pub fn has_rule(&self, rule: &str) -> bool {
-        self.rule_engine.read().unwrap().has_rule(rule)
+    pub async fn has_rule(&self, rule: &str) -> bool {
+        self.rule_engine.read().await.has_rule(rule)
     }
     #[cfg(not(test))]
     fn reconnect_thread(&self, mut rx: Receiver<BrokerConnectRequest>, client: RippleClient) {
@@ -1073,7 +1076,7 @@ impl EndpointBrokerState {
 
     // Method to cleanup all subscription on App termination
     pub async fn cleanup_for_app(&self, app_id: &str) {
-        let cleaners = { self.cleaner_list.read().unwrap().clone() };
+        let cleaners = { self.cleaner_list.read().await.clone() };
 
         for cleaner in cleaners {
             /*

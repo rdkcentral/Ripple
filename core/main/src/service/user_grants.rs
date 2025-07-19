@@ -545,9 +545,14 @@ impl GrantState {
          * Instead of just checking for grants previously, if the user grants are not present,
          * we are taking necessary steps to get the user grant and send back the result.
          */
-        let grant_state = state.clone().cap_state.grant_state;
+        let grant_state = state.clone().cap_state.grant_state.clone();
         let app_id = app_requested_for.app_id.to_owned();
-        let caps_needing_grants = grant_state.caps_needing_grants.clone();
+        let caps_needing_grants = state
+            .clone()
+            .cap_state
+            .grant_state
+            .caps_needing_grants
+            .clone();
         let mut caps_needing_grant_in_request: Vec<FireboltPermission> = fb_perms
             .iter()
             .filter(|&x| caps_needing_grants.contains(&x.cap.as_str()))
@@ -1060,12 +1065,18 @@ pub struct GrantHandler;
 
 impl GrantHandler {
     pub async fn grant_info(
-        state: &PlatformState,
+        state: PlatformState,
         app_id: String,
         request: CapabilitySet,
     ) -> Result<(), DenyReasonWithCap> {
-        let caps_needing_grants = state.clone().cap_state.grant_state.caps_needing_grants;
-        let user_grant = state.clone().cap_state.grant_state;
+        let caps_needing_grants = state
+            .clone()
+            .cap_state
+            .grant_state
+            .clone()
+            .caps_needing_grants
+            .clone();
+        let user_grant = state.clone().cap_state.clone().grant_state.clone();
         let permissions = request.into_firebolt_permissions_vec();
         let caps_needing_grant_in_request: Vec<FireboltPermission> = permissions
             .into_iter()
@@ -1100,7 +1111,7 @@ impl GrantHandler {
         app_id: &str,
         permissions: Vec<FireboltPermission>,
     ) -> Vec<FireboltPermission> {
-        let user_grant = state.clone().cap_state.grant_state;
+        let user_grant = state.clone().cap_state.grant_state.clone();
         let mut final_perms = Vec::new();
         for permission in permissions {
             let result = user_grant.get_grant_state(app_id, &permission, Some(state));

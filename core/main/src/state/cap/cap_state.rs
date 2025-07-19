@@ -55,7 +55,7 @@ pub struct CapState {
     pub generic: GenericCapState,
     pub permitted_state: PermittedState,
     primed_listeners: Arc<RwLock<HashSet<CapEventEntry>>>,
-    pub grant_state: GrantState,
+    pub grant_state: Arc<GrantState>,
 }
 
 impl CapState {
@@ -64,7 +64,7 @@ impl CapState {
             generic: GenericCapState::new(manifest.clone()),
             permitted_state: PermittedState::new(manifest.clone()),
             primed_listeners: Arc::new(RwLock::new(HashSet::new())),
-            grant_state: GrantState::new(manifest),
+            grant_state: GrantState::new(manifest).into(),
         }
     }
 

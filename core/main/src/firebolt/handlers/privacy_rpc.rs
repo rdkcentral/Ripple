@@ -17,6 +17,7 @@
 
 use crate::processor::storage::storage_manager::StorageManager;
 use crate::service::apps::app_events::AppEventDecorator;
+use crate::state::ops_metrics_state::OpsMetrics;
 use crate::{
     firebolt::rpc::RippleRPCProvider, service::apps::app_events::AppEvents,
     state::platform_state::PlatformState,
@@ -88,9 +89,12 @@ impl AllowAppContentAdTargetingSettings {
         let mut new_ctx = ctx.clone();
         new_ctx.protocol = ApiProtocol::Extn;
 
-        platform_state
-            .metrics
-            .add_api_stats(&ctx.request_id, "localization.countryCode");
+        OpsMetrics::add_api_stats(
+            platform_state.metrics.clone(),
+            &ctx.request_id,
+            "localization.countryCode",
+        )
+        .await;
 
         let rpc_request = RpcRequest {
             ctx: new_ctx.clone(),

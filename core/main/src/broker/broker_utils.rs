@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::state::platform_state::PlatformState;
+use crate::state::{ops_metrics_state::OpsMetrics, platform_state::PlatformState};
 use jsonrpsee::core::RpcResult;
 use ripple_sdk::api::gateway::rpc_gateway_api::{CallContext, JsonRpcApiError, RpcRequest};
 use serde_json::Value;
@@ -51,9 +51,7 @@ impl BrokerUtils {
         params: Option<Value>,
     ) -> RpcResult<Value> {
         let rpc_request = RpcRequest::internal(method, on_behalf_of).with_params(params);
-        state
-            .metrics
-            .add_api_stats(&rpc_request.ctx.request_id, method);
+        OpsMetrics::add_api_stats(state.metrics.clone(), &rpc_request.ctx.request_id, method).await;
         Self::internal_request(state, rpc_request).await
     }
 

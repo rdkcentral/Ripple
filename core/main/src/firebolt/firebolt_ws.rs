@@ -24,8 +24,8 @@ use super::firebolt_gateway::FireboltGatewayCommand;
 use crate::{
     service::apps::delegated_launcher_handler::{AppManagerState, AppManagerState2_0},
     state::{
-        cap::permitted_state::PermissionHandler, platform_state::PlatformState,
-        session_state::Session,
+        cap::permitted_state::PermissionHandler, ops_metrics_state::OpsMetrics,
+        platform_state::PlatformState, session_state::Session,
     },
 };
 use futures::SinkExt;
@@ -398,9 +398,12 @@ impl FireboltWs {
                             trace!("Sent Service response {}", api_message.jsonrpc_msg);
                             continue;
                         }
-                        platform_state
-                            .metrics
-                            .update_api_stage(&api_message.request_id, "response");
+                        OpsMetrics::update_api_stage(
+                            platform_state.metrics.clone(),
+                            &api_message.request_id,
+                            "response",
+                        )
+                        .await;
 
                         LogSignal::new(
                             "sent_firebolt_response".to_string(),
@@ -410,9 +413,11 @@ impl FireboltWs {
                         .with_diagnostic_context_item("cid", &connection_id_c.clone())
                         .with_diagnostic_context_item("result", &api_message.jsonrpc_msg.clone())
                         .emit_debug();
-                        if let Some(stats) = platform_state
-                            .metrics
-                            .get_api_stats(&api_message.request_id)
+                        if let Some(stats) = OpsMetrics::get_api_stats(
+                            platform_state.metrics.clone(),
+                            &api_message.request_id,
+                        )
+                        .await
                         {
                             info!(
                                 "Sending Firebolt response: {:?},{}",
@@ -424,9 +429,12 @@ impl FireboltWs {
                                 stats.stats_ref,
                                 stats.stats.get_stage_durations()
                             );
-                            platform_state
-                                .metrics
-                                .remove_api_stats(&api_message.request_id);
+
+                            OpsMetrics::remove_api_stats(
+                                platform_state.metrics.clone(),
+                                &api_message.request_id,
+                            )
+                            .await;
                         }
 
                         info!(

@@ -32,6 +32,7 @@ use ripple_sdk::{
         extn_id::ExtnId,
     },
     framework::ripple_contract::RippleContract,
+    tokio::sync::RwLock,
     utils::error::RippleError,
     uuid::Uuid,
 };
@@ -92,19 +93,19 @@ impl From<String> for DeviceSessionIdentifier {
 }
 
 #[derive(Debug, Clone)]
-pub struct PlatformState {
+pub struct PlatformStateContainer {
     pub extn_manifest: Arc<ExtnManifest>,
     device_manifest: Arc<DeviceManifest>,
     pub ripple_client: RippleClient,
     pub app_library_state: AppLibraryState,
     pub session_state: SessionState,
-    pub cap_state: CapState,
+    pub cap_state: Arc<CapState>,
     pub app_events_state: AppEventsState,
     pub provider_broker_state: ProviderBrokerState,
     pub app_manager_state: AppManagerState,
-    pub open_rpc_state: OpenRpcState,
+    pub open_rpc_state: Arc<OpenRpcState>,
     pub router_state: RouterState,
-    pub metrics: OpMetricState,
+    pub metrics: Arc<RwLock<OpMetricState>>,
     pub device_session_id: DeviceSessionIdentifier,
     pub ripple_cache: RippleCache,
     pub version: Option<String>,
@@ -112,23 +113,23 @@ pub struct PlatformState {
     pub lifecycle2_app_state: AppManagerState2_0,
 }
 
-impl PlatformState {
-    pub fn new(
+impl PlatformStateContainer {
+    pub fn new_instance(
         extn_manifest: ExtnManifest,
         manifest: DeviceManifest,
         client: RippleClient,
         app_library: Vec<AppLibraryEntry>,
         version: Option<String>,
-    ) -> PlatformState {
+    ) -> PlatformStateContainer {
         let exclusory = ExclusoryImpl::get(&manifest);
         let broker_sender = client.get_broker_sender();
         let rule_engine = RuleEngine::build(&extn_manifest);
         let extn_sdks = extn_manifest.extn_sdks.clone();
         let provider_registations = extn_manifest.provider_registrations.clone();
-        let metrics_state = OpMetricState::default();
+        let metrics_state = Arc::new(RwLock::new(OpMetricState::default()));
         Self {
             extn_manifest: Arc::new(extn_manifest),
-            cap_state: CapState::new(manifest.clone()),
+            cap_state: CapState::new(manifest.clone()).into(),
             session_state: SessionState::default(),
             device_manifest: Arc::new(manifest.clone()),
             ripple_client: client.clone(),
@@ -136,20 +137,36 @@ impl PlatformState {
             app_events_state: AppEventsState::default(),
             provider_broker_state: ProviderBrokerState::default(),
             app_manager_state: AppManagerState::new(&manifest.configuration.saved_dir.clone()),
-            open_rpc_state: OpenRpcState::new(Some(exclusory), extn_sdks, provider_registations),
+            open_rpc_state: OpenRpcState::new(Some(exclusory), extn_sdks, provider_registations)
+                .into(),
             router_state: RouterState::new(),
             metrics: metrics_state.clone(),
             device_session_id: DeviceSessionIdentifier::default(),
             ripple_cache: RippleCache::default(),
             version,
             endpoint_state: EndpointBrokerState::new(
-                metrics_state,
+                metrics_state.clone(),
                 broker_sender,
                 rule_engine,
                 client,
             ),
             lifecycle2_app_state: AppManagerState2_0::new(),
         }
+    }
+    pub fn new(
+        extn_manifest: ExtnManifest,
+        manifest: DeviceManifest,
+        client: RippleClient,
+        app_library: Vec<AppLibraryEntry>,
+        version: Option<String>,
+    ) -> PlatformState {
+        Arc::new(Self::new_instance(
+            extn_manifest,
+            manifest,
+            client,
+            app_library,
+            version,
+        ))
     }
 
     pub fn has_internal_launcher(&self) -> bool {
@@ -224,13 +241,15 @@ impl PlatformState {
     }
 }
 
+pub type PlatformState = std::sync::Arc<PlatformStateContainer>;
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use ripple_sdk::api::manifest::extn_manifest::default_providers;
     use ripple_tdk::utils::test_utils::Mockable;
 
-    impl Mockable for PlatformState {
+    impl Mockable for PlatformStateContainer {
         fn mock() -> Self {
             use crate::state::bootstrap_state::ChannelsState;
 
