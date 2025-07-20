@@ -22,6 +22,7 @@ use std::{
 
 use ripple_sdk::{
     api::observability::metrics_util::ApiStats,
+    async_write_lock,
     chrono::{DateTime, Utc},
     log::{error, warn},
     tokio::sync::RwLock,
@@ -186,7 +187,37 @@ impl OpsMetrics {
         let session = session.unwrap_or_default();
         session
     }
+
+    pub async fn update_session_id(ops_metrics: Arc<RwLock<OpMetricState>>, value: Option<String>) {
+        let value = value.unwrap_or_default();
+        {
+            let session = ops_metrics.write().await;
+            let mut session = session.device_session_id.write().await;
+            let _ = session.insert(value);
+        }
+    }
     pub async fn get_listeners(ops_metrics: Arc<RwLock<OpMetricState>>) -> Vec<String> {
         ops_metrics.read().await.get_listeners().await
+    }
+
+    pub async fn operational_telemetry_listener(
+        ops_metrics: Arc<RwLock<OpMetricState>>,
+        target: &str,
+        listen: bool,
+    ) {
+        /*
+        yuck
+        */
+        let mut listeners = async_write_lock!(ops_metrics)
+            .clone()
+            .operational_telemetry_listeners
+            .write()
+            .await
+            .clone();
+        if listen {
+            listeners.insert(target.to_string());
+        } else {
+            listeners.remove(target);
+        }
     }
 }

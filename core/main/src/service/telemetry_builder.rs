@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::sync::Arc;
+
 use ripple_sdk::{
     api::{
         firebolt::{
@@ -30,60 +32,73 @@ use ripple_sdk::{
     chrono::{DateTime, Utc},
     framework::RippleResponse,
     log::{error, trace},
+    sync_read_lock,
     tokio::sync::RwLock,
 };
 use serde_json::Value;
 
-use crate::state::{ops_metrics_state::OpsMetrics, platform_state::PlatformState};
+use crate::state::{
+    ops_metrics_state::{OpMetricState, OpsMetrics},
+    platform_state::PlatformState,
+};
 
 pub struct TelemetryBuilder;
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
 impl TelemetryBuilder {
-    pub fn send_app_load_start(
+    pub async fn send_app_load_start(
         ps: &PlatformState,
         app_id: String,
         app_version: Option<String>,
         start_time: Option<DateTime<Utc>>,
     ) {
         if let Err(e) = Self::send_telemetry(
-            ps,
+            ps.clone(),
             TelemetryPayload::AppLoadStart(AppLoadStart {
                 app_id,
                 app_version,
                 start_time: start_time.unwrap_or_default().timestamp_millis(),
-                ripple_session_id: ps.metrics.get_device_session_id(),
+                ripple_session_id: Self::get_device_session_id(ps.metrics.clone()).await,
                 ripple_version: ps
                     .version
                     .clone()
                     .unwrap_or(String::from(SEMVER_LIGHTWEIGHT)),
                 ripple_context: None,
             }),
-        ) {
+        )
+        .await
+        {
             error!("send_telemetry={:?}", e)
         }
     }
 
-    pub fn send_app_load_stop(ps: &PlatformState, app_id: String, success: bool) {
+    pub async fn send_app_load_stop(ps: PlatformState, app_id: String, success: bool) {
         if let Err(e) = Self::send_telemetry(
-            ps,
+            ps.clone(),
             TelemetryPayload::AppLoadStop(AppLoadStop {
                 app_id,
                 stop_time: Utc::now().timestamp_millis(),
                 app_session_id: None,
-                ripple_session_id: ps.metrics.get_device_session_id(),
+                ripple_session_id: Self::get_device_session_id(ps.metrics.clone()).await,
                 success,
             }),
-        ) {
+        )
+        .await
+        {
             error!("send_telemetry={:?}", e)
         }
+    }
+    pub async fn get_device_session_id(
+        metrics_state: Arc<ripple_sdk::tokio::sync::RwLock<OpMetricState>>,
+    ) -> String {
+        OpsMetrics::get_device_session_id(metrics_state.clone()).await
     }
 
     pub async fn update_session_id_and_send_telemetry(
         ps: PlatformState,
         mut t: TelemetryPayload,
     ) -> RippleResponse {
-        let session_id = OpsMetrics::get_device_session_id(ps.metrics.clone()).await;
+        let session_id = Self::get_device_session_id(ps.metrics.clone()).await;
         t.update_session_id(session_id);
         Self::send_telemetry(ps.clone(), t).await
     }
@@ -117,65 +132,72 @@ impl TelemetryBuilder {
         Self::send_app_load_stop(ps, "ripple".to_string(), true);
     }
 
-    pub fn send_error(ps: &PlatformState, app_id: String, error_params: ErrorParams) {
+    pub async fn send_error(ps: PlatformState, app_id: String, error_params: ErrorParams) {
         let mut app_error: TelemetryAppError = error_params.into();
-        app_error.ripple_session_id = ps.metrics.get_device_session_id();
+        app_error.ripple_session_id = Self::get_device_session_id(ps.metrics.clone()).await;
         app_error.app_id = app_id;
 
-        if let Err(e) = Self::send_telemetry(ps, TelemetryPayload::AppError(app_error)) {
+        if let Err(e) = Self::send_telemetry(ps, TelemetryPayload::AppError(app_error)).await {
             error!("send_telemetry={:?}", e)
         }
     }
 
-    pub fn send_system_error(ps: &PlatformState, error_params: SystemErrorParams) {
+    pub async fn send_system_error(ps: PlatformState, error_params: SystemErrorParams) {
         let mut system_error: TelemetrySystemError = error_params.into();
-        system_error.ripple_session_id = ps.metrics.get_device_session_id();
+        system_error.ripple_session_id = Self::get_device_session_id(ps.metrics.clone()).await;
 
-        if let Err(e) = Self::send_telemetry(ps, TelemetryPayload::SystemError(system_error)) {
+        if let Err(e) = Self::send_telemetry(ps, TelemetryPayload::SystemError(system_error)).await
+        {
             error!("send_telemetry={:?}", e)
         }
     }
 
-    pub fn send_sign_in(ps: &PlatformState, ctx: &CallContext) {
+    pub async fn send_sign_in(ps: PlatformState, ctx: &CallContext) {
         if let Err(e) = Self::send_telemetry(
-            ps,
+            ps.clone(),
             TelemetryPayload::SignIn(TelemetrySignIn {
                 app_id: ctx.app_id.to_owned(),
-                ripple_session_id: ps.metrics.get_device_session_id(),
+                ripple_session_id: Self::get_device_session_id(ps.metrics.clone()).await,
                 app_session_id: Some(ctx.session_id.to_owned()),
             }),
-        ) {
+        )
+        .await
+        {
             error!("send_telemetry={:?}", e)
         }
     }
 
-    pub fn send_sign_out(ps: &PlatformState, ctx: &CallContext) {
+    pub async fn send_sign_out(ps: PlatformState, ctx: &CallContext) {
         if let Err(e) = Self::send_telemetry(
-            ps,
+            ps.clone(),
             TelemetryPayload::SignOut(TelemetrySignOut {
                 app_id: ctx.app_id.to_owned(),
-                ripple_session_id: ps.metrics.get_device_session_id(),
+                ripple_session_id: Self::get_device_session_id(ps.metrics.clone()).await,
                 app_session_id: Some(ctx.session_id.to_owned()),
             }),
-        ) {
+        )
+        .await
+        {
             error!("send_telemetry={:?}", e)
         }
     }
 
-    pub fn internal_initialize(
-        ps: &PlatformState,
+    pub async fn internal_initialize(
+        ps: PlatformState,
         ctx: &CallContext,
         params: &InternalInitializeParams,
     ) {
         if let Err(e) = Self::send_telemetry(
-            ps,
+            ps.clone(),
             TelemetryPayload::InternalInitialize(InternalInitialize {
                 app_id: ctx.app_id.to_owned(),
-                ripple_session_id: ps.metrics.get_device_session_id(),
+                ripple_session_id: Self::get_device_session_id(ps.metrics.clone()).await,
                 app_session_id: Some(ctx.session_id.to_owned()),
                 semantic_version: params.version.to_string(),
             }),
-        ) {
+        )
+        .await
+        {
             error!("send_telemetry={:?}", e)
         }
     }
@@ -205,7 +227,7 @@ impl TelemetryBuilder {
             ps.clone(),
             TelemetryPayload::FireboltInteraction(FireboltInteraction {
                 app_id: ctx.app_id.to_owned(),
-                ripple_session_id: OpsMetrics::get_device_session_id(ps.metrics.clone()).await,
+                ripple_session_id: Self::get_device_session_id(ps.metrics.clone()).await,
                 app_session_id: Some(ctx.session_id),
                 tt,
                 method,
@@ -222,7 +244,7 @@ impl TelemetryBuilder {
 
     pub fn send_fb_event(ps: &PlatformState, event: &str, result: Value) {
         if let Err(e) = Self::send_telemetry(
-            ps,
+            ps.clone(),
             TelemetryPayload::FireboltEvent(FireboltEvent {
                 event_name: event.into(),
                 result,

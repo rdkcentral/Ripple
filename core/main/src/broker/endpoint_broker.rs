@@ -30,12 +30,10 @@ use ripple_sdk::{
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
     log::{debug, error, info, trace},
+    sync_read_lock, sync_write_lock,
     tokio::{
         self,
-        sync::{
-            mpsc::{self, Receiver, Sender},
-            RwLock,
-        },
+        sync::mpsc::{self, Receiver, Sender},
     },
     utils::error::RippleError,
 };
@@ -44,7 +42,7 @@ use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicU64, Ordering},
-        Arc,
+        Arc, RwLock,
     },
 };
 
@@ -53,7 +51,9 @@ use crate::{
     firebolt::firebolt_gateway::JsonRpcError,
     service::extn::ripple_client::RippleClient,
     state::{
-        ops_metrics_state::OpMetricState, platform_state::PlatformState, session_state::Session,
+        ops_metrics_state::{OpMetricState, OpsMetrics},
+        platform_state::PlatformState,
+        session_state::Session,
     },
     utils::router_utils::{
         add_telemetry_status_code, capture_stage, get_rpc_header, return_extn_response,
@@ -376,7 +376,7 @@ pub struct EndpointBrokerState {
     cleaner_list: Arc<RwLock<Vec<BrokerCleaner>>>,
     reconnect_tx: Sender<BrokerConnectRequest>,
     provider_broker_state: ProvideBrokerState,
-    metrics_state: Arc<RwLock<OpMetricState>>,
+    metrics_state: Arc<tokio::sync::RwLock<OpMetricState>>,
 }
 
 #[derive(Debug)]
@@ -467,14 +467,14 @@ impl Default for EndpointBrokerState {
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx: mpsc::channel(2).0,
             provider_broker_state: ProvideBrokerState::default(),
-            metrics_state: Arc::new(RwLock::new(OpMetricState::default())),
+            metrics_state: Arc::new(tokio::sync::RwLock::new(OpMetricState::default())),
         }
     }
 }
 
 impl EndpointBrokerState {
     pub fn new(
-        metrics_state: Arc<RwLock<OpMetricState>>,
+        metrics_state: Arc<tokio::sync::RwLock<OpMetricState>>,
         tx: Sender<BrokerOutput>,
         rule_engine: RuleEngine,
         _ripple_client: RippleClient,
@@ -501,11 +501,11 @@ impl EndpointBrokerState {
         self
     }
     pub async fn add_rule(self, rule: Rule) -> Self {
-        self.rule_engine.write().await.add_rule(rule);
+        sync_write_lock!(self.rule_engine).add_rule(rule);
         self
     }
     pub async fn has_rule(&self, rule: &str) -> bool {
-        self.rule_engine.read().await.has_rule(rule)
+        sync_read_lock!(self.rule_engine).has_rule(rule)
     }
     #[cfg(not(test))]
     fn reconnect_thread(&self, mut rx: Receiver<BrokerConnectRequest>, client: RippleClient) {
@@ -755,7 +755,7 @@ impl EndpointBrokerState {
         data.id = Some(rpc_request.ctx.call_id);
         //let output = BrokerOutput::new(data);
 
-        capture_stage(&self.metrics_state, &rpc_request, "static_rule_request");
+        capture_stage(self.metrics_state, &rpc_request, "static_rule_request");
         data
     }
 
@@ -1076,9 +1076,7 @@ impl EndpointBrokerState {
 
     // Method to cleanup all subscription on App termination
     pub async fn cleanup_for_app(&self, app_id: &str) {
-        let cleaners = { self.cleaner_list.read().await.clone() };
-
-        for cleaner in cleaners {
+        for cleaner in sync_read_lock!(self.cleaner_list).clone() {
             /*
             for now, just eat the error - the return type was mainly added to prepate for future refactoring/testability
             */
@@ -1452,8 +1450,8 @@ impl BrokerOutputForwarder {
                                     }
                                 }
                             }
-
-                            platform_state.metrics.update_api_stats_ref(
+                            OpsMetrics::update_api_stats_ref(
+                                platform_state.metrics.clone(),
                                 &rpc_request.ctx.request_id,
                                 add_telemetry_status_code(
                                     &tm_str,
@@ -1461,16 +1459,19 @@ impl BrokerOutputForwarder {
                                 ),
                             );
 
-                            if let Some(api_stats) = platform_state
-                                .metrics
-                                .get_api_stats(&rpc_request.ctx.request_id)
+                            if let Some(api_stats) = OpsMetrics::get_api_stats(
+                                platform_state.metrics.clone(),
+                                &rpc_request.ctx.request_id,
+                            )
+                            .await
                             {
                                 message.stats = Some(api_stats);
-
                                 if rpc_request.ctx.app_id.eq_ignore_ascii_case("internal") {
-                                    platform_state
-                                        .metrics
-                                        .remove_api_stats(&rpc_request.ctx.request_id);
+                                    OpsMetrics::remove_api_stats(
+                                        platform_state.metrics.clone(),
+                                        &rpc_request.ctx.request_id,
+                                    )
+                                    .await;
                                 }
                             }
 

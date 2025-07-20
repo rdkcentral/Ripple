@@ -30,7 +30,7 @@ use ripple_sdk::{
 use crate::{
     firebolt::rpc::RippleRPCProvider,
     service::{apps::app_events::AppEvents, telemetry_builder::TelemetryBuilder},
-    state::platform_state::PlatformState,
+    state::{ops_metrics_state::OpsMetrics, platform_state::PlatformState},
     utils::rpc_utils::rpc_await_oneshot,
 };
 
@@ -40,7 +40,8 @@ pub trait Internal {
     async fn send_telemetry(&self, ctx: CallContext, payload: TelemetryPayload) -> RpcResult<()>;
 
     #[method(name = "ripple.setTelemetrySessionId")]
-    fn set_telemetry_session_id(&self, ctx: CallContext, session_id: String) -> RpcResult<()>;
+    async fn set_telemetry_session_id(&self, ctx: CallContext, session_id: String)
+        -> RpcResult<()>;
 
     #[method(name = "ripple.sendAppEvent")]
     async fn send_app_event(&self, ctx: CallContext, event: AppEvent) -> RpcResult<()>;
@@ -64,12 +65,16 @@ pub struct InternalImpl {
 #[async_trait]
 impl InternalServer for InternalImpl {
     async fn send_telemetry(&self, _ctx: CallContext, payload: TelemetryPayload) -> RpcResult<()> {
-        let _ = TelemetryBuilder::send_telemetry(&self.state, payload);
+        let _ = TelemetryBuilder::send_telemetry(self.state, payload);
         Ok(())
     }
 
-    fn set_telemetry_session_id(&self, _ctx: CallContext, session_id: String) -> RpcResult<()> {
-        self.state.metrics.update_session_id(Some(session_id));
+    async fn set_telemetry_session_id(
+        &self,
+        _ctx: CallContext,
+        session_id: String,
+    ) -> RpcResult<()> {
+        OpsMetrics::update_session_id(self.state.metrics.clone(), Some(session_id)).await;
         Ok(())
     }
 

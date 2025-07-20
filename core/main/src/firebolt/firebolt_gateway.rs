@@ -201,15 +201,17 @@ impl FireboltGateway {
                         let mut api_message =
                             ApiMessage::new(protocol, data, rpc_request.ctx.request_id.clone());
 
-                        if let Some(api_stats) = platform_state
-                            .metrics
-                            .get_api_stats(&rpc_request.ctx.request_id.clone())
+                        if let Some(api_stats) = OpsMetrics::get_api_stats(
+                            platform_state.metrics.clone(),
+                            &rpc_request.ctx.request_id,
+                        )
+                        .await
                         {
                             api_message.stats = Some(api_stats);
                         }
 
                         TelemetryBuilder::send_fb_tt(
-                            &platform_state,
+                            platform_state,
                             rpc_request,
                             now - start,
                             !broker_output.data.is_error(),

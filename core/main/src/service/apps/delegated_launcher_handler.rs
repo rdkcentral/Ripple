@@ -44,6 +44,7 @@ use ripple_sdk::{
     },
     log::{debug, error, warn},
     serde_json::{self},
+    sync_read_lock, sync_write_lock,
     tokio::sync::{mpsc, oneshot},
     utils::{error::RippleError, time_utils::Timer},
     uuid::Uuid,
@@ -142,24 +143,19 @@ impl AppManagerState2_0 {
     }
 
     pub fn get(&self, app_id: &str) -> Option<App2_0> {
-        self.apps.read().unwrap().get(app_id).cloned()
+        sync_read_lock!(self.apps).get(app_id).cloned()
     }
 
     pub fn insert(&self, app_id: String, app: App2_0) {
-        let mut apps = self.apps.write().unwrap();
-        let _ = apps.insert(app_id, app);
+        let _ = sync_write_lock!(self.apps).insert(app_id, app);
     }
 
     pub fn remove(&self, app_id: &str) -> Option<App2_0> {
-        let mut apps = self.apps.write().unwrap();
-        apps.remove(app_id)
+        sync_write_lock!(self.apps).remove(app_id)
     }
 
     pub fn get_app_id_from_session_id(&self, session_id: &str) -> Option<String> {
-        if let Some((_, app)) = self
-            .apps
-            .read()
-            .unwrap()
+        if let Some((_, app)) = sync_read_lock!(self.apps)
             .iter()
             .find(|(_, app)| app.current_session.app_instance_id.eq(session_id))
         {
@@ -271,7 +267,7 @@ impl AppManagerState {
     }
 
     pub fn get_persisted_app_title_for_app_id(&self, app_id: &str) -> Option<String> {
-        self.app_title.read().unwrap().get(app_id).cloned()
+        sync_read_lock!(self.app_title).get(app_id).cloned()
     }
 
     pub fn persist_app_title(&self, app_id: &str, title: &str) -> bool {
@@ -365,13 +361,13 @@ impl AppManagerState {
         let mut apps = self.apps.write().unwrap();
         apps.remove(app_id)
     }
-    fn set_internal_state(&mut self, app_id: &str, method: AppMethod) {
+    fn set_internal_state(&self, app_id: &str, method: AppMethod) {
         let mut apps = self.apps.write().unwrap();
         if let Some(app) = apps.get_mut(app_id) {
             app.internal_state = Some(method);
         }
     }
-    fn get_internal_state(&mut self, app_id: &str) -> Option<AppMethod> {
+    fn get_internal_state(&self, app_id: &str) -> Option<AppMethod> {
         let apps = self.apps.read().unwrap();
         if let Some(app) = apps.get(app_id) {
             app.internal_state.clone()
@@ -734,10 +730,11 @@ impl DelegatedLauncherHandler {
                             .await;
                     }
                     TelemetryBuilder::send_app_load_stop(
-                        &self.platform_state,
+                        self.platform_state.clone(),
                         app_id.clone(),
                         resp.is_ok(),
-                    );
+                    )
+                    .await;
                     (resp, Some(app_id))
                 }
                 AppMethod::Close(app_id, reason) => (
@@ -852,7 +849,10 @@ impl DelegatedLauncherHandler {
             .has_rule("ripple.reportLifecycleStateChange")
             .await
         {
-            let previous_state = platform_state.app_manager_state.get_internal_state(app_id);
+            let previous_state = platform_state
+                .clone()
+                .app_manager_state
+                .get_internal_state(app_id);
 
             /*
             Do not forward internal errors from the launch handler as AppErrors. Only forward third-party application error messages as AppErrors.
