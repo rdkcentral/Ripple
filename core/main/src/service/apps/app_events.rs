@@ -351,9 +351,9 @@ impl AppEvents {
     ) {
         // Notify all the default listners by providing the context data as part of the result when context
         // is present. Otherwise event result without context.
-        let listeners = AppEvents::get_listeners(&state.app_events_state, event_name, None);
+        let listeners = AppEvents::get_listeners(&state.clone().app_events_state, event_name, None);
         for i in listeners {
-            let decorated_res = i.decorate(state, event_name, result).await;
+            let decorated_res = i.decorate(state.clone(), event_name, result).await;
             if decorated_res.is_err() {
                 error!("could not generate event for '{}'", event_name);
                 continue;
@@ -376,7 +376,7 @@ impl AppEvents {
         if let Some(ctx) = context {
             let event_ctx_string = Some(ctx.to_string());
             let listeners = AppEvents::get_listeners(
-                &state.app_events_state,
+                &state.clone().app_events_state,
                 event_name,
                 event_ctx_string.clone(),
             );
@@ -385,7 +385,7 @@ impl AppEvents {
             }
         }
 
-        TelemetryBuilder::send_fb_event(state, event_name, result.clone());
+        TelemetryBuilder::send_fb_event(state.clone(), event_name, result.clone()).await;
     }
 
     pub async fn emit_to_app(
@@ -400,7 +400,7 @@ impl AppEvents {
             .collect::<Vec<_>>();
 
         for i in listeners_vec {
-            let decorated_res = i.decorate(state, event_name, result).await;
+            let decorated_res = i.decorate(state.clone(), event_name, result).await;
             if let Ok(res) = decorated_res {
                 AppEvents::send_event(&i, &res).await;
             } else {
@@ -408,7 +408,7 @@ impl AppEvents {
             }
         }
 
-        TelemetryBuilder::send_fb_event(state, event_name, result.clone());
+        TelemetryBuilder::send_fb_event(state.clone(), event_name, result.clone()).await;
     }
 
     pub fn is_app_registered_for_event(

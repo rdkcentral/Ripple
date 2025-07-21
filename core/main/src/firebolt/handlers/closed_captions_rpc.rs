@@ -287,22 +287,25 @@ impl ClosedcaptionsImpl {
         use SP::*;
         let enabled = ClosedcaptionsImpl::cc_enabled(ps.clone()).await?;
         let styles: ClosedCaptionStyle = ClosedCaptionStyle {
-            font_family: CI::get_string(ps, ClosedCaptionsFontFamily).await?,
-            font_size: CI::get_number_as_f32(ps, ClosedCaptionsFontSize).await?,
-            font_color: CI::get_string(ps, ClosedCaptionsFontColor).await?,
-            font_edge: CI::get_string(ps, ClosedCaptionsFontEdge).await?,
-            font_edge_color: CI::get_string(ps, ClosedCaptionsFontEdgeColor).await?,
-            font_opacity: CI::get_number_as_u32(ps, ClosedCaptionsFontOpacity).await?,
-            background_color: CI::get_string(ps, ClosedCaptionsBackgroundColor).await?,
-            background_opacity: CI::get_number_as_u32(ps, ClosedCaptionsBackgroundOpacity).await?,
-            window_color: CI::get_string(ps, ClosedCaptionsWindowColor).await?,
-            window_opacity: CI::get_number_as_u32(ps, ClosedCaptionsWindowOpacity).await?,
-            text_align: CI::get_string(ps, ClosedCaptionsTextAlign).await?,
-            text_align_vertical: CI::get_string(ps, ClosedCaptionsTextAlignVertical).await?,
+            font_family: CI::get_string(ps.clone(), ClosedCaptionsFontFamily).await?,
+            font_size: CI::get_number_as_f32(ps.clone(), ClosedCaptionsFontSize).await?,
+            font_color: CI::get_string(ps.clone(), ClosedCaptionsFontColor).await?,
+            font_edge: CI::get_string(ps.clone(), ClosedCaptionsFontEdge).await?,
+            font_edge_color: CI::get_string(ps.clone(), ClosedCaptionsFontEdgeColor).await?,
+            font_opacity: CI::get_number_as_u32(ps.clone(), ClosedCaptionsFontOpacity).await?,
+            background_color: CI::get_string(ps.clone(), ClosedCaptionsBackgroundColor).await?,
+            background_opacity: CI::get_number_as_u32(ps.clone(), ClosedCaptionsBackgroundOpacity)
+                .await?,
+            window_color: CI::get_string(ps.clone(), ClosedCaptionsWindowColor).await?,
+            window_opacity: CI::get_number_as_u32(ps.clone(), ClosedCaptionsWindowOpacity).await?,
+            text_align: CI::get_string(ps.clone(), ClosedCaptionsTextAlign).await?,
+            text_align_vertical: CI::get_string(ps.clone(), ClosedCaptionsTextAlignVertical)
+                .await?,
         };
-        let preferred_languages = StorageManager::get_vec_string(ps, SP::CCPreferredLanguages)
-            .await
-            .unwrap_or(Vec::new());
+        let preferred_languages =
+            StorageManager::get_vec_string(ps.clone(), SP::CCPreferredLanguages)
+                .await
+                .unwrap_or(Vec::new());
         Ok(ClosedCaptionsSettings {
             enabled,
             styles,

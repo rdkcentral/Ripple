@@ -139,9 +139,15 @@ impl FireboltGateway {
                         .add_session(session_id, session);
                 }
                 UnregisterSession { session_id, cid } => {
-                    AppEvents::remove_session(&self.state.platform_state, session_id.clone());
-                    ProviderBroker::unregister_session(&self.state.platform_state, cid.clone())
-                        .await;
+                    AppEvents::remove_session(
+                        self.state.platform_state.clone(),
+                        session_id.clone(),
+                    );
+                    ProviderBroker::unregister_session(
+                        self.state.platform_state.clone(),
+                        cid.clone(),
+                    )
+                    .await;
                     {
                         let platform_state = self.state.platform_state.clone();
                         async_read_lock!(platform_state.endpoint_state)
@@ -270,7 +276,7 @@ impl FireboltGateway {
                 }
             }
         }
-        let mut platform_state = self.state.platform_state.clone();
+        let platform_state = self.state.platform_state.clone();
 
         /*
          * The reason for spawning a new thread is that when request-1 comes, and it waits for

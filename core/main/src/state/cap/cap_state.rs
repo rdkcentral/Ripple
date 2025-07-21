@@ -142,17 +142,19 @@ impl CapState {
     ) {
         match event {
             CapEvent::OnAvailable => ps
+                .clone()
                 .cap_state
                 .generic
                 .ingest_availability(vec![cap.clone()], true),
             CapEvent::OnUnavailable => ps
+                .clone()
                 .cap_state
                 .generic
                 .ingest_availability(vec![cap.clone()], false),
             _ => {}
         }
         // check if given event and capability needs emitting
-        if Self::check_primed(ps, event, &cap, None) {
+        if Self::check_primed(ps.clone(), event, &cap, None) {
             debug!("preparing cap event emit {}", cap.as_str());
             // if its a grant or revoke it could be done per app
             // these require additional
@@ -170,13 +172,13 @@ impl CapState {
             // listener
             // So Step 1: Get all listeners
             let listeners =
-                AppEvents::get_listeners(&ps.app_events_state, event_name.as_str(), None);
+                AppEvents::get_listeners(&ps.clone().app_events_state, event_name.as_str(), None);
             debug!("listener size {}", listeners.len());
             for listener in listeners {
                 let cc = listener.call_ctx.clone();
                 // Step 2: Check if the given event is valid for the app
                 if is_app_check_necessary
-                    && !Self::check_primed(ps, event, &cap, Some(cc.app_id.clone()))
+                    && !Self::check_primed(ps.clone(), event, &cap, Some(cc.app_id.clone()))
                 {
                     continue;
                 }
@@ -185,7 +187,7 @@ impl CapState {
                     CapabilitySet::get_from_role(caps, Some(role.unwrap_or(CapabilityRole::Use)));
 
                 // Step 3: Get Capability info for each app based on context available in listener
-                if let Ok(r) = Self::get_cap_info(ps, cc, &request.get_caps()).await {
+                if let Ok(r) = Self::get_cap_info(ps.clone(), cc, &request.get_caps()).await {
                     if let Some(cap_info) = r.first() {
                         if let Ok(data) = serde_json::to_value(cap_info) {
                             debug!("data={:?}", data);
@@ -196,10 +198,11 @@ impl CapState {
                 }
             }
             TelemetryBuilder::send_fb_event(
-                ps,
+                ps.clone(),
                 &event_name,
                 serde_json::to_value(&cap).unwrap_or_default(),
-            );
+            )
+            .await;
         }
     }
 

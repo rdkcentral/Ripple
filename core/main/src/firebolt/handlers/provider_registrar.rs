@@ -495,7 +495,8 @@ impl ProviderRegistrar {
         };
 
         let provider_app_id =
-            ProviderBroker::invoke_method(context.platform_state, provider_broker_request).await;
+            ProviderBroker::invoke_method(context.platform_state.clone(), provider_broker_request)
+                .await;
 
         let result = match timeout(
             Duration::from_millis(DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS),
@@ -638,7 +639,7 @@ impl ProviderRegistrar {
             };
 
             ProviderBroker::focus(
-                &context.platform_state,
+                context.platform_state.clone(),
                 call_context,
                 capability.clone(),
                 request,
@@ -667,7 +668,8 @@ impl ProviderRegistrar {
         if let Some(provider_response) =
             ProviderRegistrar::get_provider_response(response_payload_type, params_sequence)
         {
-            ProviderBroker::provider_response(&context.platform_state, provider_response).await;
+            ProviderBroker::provider_response(context.platform_state.clone(), provider_response)
+                .await;
         } else {
             error!(
                 "callback_response: Could not resolve response payload type: context.method={}",

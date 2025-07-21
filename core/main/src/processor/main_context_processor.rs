@@ -78,20 +78,20 @@ impl MainContextProcessor {
             .await
         {
             if let Some(session) = response.payload.extract() {
-                state.session_state.insert_account_session(session);
+                state.clone().session_state.insert_account_session(session);
                 event = CapEvent::OnAvailable;
                 token_available = true;
             }
         }
         CapState::emit(
-            state,
+            state.clone(),
             &event,
             FireboltCap::Short("token:account".to_owned()),
             None,
         )
         .await;
         CapState::emit(
-            state,
+            state.clone(),
             &event,
             FireboltCap::Short("token:platform".to_owned()),
             None,
@@ -121,7 +121,7 @@ impl MainContextProcessor {
         }
     }
 
-    fn handle_power_state(state: &PlatformState, power_state: &Option<SystemPowerState>) {
+    fn handle_power_state(state: PlatformState, power_state: &Option<SystemPowerState>) {
         // fn handle_power_state(state: &PlatformState, power_state: &SystemPowerState) {
         let power_state = match power_state {
             Some(state) => state,
@@ -129,15 +129,16 @@ impl MainContextProcessor {
         };
 
         if matches!(power_state.power_state, PowerState::On)
-            && Self::handle_power_active_cleanup(state)
+            && Self::handle_power_active_cleanup(state.clone())
         {
             // if power_state.power_state != PowerState::On && Self::handle_power_active_cleanup(state) {
             info!("Usergrants updated for Powerstate");
         }
     }
 
-    pub fn handle_power_active_cleanup(state: &PlatformState) -> bool {
+    pub fn handle_power_active_cleanup(state: PlatformState) -> bool {
         state
+            .clone()
             .cap_state
             .grant_state
             .delete_all_entries_for_lifespan(&GrantLifespan::PowerActive)
@@ -190,7 +191,7 @@ impl ExtnEventProcessor for MainContextProcessor {
                     }
                 }
                 RippleContextUpdateType::PowerStateChanged => {
-                    Self::handle_power_state(&state.state, &extracted_message.system_power_state)
+                    Self::handle_power_state(state.state, &extracted_message.system_power_state)
                 }
                 _ => {}
             }

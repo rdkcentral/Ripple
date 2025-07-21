@@ -370,7 +370,7 @@ impl FireboltWs {
                 return;
             }
             if !gateway_secure
-                && PermissionHandler::fetch_and_store(&state, &app_id, false)
+                && PermissionHandler::fetch_and_store(state.clone(), &app_id, false)
                     .await
                     .is_err()
             {
@@ -384,7 +384,7 @@ impl FireboltWs {
 
         let rpc_context: Arc<RwLock<Vec<String>>> = Arc::new(RwLock::new(context));
         let (mut sender, mut receiver) = ws_stream.split();
-        let mut platform_state = state.clone();
+        let platform_state = state.clone();
         let context_clone = ctx.clone();
 
         tokio::spawn(async move {

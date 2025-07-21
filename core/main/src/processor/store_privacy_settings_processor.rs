@@ -77,10 +77,10 @@ impl StorePrivacySettingsProcessor {
         storage_property: StorageProperty,
         value: bool,
     ) -> bool {
-        let result = StorageManager::set_bool(state, storage_property, value, None).await;
+        let result = StorageManager::set_bool(state.clone(), storage_property, value, None).await;
         if result.is_ok() {
             Self::respond(
-                state.get_client().get_extn_client(),
+                state.clone().get_client().get_extn_client(),
                 msg,
                 ExtnResponse::None(()),
             )
@@ -88,7 +88,7 @@ impl StorePrivacySettingsProcessor {
             .is_ok()
         } else {
             Self::handle_error(
-                state.get_client().get_extn_client(),
+                state.clone().get_client().get_extn_client(),
                 msg,
                 RippleError::ProcessorError,
             )
@@ -100,10 +100,10 @@ impl StorePrivacySettingsProcessor {
         msg: ExtnMessage,
         storage_property: StorageProperty,
     ) -> bool {
-        let result = StorageManager::get_bool(state, storage_property).await;
+        let result = StorageManager::get_bool(state.clone(), storage_property).await;
         match result {
             Ok(val) => Self::respond(
-                state.get_client().get_extn_client(),
+                state.clone().get_client().get_extn_client(),
                 msg,
                 ExtnResponse::Boolean(val),
             )

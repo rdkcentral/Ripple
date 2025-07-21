@@ -1084,8 +1084,10 @@ impl EndpointBrokerState {
         for cleaner in sync_read_lock!(self.cleaner_list).clone() {
             /*
             for now, just eat the error - the return type was mainly added to prepate for future refactoring/testability
+
             */
-            let _ = cleaner.cleanup_session(app_id).await;
+            //bobra TODO, resolve issues w/this
+            //cleaner.cleanup_session(app_id).await;
         }
     }
 }
@@ -1216,7 +1218,7 @@ pub trait EndpointBroker {
 pub struct BrokerOutputForwarder;
 
 impl BrokerOutputForwarder {
-    pub fn start_forwarder(mut platform_state: PlatformState, mut rx: Receiver<BrokerOutput>) {
+    pub fn start_forwarder(platform_state: PlatformState, mut rx: Receiver<BrokerOutput>) {
         // set up the event utility
         let event_utility = Arc::new(EventManagementUtility::new());
         event_utility.register_custom_functions();

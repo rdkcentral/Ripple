@@ -100,21 +100,26 @@ impl SettingsProcessor {
         request: &SettingsRequestParam,
     ) -> Result<HashMap<String, SettingValue>, RippleError> {
         let ctx = request.context.clone();
-        if let Ok(cp) =
-            DiscoveryImpl::get_content_policy(&request.context, state, &request.context.app_id)
-                .await
+        if let Ok(cp) = DiscoveryImpl::get_content_policy(
+            &request.context,
+            state.clone(),
+            &request.context.app_id,
+        )
+        .await
         {
             let mut settings = HashMap::default();
             for sk in request.keys.clone() {
                 let val = match sk {
                     SettingKey::VoiceGuidanceEnabled => {
-                        let enabled = voice_guidance_settings_enabled(state)
+                        let enabled = voice_guidance_settings_enabled(state.clone())
                             .await
                             .unwrap_or(false);
                         Some(SettingValue::bool(enabled))
                     }
                     SettingKey::ClosedCaptions => {
-                        let enabled = ClosedcaptionsImpl::cc_enabled(state).await.unwrap_or(false);
+                        let enabled = ClosedcaptionsImpl::cc_enabled(state.clone())
+                            .await
+                            .unwrap_or(false);
                         Some(SettingValue::bool(enabled))
                     }
                     SettingKey::AllowPersonalization => {
@@ -126,19 +131,16 @@ impl SettingsProcessor {
                     SettingKey::ShareWatchHistory => {
                         Some(SettingValue::bool(cp.share_watch_history))
                     }
-                    SettingKey::DeviceName => {
-                        let s = state.clone();
-                        Some(SettingValue::string(
-                            broker_utils::BrokerUtils::process_internal_main_request(
-                                s,
-                                "device.name",
-                                None,
-                            )
-                            .await
-                            .unwrap_or_else(|_| "".into())
-                            .to_string(),
-                        ))
-                    }
+                    SettingKey::DeviceName => Some(SettingValue::string(
+                        broker_utils::BrokerUtils::process_internal_main_request(
+                            state.clone(),
+                            "device.name",
+                            None,
+                        )
+                        .await
+                        .unwrap_or_else(|_| "".into())
+                        .to_string(),
+                    )),
                     SettingKey::PowerSaving => Some(SettingValue::bool(true)),
                     SettingKey::LegacyMiniGuide => Some(SettingValue::bool(false)),
                 };
@@ -148,7 +150,7 @@ impl SettingsProcessor {
                         role: Some(CapabilityRole::Use),
                         capability: FireboltCap::Short(sk.use_capability().into()),
                     };
-                    if let Ok(result) = is_permitted(state, &ctx, &role_info).await {
+                    if let Ok(result) = is_permitted(state.clone(), &ctx, &role_info).await {
                         if result {
                             settings.insert(request.get_alias(&sk), v);
                         }
@@ -161,9 +163,9 @@ impl SettingsProcessor {
     }
 
     async fn get(state: PlatformState, msg: ExtnMessage, request: SettingsRequestParam) -> bool {
-        if let Ok(settings) = Self::get_settings_map(state, &request).await {
+        if let Ok(settings) = Self::get_settings_map(state.clone(), &request).await {
             return Self::respond(
-                state.get_client().get_extn_client(),
+                state.clone().get_client().get_extn_client(),
                 msg,
                 ExtnResponse::Settings(settings),
             )
@@ -172,7 +174,7 @@ impl SettingsProcessor {
         }
 
         Self::handle_error(
-            state.get_client().get_extn_client(),
+            state.clone().get_client().get_extn_client(),
             msg,
             RippleError::ProcessorError,
         )
@@ -228,7 +230,7 @@ impl SettingsProcessor {
                 }
                 SettingKey::AllowPersonalization => {
                     if PrivacyImpl::listen_content_policy_changed(
-                        state,
+                        state.clone(),
                         true,
                         ctx,
                         EVENT_ALLOW_PERSONALIZATION_CHANGED,
@@ -247,7 +249,7 @@ impl SettingsProcessor {
                 }
                 SettingKey::AllowWatchHistory => {
                     if PrivacyImpl::listen_content_policy_changed(
-                        state,
+                        state.clone(),
                         true,
                         ctx,
                         EVENT_ALLOW_WATCH_HISTORY_CHANGED,
@@ -266,7 +268,7 @@ impl SettingsProcessor {
                 }
                 SettingKey::ShareWatchHistory => {
                     if !Self::subscribe_event(
-                        state,
+                        state.clone(),
                         ctx.clone(),
                         EVENT_SHARE_WATCH_HISTORY,
                         request.clone(),
@@ -276,7 +278,7 @@ impl SettingsProcessor {
                 }
                 SettingKey::DeviceName => {
                     resp = BrokerUtils::process_internal_request(
-                        &state.clone(),
+                        state.clone(),
                         Some(request.context.clone()),
                         "sts.device.onNameChanged",
                         serde_json::to_value(json!({"listen": true})).ok(),
@@ -290,7 +292,7 @@ impl SettingsProcessor {
             }
         }
         Self::respond(
-            state.get_client().get_extn_client(),
+            state.clone().get_client().get_extn_client(),
             msg,
             if resp {
                 ExtnResponse::None(())
@@ -331,9 +333,9 @@ impl ExtnRequestProcessor for SettingsProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message {
-            SettingsRequest::Get(request) => Self::get(state, msg, request).await,
+            SettingsRequest::Get(request) => Self::get(state.clone(), msg, request).await,
             SettingsRequest::Subscribe(request) => {
-                Self::subscribe_to_settings(state, msg, request).await
+                Self::subscribe_to_settings(state.clone(), msg, request).await
             }
         }
     }

@@ -78,14 +78,19 @@ pub struct StorageManager;
 impl StorageManager {
     pub async fn get_bool(state: PlatformState, property: StorageProperty) -> RpcResult<bool> {
         if let Some(val) = state
+            .clone()
             .ripple_cache
             .get_cached_bool_storage_property(&property)
         {
             return Ok(val);
         }
         let data = property.as_data();
-        match StorageManager::get_bool_from_namespace(state, data.namespace.to_string(), data.key)
-            .await
+        match StorageManager::get_bool_from_namespace(
+            state.clone(),
+            data.namespace.to_string(),
+            data.key,
+        )
+        .await
         {
             Ok(StorageManagerResponse::Ok(value)) | Ok(StorageManagerResponse::NoChange(value)) => {
                 state
@@ -108,6 +113,7 @@ impl StorageManager {
         let data = property.as_data();
         trace!("Storage property: {:?} as data: {:?}", property, data);
         if let Some(val) = state
+            .clone()
             .ripple_cache
             .get_cached_bool_storage_property(&property)
         {
@@ -116,7 +122,7 @@ impl StorageManager {
             }
         }
         match StorageManager::set_in_namespace(
-            state,
+            state.clone(),
             data.namespace.to_string(),
             data.key.to_string(),
             json!(value),
@@ -128,6 +134,7 @@ impl StorageManager {
         {
             Ok(StorageManagerResponse::Ok(_)) | Ok(StorageManagerResponse::NoChange(_)) => {
                 state
+                    .clone()
                     .ripple_cache
                     .update_cached_bool_storage_property(&property, value);
                 Ok(())
@@ -187,12 +194,12 @@ impl StorageManager {
         key: String,
         value: String,
     ) -> RpcResult<()> {
-        match StorageManager::get_map(state, property.clone()).await {
+        match StorageManager::get_map(state.clone(), property.clone()).await {
             Ok(the_map) => {
                 let mut mutant: HashMap<String, serde_json::Value> = the_map;
                 mutant.insert(key, serde_json::Value::String(value));
                 match StorageManager::set_string(
-                    state,
+                    state.clone(),
                     property.clone(),
                     serde_json::to_string(&mutant).unwrap(),
                     None,
@@ -207,7 +214,7 @@ impl StorageManager {
                 let mut map: HashMap<String, serde_json::Value> = Default::default();
                 map.insert(key, serde_json::Value::String(value));
                 match StorageManager::set_string(
-                    state,
+                    state.clone(),
                     property.clone(),
                     serde_json::to_string(&map).unwrap(),
                     None,
@@ -226,12 +233,12 @@ impl StorageManager {
         property: StorageProperty,
         key: String,
     ) -> RpcResult<()> {
-        match StorageManager::get_map(state, property.clone()).await {
+        match StorageManager::get_map(state.clone(), property.clone()).await {
             Ok(the_map) => {
                 let mut mutant: HashMap<String, serde_json::Value> = the_map;
                 mutant.remove(&key);
                 match StorageManager::set_string(
-                    state,
+                    state.clone(),
                     property.clone(),
                     serde_json::to_string(&mutant).unwrap(),
                     None,
@@ -417,7 +424,7 @@ impl StorageManager {
         context: Option<Value>,
     ) -> Result<StorageManagerResponse<()>, StorageManagerError> {
         if let Ok(ExtnResponse::StorageData(storage_data)) =
-            StorageManager::get(state, &namespace, &key, scope.clone()).await
+            StorageManager::get(state.clone(), &namespace, &key, scope.clone()).await
         {
             if storage_data.value.eq(&value) {
                 return Ok(StorageManagerResponse::NoChange(()));
@@ -436,12 +443,13 @@ impl StorageManager {
         };
 
         match state
+            .clone()
             .get_client()
             .send_extn_request(DevicePersistenceRequest::Set(ssp))
             .await
         {
             Ok(_) => {
-                StorageManager::notify(state, value.clone(), event_names, context).await;
+                StorageManager::notify(state.clone(), value.clone(), event_names, context).await;
                 Ok(StorageManagerResponse::Ok(()))
             }
             Err(_) => Err(StorageManagerError::WriteError),
@@ -481,12 +489,12 @@ impl StorageManager {
         key: &'static str,
     ) -> Result<StorageManagerResponse<u32>, StorageManagerError> {
         trace!("get_string: namespace={}, key={}", namespace, key);
-        let resp = StorageManager::get(state, &namespace, &key.to_string(), None).await;
+        let resp = StorageManager::get(state.clone(), &namespace, &key.to_string(), None).await;
         match storage_to_u32_rpc_result(resp) {
             Ok(value) => Ok(StorageManagerResponse::Ok(value)),
             Err(_) => {
                 if let Ok(value) =
-                    DefaultStorageProperties::get_number_as_u32(state, &namespace, key)
+                    DefaultStorageProperties::get_number_as_u32(state.clone(), &namespace, key)
                 {
                     return Ok(StorageManagerResponse::Default(value));
                 }
@@ -508,11 +516,11 @@ impl StorageManager {
             namespace,
             key
         );
-        let resp = StorageManager::get(state, &namespace, &key.to_string(), None).await;
+        let resp = StorageManager::get(state.clone(), &namespace, &key.to_string(), None).await;
 
         storage_to_f32_rpc_result(resp).map_or_else(
             |_| {
-                DefaultStorageProperties::get_number_as_f32(state, &namespace, key)
+                DefaultStorageProperties::get_number_as_f32(state.clone(), &namespace, key)
                     .map_or(Err(StorageManagerError::NotFound), |val| {
                         Ok(StorageManagerResponse::Ok(val))
                     })
@@ -526,7 +534,7 @@ impl StorageManager {
         let data = property.as_data();
 
         if let Ok(ExtnResponse::StorageData(_)) = StorageManager::get(
-            state,
+            state.clone(),
             &data.namespace.to_string(),
             &data.key.to_string(),
             None,
@@ -534,7 +542,7 @@ impl StorageManager {
         .await
         {
             result = match StorageManager::delete(
-                state,
+                state.clone(),
                 &data.namespace.to_string(),
                 &data.key.to_string(),
                 None,
@@ -542,7 +550,8 @@ impl StorageManager {
             .await
             {
                 Ok(_) => {
-                    StorageManager::notify(state, Value::Null, data.event_names, None).await;
+                    StorageManager::notify(state.clone(), Value::Null, data.event_names, None)
+                        .await;
                     Ok(())
                 }
                 Err(_) => Err(StorageManager::get_firebolt_error(&property)),
@@ -679,7 +688,7 @@ impl StorageManager {
                 let evt = String::from(*event);
                 tokio::spawn(async move {
                     trace!("notify: Sending event {:?} ctx {:?}", evt, ctx);
-                    AppEvents::emit_with_context(&state_for_event, &evt, &result, ctx).await;
+                    AppEvents::emit_with_context(state_for_event, &evt, &result, ctx).await;
                 });
             }
         }

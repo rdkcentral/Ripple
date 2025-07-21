@@ -169,8 +169,8 @@ impl PermissionHandler {
 
     pub async fn cloud_fetch_and_store(state: PlatformState, app_id: &str) -> RippleResponse {
         // This function will always get the permissions from server and update the local cache
-        let app_id_alias = Self::get_distributor_alias_for_app_id(state, app_id);
-        if let Some(session) = state.session_state.get_account_session() {
+        let app_id_alias = Self::get_distributor_alias_for_app_id(state.clone(), app_id);
+        if let Some(session) = state.clone().session_state.clone().get_account_session() {
             match state
                 .get_client()
                 .send_extn_request(PermissionRequest {
@@ -187,7 +187,7 @@ impl PermissionHandler {
                     {
                         let mut permission_response_copy = permission_response;
                         return Self::process_permissions(
-                            state,
+                            state.clone(),
                             app_id,
                             &mut permission_response_copy,
                         );

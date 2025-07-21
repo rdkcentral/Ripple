@@ -646,11 +646,11 @@ impl DelegatedLauncherHandler {
 
     async fn set_up_lifecycle_manager_listener(&mut self) {
         info!("Setting up lifecycle manager thunder listener");
-        let mut state = self.platform_state.clone();
+        let state = self.platform_state.clone();
         let (sender, mut recv) = mpsc::channel(10);
         let broker_callback = BrokerCallback { sender };
         BrokerUtils::process_internal_subscription(
-            state,
+            self.platform_state.clone(),
             "lifecycle2.onAppLifecycleStateChanged",
             Some(json!({"listen": true})),
             None,
@@ -663,7 +663,7 @@ impl DelegatedLauncherHandler {
                 if let Some(p) = e.data.params {
                     match serde_json::from_value::<LifecycleStateChangeEvent>(p) {
                         Ok(event) => {
-                            Self::on_app_lifecycle_state_changed(&state, event).await;
+                            Self::on_app_lifecycle_state_changed(state.clone(), event).await;
                         }
                         Err(e) => {
                             error!("Failed to deserialize LifecycleStateChangeEvent: {:?}", e);
@@ -795,12 +795,12 @@ impl DelegatedLauncherHandler {
                 AppMethod::GetAppName(app_id) => (self.get_app_name(app_id.clone()), Some(app_id)),
                 AppMethod::NewActiveSession(session) => {
                     let app_id = session.app.id.clone();
-                    Self::new_active_session(&self.platform_state, session, true).await;
+                    Self::new_active_session(self.platform_state.clone(), session, true).await;
                     (Ok(AppManagerResponse::None), Some(app_id))
                 }
                 AppMethod::NewLoadedSession(session) => {
                     let app_id = session.app.id.clone();
-                    Self::new_loaded_session(&self.platform_state, session, true).await;
+                    Self::new_loaded_session(self.platform_state.clone(), session, true).await;
                     (Ok(AppManagerResponse::None), Some(app_id))
                 }
                 _ => (Err(AppError::NotSupported), None),
@@ -810,7 +810,7 @@ impl DelegatedLauncherHandler {
                 let mut ps_c = self.platform_state.clone();
                 let resp_c = resp.clone();
                 tokio::spawn(async move {
-                    Self::report_app_state_transition(&mut ps_c, &id, &method, resp_c).await;
+                    Self::report_app_state_transition(ps_c, &id, &method, resp_c).await;
                 });
             }
 
@@ -838,7 +838,7 @@ impl DelegatedLauncherHandler {
                 if let Ok(AppManagerResponse::Session(a)) = app_manager_response {
                     let params = serde_json::to_value(a).unwrap();
                     if BrokerUtils::process_internal_main_request(
-                        platform_state,
+                        platform_state.clone(),
                         "ripple.reportSessionUpdate",
                         Some(params),
                     )
@@ -850,8 +850,11 @@ impl DelegatedLauncherHandler {
                 }
             }
         }
-
-        if clone_and_read_lock!(platform_state, endpoint_state)
+        let rules = platform_state.clone();
+        let rules = rules.endpoint_state.clone();
+        if rules
+            .read()
+            .await
             .has_rule("ripple.reportLifecycleStateChange")
             .await
         {
@@ -866,6 +869,7 @@ impl DelegatedLauncherHandler {
             */
 
             let inactive = platform_state
+                .clone()
                 .app_manager_state
                 .get(app_id)
                 .map_or(false, |app| app.initial_session.launch.inactive);
@@ -888,7 +892,7 @@ impl DelegatedLauncherHandler {
             })
             .unwrap();
             if BrokerUtils::process_for_app_main_request(
-                platform_state,
+                platform_state.clone(),
                 "ripple.reportLifecycleStateChange",
                 Some(params),
                 app_id,
@@ -901,7 +905,9 @@ impl DelegatedLauncherHandler {
         }
 
         platform_state
+            .clone()
             .app_manager_state
+            .clone()
             .set_internal_state(app_id, method.clone());
     }
 
@@ -972,7 +978,7 @@ impl DelegatedLauncherHandler {
         let session = pending_session_info.session;
         let mut perms_with_grants_opt = if !session.launch.inactive {
             Self::get_permissions_requiring_user_grant_resolution(
-                platform_state,
+                platform_state.clone(),
                 session.app.id.clone(),
                 // Do not pass None as catalog value from this place, instead pass an empty string when app.catalog is None
                 Some(session.app.catalog.clone().unwrap_or_default()),
@@ -983,7 +989,7 @@ impl DelegatedLauncherHandler {
         };
         if perms_with_grants_opt.is_some()
             && !GrantPolicyEnforcer::can_proceed_with_user_grant_resolution(
-                platform_state,
+                platform_state.clone(),
                 &perms_with_grants_opt.clone().unwrap(),
             )
             .await
@@ -995,11 +1001,12 @@ impl DelegatedLauncherHandler {
         match perms_with_grants_opt {
             Some(perms_with_grants) => {
                 // Grants required, spawn a thread to handle the response from grants
-                let cloned_ps = platform_state.clone();
+                //let cloned_ps = platform_state.clone();
                 let cloned_app_id = session.app.id.clone();
+                let spawn_ps = platform_state.clone();
                 tokio::spawn(async move {
                     let resolved_result = GrantState::check_with_roles(
-                        &cloned_ps,
+                        spawn_ps.clone(),
                         &CallerSession::default(),
                         &AppIdentification {
                             app_id: cloned_app_id.to_owned(),
@@ -1018,14 +1025,14 @@ impl DelegatedLauncherHandler {
                             ..
                         }) => {
                             if pending_session_info.loading {
-                                Self::new_loaded_session(&cloned_ps, session, true).await;
+                                Self::new_loaded_session(spawn_ps.clone(), session, true).await;
                             } else {
-                                Self::new_active_session(&cloned_ps, session, true).await;
+                                Self::new_active_session(spawn_ps.clone(), session, true).await;
                             }
                         }
                         _ => {
                             debug!("handle session for deferred grant and other errors");
-                            Self::emit_cancelled(&cloned_ps, &cloned_app_id).await;
+                            Self::emit_cancelled(spawn_ps.clone(), &cloned_app_id).await;
                         }
                     }
                 });
@@ -1040,12 +1047,21 @@ impl DelegatedLauncherHandler {
                 // No grants required, transition immediately
                 if pending_session_info.loading {
                     let sess =
-                        Self::new_loaded_session(platform_state, session, emit_completed).await;
+                        Self::new_loaded_session(platform_state.clone(), session, emit_completed)
+                            .await;
                     SessionResponse::Completed(sess)
                 } else {
-                    Self::new_active_session(platform_state, session, emit_completed).await;
+                    Self::new_active_session(platform_state.clone(), session, emit_completed).await;
                     SessionResponse::Completed(Self::to_completed_session(
-                        &platform_state.app_manager_state.get(&app_id).unwrap(),
+                        /*
+                        TODO.. unwrap bad - who owns handling this?
+                        */
+                        &platform_state
+                            .clone()
+                            .app_manager_state
+                            .clone()
+                            .get(&app_id)
+                            .unwrap(),
                     ))
                 }
             }
@@ -1093,9 +1109,11 @@ impl DelegatedLauncherHandler {
             .session_state
             .add_pending_session(app_id.clone(), Some(pending_session_info.clone()));
 
-        let result =
-            PermissionHandler::fetch_permission_for_app_session(&self.platform_state, &app_id)
-                .await;
+        let result = PermissionHandler::fetch_permission_for_app_session(
+            self.platform_state.clone(),
+            &app_id,
+        )
+        .await;
         debug!(
             "precheck_then_load_or_activate: fetch_for_app_session completed for app_id={}, result={:?}",
             app_id, result
@@ -1112,8 +1130,12 @@ impl DelegatedLauncherHandler {
             });
         }
 
-        Self::check_grants_then_load_or_activate(&self.platform_state, pending_session_info, false)
-            .await
+        Self::check_grants_then_load_or_activate(
+            self.platform_state.clone(),
+            pending_session_info,
+            false,
+        )
+        .await
     }
 
     /// Actually perform the transition of the session from inactive to active.
@@ -1139,11 +1161,12 @@ impl DelegatedLauncherHandler {
                 .update_active_session(&app_id, Some(Uuid::new_v4().to_string()));
         }
         platform_state
+            .clone()
             .app_manager_state
             .clone()
             .set_session(&app_id, session.clone());
         if emit_event {
-            Self::emit_completed(platform_state, &app_id).await;
+            Self::emit_completed(platform_state.clone(), &app_id).await;
         }
         if let Some(intent) = session.launch.intent {
             AppEvents::emit_to_app(
@@ -1216,13 +1239,13 @@ impl DelegatedLauncherHandler {
     ) -> Option<Vec<FireboltPermission>> {
         // Get the list of permissions that the calling app currently has
         debug!(" Get the list of permissions that the calling app currently has {app_id}");
-        let app_perms = PermissionHandler::get_cached_app_permissions(ps, &app_id).await;
+        let app_perms = PermissionHandler::get_cached_app_permissions(ps.clone(), &app_id).await;
         if app_perms.is_empty() {
             return None;
         }
         debug!("list of permission that {} has {:?}", &app_id, app_perms);
         // Get the list of grant policies from device manifest.
-        let grant_polices_map_opt = ps.get_device_manifest().capabilities.grant_policies;
+        let grant_polices_map_opt = ps.clone().get_device_manifest().capabilities.grant_policies;
         debug!(
             "get the list of grant policies from device manifest file:{:?}",
             grant_polices_map_opt
@@ -1268,16 +1291,21 @@ impl DelegatedLauncherHandler {
                     .is_ok()
             })
             .collect();
-        final_perms =
-            GrantPolicyEnforcer::apply_grant_exclusion_filters(ps, &app_id, catalog, &final_perms)
-                .await;
+        final_perms = GrantPolicyEnforcer::apply_grant_exclusion_filters(
+            ps.clone(),
+            &app_id,
+            catalog,
+            &final_perms,
+        )
+        .await;
         debug!(
             "list of permissions that need to be evaluated: {:?}",
             final_perms
         );
         if !final_perms.is_empty() {
             // check if grants are resolved after checking for partner exclusion
-            let final_perms = GrantHandler::are_all_user_grants_resolved(ps, &app_id, final_perms);
+            let final_perms =
+                GrantHandler::are_all_user_grants_resolved(ps.clone(), &app_id, final_perms);
             if !final_perms.is_empty() {
                 return Some(final_perms);
             }
@@ -1365,7 +1393,7 @@ impl DelegatedLauncherHandler {
             {
                 if let Some(intent) = app.initial_session.launch.intent.clone() {
                     AppEvents::emit_to_app(
-                        &self.platform_state,
+                        self.platform_state.clone(),
                         app_id.to_string(),
                         DISCOVERY_EVENT_ON_NAVIGATE_TO,
                         &serde_json::to_value(intent).unwrap_or_default(),
@@ -1374,7 +1402,7 @@ impl DelegatedLauncherHandler {
                 }
                 if let Some(ss) = app.initial_session.launch.second_screen.clone() {
                     AppEvents::emit_to_app(
-                        &self.platform_state,
+                        self.platform_state.clone(),
                         app_id.to_string(),
                         SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST,
                         &serde_json::to_value(ss).unwrap_or_default(),
@@ -1390,7 +1418,7 @@ impl DelegatedLauncherHandler {
         state: LifecycleState,
     ) -> Result<AppManagerResponse, AppError> {
         debug!("set_state: entry: app_id={}, state={:?}", app_id, state);
-        let am_state = &self.platform_state.app_manager_state;
+        let am_state = self.platform_state.clone().app_manager_state.clone();
         let app = match am_state.get(app_id) {
             Some(app) => app,
             None => {
@@ -1412,6 +1440,7 @@ impl DelegatedLauncherHandler {
         // validate other transition cases
         if self
             .platform_state
+            .clone()
             .get_device_manifest()
             .configuration
             .default_values
@@ -1451,7 +1480,7 @@ impl DelegatedLauncherHandler {
         };
         let event_name = state.as_event();
         AppEvents::emit_to_app(
-            &self.platform_state,
+            self.platform_state.clone(),
             app_id.to_string(),
             event_name,
             &serde_json::to_value(state_change).unwrap(),
@@ -1468,6 +1497,7 @@ impl DelegatedLauncherHandler {
         // intent to conserve memory footprint
         if self
             .platform_state
+            .clone()
             .get_device_manifest()
             .lifecycle
             .is_emit_navigate_on_activate()
@@ -1480,7 +1510,7 @@ impl DelegatedLauncherHandler {
             let session = app.current_session.clone();
             if let Some(intent) = session.launch.intent {
                 AppEvents::emit_to_app(
-                    &self.platform_state,
+                    self.platform_state.clone(),
                     app_id.to_owned(),
                     DISCOVERY_EVENT_ON_NAVIGATE_TO,
                     &serde_json::to_value(intent).unwrap_or_default(),
@@ -1492,7 +1522,13 @@ impl DelegatedLauncherHandler {
     }
 
     fn ready_check(&self, app_id: &str) -> AppResponse {
-        let app = match self.platform_state.app_manager_state.get(app_id) {
+        let app = match self
+            .platform_state
+            .clone()
+            .app_manager_state
+            .clone()
+            .get(app_id)
+        {
             Some(app) => app,
             None => {
                 warn!("appid:{} Not found", app_id);
@@ -1506,7 +1542,13 @@ impl DelegatedLauncherHandler {
     }
 
     fn finished_check(&self, app_id: &str) -> AppResponse {
-        let app = match self.platform_state.app_manager_state.get(app_id) {
+        let app = match self
+            .platform_state
+            .clone()
+            .app_manager_state
+            .clone()
+            .get(app_id)
+        {
             Some(app) => app,
             None => {
                 warn!("appid:{} Not found", app_id);
@@ -1523,8 +1565,8 @@ impl DelegatedLauncherHandler {
         &mut self,
         event: LifecycleManagementEventRequest,
     ) -> Result<AppManagerResponse, AppError> {
-        if self.platform_state.has_internal_launcher() {
-            if let Err(e) = self.platform_state.get_client().send_event(event) {
+        if self.platform_state.clone().has_internal_launcher() {
+            if let Err(e) = self.platform_state.clone().get_client().send_event(event) {
                 error!("send event error {:?}", e);
                 return Err(AppError::OsError);
             }
@@ -1551,14 +1593,20 @@ impl DelegatedLauncherHandler {
                 _ => return Err(AppError::OsError),
             }
 
-            AppEvents::emit(&self.platform_state, event_name, &value).await;
+            AppEvents::emit(self.platform_state.clone(), event_name, &value).await;
         }
 
         Ok(AppManagerResponse::None)
     }
 
     async fn get_start_page(&mut self, app_id: String) -> Result<AppManagerResponse, AppError> {
-        match self.platform_state.app_manager_state.get(&app_id) {
+        match self
+            .platform_state
+            .clone()
+            .app_manager_state
+            .clone()
+            .get(&app_id)
+        {
             Some(app) => Ok(AppManagerResponse::StartPage(app.initial_session.app.url)),
             None => Err(AppError::NotFound),
         }

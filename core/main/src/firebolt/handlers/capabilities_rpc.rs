@@ -251,7 +251,13 @@ impl CapabilityServer for CapabilityImpl {
     ) -> RpcResult<Vec<CapabilityInfo>> {
         let mut fb_perms: Vec<FireboltPermission> = grants.clone().into();
         let mut cap_info = Vec::new();
-        if let Err(e) = self.state.cap_state.generic.check_supported(&fb_perms) {
+        if let Err(e) = self
+            .state
+            .clone()
+            .cap_state
+            .generic
+            .check_supported(&fb_perms)
+        {
             fb_perms.retain(|x| !e.caps.contains(&x.cap));
             for cap in e.caps {
                 cap_info.push(CapabilityInfo::get(
@@ -308,18 +314,19 @@ pub async fn is_permitted(
     if state.open_rpc_state.is_app_excluded(&ctx.app_id) {
         return Ok(true);
     }
-    if let Ok(v) = state
+    if let Ok(v) = (state)
         .cap_state
         .permitted_state
         .check_cap_role(&ctx.app_id, cap)
     {
         return Ok(v);
-    } else if PermissionHandler::fetch_and_store(state, &ctx.app_id, true)
+    } else if PermissionHandler::fetch_and_store(state.clone(), &ctx.app_id, true)
         .await
         .is_ok()
     {
         //successful fetch retry
         if let Ok(v) = state
+            .clone()
             .cap_state
             .permitted_state
             .check_cap_role(&ctx.app_id, cap)
@@ -332,8 +339,10 @@ pub async fn is_permitted(
 
 pub async fn is_granted(state: PlatformState, ctx: CallContext, cap: RoleInfo) -> RpcResult<bool> {
     Ok(state
+        .clone()
         .cap_state
+        .clone()
         .grant_state
-        .check_granted(&state, &ctx.app_id, cap)
+        .check_granted(state.clone(), &ctx.app_id, cap)
         .is_ok())
 }
