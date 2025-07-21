@@ -230,7 +230,6 @@ impl ThunderClient {
     }
 
     pub fn mock_thunderclient(thunder_async_request_tx: MpscSender<ThunderAsyncRequest>) -> Self {
-        println!("@@@NNA...we entered into mock_thunderclient");
         let (thunder_async_response_tx, mut thunder_async_response_rx) = mpsc::channel(32);
         let callback = AsyncCallback {
             sender: thunder_async_response_tx,
@@ -245,10 +244,6 @@ impl ThunderClient {
         // Process responses and forward to device_response_message_tx
         tokio::spawn(async move {
             while let Some(thunder_async_response) = thunder_async_response_rx.recv().await {
-                println!(
-                    "*** _DEBUG: ThunderClient: mock: thunder_async_response= {:?}",
-                    thunder_async_response
-                );
                 let (device_response_message_tx, _device_response_message_rx) =
                     oneshot::channel::<DeviceResponseMessage>();
 
