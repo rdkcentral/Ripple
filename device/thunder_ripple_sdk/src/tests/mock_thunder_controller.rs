@@ -285,7 +285,7 @@ impl MockThunderController {
             }
             while let Some(thunder_async_request) = thunder_async_request_rx.recv().await {
                 match thunder_async_request.request {
-                    DeviceChannelRequest::Call(ref msg) => {
+                    DeviceChannelRequest::Call(ref _msg) => {
                         mock_controller
                             .handle_thunder_call(
                                 thunder_async_request,
@@ -293,7 +293,7 @@ impl MockThunderController {
                             )
                             .await;
                     }
-                    DeviceChannelRequest::Subscribe(ref msg) => {
+                    DeviceChannelRequest::Subscribe(ref _msg) => {
                         mock_controller
                             .handle_thunder_sub(
                                 thunder_async_request,
