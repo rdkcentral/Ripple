@@ -31,7 +31,7 @@ pub struct FireboltGatekeeper {}
 
 impl FireboltGatekeeper {
     pub fn resolve_dependencies(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         perm_set: &Vec<FireboltPermission>,
     ) -> Vec<FireboltPermission> {
         let mut resolved_perm_set: Vec<FireboltPermission> = Default::default();
@@ -50,7 +50,7 @@ impl FireboltGatekeeper {
         resolved_perm_set
     }
     fn get_resolved_caps_for_method(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         method: &str,
         secure: bool,
     ) -> Option<Vec<FireboltPermission>> {

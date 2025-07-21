@@ -227,7 +227,7 @@ impl ProviderRegistrar {
         let listen = request.listen;
 
         AppEvents::add_listener(
-            &context.platform_state,
+            context.platform_state.clone(),
             context.method.clone(),
             call_context,
             request,
@@ -266,7 +266,7 @@ impl ProviderRegistrar {
             let listening = request.listen;
 
             ProviderBroker::register_or_unregister_provider(
-                &context.platform_state,
+                context.platform_state.clone(),
                 capability.clone(),
                 context.method.clone(),
                 context.method.clone(),
@@ -350,7 +350,7 @@ impl ProviderRegistrar {
             if let Some(app_event) = is_app_event {
                 let app_id = SerdeClearString::as_clear_string(&app_event);
                 AppEvents::emit_to_app(
-                    &context.platform_state,
+                    context.platform_state.clone(),
                     app_id,
                     &FireboltOpenRpcMethod::name_with_lowercase_module(event),
                     &result_value,
@@ -358,7 +358,7 @@ impl ProviderRegistrar {
                 .await;
             } else {
                 AppEvents::emit(
-                    &context.platform_state,
+                    context.platform_state.clone(),
                     &FireboltOpenRpcMethod::name_with_lowercase_module(event),
                     &result_value,
                 )
@@ -385,13 +385,18 @@ impl ProviderRegistrar {
                 attributes.error_payload_type.clone(),
                 params_sequence,
             ) {
-                ProviderBroker::provider_response(&context.platform_state, provider_response).await;
+                ProviderBroker::provider_response(
+                    context.platform_state.clone(),
+                    provider_response,
+                )
+                .await;
             }
         } else if let Some(provider_response) = ProviderRegistrar::get_provider_response(
             ProviderResponsePayloadType::GenericError,
             params_sequence,
         ) {
-            ProviderBroker::provider_response(&context.platform_state, provider_response).await;
+            ProviderBroker::provider_response(context.platform_state.clone(), provider_response)
+                .await;
         } else {
             error!(
                 "callback_error: NO Valid ATTRIBUTES: context.method={}",
@@ -490,7 +495,7 @@ impl ProviderRegistrar {
         };
 
         let provider_app_id =
-            ProviderBroker::invoke_method(&context.platform_state, provider_broker_request).await;
+            ProviderBroker::invoke_method(context.platform_state, provider_broker_request).await;
 
         let result = match timeout(
             Duration::from_millis(DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS),

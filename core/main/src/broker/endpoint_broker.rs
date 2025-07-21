@@ -27,6 +27,7 @@ use ripple_sdk::{
         observability::log_signal::LogSignal,
         session::AccountSession,
     },
+    async_read_lock, async_write_lock,
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
     log::{debug, error, info, trace},
@@ -755,7 +756,11 @@ impl EndpointBrokerState {
         data.id = Some(rpc_request.ctx.call_id);
         //let output = BrokerOutput::new(data);
 
-        capture_stage(self.metrics_state, &rpc_request, "static_rule_request");
+        capture_stage(
+            self.metrics_state.clone(),
+            &rpc_request,
+            "static_rule_request",
+        );
         data
     }
 
@@ -1231,7 +1236,9 @@ impl BrokerOutputForwarder {
                 };
 
                 if let Some(id) = id {
-                    if let Ok(broker_request) = platform_state.endpoint_state.get_request(id) {
+                    if let Ok(broker_request) =
+                        async_write_lock!(platform_state.clone().endpoint_state).get_request(id)
+                    {
                         LogSignal::new(
                             "start_forwarder".to_string(),
                             "broker request found".to_string(),
@@ -1367,7 +1374,8 @@ impl BrokerOutputForwarder {
                                     "listening" : rpc_request.is_listening(),
                                     "event" : rpc_request.ctx.method
                                 }));
-                                platform_state.endpoint_state.update_unsubscribe_request(id);
+                                async_write_lock!(platform_state.clone().endpoint_state)
+                                    .update_unsubscribe_request(id);
                             } else {
                                 apply_response_needed = true;
                             }
@@ -1478,7 +1486,8 @@ impl BrokerOutputForwarder {
                             // Step 3: Handle Non Extension
                             if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
                                 if let Ok(extn_message) =
-                                    platform_state.endpoint_state.get_extn_message(id, is_event)
+                                    async_read_lock!(platform_state.clone().endpoint_state)
+                                        .get_extn_message(id, is_event)
                                 {
                                     let client = platform_state.get_client().get_extn_client();
                                     if is_event {
@@ -1543,7 +1552,7 @@ impl BrokerOutputForwarder {
         };
 
         if let Ok(event_handler_response) = BrokerUtils::process_internal_main_request(
-            &platform_state_c,
+            platform_state_c.clone(),
             event_handler.method.as_str(),
             params,
         )
@@ -1586,6 +1595,7 @@ impl BrokerOutputForwarder {
         );
 
         if let Some(session) = platform_state_c
+            .clone()
             .session_state
             .get_session_for_connection_id(&session_id)
         {

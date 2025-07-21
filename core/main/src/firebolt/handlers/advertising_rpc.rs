@@ -76,10 +76,10 @@ pub trait Advertising {
     async fn policy(&self, ctx: CallContext) -> RpcResult<AdvertisingPolicy>;
 }
 const NONE: &str = "none";
-async fn get_advertisting_policy(platform_state: &PlatformState) -> AdvertisingPolicy {
+async fn get_advertisting_policy(platform_state: PlatformState) -> AdvertisingPolicy {
     AdvertisingPolicy {
         skip_restriction: StorageManager::get_string(
-            platform_state,
+            platform_state.clone(),
             StorageProperty::SkipRestriction,
         )
         .await
@@ -100,12 +100,14 @@ struct AdvertisingPolicyEventDecorator;
 impl AppEventDecorator for AdvertisingPolicyEventDecorator {
     async fn decorate(
         &self,
-        ps: &PlatformState,
+        ps: PlatformState,
         _ctx: &CallContext,
         _event_name: &str,
         _val_in: &Value,
     ) -> Result<Value, AppEventDecorationError> {
-        Ok(serde_json::to_value(get_advertisting_policy(ps).await)?)
+        Ok(serde_json::to_value(
+            get_advertisting_policy(ps.clone()).await,
+        )?)
     }
     fn dec_clone(&self) -> Box<dyn AppEventDecorator + Send + Sync> {
         Box::new(self.clone())
@@ -119,7 +121,7 @@ pub struct AdvertisingImpl {
 #[async_trait]
 impl AdvertisingServer for AdvertisingImpl {
     async fn policy(&self, _ctx: CallContext) -> RpcResult<AdvertisingPolicy> {
-        Ok(get_advertisting_policy(&self.state).await)
+        Ok(get_advertisting_policy(self.state.clone()).await)
     }
 }
 

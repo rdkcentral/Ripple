@@ -138,7 +138,7 @@ pub struct Entity {
 
 //TODO: Have to check if this can be ported.
 pub async fn get_content_partner_id(
-    platform_state: &PlatformState,
+    platform_state: PlatformState,
     ctx: &CallContext,
 ) -> RpcResult<String> {
     let mut content_partner_id = ctx.app_id.to_owned();
@@ -148,7 +148,11 @@ pub async fn get_content_partner_id(
         AppMethod::GetAppContentCatalog(ctx.app_id.clone()),
         app_resp_tx,
     );
-    if let Err(e) = platform_state.get_client().send_app_request(app_request) {
+    if let Err(e) = platform_state
+        .clone()
+        .get_client()
+        .send_app_request(app_request)
+    {
         error!("Send error for AppMethod::GetAppContentCatalog {:?}", e);
         return Err(rpc_err("Unable send app request"));
     }
@@ -187,13 +191,16 @@ impl DiscoveryImpl {
 
     pub async fn get_content_policy(
         ctx: &CallContext,
-        state: &PlatformState,
+        state: PlatformState,
         app_id: &str,
     ) -> RpcResult<ContentPolicy> {
         let content_policy = ContentPolicy {
-            enable_recommendations: PrivacyImpl::get_allow_personalization(state, app_id).await,
-            share_watch_history: PrivacyImpl::get_share_watch_history(ctx, state, app_id).await,
-            remember_watched_programs: PrivacyImpl::get_allow_watch_history(state, app_id).await,
+            enable_recommendations: PrivacyImpl::get_allow_personalization(state.clone(), app_id)
+                .await,
+            share_watch_history: PrivacyImpl::get_share_watch_history(ctx, state.clone(), app_id)
+                .await,
+            remember_watched_programs: PrivacyImpl::get_allow_watch_history(state.clone(), app_id)
+                .await,
         };
         Ok(content_policy)
     }
@@ -210,7 +217,7 @@ struct DiscoveryPolicyEventDecorator {}
 impl AppEventDecorator for DiscoveryPolicyEventDecorator {
     async fn decorate(
         &self,
-        ps: &PlatformState,
+        ps: PlatformState,
         ctx: &CallContext,
         _event_name: &str,
         _val_in: &Value,
@@ -234,7 +241,7 @@ impl DiscoveryServer for DiscoveryImpl {
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
         AppEvents::add_listener_with_decorator(
-            &self.state,
+            self.state.clone(),
             EVENT_DISCOVERY_POLICY_CHANGED.to_string(),
             ctx,
             request,
@@ -248,14 +255,20 @@ impl DiscoveryServer for DiscoveryImpl {
     }
 
     async fn get_content_policy_rpc(&self, ctx: CallContext) -> RpcResult<ContentPolicy> {
-        DiscoveryImpl::get_content_policy(&ctx, &self.state, &ctx.app_id).await
+        DiscoveryImpl::get_content_policy(&ctx, self.state.clone(), &ctx.app_id).await
     }
 
     async fn launch(&self, ctx: CallContext, request: LaunchRequest) -> RpcResult<bool> {
-        let app_defaults_configuration = self.state.get_device_manifest().applications.defaults;
+        let app_defaults_configuration = self
+            .state
+            .clone()
+            .get_device_manifest()
+            .applications
+            .defaults;
 
         let intent_validation_config = self
             .state
+            .clone()
             .get_device_manifest()
             .get_features()
             .intent_validation;
@@ -278,7 +291,7 @@ impl DiscoveryServer for DiscoveryImpl {
 
             // Not validating the intent, pass-through to app as is.
             if !AppEvents::is_app_registered_for_event(
-                &self.state,
+                self.state.clone(),
                 reserved_app_id.to_string(),
                 DISCOVERY_EVENT_ON_NAVIGATE_TO,
             ) {
@@ -289,7 +302,7 @@ impl DiscoveryServer for DiscoveryImpl {
             }
             // emit EVENT_ON_NAVIGATE_TO to the reserved app.
             AppEvents::emit_to_app(
-                &self.state,
+                self.state.clone(),
                 reserved_app_id.to_string(),
                 DISCOVERY_EVENT_ON_NAVIGATE_TO,
                 &serde_json::to_value(req_updated_source.intent).unwrap(),
@@ -330,7 +343,7 @@ impl DiscoveryServer for DiscoveryImpl {
         let listen = request.listen;
 
         AppEvents::add_listener(
-            &self.state,
+            self.state.clone(),
             DISCOVERY_EVENT_ON_NAVIGATE_TO.into(),
             ctx,
             request,
@@ -348,7 +361,7 @@ impl DiscoveryServer for DiscoveryImpl {
     ) -> RpcResult<ListenerResponse> {
         let listening = request.listen;
         ProviderBroker::register_or_unregister_provider(
-            &self.state,
+            self.state.clone(),
             FireboltCap::Short(ENTITY_INFO_CAPABILITY.into()).as_str(),
             String::from("entityInfo"),
             String::from(ENTITY_INFO_EVENT),
@@ -377,7 +390,7 @@ impl DiscoveryServer for DiscoveryImpl {
             request: ProviderRequestPayload::EntityInfoRequest(parameters),
             tx: session_tx,
         };
-        ProviderBroker::invoke_method(&self.state, pr_msg).await;
+        ProviderBroker::invoke_method(self.state.clone(), pr_msg).await;
         let channel_result = timeout(
             Duration::from_millis(federated_options.timeout.into()),
             session_rx,
@@ -409,7 +422,7 @@ impl DiscoveryServer for DiscoveryImpl {
             correlation_id: entity_info.correlation_id,
             result: ProviderResponsePayload::EntityInfoResponse(entity_info.result),
         };
-        ProviderBroker::provider_response(&self.state, response).await;
+        ProviderBroker::provider_response(self.state.clone(), response).await;
         Ok(true)
     }
 
@@ -420,7 +433,7 @@ impl DiscoveryServer for DiscoveryImpl {
     ) -> RpcResult<ListenerResponse> {
         let listening = request.listen;
         ProviderBroker::register_or_unregister_provider(
-            &self.state,
+            self.state.clone(),
             FireboltCap::Short(PURCHASED_CONTENT_CAPABILITY.into()).as_str(),
             String::from("purchasedContent"),
             String::from(PURCHASED_CONTENT_EVENT),
@@ -436,7 +449,7 @@ impl DiscoveryServer for DiscoveryImpl {
     }
 
     async fn get_providers(&self, _ctx: CallContext) -> RpcResult<Vec<ContentProvider>> {
-        let res = ProviderBroker::get_provider_methods(&self.state);
+        let res = ProviderBroker::get_provider_methods(self.state.clone());
         let provider_list = self.convert_provider_result(ProviderResult::new(res.entries));
         Ok(provider_list)
     }
@@ -457,7 +470,7 @@ impl DiscoveryServer for DiscoveryImpl {
             request: ProviderRequestPayload::PurchasedContentRequest(parameters),
             tx: session_tx,
         };
-        ProviderBroker::invoke_method(&self.state, pr_msg).await;
+        ProviderBroker::invoke_method(self.state.clone(), pr_msg).await;
         let channel_result = timeout(
             Duration::from_millis(federated_options.timeout.into()),
             session_rx,
@@ -489,7 +502,7 @@ impl DiscoveryServer for DiscoveryImpl {
             correlation_id: entity_info.correlation_id,
             result: ProviderResponsePayload::PurchasedContentResponse(entity_info.result),
         };
-        ProviderBroker::provider_response(&self.state, response).await;
+        ProviderBroker::provider_response(self.state.clone(), response).await;
         Ok(true)
     }
 }

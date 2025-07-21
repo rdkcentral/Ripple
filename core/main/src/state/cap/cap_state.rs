@@ -27,7 +27,7 @@ use crate::{
     },
     state::platform_state::PlatformState,
 };
-use ripple_sdk::{api::firebolt::fb_capabilities::RolePermission, serde_json};
+use ripple_sdk::{api::firebolt::fb_capabilities::RolePermission, serde_json, sync_read_lock};
 use ripple_sdk::{
     api::{
         firebolt::{
@@ -69,7 +69,7 @@ impl CapState {
     }
 
     pub async fn setup_listener(
-        ps: &PlatformState,
+        ps: PlatformState,
         call_context: CallContext,
         event: CapEvent,
         request: CapListenRPCRequest,
@@ -100,7 +100,7 @@ impl CapState {
             );
             debug!("setup event listener {}", event_name);
             AppEvents::add_listener(
-                ps,
+                ps.clone(),
                 event_name,
                 call_context,
                 ListenRequest {
@@ -111,7 +111,7 @@ impl CapState {
     }
 
     fn check_primed(
-        ps: &PlatformState,
+        ps: PlatformState,
         _event: &CapEvent,
         cap: &FireboltCap,
         app_id: Option<String>,
@@ -135,7 +135,7 @@ impl CapState {
     }
 
     pub async fn emit(
-        ps: &PlatformState,
+        ps: PlatformState,
         event: &CapEvent,
         cap: FireboltCap,
         role: Option<CapabilityRole>,
@@ -204,7 +204,7 @@ impl CapState {
     }
 
     pub async fn get_cap_info(
-        state: &PlatformState,
+        state: PlatformState,
         call_context: CallContext,
         firebolt_caps: &Vec<FireboltCap>,
     ) -> Result<Vec<CapabilityInfo>, RippleError> {
@@ -234,6 +234,7 @@ impl CapState {
             };
 
             capability_info.supported = state
+                .clone()
                 .cap_state
                 .generic
                 .check_supported(&[cap.clone().into()])
@@ -262,14 +263,18 @@ impl CapState {
                 capability_info._use.permitted,
                 capability_info.manage.permitted,
                 capability_info.provide.permitted,
-            ) = PermissionHandler::check_all_permitted(state, &call_context.app_id, &cap.as_str())
-                .await;
+            ) = PermissionHandler::check_all_permitted(
+                state.clone(),
+                &call_context.app_id,
+                &cap.as_str(),
+            )
+            .await;
 
             (
                 capability_info._use.granted,
                 capability_info.manage.granted,
                 capability_info.provide.granted,
-            ) = GrantState::check_all_granted(state, &call_context.app_id, &cap.as_str());
+            ) = GrantState::check_all_granted(state.clone(), &call_context.app_id, &cap.as_str());
             let mut deny_reasons = Vec::new();
             if !capability_info.supported {
                 deny_reasons.push(DenyReason::Unsupported);

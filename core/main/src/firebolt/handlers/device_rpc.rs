@@ -125,7 +125,7 @@ impl DeviceServer for DeviceImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(&self.state, ctx, request, EVENT_DEVICE_NAME_CHANGED).await
+        rpc_add_event_listener(self.state.clone(), ctx, request, EVENT_DEVICE_NAME_CHANGED).await
     }
 
     async fn on_device_name_changed(
@@ -133,11 +133,17 @@ impl DeviceServer for DeviceImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(&self.state, ctx, request, EVENT_DEVICE_DEVICE_NAME_CHANGED).await
+        rpc_add_event_listener(
+            self.state.clone(),
+            ctx,
+            request,
+            EVENT_DEVICE_DEVICE_NAME_CHANGED,
+        )
+        .await
     }
 
     async fn uid(&self, ctx: CallContext) -> RpcResult<String> {
-        crate::utils::common::get_uid(&self.state, ctx.app_id, KEY_FIREBOLT_DEVICE_UID).await
+        crate::utils::common::get_uid(self.state.clone(), ctx.app_id, KEY_FIREBOLT_DEVICE_UID).await
     }
 
     async fn platform(&self, _ctx: CallContext) -> RpcResult<String> {
@@ -146,7 +152,7 @@ impl DeviceServer for DeviceImpl {
 
     async fn version(&self, ctx: CallContext) -> RpcResult<DeviceVersionResponse> {
         let firmware_info = self.firmware_info(ctx).await?;
-        let open_rpc_state = &self.state.clone().open_rpc_state;
+        let open_rpc_state = self.state.clone().open_rpc_state.clone();
         let api = &*open_rpc_state.get_open_rpc().clone();
         let api = api.info.clone();
 
@@ -213,7 +219,7 @@ impl DeviceServer for DeviceImpl {
         let listen = request.listen;
 
         AppEvents::add_listener(
-            &self.state,
+            self.state.clone(),
             HDCP_CHANGED_EVENT.to_string(),
             ctx.clone(),
             request,
@@ -240,7 +246,7 @@ impl DeviceServer for DeviceImpl {
     }
 
     async fn typ(&self, _ctx: CallContext) -> RpcResult<String> {
-        Ok(self.state.get_device_manifest().get_form_factor())
+        Ok(self.state.clone().get_device_manifest().get_form_factor())
     }
 
     async fn audio(&self, _ctx: CallContext) -> RpcResult<HashMap<AudioProfile, bool>> {
@@ -273,7 +279,7 @@ impl DeviceServer for DeviceImpl {
         let listen = request.listen;
 
         AppEvents::add_listener(
-            &self.state,
+            self.state.clone(),
             AUDIO_CHANGED_EVENT.to_string(),
             ctx.clone(),
             request,

@@ -65,7 +65,7 @@ pub struct InternalImpl {
 #[async_trait]
 impl InternalServer for InternalImpl {
     async fn send_telemetry(&self, _ctx: CallContext, payload: TelemetryPayload) -> RpcResult<()> {
-        let _ = TelemetryBuilder::send_telemetry(self.state, payload);
+        let _ = TelemetryBuilder::send_telemetry(self.state.clone(), payload).await;
         Ok(())
     }
 
@@ -80,8 +80,13 @@ impl InternalServer for InternalImpl {
 
     async fn send_app_event(&self, _ctx: CallContext, event: AppEvent) -> RpcResult<()> {
         debug!("Sending App event {:?}", &event);
-        AppEvents::emit_with_context(&self.state, &event.event_name, &event.result, event.context)
-            .await;
+        AppEvents::emit_with_context(
+            self.state.clone(),
+            &event.event_name,
+            &event.result,
+            event.context,
+        )
+        .await;
         Ok(())
     }
 
@@ -92,7 +97,12 @@ impl InternalServer for InternalImpl {
     ) -> RpcResult<()> {
         debug!("registering App event {:?}", &request);
         let event = request.event.clone();
-        AppEvents::add_listener(&self.state, event, request.context.clone(), request.request);
+        AppEvents::add_listener(
+            self.state.clone(),
+            event,
+            request.context.clone(),
+            request.request,
+        );
         Ok(())
     }
 

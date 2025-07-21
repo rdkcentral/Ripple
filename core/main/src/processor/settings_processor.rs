@@ -64,7 +64,7 @@ struct SettingsChangeEventDecorator {
 impl AppEventDecorator for SettingsChangeEventDecorator {
     async fn decorate(
         &self,
-        state: &PlatformState,
+        state: PlatformState,
         _ctx: &CallContext,
         _event_name: &str,
         _val: &Value,
@@ -96,7 +96,7 @@ impl SettingsProcessor {
     }
 
     async fn get_settings_map(
-        state: &PlatformState,
+        state: PlatformState,
         request: &SettingsRequestParam,
     ) -> Result<HashMap<String, SettingValue>, RippleError> {
         let ctx = request.context.clone();
@@ -130,7 +130,7 @@ impl SettingsProcessor {
                         let s = state.clone();
                         Some(SettingValue::string(
                             broker_utils::BrokerUtils::process_internal_main_request(
-                                &s,
+                                s,
                                 "device.name",
                                 None,
                             )
@@ -160,7 +160,7 @@ impl SettingsProcessor {
         Err(RippleError::InvalidOutput)
     }
 
-    async fn get(state: &PlatformState, msg: ExtnMessage, request: SettingsRequestParam) -> bool {
+    async fn get(state: PlatformState, msg: ExtnMessage, request: SettingsRequestParam) -> bool {
         if let Ok(settings) = Self::get_settings_map(state, &request).await {
             return Self::respond(
                 state.get_client().get_extn_client(),
@@ -180,7 +180,7 @@ impl SettingsProcessor {
     }
 
     fn subscribe_event(
-        state: &PlatformState,
+        state: PlatformState,
         ctx: CallContext,
         event_name: &str,
         request: SettingsRequestParam,
@@ -196,7 +196,7 @@ impl SettingsProcessor {
     }
 
     async fn subscribe_to_settings(
-        state: &PlatformState,
+        state: PlatformState,
         msg: ExtnMessage,
         request: SettingsRequestParam,
     ) -> bool {
@@ -208,7 +208,7 @@ impl SettingsProcessor {
             match key {
                 SettingKey::VoiceGuidanceEnabled => {
                     resp = BrokerUtils::process_internal_request(
-                        &state.clone(),
+                        state.clone(),
                         Some(request.context.clone()),
                         "sts.voiceguidance.onEnabledChanged",
                         serde_json::to_value(json!({"listen": true})).ok(),
@@ -218,7 +218,7 @@ impl SettingsProcessor {
                 }
                 SettingKey::ClosedCaptions => {
                     resp = BrokerUtils::process_internal_request(
-                        &state.clone(),
+                        state.clone(),
                         Some(request.context.clone()),
                         "sts.closedcaptions.onEnabledChanged",
                         serde_json::to_value(json!({"listen": true})).ok(),
@@ -331,9 +331,9 @@ impl ExtnRequestProcessor for SettingsProcessor {
         extracted_message: Self::VALUE,
     ) -> bool {
         match extracted_message {
-            SettingsRequest::Get(request) => Self::get(&state, msg, request).await,
+            SettingsRequest::Get(request) => Self::get(state, msg, request).await,
             SettingsRequest::Subscribe(request) => {
-                Self::subscribe_to_settings(&state, msg, request).await
+                Self::subscribe_to_settings(state, msg, request).await
             }
         }
     }

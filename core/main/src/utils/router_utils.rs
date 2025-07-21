@@ -18,6 +18,7 @@ use std::sync::Arc;
 //
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
+    async_write_lock,
     extn::{
         client::extn_client::ExtnClient,
         extn_client_message::{ExtnMessage, ExtnResponse},
@@ -66,12 +67,8 @@ pub async fn capture_stage(
     request: &RpcRequest,
     stage: &str,
 ) {
-    let duration = {
-        let state = metrics_state.clone();
-
-        let mut state = state.write().await;
-        state.update_api_stage(&request.ctx.request_id, stage)
-    };
+    let duration =
+        { async_write_lock!(metrics_state).update_api_stage(&request.ctx.request_id, stage) }.await;
 
     trace!(
         "Firebolt processing stage: {},{},{},{}",

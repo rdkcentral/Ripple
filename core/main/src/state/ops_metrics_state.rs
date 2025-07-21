@@ -21,8 +21,8 @@ use std::{
 };
 
 use ripple_sdk::{
-    api::observability::metrics_util::ApiStats,
-    async_write_lock,
+    api::{device, observability::metrics_util::ApiStats},
+    async_read_lock, async_write_lock,
     chrono::{DateTime, Utc},
     log::{error, warn},
     tokio::sync::RwLock,
@@ -41,16 +41,15 @@ pub struct OpMetricState {
 }
 
 impl OpMetricState {
-    pub fn get_device_session_id(&self) -> String {
-        self.device_session_id
-            .read()
-            .unwrap()
-            .clone()
-            .unwrap_or_default()
+    pub async fn get_device_session_id(&self) -> String {
+        {
+            let device_session_id = async_read_lock!(self.device_session_id);
+            device_session_id.clone().unwrap_or_default().clone()
+        }
     }
 
-    pub fn operational_telemetry_listener(&self, target: &str, listen: bool) {
-        let mut listeners = self.operational_telemetry_listeners.write().unwrap();
+    pub async fn operational_telemetry_listener(&self, target: &str, listen: bool) {
+        let mut listeners = self.operational_telemetry_listeners.write().await;
         if listen {
             listeners.insert(target.to_string());
         } else {
@@ -102,8 +101,8 @@ impl OpMetricState {
         }
     }
 
-    pub fn update_api_stage(&mut self, request_id: &str, stage: &str) -> i64 {
-        let mut api_stats_map = self.api_stats_map.write().unwrap();
+    pub async fn update_api_stage(&mut self, request_id: &str, stage: &str) -> i64 {
+        let mut api_stats_map = async_write_lock!(self.api_stats_map);
         if let Some(stats) = api_stats_map.get_mut(request_id) {
             stats.stats.update_stage(stage)
         } else {
@@ -115,8 +114,8 @@ impl OpMetricState {
         }
     }
 
-    pub fn get_api_stats(&self, request_id: &str) -> Option<ApiStats> {
-        let api_stats_map = self.api_stats_map.read().unwrap();
+    pub async fn get_api_stats(&self, request_id: &str) -> Option<ApiStats> {
+        let api_stats_map = async_read_lock!(self.api_stats_map);
         api_stats_map.get(request_id).cloned()
     }
 }

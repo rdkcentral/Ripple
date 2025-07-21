@@ -42,6 +42,7 @@ use ripple_sdk::{
         },
         gateway::rpc_gateway_api::{AppIdentification, CallerSession},
     },
+    async_read_lock, clone_and_read_lock,
     log::{debug, error, warn},
     serde_json::{self},
     sync_read_lock, sync_write_lock,
@@ -72,7 +73,10 @@ use ripple_sdk::{
 use serde_json::{json, Value};
 
 use crate::{
-    broker::{broker_utils::BrokerUtils, endpoint_broker::BrokerCallback},
+    broker::{
+        broker_utils::BrokerUtils,
+        endpoint_broker::{self, BrokerCallback},
+    },
     service::{
         apps::app_events::AppEvents,
         extn::ripple_client::RippleClient,
@@ -449,7 +453,7 @@ impl DelegatedLauncherHandler {
     }
 
     #[allow(dead_code)]
-    fn create_new_app_session(platform_state: &PlatformState, event: LifecycleStateChangeEvent) {
+    fn create_new_app_session(platform_state: PlatformState, event: LifecycleStateChangeEvent) {
         let LifecycleStateChangeEvent {
             app_id,
             app_instance_id,
@@ -472,7 +476,7 @@ impl DelegatedLauncherHandler {
 
     #[allow(dead_code)]
     async fn emit_lifecycle_app_event(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         app_id: &str,
         event_ctor: fn(Lifecycle2_0AppEventData) -> Lifecycle2_0AppEvent,
         old_state: LifecycleManagerState,
@@ -494,7 +498,7 @@ impl DelegatedLauncherHandler {
     }
 
     async fn on_app_lifecycle_state_changed(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         event: LifecycleStateChangeEvent,
     ) {
         info!("on_app_lifecycle_2_state_changed: {:?}", event);
@@ -646,7 +650,7 @@ impl DelegatedLauncherHandler {
         let (sender, mut recv) = mpsc::channel(10);
         let broker_callback = BrokerCallback { sender };
         BrokerUtils::process_internal_subscription(
-            &mut state,
+            state,
             "lifecycle2.onAppLifecycleStateChanged",
             Some(json!({"listen": true})),
             None,
@@ -695,10 +699,14 @@ impl DelegatedLauncherHandler {
                     if self.platform_state.has_internal_launcher() {
                         // When using internal launcher extension the NavigationIntent structure will get untagged we will use the original
                         // intent in these cases to avoid loss of data
-                        self.platform_state.app_manager_state.store_intent(
-                            &launch_request.app_id,
-                            launch_request.get_intent().clone(),
-                        );
+                        self.platform_state
+                            .clone()
+                            .app_manager_state
+                            .clone()
+                            .store_intent(
+                                &launch_request.app_id,
+                                launch_request.get_intent().clone(),
+                            );
                     }
                     (
                         self.send_lifecycle_mgmt_event(LifecycleManagementEventRequest::Launch(
@@ -817,17 +825,16 @@ impl DelegatedLauncherHandler {
     }
 
     async fn report_app_state_transition(
-        platform_state: &mut PlatformState,
+        platform_state: PlatformState,
         app_id: &str,
         method: &AppMethod,
         app_manager_response: Result<AppManagerResponse, AppError>,
     ) {
         if let AppMethod::BrowserSession(_) = method {
-            if platform_state
-                .endpoint_state
-                .has_rule("ripple.reportSessionUpdate")
-                .await
-            {
+            let endpoint_state = platform_state.clone();
+            let endpoint_state = endpoint_state.endpoint_state.clone();
+            let endpoint_state = async_read_lock!(endpoint_state);
+            if endpoint_state.has_rule("ripple.reportSessionUpdate").await {
                 if let Ok(AppManagerResponse::Session(a)) = app_manager_response {
                     let params = serde_json::to_value(a).unwrap();
                     if BrokerUtils::process_internal_main_request(
@@ -844,8 +851,7 @@ impl DelegatedLauncherHandler {
             }
         }
 
-        if platform_state
-            .endpoint_state
+        if clone_and_read_lock!(platform_state, endpoint_state)
             .has_rule("ripple.reportLifecycleStateChange")
             .await
         {
@@ -927,7 +933,12 @@ impl DelegatedLauncherHandler {
             }
         }
 
-        TelemetryBuilder::send_app_load_start(&self.platform_state, app_id.clone(), None, None);
+        TelemetryBuilder::send_app_load_start(
+            self.platform_state.clone(),
+            app_id.clone(),
+            None,
+            None,
+        );
         debug!("start_session: entry: app_id={}", app_id);
         match self.platform_state.app_manager_state.get(&app_id) {
             Some(app) if (app.state != LifecycleState::Unloading) => {
@@ -954,7 +965,7 @@ impl DelegatedLauncherHandler {
     }
 
     pub async fn check_grants_then_load_or_activate(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         pending_session_info: PendingSessionInfo,
         emit_completed: bool,
     ) -> SessionResponse {
@@ -1111,30 +1122,32 @@ impl DelegatedLauncherHandler {
     /// If there is an intent in this new session then emit the onNavigateTo event with the intent
     /// If this is session was triggered by a second screen launch, then emit the second screen firebolt event
     async fn new_active_session(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         session: AppSession,
         emit_event: bool,
     ) {
         let app_id = session.app.id.clone();
-        let app = match platform_state.app_manager_state.get(&app_id) {
+        let app = match platform_state.clone().app_manager_state.get(&app_id) {
             Some(app) => app,
             None => return,
         };
 
         if app.active_session_id.is_none() {
             platform_state
+                .clone()
                 .app_manager_state
                 .update_active_session(&app_id, Some(Uuid::new_v4().to_string()));
         }
         platform_state
             .app_manager_state
+            .clone()
             .set_session(&app_id, session.clone());
         if emit_event {
             Self::emit_completed(platform_state, &app_id).await;
         }
         if let Some(intent) = session.launch.intent {
             AppEvents::emit_to_app(
-                platform_state,
+                platform_state.clone(),
                 app_id.clone(),
                 DISCOVERY_EVENT_ON_NAVIGATE_TO,
                 &serde_json::to_value(intent).unwrap_or_default(),
@@ -1144,7 +1157,7 @@ impl DelegatedLauncherHandler {
 
         if let Some(ss) = session.launch.second_screen {
             AppEvents::emit_to_app(
-                platform_state,
+                platform_state.clone(),
                 app_id.clone(),
                 SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST,
                 &serde_json::to_value(ss).unwrap_or_default(),
@@ -1157,7 +1170,7 @@ impl DelegatedLauncherHandler {
     /// Generate the session_id and loaded_session_id for this app
     /// If this transition happened asynchronously, then emit the completed event
     async fn new_loaded_session(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         session: AppSession,
         emit_event: bool,
     ) -> CompletedSessionResponse {
@@ -1197,7 +1210,7 @@ impl DelegatedLauncherHandler {
     }
 
     async fn get_permissions_requiring_user_grant_resolution(
-        ps: &PlatformState,
+        ps: PlatformState,
         app_id: String,
         catalog: Option<String>,
     ) -> Option<Vec<FireboltPermission>> {
@@ -1282,7 +1295,7 @@ impl DelegatedLauncherHandler {
         }
     }
 
-    pub async fn emit_completed(platform_state: &PlatformState, app_id: &String) {
+    pub async fn emit_completed(platform_state: PlatformState, app_id: &String) {
         platform_state.session_state.clear_pending_session(app_id);
         let app = match platform_state.app_manager_state.get(app_id) {
             Some(app) => app,
@@ -1297,7 +1310,7 @@ impl DelegatedLauncherHandler {
         .await;
     }
 
-    pub async fn emit_cancelled(platform_state: &PlatformState, app_id: &String) {
+    pub async fn emit_cancelled(platform_state: PlatformState, app_id: &String) {
         platform_state.session_state.clear_pending_session(app_id);
         AppEvents::emit(
             platform_state,

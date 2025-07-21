@@ -115,7 +115,7 @@ async fn update_additional_info(
     map_entry_property: MapEntryProperty,
 ) -> RpcResult<()> {
     match BrokerUtils::process_internal_main_request(
-        &platform_state,
+        platform_state.clone(),
         "localization.additionalInfo",
         None,
     )
@@ -140,7 +140,7 @@ async fn update_additional_info(
                 }));
 
                 BrokerUtils::process_internal_main_request(
-                    &platform_state,
+                    platform_state.clone(),
                     "localization.setAdditionalInfo",
                     params,
                 )
@@ -170,12 +170,12 @@ pub struct LocalizationImpl {
 }
 
 impl LocalizationImpl {
-    pub async fn postal_code(state: &PlatformState, app_id: String) -> Option<String> {
-        match StorageManager::get_string(state, StorageProperty::PostalCode).await {
+    pub async fn postal_code(state: PlatformState, app_id: String) -> Option<String> {
+        match StorageManager::get_string(state.clone(), StorageProperty::PostalCode).await {
             Ok(resp) => Some(resp),
             Err(_) => {
                 match StorageManager::get_string_from_namespace(
-                    state,
+                    state.clone(),
                     app_id,
                     KEY_POSTAL_CODE,
                     None,
@@ -198,7 +198,7 @@ impl LocalizationImpl {
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
         ProviderBroker::register_or_unregister_provider(
-            &self.platform_state,
+            self.platform_state.clone(),
             // TODO update with Firebolt Cap in later effort
             "xrn:firebolt:capability:localization:locale".into(),
             method.into(),
@@ -218,7 +218,7 @@ impl LocalizationImpl {
 #[async_trait]
 impl LocalizationServer for LocalizationImpl {
     async fn locality(&self, _ctx: CallContext) -> RpcResult<String> {
-        StorageManager::get_string(&self.platform_state, StorageProperty::Locality).await
+        StorageManager::get_string(self.platform_state.clone(), StorageProperty::Locality).await
     }
 
     async fn locality_set(
@@ -227,7 +227,7 @@ impl LocalizationServer for LocalizationImpl {
         set_request: SetStringProperty,
     ) -> RpcResult<()> {
         StorageManager::set_string(
-            &self.platform_state,
+            self.platform_state.clone(),
             StorageProperty::Locality,
             set_request.value,
             None,
@@ -250,7 +250,7 @@ impl LocalizationServer for LocalizationImpl {
     }
 
     async fn postal_code(&self, ctx: CallContext) -> RpcResult<String> {
-        match LocalizationImpl::postal_code(&self.platform_state, ctx.app_id).await {
+        match LocalizationImpl::postal_code(self.platform_state.clone(), ctx.app_id).await {
             Some(postal_code) => Ok(postal_code),
             None => Err(StorageManager::get_firebolt_error(
                 &StorageProperty::PostalCode,
@@ -264,7 +264,7 @@ impl LocalizationServer for LocalizationImpl {
         set_request: SetStringProperty,
     ) -> RpcResult<()> {
         StorageManager::set_string(
-            &self.platform_state,
+            self.platform_state.clone(),
             StorageProperty::PostalCode,
             set_request.value,
             None,
@@ -287,12 +287,12 @@ impl LocalizationServer for LocalizationImpl {
     }
 
     async fn locale(&self, _ctx: CallContext) -> RpcResult<String> {
-        StorageManager::get_string(&self.platform_state, StorageProperty::Locale).await
+        StorageManager::get_string(self.platform_state.clone(), StorageProperty::Locale).await
     }
 
     async fn locale_set(&self, _ctx: CallContext, set_request: SetStringProperty) -> RpcResult<()> {
         StorageManager::set_string(
-            &self.platform_state,
+            self.platform_state.clone(),
             StorageProperty::Locale,
             set_request.value,
             None,
@@ -315,12 +315,12 @@ impl LocalizationServer for LocalizationImpl {
     }
 
     async fn latlon(&self, _ctx: CallContext) -> RpcResult<String> {
-        StorageManager::get_string(&self.platform_state, StorageProperty::LatLon).await
+        StorageManager::get_string(self.platform_state.clone(), StorageProperty::LatLon).await
     }
 
     async fn latlon_set(&self, _ctx: CallContext, set_request: SetStringProperty) -> RpcResult<()> {
         StorageManager::set_string(
-            &self.platform_state,
+            self.platform_state.clone(),
             StorageProperty::LatLon,
             set_request.value,
             None,

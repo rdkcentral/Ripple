@@ -30,6 +30,7 @@ use ripple_sdk::{
         },
         observability::{log_signal::LogSignal, metrics_util::ApiStats},
     },
+    async_read_lock,
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
     log::{debug, error, info, trace, warn},
@@ -46,8 +47,11 @@ use crate::{
         telemetry_builder::TelemetryBuilder,
     },
     state::{
-        bootstrap_state::BootstrapState, openrpc_state::OpenRpcState,
-        ops_metrics_state::OpsMetrics, platform_state::PlatformState, session_state::Session,
+        bootstrap_state::BootstrapState,
+        openrpc_state::OpenRpcState,
+        ops_metrics_state::OpsMetrics,
+        platform_state::{self, PlatformState},
+        session_state::Session,
     },
     utils::router_utils::{capture_stage, get_rpc_header_with_status},
 };
@@ -138,12 +142,13 @@ impl FireboltGateway {
                     AppEvents::remove_session(&self.state.platform_state, session_id.clone());
                     ProviderBroker::unregister_session(&self.state.platform_state, cid.clone())
                         .await;
-                    self.state
-                        .platform_state
-                        .endpoint_state
-                        .cleanup_for_app(&cid)
-                        .await;
-                    self.state.platform_state.session_state.clear_session(&cid);
+                    {
+                        let platform_state = self.state.platform_state.clone();
+                        async_read_lock!(platform_state.endpoint_state)
+                            .cleanup_for_app(&cid)
+                            .await;
+                        platform_state.session_state.clear_session(&cid);
+                    }
                 }
                 HandleRpc { request } => self.handle(request, None).await,
                 HandleRpcForExtn { msg } => {
@@ -229,10 +234,8 @@ impl FireboltGateway {
         requestor_callback_tx
     }
 
-    pub fn handle_response(&self, response: JsonRpcApiResponse) {
-        self.state
-            .platform_state
-            .endpoint_state
+    pub async fn handle_response(&self, response: JsonRpcApiResponse) {
+        let _ = async_read_lock!(self.state.platform_state.endpoint_state)
             .handle_broker_response(response);
     }
 
@@ -341,15 +344,19 @@ impl FireboltGateway {
                     let requestor_callback_tx =
                         Self::handle_broker_callback(platform_state.clone(), request_c.clone());
 
-                    let handled = platform_state.endpoint_state.handle_brokerage(
-                        request_c.clone(),
-                        extn_msg.clone(),
-                        None,
-                        p,
-                        session.clone(),
-                        vec![requestor_callback_tx],
-                    );
-                    //.is_ok();
+                    let handled = {
+                        let es_arc = platform_state.clone();
+                        let es_arc = es_arc.endpoint_state.clone();
+                        let es_arc = async_read_lock!(es_arc);
+                        es_arc.handle_brokerage(
+                            request_c.clone(),
+                            extn_msg.clone(),
+                            None,
+                            p,
+                            session.clone(),
+                            vec![requestor_callback_tx],
+                        )
+                    };
 
                     if !handled {
                         // Route

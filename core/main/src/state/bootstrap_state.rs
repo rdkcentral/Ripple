@@ -30,6 +30,7 @@ use crate::{
     broker::endpoint_broker::{BrokerOutput, BROKER_CHANNEL_BUFFER_SIZE},
     firebolt::firebolt_gateway::FireboltGatewayCommand,
     service::extn::ripple_client::RippleClient,
+    state::platform_state::PlatformStateContainer,
 };
 
 use super::platform_state::PlatformState;
@@ -102,7 +103,7 @@ impl BootstrapState {
             return Err(RippleError::BootstrapError);
         };
         let app_manifest_result = LoadAppLibraryStep::load_app_library();
-        let platform_state = PlatformState::new(
+        let platform_state = PlatformStateContainer::new(
             extn_manifest,
             device_manifest,
             client,

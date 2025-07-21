@@ -93,7 +93,7 @@ impl ExtnRequestProcessor for KeyboardProcessor {
             tx: session_tx,
             app_id: None,
         };
-        ProviderBroker::invoke_method(&state, pr_msg).await;
+        ProviderBroker::invoke_method(state.clone(), pr_msg).await;
         if let Ok(result) = session_rx.await {
             if let Some(keyboard_response) = result.as_keyboard_result() {
                 if Self::respond(

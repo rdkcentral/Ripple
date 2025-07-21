@@ -32,8 +32,8 @@ use ripple_sdk::{
         extn_id::ExtnId,
     },
     framework::ripple_contract::RippleContract,
-    tokio::sync::RwLock,
-    utils::error::RippleError,
+    tokio::{self, sync::RwLock},
+    utils::{error::RippleError, sync::AsyncShared},
     uuid::Uuid,
 };
 use std::{collections::HashMap, sync::Arc};
@@ -109,7 +109,7 @@ pub struct PlatformStateContainer {
     pub device_session_id: DeviceSessionIdentifier,
     pub ripple_cache: RippleCache,
     pub version: Option<String>,
-    pub endpoint_state: EndpointBrokerState,
+    pub endpoint_state: AsyncShared<EndpointBrokerState>,
     pub lifecycle2_app_state: AppManagerState2_0,
 }
 
@@ -136,7 +136,8 @@ impl PlatformStateContainer {
             app_library_state: AppLibraryState::new(app_library),
             app_events_state: AppEventsState::default(),
             provider_broker_state: ProviderBrokerState::default(),
-            app_manager_state: AppManagerState::new(&manifest.configuration.saved_dir.clone()),
+            app_manager_state: AppManagerState::new(&manifest.configuration.saved_dir.clone())
+                .into(),
             open_rpc_state: OpenRpcState::new(Some(exclusory), extn_sdks, provider_registations)
                 .into(),
             router_state: RouterState::new(),
@@ -144,12 +145,14 @@ impl PlatformStateContainer {
             device_session_id: DeviceSessionIdentifier::default(),
             ripple_cache: RippleCache::default(),
             version,
-            endpoint_state: EndpointBrokerState::new(
+
+            endpoint_state: Arc::new(tokio::sync::RwLock::new(EndpointBrokerState::new(
                 metrics_state.clone(),
                 broker_sender,
                 rule_engine,
                 client,
-            ),
+            ))),
+
             lifecycle2_app_state: AppManagerState2_0::new(),
         }
     }

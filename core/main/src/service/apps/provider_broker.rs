@@ -33,9 +33,9 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::{CallContext, CallerSession},
     },
     log::{debug, error, info, warn},
-    serde_json,
+    serde_json, sync_write_lock,
     tokio::sync::oneshot,
-    utils::channel_utils::oneshot_send_and_log,
+    utils::{channel_utils::oneshot_send_and_log, sync::SyncRwLock},
     uuid::Uuid,
 };
 
@@ -46,7 +46,10 @@ use std::{
 
 use crate::{
     service::apps::app_events::AppEvents,
-    state::{cap::cap_state::CapState, platform_state::PlatformState},
+    state::{
+        cap::cap_state::CapState,
+        platform_state::{self, PlatformState},
+    },
 };
 
 const REQUEST_QUEUE_CAPACITY: usize = 3;
@@ -118,7 +121,7 @@ impl ProviderResult {
 
 impl ProviderBroker {
     pub async fn register_or_unregister_provider(
-        pst: &PlatformState,
+        pst: PlatformState,
         capability: String,
         method: String,
         event_name: String,
@@ -141,12 +144,17 @@ impl ProviderBroker {
     }
 
     async fn unregister_provider(
-        pst: &PlatformState,
+        pst: PlatformState,
         capability: String,
         method: String,
         provider: CallContext,
     ) {
-        let mut provider_methods = pst.provider_broker_state.provider_methods.write().unwrap();
+        let provider_methods = pst.clone();
+        let mut provider_methods = provider_methods
+            .provider_broker_state
+            .provider_methods
+            .write()
+            .unwrap();
         let cap_method = format!("{}:{}", capability, method);
         if let Some(method) = provider_methods.get(&cap_method) {
             // unregister the capability if it is provided by the session
@@ -161,7 +169,7 @@ impl ProviderBroker {
     }
 
     async fn register_provider(
-        pst: &PlatformState,
+        pst: PlatformState,
         capability: String,
         method: String,
         event_name: String,
@@ -173,9 +181,19 @@ impl ProviderBroker {
             capability, method, event_name
         );
         let cap_method = format!("{}:{}", capability, method);
-        AppEvents::add_listener(pst, event_name.clone(), provider.clone(), listen_request);
+        AppEvents::add_listener(
+            pst.clone(),
+            event_name.clone(),
+            provider.clone(),
+            listen_request,
+        );
         {
-            let mut provider_methods = pst.provider_broker_state.provider_methods.write().unwrap();
+            let provider_methods = pst.clone();
+            let mut provider_methods = provider_methods
+                .provider_broker_state
+                .provider_methods
+                .write()
+                .unwrap();
             provider_methods.insert(
                 cap_method,
                 ProviderMethod {
@@ -184,10 +202,10 @@ impl ProviderBroker {
                 },
             );
         }
-        let existing = ProviderBroker::remove_request(pst, &capability);
+        let existing = ProviderBroker::remove_request(pst.clone(), &capability);
         if let Some(request) = existing {
             info!("register_provider: Found pending provider request, invoking");
-            ProviderBroker::invoke_method(pst, request).await;
+            ProviderBroker::invoke_method(pst.clone(), request).await;
         }
 
         CapState::emit(
@@ -199,7 +217,7 @@ impl ProviderBroker {
         .await
     }
 
-    pub fn get_provider_methods(pst: &PlatformState) -> ProviderResult {
+    pub fn get_provider_methods(pst: PlatformState) -> ProviderResult {
         let provider_methods = pst.provider_broker_state.provider_methods.read().unwrap();
         let mut result: HashMap<String, Vec<String>> = HashMap::new();
         let caps_keys = provider_methods.keys();
@@ -220,7 +238,7 @@ impl ProviderBroker {
     }
 
     pub async fn invoke_method(
-        pst: &PlatformState,
+        pst: PlatformState,
         request: ProviderBrokerRequest,
     ) -> Option<String> {
         let mut provider_app_id = None;
@@ -251,8 +269,11 @@ impl ProviderBroker {
                 }
             }
 
-            let c_id =
-                ProviderBroker::start_provider_session(pst, request, provider_method.clone());
+            let c_id = ProviderBroker::start_provider_session(
+                pst.clone(),
+                request,
+                provider_method.clone(),
+            );
             if let Some(app_id) = app_id_opt {
                 debug!("Sending request to specific app {}", app_id);
                 AppEvents::emit_to_app(
@@ -290,12 +311,14 @@ impl ProviderBroker {
     }
 
     fn start_provider_session(
-        pst: &PlatformState,
+        pst: PlatformState,
         request: ProviderBrokerRequest,
         provider: ProviderMethod,
     ) -> String {
         let c_id = Uuid::new_v4().to_string();
-        let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
+        let active_sessions = pst.clone();
+        let active_sessions = active_sessions.provider_broker_state.clone();
+        let mut active_sessions = sync_write_lock!(active_sessions.active_sessions);
         debug!("started provider session {} {}", c_id, request.capability);
         active_sessions.insert(
             c_id.clone(),
@@ -312,11 +335,14 @@ impl ProviderBroker {
         c_id
     }
 
-    fn queue_provider_request(pst: &PlatformState, request: ProviderBrokerRequest) {
+    fn queue_provider_request(pst: PlatformState, request: ProviderBrokerRequest) {
         // Remove any duplicate requests.
-        ProviderBroker::remove_request(pst, &request.capability);
+        ProviderBroker::remove_request(pst.clone(), &request.capability);
 
-        let mut request_queue = pst.provider_broker_state.request_queue.write().unwrap();
+        let state = pst.clone();
+        let state = state.provider_broker_state.clone();
+        let mut request_queue = sync_write_lock!(state.request_queue);
+
         if request_queue.is_full() {
             warn!("invoke_method: Request queue full, removing oldest request");
             request_queue.remove(0);
@@ -324,12 +350,16 @@ impl ProviderBroker {
         request_queue.push(request);
     }
 
-    pub async fn provider_response(pst: &PlatformState, resp: ProviderResponse) {
+    pub async fn provider_response(pst: PlatformState, resp: ProviderResponse) {
         debug!(
             "provider_response, {}, {:?}",
             resp.correlation_id, resp.result
         );
-        let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
+
+        let active_sessions = pst.clone();
+        let active_sessions = active_sessions.provider_broker_state.clone();
+        let mut active_sessions = sync_write_lock!(active_sessions.active_sessions);
+
         match active_sessions.remove(&resp.correlation_id) {
             Some(session) => {
                 oneshot_send_and_log(session.caller.tx, resp.result, "ProviderResponse");
@@ -350,8 +380,11 @@ impl ProviderBroker {
         }
     }
 
-    fn cleanup_caps_for_unregister(pst: &PlatformState, session_id: String) -> Vec<String> {
-        let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
+    fn cleanup_caps_for_unregister(pst: PlatformState, session_id: String) -> Vec<String> {
+        let active_sessions = pst.clone();
+        let active_sessions = active_sessions.provider_broker_state.clone();
+        let mut active_sessions = sync_write_lock!(active_sessions.active_sessions);
+
         let cid_keys = active_sessions.keys();
         let all_cids = cid_keys.cloned().collect::<Vec<String>>();
         let mut clear_cids = Vec::<String>::new();
@@ -373,7 +406,12 @@ impl ProviderBroker {
         for cid in clear_cids {
             active_sessions.remove(&cid);
         }
-        let mut provider_methods = pst.provider_broker_state.provider_methods.write().unwrap();
+        let provider_methods = pst.clone();
+        let mut provider_methods = provider_methods
+            .provider_broker_state
+            .provider_methods
+            .write()
+            .unwrap();
         // find all providers for the session being unregistered
         // remove the provided capability
         let mut clear_caps = Vec::new();
@@ -392,19 +430,22 @@ impl ProviderBroker {
         clear_caps
     }
 
-    pub async fn unregister_session(pst: &PlatformState, session_id: String) {
-        let cleaned_caps = Self::cleanup_caps_for_unregister(&pst.clone(), session_id);
+    pub async fn unregister_session(pst: PlatformState, session_id: String) {
+        let cleaned_caps = Self::cleanup_caps_for_unregister(pst.clone(), session_id);
         let caps: Vec<FireboltCap> = cleaned_caps
             .iter()
             .map(|x| FireboltCap::Full(x.clone()))
             .collect();
         for cap in caps {
-            CapState::emit(pst, &CapEvent::OnUnavailable, cap, None).await
+            CapState::emit(pst.clone(), &CapEvent::OnUnavailable, cap, None).await
         }
     }
 
-    fn remove_request(pst: &PlatformState, capability: &String) -> Option<ProviderBrokerRequest> {
-        let mut request_queue = pst.provider_broker_state.request_queue.write().unwrap();
+    fn remove_request(pst: PlatformState, capability: &String) -> Option<ProviderBrokerRequest> {
+        let state = pst.clone();
+        let state = state.provider_broker_state.clone();
+        let mut request_queue = sync_write_lock!(state.request_queue);
+
         let mut iter = request_queue.iter();
         let cap = iter.position(|request| request.capability.eq(capability));
         if let Some(index) = cap {
@@ -415,12 +456,15 @@ impl ProviderBroker {
     }
 
     pub async fn focus(
-        pst: &PlatformState,
+        pst: PlatformState,
         _ctx: CallContext,
         _capability: String,
         request: FocusRequest,
     ) {
-        let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
+        let active_sessions = pst.clone();
+        let active_sessions = active_sessions.provider_broker_state.clone();
+        let mut active_sessions = sync_write_lock!(active_sessions.active_sessions);
+
         if let Some(session) = active_sessions.get_mut(&request.correlation_id) {
             session.focused = true;
             if pst.has_internal_launcher() {

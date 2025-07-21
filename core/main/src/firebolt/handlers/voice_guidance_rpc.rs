@@ -73,8 +73,8 @@ pub struct VoiceguidanceImpl {
     pub state: PlatformState,
 }
 
-pub async fn voice_guidance_settings_enabled(state: &PlatformState) -> RpcResult<bool> {
-    match BrokerUtils::process_internal_main_request(&state.clone(), "voiceguidance.enabled", None)
+pub async fn voice_guidance_settings_enabled(state: PlatformState) -> RpcResult<bool> {
+    match BrokerUtils::process_internal_main_request(state.clone(), "voiceguidance.enabled", None)
         .await
     {
         Ok(enabled_value) => {
@@ -94,7 +94,7 @@ pub async fn voice_guidance_settings_enabled(state: &PlatformState) -> RpcResult
 }
 
 pub async fn voice_guidance_settings_enabled_changed(
-    platform_state: &PlatformState,
+    platform_state: PlatformState,
     ctx: &CallContext,
     request: &ListenRequest,
     dec: Option<Box<dyn AppEventDecorator + Send + Sync>>,
@@ -140,25 +140,26 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         if (0.50..=2.0).contains(&set_request.value) {
             let resp = self
                 .state
+                .clone()
                 .get_client()
                 .send_extn_request(DeviceInfoRequest::SetVoiceGuidanceSpeed(set_request.value))
                 .await;
             if resp.is_ok() {
                 AppEvents::emit(
-                    &self.state,
+                    self.state.clone(),
                     VOICE_GUIDANCE_SPEED_CHANGED,
                     &json!(set_request.value),
                 )
                 .await;
 
-                let enabled = voice_guidance_settings_enabled(&self.state).await?;
+                let enabled = voice_guidance_settings_enabled(self.state.clone()).await?;
                 let voice_guidance_settings = VoiceGuidanceSettings {
                     enabled,
                     speed: set_request.value,
                 };
 
                 AppEvents::emit(
-                    &self.state,
+                    self.state.clone(),
                     VOICE_GUIDANCE_SETTINGS_CHANGED,
                     &serde_json::to_value(voice_guidance_settings).unwrap_or_default(),
                 )
@@ -182,7 +183,13 @@ impl VoiceguidanceServer for VoiceguidanceImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(&self.state, ctx, request, VOICE_GUIDANCE_SPEED_CHANGED).await
+        rpc_add_event_listener(
+            self.state.clone(),
+            ctx,
+            request,
+            VOICE_GUIDANCE_SPEED_CHANGED,
+        )
+        .await
     }
 }
 

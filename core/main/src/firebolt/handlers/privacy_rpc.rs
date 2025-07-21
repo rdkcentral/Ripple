@@ -83,7 +83,7 @@ impl AllowAppContentAdTargetingSettings {
 
     pub async fn get_allow_app_content_ad_targeting_settings(
         &self,
-        platform_state: &mut PlatformState,
+        platform_state: PlatformState,
         ctx: &CallContext,
     ) -> HashMap<String, String> {
         let mut new_ctx = ctx.clone();
@@ -335,7 +335,7 @@ pub trait Privacy {
 }
 
 pub async fn get_allow_app_content_ad_targeting_settings(
-    platform_state: &mut PlatformState,
+    platform_state: PlatformState,
     scope_option: Option<&ScopeOption>,
     caller_app: &String,
     ctx: &CallContext,
@@ -344,6 +344,7 @@ pub async fn get_allow_app_content_ad_targeting_settings(
     if let Some(scope_opt) = scope_option {
         if let Some(scope) = &scope_opt.scope {
             let primary_app = platform_state
+                .clone()
                 .get_device_manifest()
                 .applications
                 .defaults
@@ -359,7 +360,7 @@ pub async fn get_allow_app_content_ad_targeting_settings(
     }
 
     AllowAppContentAdTargetingSettings::new(
-        StorageManager::get_bool(platform_state, data)
+        StorageManager::get_bool(platform_state.clone(), data)
             .await
             .unwrap_or(true),
     )
@@ -374,7 +375,7 @@ pub struct PrivacyImpl {
 
 impl PrivacyImpl {
     pub fn listen_content_policy_changed(
-        state: &PlatformState,
+        state: PlatformState,
         listen: bool,
         ctx: &CallContext,
         event_name: &'static str,
@@ -416,7 +417,7 @@ impl PrivacyImpl {
         request: ContentListenRequest,
     ) -> RpcResult<ListenerResponse> {
         Self::listen_content_policy_changed(
-            &self.state,
+            self.state.clone(),
             request.listen,
             &ctx,
             event_name,
@@ -425,13 +426,13 @@ impl PrivacyImpl {
         )
     }
 
-    pub async fn get_allow_app_content_ad_targeting(state: &PlatformState) -> bool {
+    pub async fn get_allow_app_content_ad_targeting(state: PlatformState) -> bool {
         StorageManager::get_bool(state, StorageProperty::AllowAppContentAdTargeting)
             .await
             .unwrap_or(false)
     }
 
-    pub async fn get_allow_personalization(state: &PlatformState, _app_id: &str) -> bool {
+    pub async fn get_allow_personalization(state: PlatformState, _app_id: &str) -> bool {
         StorageManager::get_bool(state, StorageProperty::AllowPersonalization)
             .await
             .unwrap_or(false)
@@ -439,7 +440,7 @@ impl PrivacyImpl {
 
     pub async fn get_share_watch_history(
         ctx: &CallContext,
-        state: &PlatformState,
+        state: PlatformState,
         _app_id: &str,
     ) -> bool {
         let cap = RoleInfo {
@@ -453,7 +454,7 @@ impl PrivacyImpl {
         false
     }
 
-    pub async fn get_allow_watch_history(state: &PlatformState, _app_id: &str) -> bool {
+    pub async fn get_allow_watch_history(state: PlatformState, _app_id: &str) -> bool {
         StorageManager::get_bool(state, StorageProperty::AllowWatchHistory)
             .await
             .unwrap_or(false)
@@ -517,7 +518,7 @@ impl PrivacyImpl {
     ///
     pub async fn handle_allow_get_requests(
         method: &str,
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
     ) -> RpcResult<bool> {
         let property_opt = Self::to_storage_property(method);
         if let Some(prop) = property_opt {
@@ -532,7 +533,7 @@ impl PrivacyImpl {
 
     pub async fn handle_allow_set_requests(
         method: &str,
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
         let property_opt = Self::to_storage_property(method);
@@ -548,11 +549,11 @@ impl PrivacyImpl {
     }
 
     pub async fn get_bool_storage_property(&self, property: StorageProperty) -> RpcResult<bool> {
-        Self::get_bool(&self.state, property).await
+        Self::get_bool(self.state.clone(), property).await
     }
 
     pub async fn get_bool(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         property: StorageProperty,
     ) -> RpcResult<bool> {
         use ripple_sdk::api::manifest::device_manifest::PrivacySettingsStorageType;
@@ -616,7 +617,7 @@ impl PrivacyImpl {
     }
 
     pub async fn set_bool(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         property: StorageProperty,
         value: bool,
     ) -> RpcResult<()> {
@@ -739,7 +740,7 @@ impl PrivacyImpl {
 #[async_trait]
 impl PrivacyServer for PrivacyImpl {
     async fn privacy_allow_acr_collection(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state).await
+        Self::handle_allow_get_requests(&ctx.method, self.state.clone()).await
     }
 
     async fn privacy_allow_acr_collection_set(
@@ -747,7 +748,7 @@ impl PrivacyServer for PrivacyImpl {
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, self.state.clone(), set_request).await
     }
 
     async fn privacy_allow_acr_collection_changed(
@@ -767,7 +768,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn privacy_allow_app_content_ad_targeting(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state).await
+        Self::handle_allow_get_requests(&ctx.method, self.state.clone()).await
     }
 
     async fn privacy_allow_app_content_ad_targeting_set(
@@ -775,7 +776,7 @@ impl PrivacyServer for PrivacyImpl {
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, self.state.clone(), set_request).await
     }
 
     async fn privacy_allow_app_content_ad_targeting_changed(
@@ -795,7 +796,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn privacy_allow_camera_analytics(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state).await
+        Self::handle_allow_get_requests(&ctx.method, self.state.clone()).await
     }
 
     async fn privacy_allow_camera_analytics_set(
@@ -803,7 +804,7 @@ impl PrivacyServer for PrivacyImpl {
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, self.state.clone(), set_request).await
     }
 
     async fn privacy_allow_camera_analytics_changed(
@@ -823,7 +824,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn privacy_allow_personalization(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state).await
+        Self::handle_allow_get_requests(&ctx.method, self.state.clone()).await
     }
 
     async fn privacy_allow_personalization_set(
@@ -831,7 +832,7 @@ impl PrivacyServer for PrivacyImpl {
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, self.state.clone(), set_request).await
     }
 
     async fn privacy_allow_personalization_changed(
@@ -851,7 +852,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn privacy_allow_primary_browse_ad_targeting(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state).await
+        Self::handle_allow_get_requests(&ctx.method, self.state.clone()).await
     }
 
     async fn privacy_allow_primary_browse_ad_targeting_set(
@@ -859,7 +860,7 @@ impl PrivacyServer for PrivacyImpl {
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, self.state.clone(), set_request).await
     }
 
     async fn privacy_allow_primary_browse_ad_targeting_changed(
@@ -882,7 +883,7 @@ impl PrivacyServer for PrivacyImpl {
         &self,
         ctx: CallContext,
     ) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state).await
+        Self::handle_allow_get_requests(&ctx.method, self.state.clone()).await
     }
 
     async fn privacy_allow_primary_content_ad_targeting_set(
@@ -890,7 +891,7 @@ impl PrivacyServer for PrivacyImpl {
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, self.state.clone(), set_request).await
     }
 
     async fn privacy_allow_primary_content_ad_targeting_changed(
@@ -910,7 +911,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn privacy_allow_product_analytics(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state).await
+        Self::handle_allow_get_requests(&ctx.method, self.state.clone()).await
     }
 
     async fn privacy_allow_product_analytics_set(
@@ -918,7 +919,7 @@ impl PrivacyServer for PrivacyImpl {
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, self.state.clone(), set_request).await
     }
 
     async fn privacy_allow_product_analytics_changed(
@@ -938,7 +939,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn privacy_allow_remote_diagnostics(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state).await
+        Self::handle_allow_get_requests(&ctx.method, self.state.clone()).await
     }
 
     async fn privacy_allow_remote_diagnostics_set(
@@ -946,7 +947,7 @@ impl PrivacyServer for PrivacyImpl {
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, self.state.clone(), set_request).await
     }
 
     async fn privacy_allow_remote_diagnostics_changed(
@@ -966,7 +967,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn privacy_allow_resume_points(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state).await
+        Self::handle_allow_get_requests(&ctx.method, self.state.clone()).await
     }
 
     async fn privacy_allow_resume_points_set(
@@ -974,7 +975,7 @@ impl PrivacyServer for PrivacyImpl {
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, self.state.clone(), set_request).await
     }
 
     async fn privacy_allow_resume_points_changed(
@@ -994,7 +995,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn privacy_allow_unentitled_personalization(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state).await
+        Self::handle_allow_get_requests(&ctx.method, self.state.clone()).await
     }
 
     async fn privacy_allow_unentitled_personalization_set(
@@ -1002,7 +1003,7 @@ impl PrivacyServer for PrivacyImpl {
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, self.state.clone(), set_request).await
     }
 
     async fn privacy_allow_unentitled_personalization_changed(
@@ -1022,7 +1023,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn privacy_allow_unentitled_resume_points(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state).await
+        Self::handle_allow_get_requests(&ctx.method, self.state.clone()).await
     }
 
     async fn privacy_allow_unentitled_resume_points_set(
@@ -1030,7 +1031,7 @@ impl PrivacyServer for PrivacyImpl {
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, self.state.clone(), set_request).await
     }
 
     async fn privacy_allow_unentitled_resume_points_changed(
@@ -1050,7 +1051,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn privacy_allow_watch_history(&self, ctx: CallContext) -> RpcResult<bool> {
-        Self::handle_allow_get_requests(&ctx.method, &self.state).await
+        Self::handle_allow_get_requests(&ctx.method, self.state.clone()).await
     }
 
     async fn privacy_allow_watch_history_set(
@@ -1058,7 +1059,7 @@ impl PrivacyServer for PrivacyImpl {
         ctx: CallContext,
         set_request: SetBoolProperty,
     ) -> RpcResult<()> {
-        Self::handle_allow_set_requests(&ctx.method, &self.state, set_request).await
+        Self::handle_allow_set_requests(&ctx.method, self.state.clone(), set_request).await
     }
 
     async fn privacy_allow_watch_history_changed(
@@ -1081,6 +1082,7 @@ impl PrivacyServer for PrivacyImpl {
         use ripple_sdk::api::manifest::device_manifest::PrivacySettingsStorageType;
         let privacy_settings_storage_type: PrivacySettingsStorageType = self
             .state
+            .clone()
             .get_device_manifest()
             .configuration
             .features
@@ -1116,7 +1118,7 @@ impl PrivacyServer for PrivacyImpl {
         scope_option: Option<ScopeOption>,
     ) -> RpcResult<HashMap<String, String>> {
         Ok(get_allow_app_content_ad_targeting_settings(
-            &mut self.state.clone(),
+            self.state.clone(),
             scope_option.as_ref(),
             &ctx.app_id,
             &ctx,
@@ -1125,7 +1127,7 @@ impl PrivacyServer for PrivacyImpl {
     }
 
     async fn get_content_ad_targeting(&self) -> RpcResult<bool> {
-        Ok(PrivacyImpl::get_allow_app_content_ad_targeting(&self.state).await)
+        Ok(PrivacyImpl::get_allow_app_content_ad_targeting(self.state.clone()).await)
     }
 }
 

@@ -37,3 +37,20 @@ macro_rules! async_write_lock {
         $lock.write().await
     };
 }
+pub type AsyncRwLock<T> = tokio::sync::RwLock<T>;
+pub type SyncRwLock<T> = std::sync::RwLock<T>;
+
+pub type SyncShared<T> = std::sync::Arc<SyncRwLock<T>>;
+pub type AsyncShared<T> = std::sync::Arc<AsyncRwLock<T>>;
+
+#[macro_export]
+macro_rules! clone_and_read_lock {
+    (
+        $platform_state:expr, $field:ident $(=> $binding:ident)?
+    ) => {{
+        let cloned = $platform_state.clone();
+        let guard = cloned.$field.read().await;
+        $(let $binding = guard;)*
+        guard
+    }};
+}

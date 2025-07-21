@@ -29,6 +29,7 @@ use ripple_sdk::{
         },
         gateway::rpc_gateway_api::{ApiMessage, CallContext, RpcRequest},
     },
+    async_read_lock,
     chrono::{DateTime, Utc},
     framework::RippleResponse,
     log::{error, trace},
@@ -47,7 +48,7 @@ include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
 impl TelemetryBuilder {
     pub async fn send_app_load_start(
-        ps: &PlatformState,
+        ps: PlatformState,
         app_id: String,
         app_version: Option<String>,
         start_time: Option<DateTime<Utc>>,
@@ -118,18 +119,18 @@ impl TelemetryBuilder {
         result
     }
 
-    pub fn send_ripple_telemetry(ps: &PlatformState) {
+    pub async fn send_ripple_telemetry(ps: PlatformState) {
         Self::send_app_load_start(
-            ps,
+            ps.clone(),
             "ripple".to_string(),
             Some(
                 ps.version
                     .clone()
                     .unwrap_or(String::from(SEMVER_LIGHTWEIGHT)),
             ),
-            Some(ps.metrics.start_time),
+            Some(async_read_lock!(ps.metrics).start_time),
         );
-        Self::send_app_load_stop(ps, "ripple".to_string(), true);
+        Self::send_app_load_stop(ps.clone(), "ripple".to_string(), true);
     }
 
     pub async fn send_error(ps: PlatformState, app_id: String, error_params: ErrorParams) {
@@ -242,14 +243,16 @@ impl TelemetryBuilder {
         }
     }
 
-    pub fn send_fb_event(ps: &PlatformState, event: &str, result: Value) {
+    pub async fn send_fb_event(ps: PlatformState, event: &str, result: Value) {
         if let Err(e) = Self::send_telemetry(
             ps.clone(),
             TelemetryPayload::FireboltEvent(FireboltEvent {
                 event_name: event.into(),
                 result,
             }),
-        ) {
+        )
+        .await
+        {
             error!("send_fb_event: e={:?}", e)
         }
     }

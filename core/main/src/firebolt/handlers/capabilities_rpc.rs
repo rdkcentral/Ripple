@@ -106,7 +106,7 @@ impl CapabilityImpl {
         event: CapEvent,
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
-        CapState::setup_listener(&self.state.clone(), ctx, event.clone(), request).await;
+        CapState::setup_listener(self.state.clone(), ctx, event.clone(), request).await;
         Ok(ListenerResponse {
             listening: listen,
             event: format!("capabilities.{}", event.as_str()),
@@ -117,7 +117,7 @@ impl CapabilityImpl {
 #[async_trait]
 impl CapabilityServer for CapabilityImpl {
     async fn get_capability_permit(&self, ctx: CallContext, role: RoleInfo) -> RpcResult<bool> {
-        is_permitted(&self.state.clone(), &ctx, &role).await
+        is_permitted(self.state.clone(), &ctx, &role).await
     }
 
     async fn supported(&self, _ctx: CallContext, cap: CapRPCRequest) -> RpcResult<bool> {
@@ -156,7 +156,7 @@ impl CapabilityServer for CapabilityImpl {
             .check_cap_role(&ctx.app_id, &cap.clone().into())
         {
             return Ok(v);
-        } else if PermissionHandler::fetch_and_store(&self.state, &ctx.app_id, true)
+        } else if PermissionHandler::fetch_and_store(self.state.clone(), &ctx.app_id, true)
             .await
             .is_ok()
         {
@@ -175,11 +175,11 @@ impl CapabilityServer for CapabilityImpl {
 
     async fn granted(&self, ctx: CallContext, cap: CapRPCRequest) -> RpcResult<Option<bool>> {
         let role_info = cap.into();
-        let granted_res =
-            self.state
-                .cap_state
-                .grant_state
-                .check_granted(&self.state, &ctx.app_id, role_info);
+        let granted_res = self.state.cap_state.grant_state.check_granted(
+            self.state.clone(),
+            &ctx.app_id,
+            role_info,
+        );
         match granted_res {
             Ok(grant) => Ok(Some(grant)),
             Err(RippleError::Permission(DenyReason::Ungranted)) => Ok(None),
@@ -199,7 +199,7 @@ impl CapabilityServer for CapabilityImpl {
             )));
         }
         let cap_set = request.capabilities;
-        if let Ok(a) = CapState::get_cap_info(&self.state, ctx, &cap_set).await {
+        if let Ok(a) = CapState::get_cap_info(self.state.clone(), ctx, &cap_set).await {
             Ok(a)
         } else {
             Err(jsonrpsee::core::Error::Custom(String::from(
@@ -263,10 +263,10 @@ impl CapabilityServer for CapabilityImpl {
         let permitted_result: Result<
             (),
             ripple_sdk::api::firebolt::fb_capabilities::DenyReasonWithCap,
-        > = PermissionHandler::check_permitted(&self.state, &ctx.app_id, &fb_perms).await;
+        > = PermissionHandler::check_permitted(self.state.clone(), &ctx.app_id, &fb_perms).await;
         if permitted_result.is_ok() {
             let _ = GrantState::check_with_roles(
-                &self.state,
+                self.state.clone(),
                 &ctx.clone().into(),
                 &ctx.clone().into(),
                 &fb_perms,
@@ -282,7 +282,7 @@ impl CapabilityServer for CapabilityImpl {
             .map(|role_info| role_info.capability.clone())
             .collect();
 
-        if let Ok(a) = CapState::get_cap_info(&self.state, ctx, &request).await {
+        if let Ok(a) = CapState::get_cap_info(self.state.clone(), ctx, &request).await {
             cap_info.extend(a);
             Ok(cap_info)
         } else {
@@ -301,7 +301,7 @@ impl RippleRPCProvider<CapabilityImpl> for CapRPCProvider {
 }
 
 pub async fn is_permitted(
-    state: &PlatformState,
+    state: PlatformState,
     ctx: &CallContext,
     cap: &RoleInfo,
 ) -> RpcResult<bool> {
