@@ -33,7 +33,10 @@ use ripple_sdk::{
     },
     framework::ripple_contract::RippleContract,
     tokio::{self, sync::RwLock},
-    utils::{error::RippleError, sync::AsyncShared},
+    utils::{
+        error::RippleError,
+        sync::{AsyncRwLock, AsyncShared},
+    },
     uuid::Uuid,
 };
 use std::{collections::HashMap, sync::Arc};
@@ -96,21 +99,21 @@ impl From<String> for DeviceSessionIdentifier {
 pub struct PlatformStateContainer {
     pub extn_manifest: Arc<ExtnManifest>,
     device_manifest: Arc<DeviceManifest>,
-    pub ripple_client: RippleClient,
-    pub app_library_state: AppLibraryState,
-    pub session_state: SessionState,
+    pub ripple_client: Arc<RippleClient>,
+    pub app_library_state: Arc<AppLibraryState>,
+    pub session_state: Arc<SessionState>,
     pub cap_state: Arc<CapState>,
-    pub app_events_state: AppEventsState,
-    pub provider_broker_state: ProviderBrokerState,
+    pub app_events_state: Arc<AppEventsState>,
+    pub provider_broker_state: Arc<ProviderBrokerState>,
     pub app_manager_state: Arc<AppManagerState>,
     pub open_rpc_state: Arc<OpenRpcState>,
-    pub router_state: RouterState,
+    pub router_state: Arc<RouterState>,
     pub metrics: Arc<RwLock<OpMetricState>>,
     pub device_session_id: DeviceSessionIdentifier,
-    pub ripple_cache: RippleCache,
+    pub ripple_cache: Arc<AsyncRwLock<RippleCache>>,
     pub version: Option<String>,
     pub endpoint_state: AsyncShared<EndpointBrokerState>,
-    pub lifecycle2_app_state: AppManagerState2_0,
+    pub lifecycle2_app_state: Arc<AppManagerState2_0>,
 }
 
 impl PlatformStateContainer {
@@ -130,20 +133,20 @@ impl PlatformStateContainer {
         Self {
             extn_manifest: Arc::new(extn_manifest),
             cap_state: CapState::new(manifest.clone()).into(),
-            session_state: SessionState::default(),
+            session_state: Arc::new(SessionState::default()),
             device_manifest: Arc::new(manifest.clone()),
-            ripple_client: client.clone(),
-            app_library_state: AppLibraryState::new(app_library),
-            app_events_state: AppEventsState::default(),
-            provider_broker_state: ProviderBrokerState::default(),
+            ripple_client: client.clone().into(),
+            app_library_state: Arc::new(AppLibraryState::new(app_library)),
+            app_events_state: Arc::new(AppEventsState::default()),
+            provider_broker_state: Arc::new(ProviderBrokerState::default()),
             app_manager_state: AppManagerState::new(&manifest.configuration.saved_dir.clone())
                 .into(),
             open_rpc_state: OpenRpcState::new(Some(exclusory), extn_sdks, provider_registations)
                 .into(),
-            router_state: RouterState::new(),
+            router_state: Arc::new(RouterState::new()),
             metrics: metrics_state.clone(),
             device_session_id: DeviceSessionIdentifier::default(),
-            ripple_cache: RippleCache::default(),
+            ripple_cache: Arc::new(tokio::sync::RwLock::new(RippleCache::default())),
             version,
 
             endpoint_state: Arc::new(tokio::sync::RwLock::new(EndpointBrokerState::new(
@@ -153,7 +156,7 @@ impl PlatformStateContainer {
                 client,
             ))),
 
-            lifecycle2_app_state: AppManagerState2_0::new(),
+            lifecycle2_app_state: Arc::new(AppManagerState2_0::new()),
         }
     }
     pub fn new(
@@ -196,7 +199,7 @@ impl PlatformStateContainer {
         (*self.device_manifest).clone()
     }
 
-    pub fn get_client(&self) -> RippleClient {
+    pub fn get_client(&self) -> Arc<RippleClient> {
         self.ripple_client.clone()
     }
 

@@ -67,7 +67,7 @@ impl LoadExtensionsStep {
         let manifest = state.platform_state.get_manifest();
         let default_path = manifest.default_path;
         let default_extn = manifest.default_extension;
-        let extn_paths: Vec<(String, ExtnManifestEntry)> = manifest
+        let mut extn_paths: Vec<(String, ExtnManifestEntry)> = manifest
             .extns
             .into_iter()
             .map(|f| {
@@ -75,6 +75,7 @@ impl LoadExtensionsStep {
                 // TODO Add Resolution checks later on
             })
             .collect();
+        extn_paths.shrink_to_fit();
         let mut loaded_extns = Vec::new();
         unsafe {
             for (extn_path, entry) in extn_paths {
@@ -105,6 +106,7 @@ impl LoadExtensionsStep {
             }
             info!("Total Libraries loaded={}", valid_extension_libraries);
         }
+        loaded_extns.shrink_to_fit();
         Ok(loaded_extns)
     }
 }

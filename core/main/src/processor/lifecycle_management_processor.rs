@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::sync::Arc;
+
 use ripple_sdk::{
     api::{
         apps::{AppMethod, AppRequest, AppResponse},
@@ -36,21 +38,21 @@ use crate::service::extn::ripple_client::RippleClient;
 /// Processor to service incoming Lifecycle Requests from launcher extension.
 #[derive(Debug)]
 pub struct LifecycleManagementProcessor {
-    client: RippleClient,
+    client: Arc<RippleClient>,
     streamer: DefaultExtnStreamer,
 }
 
 impl LifecycleManagementProcessor {
-    pub fn new(client: RippleClient) -> LifecycleManagementProcessor {
+    pub fn new(client: Arc<RippleClient>) -> LifecycleManagementProcessor {
         LifecycleManagementProcessor {
-            client,
+            client: client.clone(),
             streamer: DefaultExtnStreamer::new(),
         }
     }
 }
 
 impl ExtnStreamProcessor for LifecycleManagementProcessor {
-    type STATE = RippleClient;
+    type STATE = Arc<RippleClient>;
     type VALUE = LifecycleManagementRequest;
     fn get_state(&self) -> Self::STATE {
         self.client.clone()

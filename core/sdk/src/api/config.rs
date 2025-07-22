@@ -15,12 +15,15 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
+    api::manifest::app_library::{
+        deserialize_arc_app_library_state, serialize_arc_app_library_state,
+    },
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
@@ -126,7 +129,11 @@ pub enum ConfigResponse {
 pub struct LauncherConfig {
     pub retention_policy: RetentionPolicy,
     pub lifecycle_policy: LifecyclePolicy,
-    pub app_library_state: AppLibraryState,
+    #[serde(
+        deserialize_with = "deserialize_arc_app_library_state",
+        serialize_with = "serialize_arc_app_library_state"
+    )]
+    pub app_library_state: Arc<AppLibraryState>,
 }
 
 impl ExtnPayloadProvider for LauncherConfig {

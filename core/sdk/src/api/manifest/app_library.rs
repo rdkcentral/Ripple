@@ -20,13 +20,34 @@ use super::{
     device_manifest::{AppLibraryEntry, AppManifestLoad, BootState},
 };
 use log::{error, warn};
+use serde::Serializer;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct AppLibraryState {
     pub default_apps: Vec<AppLibraryEntry>,
     pub providers: HashMap<String, String>,
+}
+
+pub fn serialize_arc_app_library_state<S>(
+    value: &Arc<AppLibraryState>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    value.as_ref().serialize(serializer)
+}
+
+pub fn deserialize_arc_app_library_state<'de, D>(
+    deserializer: D,
+) -> Result<Arc<AppLibraryState>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let inner = AppLibraryState::deserialize(deserializer)?;
+    Ok(Arc::new(inner))
 }
 
 impl std::fmt::Debug for AppLibraryState {

@@ -1610,11 +1610,11 @@ impl DelegatedLauncherHandler {
         }
     }
 
-    async fn start_timer(helper: RippleClient, timeout_ms: u64, method: AppMethod) -> Timer {
+    async fn start_timer(helper: Arc<RippleClient>, timeout_ms: u64, method: AppMethod) -> Timer {
         let cb = async move {
             let (resp_tx, resp_rx) = oneshot::channel::<Result<AppManagerResponse, AppError>>();
             let req = AppRequest::new(method, resp_tx);
-            if let Err(e) = helper.send_app_request(req) {
+            if let Err(e) = helper.clone().send_app_request(req) {
                 error!("Failed to send app request after timer expired: {:?}", e);
             }
 

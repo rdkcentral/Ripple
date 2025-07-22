@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::sync::Arc;
+
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::{ApiProtocol, RpcRequest},
     async_trait::async_trait,
@@ -34,12 +36,12 @@ use crate::{
 /// Processor to service incoming RPC Requests used by extensions and other local rpc handlers for aliasing.
 #[derive(Debug)]
 pub struct RpcGatewayProcessor {
-    client: RippleClient,
+    client: Arc<RippleClient>,
     streamer: DefaultExtnStreamer,
 }
 
 impl RpcGatewayProcessor {
-    pub fn new(client: RippleClient) -> RpcGatewayProcessor {
+    pub fn new(client: Arc<RippleClient>) -> RpcGatewayProcessor {
         RpcGatewayProcessor {
             client,
             streamer: DefaultExtnStreamer::new(),
@@ -48,7 +50,7 @@ impl RpcGatewayProcessor {
 }
 
 impl ExtnStreamProcessor for RpcGatewayProcessor {
-    type STATE = RippleClient;
+    type STATE = Arc<RippleClient>;
     type VALUE = RpcRequest;
     fn get_state(&self) -> Self::STATE {
         self.client.clone()

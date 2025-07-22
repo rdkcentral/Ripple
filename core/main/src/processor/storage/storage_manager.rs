@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use jsonrpsee::core::RpcResult;
+use jsonrpsee::core::{client::async_client, RpcResult};
 use ripple_sdk::{
     api::{
         device::device_peristence::{
@@ -25,10 +25,11 @@ use ripple_sdk::{
         firebolt::fb_capabilities::CAPABILITY_NOT_AVAILABLE,
         storage_property::{StorageProperty, StoragePropertyData},
     },
+    async_read_lock, async_write_lock,
     extn::extn_client_message::ExtnResponse,
     log::trace,
     serde_json::{json, Value},
-    tokio,
+    sync_read_lock, tokio,
     utils::{error::RippleError, rpc_utils::rpc_error_with_code},
     JsonRpcErrorType,
 };
@@ -77,11 +78,9 @@ pub struct StorageManager;
 
 impl StorageManager {
     pub async fn get_bool(state: PlatformState, property: StorageProperty) -> RpcResult<bool> {
-        if let Some(val) = state
-            .clone()
-            .ripple_cache
-            .get_cached_bool_storage_property(&property)
-        {
+        if let Some(val) = {
+            async_read_lock!(state.clone().ripple_cache).get_cached_bool_storage_property(&property)
+        } {
             return Ok(val);
         }
         let data = property.as_data();
@@ -93,11 +92,11 @@ impl StorageManager {
         .await
         {
             Ok(StorageManagerResponse::Ok(value)) | Ok(StorageManagerResponse::NoChange(value)) => {
-                state
-                    .clone()
-                    .ripple_cache
-                    .update_cached_bool_storage_property(&property, value);
-                Ok(value)
+                Ok({
+                    async_write_lock!(state.clone().ripple_cache)
+                        .update_cached_bool_storage_property(&property, value);
+                    value
+                })
             }
             Ok(StorageManagerResponse::Default(value)) => Ok(value),
             Err(_) => Err(StorageManager::get_firebolt_error(&property)),
@@ -112,10 +111,9 @@ impl StorageManager {
     ) -> RpcResult<()> {
         let data = property.as_data();
         trace!("Storage property: {:?} as data: {:?}", property, data);
-        if let Some(val) = state
-            .clone()
-            .ripple_cache
-            .get_cached_bool_storage_property(&property)
+
+        if let Some(val) =
+            async_read_lock!(state.clone().ripple_cache).get_cached_bool_storage_property(&property)
         {
             if val == value {
                 return Ok(());
@@ -133,9 +131,7 @@ impl StorageManager {
         .await
         {
             Ok(StorageManagerResponse::Ok(_)) | Ok(StorageManagerResponse::NoChange(_)) => {
-                state
-                    .clone()
-                    .ripple_cache
+                async_write_lock!(state.clone().ripple_cache)
                     .update_cached_bool_storage_property(&property, value);
                 Ok(())
             }
