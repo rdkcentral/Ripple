@@ -36,7 +36,7 @@ jsonrpsee = { version = "=0.16.3", default-features = false }
 querystring = { version = "1.1.0", default-features = false }
 regex = { version = "1.10.4", features = ["std"], default-features = false }
 serde_json = { version = "1.0", default-features = false}
-serde = { version = "1.0", features = ["derive,rc"], default-features =  false  }
+serde = { version = "1.0", features = ["derive"], default-features =  false  }
 tokio = { version = "1.44.1", default-features = false }
 tokio-tungstenite = { version = "0.20.1", default-features = false }
 url = { version = "=2.5.0", default-features = false}

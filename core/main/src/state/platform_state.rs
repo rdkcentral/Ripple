@@ -270,7 +270,7 @@ mod tests {
             )
             .unwrap();
             extn_manifest.provider_registrations = default_providers();
-            Self::new(
+            Self::new_instance(
                 extn_manifest,
                 manifest,
                 RippleClient::new(ChannelsState::new()),

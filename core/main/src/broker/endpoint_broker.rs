@@ -2006,7 +2006,7 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                OpMetricState::default(),
+                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2037,7 +2037,7 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                OpMetricState::default(),
+                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2068,7 +2068,7 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                OpMetricState::default(),
+                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2099,7 +2099,7 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                OpMetricState::default(),
+                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2130,7 +2130,7 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                OpMetricState::default(),
+                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2161,7 +2161,7 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                OpMetricState::default(),
+                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2192,7 +2192,7 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                OpMetricState::default(),
+                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2225,7 +2225,7 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                OpMetricState::default(),
+                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2496,7 +2496,7 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                OpMetricState::default(),
+                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2542,7 +2542,7 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                OpMetricState::default(),
+                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2590,7 +2590,7 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                OpMetricState::default(),
+                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2637,7 +2637,7 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                OpMetricState::default(),
+                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2683,7 +2683,7 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                OpMetricState::default(),
+                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2757,7 +2757,8 @@ mod endpoint_broker_tests {
             };
             engine.add_rule(r);
 
-            let under_test = EndpointBrokerState::new(OpMetricState::default(), tx, engine, client);
+            let under_test =
+                EndpointBrokerState::new(op_metric_state_default!(), tx, engine, client);
 
             let f = under_test.handle_provided_request(
                 &RpcRequest::mock(),
@@ -2780,7 +2781,7 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut endpoint_broker = EndpointBrokerState::new(
-                OpMetricState::default(),
+                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2901,7 +2902,7 @@ mod endpoint_broker_tests {
             };
             engine.add_rule(rule);
             let mut under_test =
-                EndpointBrokerState::new(OpMetricState::default(), tx, engine, client);
+                EndpointBrokerState::new(op_metric_state_default!(), tx, engine, client);
 
             let (tx, _) = mpsc::channel::<BrokerRequest>(10);
             under_test.add_endpoint("thunder".to_string(), BrokerSender { sender: tx });
@@ -2922,7 +2923,8 @@ mod endpoint_broker_tests {
                 rules: RuleSet::default(),
                 functions: HashMap::default(),
             };
-            let under_test = EndpointBrokerState::new(OpMetricState::default(), tx, engine, client);
+            let under_test =
+                EndpointBrokerState::new(op_metric_state_default!(), tx, engine, client);
 
             let mut request = RpcRequest::mock();
             request.method = "nonexistent".to_string();
@@ -2953,7 +2955,8 @@ mod endpoint_broker_tests {
                 sources: None,
             };
             engine.add_rule(rule);
-            let under_test = EndpointBrokerState::new(OpMetricState::default(), tx, engine, client);
+            let under_test =
+                EndpointBrokerState::new(op_metric_state_default!(), tx, engine, client);
 
             let mut request = RpcRequest::mock();
             request.method = "endpoint".to_string();
@@ -2975,6 +2978,7 @@ mod endpoint_broker_tests {
                     endpoint_broker::BrokerCallback,
                     rules::rules_engine::{Rule, RuleSet, RuleTransform},
                 },
+                op_metric_state_default,
                 state::ops_metrics_state::OpMetricState,
             };
 
@@ -2986,7 +2990,7 @@ mod endpoint_broker_tests {
                 let (tx, _) = channel(2);
                 let client = RippleClient::new(ChannelsState::new());
                 let state = EndpointBrokerState::new(
-                    OpMetricState::default(),
+                    op_metric_state_default!(),
                     tx,
                     RuleEngine {
                         rules: RuleSet::default(),
@@ -3015,7 +3019,7 @@ mod endpoint_broker_tests {
                 let (tx, _) = channel(2);
                 let client = RippleClient::new(ChannelsState::new());
                 let state = EndpointBrokerState::new(
-                    OpMetricState::default(),
+                    op_metric_state_default!(),
                     tx,
                     RuleEngine {
                         rules: RuleSet::default(),
@@ -3046,7 +3050,7 @@ mod endpoint_broker_tests {
                 let (tx, _) = channel(2);
                 let client = RippleClient::new(ChannelsState::new());
                 let state = EndpointBrokerState::new(
-                    OpMetricState::default(),
+                    op_metric_state_default!(),
                     tx,
                     RuleEngine {
                         rules: RuleSet::default(),
@@ -3083,7 +3087,7 @@ mod endpoint_broker_tests {
                 let (tx, _) = channel(2);
                 let client = RippleClient::new(ChannelsState::new());
                 let state = EndpointBrokerState::new(
-                    OpMetricState::default(),
+                    op_metric_state_default!(),
                     tx,
                     RuleEngine {
                         rules: RuleSet::default(),

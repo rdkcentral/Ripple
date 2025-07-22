@@ -225,3 +225,9 @@ impl OpsMetrics {
         drop(listeners);
     }
 }
+#[macro_export]
+macro_rules! op_metric_state_default {
+    () => {
+        std::sync::Arc::new(tokio::sync::RwLock::new(OpMetricState::default()))
+    };
+}
