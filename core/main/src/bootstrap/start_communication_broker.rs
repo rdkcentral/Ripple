@@ -50,6 +50,8 @@ impl Bootstep<BootstrapState> for StartCommunicationBroker {
 
         let mut endpoint_state = async_write_lock!(ps_arc.endpoint_state);
         endpoint_state.build_thunder_endpoint(Some(state.platform_state.clone()));
+        drop(endpoint_state);
+
         Ok(())
     }
 }

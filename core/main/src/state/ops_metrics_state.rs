@@ -21,7 +21,7 @@ use std::{
 };
 
 use ripple_sdk::{
-    api::{device, observability::metrics_util::ApiStats},
+    api::observability::metrics_util::ApiStats,
     async_read_lock, async_write_lock,
     chrono::{DateTime, Utc},
     log::{error, warn},
@@ -128,7 +128,11 @@ impl OpsMetrics {
         request_id: &str,
         api: &str,
     ) {
-        ops_metrics.write().await.add_api_stats(request_id, api);
+        ops_metrics
+            .write()
+            .await
+            .add_api_stats(request_id, api)
+            .await;
     }
 
     pub async fn remove_api_stats(ops_metrics: Arc<RwLock<OpMetricState>>, request_id: &str) {
@@ -218,5 +222,6 @@ impl OpsMetrics {
         } else {
             listeners.remove(target);
         }
+        drop(listeners);
     }
 }

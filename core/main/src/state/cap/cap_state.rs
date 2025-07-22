@@ -27,7 +27,7 @@ use crate::{
     },
     state::platform_state::PlatformState,
 };
-use ripple_sdk::{api::firebolt::fb_capabilities::RolePermission, serde_json, sync_read_lock};
+use ripple_sdk::{api::firebolt::fb_capabilities::RolePermission, serde_json};
 use ripple_sdk::{
     api::{
         firebolt::{

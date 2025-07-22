@@ -55,16 +55,18 @@ async fn subbroker_call(
     source: JsonDataSource,
 ) -> Result<serde_json::Value, SubBrokerErr> {
     let (brokered_tx, mut brokered_rx) = mpsc::channel::<BrokerOutput>(BROKER_CHANNEL_BUFFER_SIZE);
-    endpoint_broker.handle_brokerage(
-        rpc_request,
-        None,
-        Some(BrokerCallback {
-            sender: brokered_tx,
-        }),
-        Vec::new(),
-        None,
-        vec![],
-    );
+    endpoint_broker
+        .handle_brokerage(
+            rpc_request,
+            None,
+            Some(BrokerCallback {
+                sender: brokered_tx,
+            }),
+            Vec::new(),
+            None,
+            vec![],
+        )
+        .await;
 
     match brokered_rx.recv().await {
         Some(msg) => {

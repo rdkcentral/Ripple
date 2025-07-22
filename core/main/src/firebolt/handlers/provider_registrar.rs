@@ -779,7 +779,8 @@ mod tests {
     async fn test_register_methods() {
         let mut methods = Methods::new();
         let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new(), Vec::new());
+        runtime.platform_state.clone().open_rpc_state =
+            Arc::new(OpenRpcState::new_instance(None, Vec::new(), Vec::new()));
 
         let mut provider_relation_map: HashMap<String, ProviderRelationSet> = HashMap::new();
         provider_relation_map.insert("some.method".to_string(), ProviderRelationSet::new());

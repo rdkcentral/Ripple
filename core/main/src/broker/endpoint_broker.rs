@@ -748,7 +748,7 @@ impl EndpointBrokerState {
         }
     }
 
-    fn handle_static_request(&self, rpc_request: RpcRequest) -> JsonRpcApiResponse {
+    async fn handle_static_request(&self, rpc_request: RpcRequest) -> JsonRpcApiResponse {
         let mut data = JsonRpcApiResponse::default();
         // return empty result and handle the rest with jq rule
         let jv: Value = "".into();
@@ -760,7 +760,8 @@ impl EndpointBrokerState {
             self.metrics_state.clone(),
             &rpc_request,
             "static_rule_request",
-        );
+        )
+        .await;
         data
     }
 
@@ -829,7 +830,7 @@ impl EndpointBrokerState {
     }
     /// Main handler method which checks for brokerage and then sends the request for
     /// asynchronous processing
-    pub fn handle_brokerage(
+    pub async fn handle_brokerage(
         &self,
         rpc_request: RpcRequest,
         extn_message: Option<ExtnMessage>,
@@ -846,14 +847,16 @@ impl EndpointBrokerState {
         .with_diagnostic_context_item("workflow", &custom_callback.is_some().to_string())
         .emit_debug();
 
-        let resp = self.handle_brokerage_workflow(
-            rpc_request.clone(),
-            extn_message,
-            custom_callback,
-            permissions,
-            session,
-            telemetry_response_listeners,
-        );
+        let resp = self
+            .handle_brokerage_workflow(
+                rpc_request.clone(),
+                extn_message,
+                custom_callback,
+                permissions,
+                session,
+                telemetry_response_listeners,
+            )
+            .await;
 
         if resp.is_err() {
             let err = resp.unwrap_err();
@@ -900,7 +903,7 @@ impl EndpointBrokerState {
     /*
     Render correct output based on request type
     */
-    pub fn render_brokered_request(
+    pub async fn render_brokered_request(
         &self,
         rule: &Rule,
         broker_request: &BrokerRequest,
@@ -923,7 +926,7 @@ impl EndpointBrokerState {
         match rule.rule_type() {
             super::rules::rules_engine::RuleType::Static => {
                 let response =
-                    RenderedRequest::JsonRpc(self.handle_static_request(rpc_request.clone()));
+                    RenderedRequest::JsonRpc(self.handle_static_request(rpc_request.clone()).await);
                 Ok(response)
             }
             super::rules::rules_engine::RuleType::Provider => {
@@ -945,7 +948,7 @@ impl EndpointBrokerState {
         }
     }
 
-    pub fn handle_brokerage_workflow(
+    pub async fn handle_brokerage_workflow(
         &self,
         rpc_request: RpcRequest,
         extn_message: Option<ExtnMessage>,
@@ -978,18 +981,21 @@ impl EndpointBrokerState {
         */
         let broker_callback = self.callback.clone();
 
-        match self.render_brokered_request(
-            &rule,
-            &self.update_request(
-                &rpc_request,
+        match self
+            .render_brokered_request(
                 &rule,
-                extn_message,
-                workflow_callback,
-                telemetry_response_listeners,
-            ),
-            permissions,
-            session.clone(),
-        ) {
+                &self.update_request(
+                    &rpc_request,
+                    &rule,
+                    extn_message,
+                    workflow_callback,
+                    telemetry_response_listeners,
+                ),
+                permissions,
+                session.clone(),
+            )
+            .await
+        {
             Ok(response) => match response.clone() {
                 RenderedRequest::JsonRpc(data) => {
                     tokio::spawn(async move {
@@ -1081,13 +1087,15 @@ impl EndpointBrokerState {
 
     // Method to cleanup all subscription on App termination
     pub async fn cleanup_for_app(&self, app_id: &str) {
-        for cleaner in sync_read_lock!(self.cleaner_list).clone() {
-            /*
-            for now, just eat the error - the return type was mainly added to prepate for future refactoring/testability
+        let cleaners = {
+            let guard = self.cleaner_list.clone();
+            let guard = guard.read().unwrap();
+            guard.clone() // Requires Clone on Vec<BrokerCleaner>
+        };
 
-            */
-            //bobra TODO, resolve issues w/this
-            //cleaner.cleanup_session(app_id).await;
+        // Step 2: Drop the guard, and then iterate and await safely
+        for cleaner in cleaners {
+            let _ = cleaner.cleanup_session(app_id).await;
         }
     }
 }
@@ -1226,6 +1234,8 @@ impl BrokerOutputForwarder {
 
         tokio::spawn(async move {
             while let Some(output) = rx.recv().await {
+                debug!("received broker output");
+
                 let output_c = output.clone();
                 let mut response = output.data.clone();
                 let mut is_event = false;
@@ -1239,7 +1249,7 @@ impl BrokerOutputForwarder {
 
                 if let Some(id) = id {
                     if let Ok(broker_request) =
-                        async_write_lock!(platform_state.clone().endpoint_state).get_request(id)
+                        async_read_lock!(platform_state.clone().endpoint_state).get_request(id)
                     {
                         LogSignal::new(
                             "start_forwarder".to_string(),
@@ -1376,8 +1386,10 @@ impl BrokerOutputForwarder {
                                     "listening" : rpc_request.is_listening(),
                                     "event" : rpc_request.ctx.method
                                 }));
-                                async_write_lock!(platform_state.clone().endpoint_state)
-                                    .update_unsubscribe_request(id);
+                                {
+                                    async_write_lock!(platform_state.clone().endpoint_state)
+                                        .update_unsubscribe_request(id);
+                                }
                             } else {
                                 apply_response_needed = true;
                             }
@@ -1467,7 +1479,8 @@ impl BrokerOutputForwarder {
                                     &tm_str,
                                     status_code.to_string().as_str(),
                                 ),
-                            );
+                            )
+                            .await;
 
                             if let Some(api_stats) = OpsMetrics::get_api_stats(
                                 platform_state.metrics.clone(),

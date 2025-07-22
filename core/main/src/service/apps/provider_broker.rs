@@ -35,7 +35,7 @@ use ripple_sdk::{
     log::{debug, error, info, warn},
     serde_json, sync_write_lock,
     tokio::sync::oneshot,
-    utils::{channel_utils::oneshot_send_and_log, sync::SyncRwLock},
+    utils::channel_utils::oneshot_send_and_log,
     uuid::Uuid,
 };
 
@@ -46,10 +46,7 @@ use std::{
 
 use crate::{
     service::apps::app_events::AppEvents,
-    state::{
-        cap::cap_state::CapState,
-        platform_state::{self, PlatformState},
-    },
+    state::{cap::cap_state::CapState, platform_state::PlatformState},
 };
 
 const REQUEST_QUEUE_CAPACITY: usize = 3;
@@ -378,6 +375,7 @@ impl ProviderBroker {
                 error!("Ignored provider response because there was no active session waiting")
             }
         }
+        drop(active_sessions)
     }
 
     fn cleanup_caps_for_unregister(pst: PlatformState, session_id: String) -> Vec<String> {
@@ -406,6 +404,7 @@ impl ProviderBroker {
         for cid in clear_cids {
             active_sessions.remove(&cid);
         }
+        drop(active_sessions);
         let provider_methods = pst.clone();
         let mut provider_methods = provider_methods
             .provider_broker_state
@@ -427,6 +426,7 @@ impl ProviderBroker {
         for cap in clear_caps.clone() {
             provider_methods.remove(&cap);
         }
+        drop(provider_methods);
         clear_caps
     }
 
@@ -452,6 +452,7 @@ impl ProviderBroker {
             let request = request_queue.remove(index);
             return Some(request);
         }
+        drop(request_queue);
         None
     }
 
@@ -480,5 +481,6 @@ impl ProviderBroker {
         } else {
             warn!("Focus: No active session for request");
         }
+        drop(active_sessions)
     }
 }

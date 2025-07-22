@@ -42,7 +42,7 @@ use ripple_sdk::{
         },
         gateway::rpc_gateway_api::{AppIdentification, CallerSession},
     },
-    async_read_lock, clone_and_read_lock,
+    async_read_lock,
     log::{debug, error, warn},
     serde_json::{self},
     sync_read_lock, sync_write_lock,
@@ -73,10 +73,7 @@ use ripple_sdk::{
 use serde_json::{json, Value};
 
 use crate::{
-    broker::{
-        broker_utils::BrokerUtils,
-        endpoint_broker::{self, BrokerCallback},
-    },
+    broker::{broker_utils::BrokerUtils, endpoint_broker::BrokerCallback},
     service::{
         apps::app_events::AppEvents,
         extn::ripple_client::RippleClient,
@@ -807,7 +804,7 @@ impl DelegatedLauncherHandler {
             };
 
             if let Some(id) = app_id {
-                let mut ps_c = self.platform_state.clone();
+                let ps_c = self.platform_state.clone();
                 let resp_c = resp.clone();
                 tokio::spawn(async move {
                     Self::report_app_state_transition(ps_c, &id, &method, resp_c).await;
@@ -944,7 +941,8 @@ impl DelegatedLauncherHandler {
             app_id.clone(),
             None,
             None,
-        );
+        )
+        .await;
         debug!("start_session: entry: app_id={}", app_id);
         match self.platform_state.app_manager_state.get(&app_id) {
             Some(app) if (app.state != LifecycleState::Unloading) => {

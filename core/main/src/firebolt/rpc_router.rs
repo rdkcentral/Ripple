@@ -43,11 +43,7 @@ use std::sync::{Arc, RwLock};
 use crate::{
     firebolt::firebolt_gateway::JsonRpcMessage,
     service::telemetry_builder::TelemetryBuilder,
-    state::{
-        ops_metrics_state::OpsMetrics,
-        platform_state::{self, PlatformState},
-        session_state::Session,
-    },
+    state::{ops_metrics_state::OpsMetrics, platform_state::PlatformState, session_state::Session},
     utils::router_utils::{
         add_telemetry_status_code, capture_stage, get_rpc_header, return_extn_response,
     },
@@ -187,7 +183,7 @@ async fn resolve_route(
             1
         };
 
-        capture_stage(platform_state.metrics.clone(), &req, "routing");
+        capture_stage(platform_state.metrics.clone(), &req, "routing").await;
         OpsMetrics::update_api_stats_ref(
             platform_state.metrics.clone(),
             &request_id,
@@ -209,7 +205,7 @@ async fn resolve_route(
 }
 
 impl RpcRouter {
-    pub async fn route(mut state: PlatformState, mut req: RpcRequest, session: Session) {
+    pub async fn route(state: PlatformState, mut req: RpcRequest, session: Session) {
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
 

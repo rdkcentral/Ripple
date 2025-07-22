@@ -33,8 +33,6 @@ use ripple_sdk::{
     chrono::{DateTime, Utc},
     framework::RippleResponse,
     log::{error, trace},
-    sync_read_lock,
-    tokio::sync::RwLock,
 };
 use serde_json::Value;
 
@@ -129,8 +127,9 @@ impl TelemetryBuilder {
                     .unwrap_or(String::from(SEMVER_LIGHTWEIGHT)),
             ),
             Some(async_read_lock!(ps.metrics).start_time),
-        );
-        Self::send_app_load_stop(ps.clone(), "ripple".to_string(), true);
+        )
+        .await;
+        Self::send_app_load_stop(ps.clone(), "ripple".to_string(), true).await;
     }
 
     pub async fn send_error(ps: PlatformState, app_id: String, error_params: ErrorParams) {

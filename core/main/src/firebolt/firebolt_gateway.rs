@@ -47,11 +47,8 @@ use crate::{
         telemetry_builder::TelemetryBuilder,
     },
     state::{
-        bootstrap_state::BootstrapState,
-        openrpc_state::OpenRpcState,
-        ops_metrics_state::OpsMetrics,
-        platform_state::{self, PlatformState},
-        session_state::Session,
+        bootstrap_state::BootstrapState, openrpc_state::OpenRpcState,
+        ops_metrics_state::OpsMetrics, platform_state::PlatformState, session_state::Session,
     },
     utils::router_utils::{capture_stage, get_rpc_header_with_status},
 };
@@ -165,7 +162,7 @@ impl FireboltGateway {
                     }
                 }
                 HandleResponse { response } => {
-                    self.handle_response(response);
+                    self.handle_response(response).await;
                 }
                 StopServer => {
                     error!("Stopping server");
@@ -227,7 +224,8 @@ impl FireboltGateway {
                             now - start,
                             !broker_output.data.is_error(),
                             &api_message,
-                        );
+                        )
+                        .await;
                     }
                 }
                 Err(e) => error!(
@@ -305,7 +303,7 @@ impl FireboltGateway {
         let open_rpc_state = self.state.platform_state.open_rpc_state.clone();
 
         tokio::spawn(async move {
-            capture_stage(platform_state.metrics.clone(), &request_c, "context_ready");
+            capture_stage(platform_state.metrics.clone(), &request_c, "context_ready").await;
             // Validate incoming request parameters.
             if let Err(error_string) = validate_request(&open_rpc_state, &request_c, fail_open) {
                 let json_rpc_error = JsonRpcError {
@@ -318,7 +316,7 @@ impl FireboltGateway {
                 return;
             }
 
-            capture_stage(platform_state.metrics.clone(), &request_c, "openrpc_val");
+            capture_stage(platform_state.metrics.clone(), &request_c, "openrpc_val").await;
 
             let result = if extn_request {
                 // extn protocol means its an internal Ripple request skip permissions.
@@ -327,7 +325,7 @@ impl FireboltGateway {
                 FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await
             };
 
-            capture_stage(platform_state.metrics.clone(), &request_c, "permission");
+            capture_stage(platform_state.metrics.clone(), &request_c, "permission").await;
 
             match result {
                 Ok(p) => {
@@ -354,14 +352,16 @@ impl FireboltGateway {
                         let es_arc = platform_state.clone();
                         let es_arc = es_arc.endpoint_state.clone();
                         let es_arc = async_read_lock!(es_arc);
-                        es_arc.handle_brokerage(
-                            request_c.clone(),
-                            extn_msg.clone(),
-                            None,
-                            p,
-                            session.clone(),
-                            vec![requestor_callback_tx],
-                        )
+                        es_arc
+                            .handle_brokerage(
+                                request_c.clone(),
+                                extn_msg.clone(),
+                                None,
+                                p,
+                                session.clone(),
+                                vec![requestor_callback_tx],
+                            )
+                            .await
                     };
 
                     if !handled {
