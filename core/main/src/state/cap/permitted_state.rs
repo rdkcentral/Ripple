@@ -46,6 +46,13 @@ type FireboltPermissionStore = Arc<RwLock<FileStore<HashMap<String, Vec<Firebolt
 pub struct PermittedState {
     permitted: FireboltPermissionStore,
 }
+impl Default for PermittedState {
+    fn default() -> Self {
+        Self {
+            permitted: Arc::new(std::sync::RwLock::new(Default::default())),
+        }
+    }
+}
 
 impl PermittedState {
     pub fn new(manifest: DeviceManifest) -> PermittedState {

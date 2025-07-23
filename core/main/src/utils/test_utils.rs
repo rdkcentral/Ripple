@@ -37,7 +37,7 @@ use ripple_tdk::utils::test_utils::Mockable;
 
 use crate::state::{
     cap::cap_state::CapState,
-    platform_state::{PlatformState, PlatformStateContainer},
+    platform_state::{PlatformState, PlatformStateContainer, PlatformStateContainerBuilder},
     session_state::Session,
 };
 
@@ -47,17 +47,32 @@ pub struct MockRuntime {
 }
 
 impl MockRuntime {
-    pub fn new() -> Self {
+    pub fn new(platform_state: PlatformStateContainer) -> Self {
         Self {
-            platform_state: Arc::new(PlatformStateContainer::mock()),
+            platform_state: Arc::new(platform_state),
             call_context: CallContext::mock(),
         }
+    }
+    pub fn new_with_context(
+        platform_state: PlatformStateContainer,
+        call_context: CallContext,
+    ) -> Self {
+        Self {
+            platform_state: Arc::new(platform_state),
+            call_context: call_context,
+        }
+    }
+    pub fn call_context(&self) -> CallContext {
+        self.call_context.clone()
     }
 }
 
 impl Default for MockRuntime {
     fn default() -> Self {
-        Self::new()
+        Self::new_with_context(
+            PlatformStateContainerBuilder::new().build(),
+            CallContext::mock(),
+        )
     }
 }
 

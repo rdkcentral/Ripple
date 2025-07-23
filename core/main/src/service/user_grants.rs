@@ -78,6 +78,15 @@ pub struct GrantState {
     grant_app_map: GrantAppMap,
     caps_needing_grants: Vec<String>,
 }
+impl Default for GrantState {
+    fn default() -> Self {
+        Self {
+            device_grants: Default::default(),
+            grant_app_map: Default::default(),
+            caps_needing_grants: Default::default(),
+        }
+    }
+}
 
 impl GrantState {
     pub fn new(manifest: DeviceManifest) -> GrantState {
@@ -2115,9 +2124,17 @@ mod tests {
     mod test_grant_policy_enforcer {
         use super::*;
         use crate::{
-            state::session_state::Session,
+            state::{
+                cap::{
+                    self,
+                    permitted_state::{self, PermittedState},
+                },
+                platform_state::{self, PlatformStateContainerBuilder},
+                session_state::Session,
+            },
             utils::test_utils::{fb_perm, MockRuntime},
         };
+        use jaq_interpret::RunPtr;
         use ripple_sdk::{
             api::{
                 device::device_user_grants_data::GrantRequirements,
@@ -2137,6 +2154,7 @@ mod tests {
             tokio,
             utils::logger::init_logger,
         };
+        use ripple_tdk::utils::test_utils::Mockable;
         use serde_json::json;
         struct ProviderApp;
 
@@ -2217,7 +2235,9 @@ mod tests {
             policy_options: Vec<GrantRequirements>,
         ) -> (PlatformState, CallContext, FireboltPermission, GrantPolicy) {
             let _ = init_logger("tests".into());
-            let runtime = MockRuntime::new();
+
+            let ctx = CallContext::mock();
+
             let perm = fb_perm(
                 "xrn:firebolt:capability:localization:postal-code",
                 Some(CapabilityRole::Use),
@@ -2226,24 +2246,35 @@ mod tests {
                 options: policy_options,
                 ..Default::default()
             };
-            let ctx = runtime.call_context;
-            let mut platform_state = runtime.platform_state;
+
+            //  let mut platform_state = runtime.platform_state;
             let caps = vec![
                 FireboltCap::Short("input:keyboard".to_owned()),
                 FireboltCap::Short("token:account".to_owned()),
                 FireboltCap::Short("usergrant:acknowledgechallenge".to_owned()),
                 FireboltCap::Short("usergrant:pinchallenge".to_owned()),
             ];
-            platform_state
-                .cap_state
-                .generic
-                .ingest_availability(caps, true);
 
             let mut permissions = HashMap::new();
             permissions.insert(ctx.app_id.to_owned(), vec![perm.clone()]);
-            let mut permitted_state = platform_state.cap_state.permitted_state.clone();
-            //.set_permissions(permissions);
+            let mut permitted_state = PermittedState::default();
             permitted_state.set_permissions(permissions);
+            debug!("ctx={}", ctx);
+
+            let cap_state = CapState {
+                permitted_state: permitted_state,
+                ..Default::default()
+            };
+            cap_state.generic.ingest_availability(caps, true);
+
+            let platform_state =
+                PlatformStateContainerBuilder::new().cap_state(Arc::new(cap_state));
+
+            let platform_state = platform_state.build();
+            let runtime = MockRuntime::new_with_context(platform_state.clone(), ctx.clone());
+            debug!("runtime.ctx={}", runtime.call_context);
+            let platform_state = Arc::new(platform_state);
+
             (platform_state, ctx, perm, policy)
         }
 

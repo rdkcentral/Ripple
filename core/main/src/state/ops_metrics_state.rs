@@ -187,8 +187,7 @@ impl OpsMetrics {
     pub async fn get_device_session_id(ops_metrics: Arc<RwLock<OpMetricState>>) -> String {
         let session = ops_metrics.read().await;
         let session = session.device_session_id.read().await.clone();
-        let session = session.unwrap_or_default();
-        session
+        session.unwrap_or_default()
     }
 
     pub async fn update_session_id(ops_metrics: Arc<RwLock<OpMetricState>>, value: Option<String>) {

@@ -54,8 +54,18 @@ use super::{
 pub struct CapState {
     pub generic: GenericCapState,
     pub permitted_state: PermittedState,
-    primed_listeners: Arc<RwLock<HashSet<CapEventEntry>>>,
+    pub primed_listeners: Arc<RwLock<HashSet<CapEventEntry>>>,
     pub grant_state: Arc<GrantState>,
+}
+impl Default for CapState {
+    fn default() -> Self {
+        Self {
+            generic: Default::default(),
+            permitted_state: Default::default(),
+            primed_listeners: Default::default(),
+            grant_state: Default::default(),
+        }
+    }
 }
 
 impl CapState {
@@ -348,18 +358,20 @@ impl Hash for CapEventEntry {
 mod tests {
     use std::collections::HashMap;
 
-    use ripple_sdk::api::manifest::exclusory::{AppAuthorizationRules, ExclusoryImpl};
+    use ripple_sdk::{
+        api::manifest::exclusory::{AppAuthorizationRules, ExclusoryImpl},
+        Mockable,
+    };
 
     use super::*;
     use crate::{
-        state::openrpc_state::OpenRpcState,
-        utils::test_utils::{self, MockCallContext},
+        state::{openrpc_state::OpenRpcState, platform_state::PlatformStateContainerBuilder},
+        utils::test_utils::{MockCallContext, MockRuntime},
     };
     use ripple_sdk::tokio;
 
     #[tokio::test]
     async fn test_app_ignore() {
-        let mut runtime = test_utils::MockRuntime::new();
         let mut app_ignore_rules = HashMap::new();
         app_ignore_rules.insert("some_app".to_owned(), vec!["*".to_string()]);
         let exclusory = ExclusoryImpl {
@@ -367,8 +379,12 @@ mod tests {
             app_authorization_rules: AppAuthorizationRules { app_ignore_rules },
             method_ignore_rules: Vec::new(),
         };
-        runtime.platform_state.open_rpc_state =
-            OpenRpcState::new(Some(exclusory), Vec::new(), Vec::new());
+
+        let mut runtime = MockRuntime::new(
+            PlatformStateContainerBuilder::new()
+                .open_rpc_state(OpenRpcState::new(Some(exclusory), Vec::new(), Vec::new()))
+                .build(),
+        );
         if let Ok(v) = CapState::get_cap_info(
             runtime.platform_state.clone(),
             MockCallContext::get_from_app_id("some_app"),

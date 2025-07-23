@@ -171,7 +171,6 @@ impl EndpointBroker for ExtnBroker {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
 
     use super::*;
     use crate::broker::endpoint_broker::BrokerOutput;

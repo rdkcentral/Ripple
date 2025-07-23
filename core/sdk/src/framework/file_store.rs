@@ -30,7 +30,14 @@ pub struct FileStore<S> {
     pub value: S,
     path: String,
 }
-
+impl<S: Default> Default for FileStore<S> {
+    fn default() -> Self {
+        FileStore {
+            value: S::default(),
+            path: String::from("/tmp/mock.json"),
+        }
+    }
+}
 impl<S> FileStore<S>
 where
     S: Serialize + DeserializeOwned + Clone,

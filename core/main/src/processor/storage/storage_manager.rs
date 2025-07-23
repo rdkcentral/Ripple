@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use jsonrpsee::core::{client::async_client, RpcResult};
+use jsonrpsee::core::RpcResult;
 use ripple_sdk::{
     api::{
         device::device_peristence::{
@@ -29,7 +29,7 @@ use ripple_sdk::{
     extn::extn_client_message::ExtnResponse,
     log::trace,
     serde_json::{json, Value},
-    sync_read_lock, tokio,
+    tokio,
     utils::{error::RippleError, rpc_utils::rpc_error_with_code},
     JsonRpcErrorType,
 };

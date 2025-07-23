@@ -2853,7 +2853,7 @@ mod endpoint_broker_tests {
         #[tokio::test]
         async fn test_dispatch_brokerage_provided_rule() {
             let (bs, _) = channel(2);
-            let mut under_test = endpoint_broker_state_under_test(vec![]).add_rule(
+            let under_test = endpoint_broker_state_under_test(vec![]).add_rule(
                 Rule::default()
                     .with_alias("provided".to_string())
                     .to_owned(),
