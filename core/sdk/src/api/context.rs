@@ -65,7 +65,7 @@ pub struct RippleContext {
     pub features: Vec<String>,
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Eq, Hash)]
 pub enum RippleContextUpdateType {
     ActivationStatusChanged,
     TokenChanged,

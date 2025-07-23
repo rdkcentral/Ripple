@@ -1,3 +1,4 @@
+use crate::api::gateway::rpc_gateway_api::RpcRequest;
 // Copyright 2023 Comcast Cable Communications Management, LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,8 +16,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 use crate::utils::error::RippleError;
+use jsonrpsee::core::{server::rpc_module::Methods, Error, RpcResult};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::fmt;
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,6 +114,23 @@ impl JsonRpcMessage {
             JsonRpcMessage::Notification(_) => {}
             JsonRpcMessage::Success(success) => success.id = id,
             JsonRpcMessage::Error(err) => err.id = id,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum ServiceRequestType {
+    Request,
+    Event,
+    Transient,
+}
+
+impl fmt::Display for ServiceRequestType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ServiceRequestType::Request => write!(f, "request"),
+            ServiceRequestType::Event => write!(f, "event"),
+            ServiceRequestType::Transient => write!(f, "transient"),
         }
     }
 }
@@ -260,6 +281,49 @@ impl ServiceMessage {
                     0
                 }
             }
+        }
+    }
+
+    pub fn get_request_type(&self) -> Option<ServiceRequestType> {
+        if let Some(context) = &self.context {
+            if let Some(Value::String(request_type)) = context
+                .get("context")
+                .and_then(|c| c.as_array())
+                .and_then(|a| a.get(2))
+            {
+                match request_type.as_str() {
+                    "request" => Some(ServiceRequestType::Request),
+                    "event" => Some(ServiceRequestType::Event),
+                    "transient" => Some(ServiceRequestType::Transient),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn parse_rpc_notification<T: DeserializeOwned>(&self) -> RpcResult<T> {
+        if let JsonRpcMessage::Notification(notification) = &self.message {
+            let params = notification.params.clone().unwrap_or_default();
+            let params = serde_json::from_value::<String>(params);
+            let params = params.unwrap();
+            let params = params.clone();
+            let a = params.as_bytes();
+            let msg = std::str::from_utf8(a).unwrap();
+            //let ripple_context = serde_json::from_str::<T>(msg);
+            match serde_json::from_str::<T>(msg) {
+                Ok(value) => Ok(value),
+                Err(_) => Err(jsonrpsee::core::Error::Custom(format!(
+                    "Failed to get Success response"
+                ))),
+            }
+        } else {
+            Err(jsonrpsee::core::Error::Custom(format!(
+                "Failed to get Success response"
+            )))
         }
     }
 }

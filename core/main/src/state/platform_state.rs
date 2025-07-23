@@ -32,6 +32,7 @@ use ripple_sdk::{
         extn_id::ExtnId,
     },
     framework::ripple_contract::RippleContract,
+    service::service_event_state::ServiceEventState,
     utils::error::RippleError,
     uuid::Uuid,
 };
@@ -112,6 +113,7 @@ pub struct PlatformState {
     pub endpoint_state: EndpointBrokerState,
     pub lifecycle2_app_state: AppManagerState2_0,
     pub service_controller_state: ServiceControllerState,
+    pub service_event_state: ServiceEventState,
 }
 
 impl PlatformState {
@@ -152,6 +154,7 @@ impl PlatformState {
             ),
             lifecycle2_app_state: AppManagerState2_0::new(),
             service_controller_state: ServiceControllerState::default(),
+            service_event_state: ServiceEventState::new(),
         }
     }
 

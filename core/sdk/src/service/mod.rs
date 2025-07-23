@@ -15,5 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 pub mod service_client;
+pub mod service_event_state;
 pub mod service_message;
 pub mod service_rpc_router;

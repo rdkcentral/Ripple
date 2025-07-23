@@ -1,3 +1,4 @@
+use hyper::upgrade;
 // Copyright 2023 Comcast Cable Communications Management, LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,10 +15,16 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
+use ripple_sdk::api::context::{ActivationStatus, FeatureUpdate, RippleContext};
+use ripple_sdk::api::context::{RippleContextUpdateRequest, RippleContextUpdateType};
+use ripple_sdk::api::device::device_request::{
+    AccountToken, InternetConnectionStatus, PowerState, TimeZone,
+};
+use ripple_sdk::service::service_message::JsonRpcNotification;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use futures::{stream::SplitStream, SinkExt, StreamExt};
-use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
+use ripple_sdk::api::gateway::rpc_gateway_api::{CallContext, JsonRpcApiResponse};
 use ripple_sdk::{
     api::{gateway::rpc_gateway_api::ApiMessage, manifest::extn_manifest::ExtnSymbol},
     extn::{
@@ -25,8 +32,8 @@ use ripple_sdk::{
         extn_id::ExtnId,
     },
     framework::ripple_contract::RippleContract,
-    log::{error, info, trace},
-    service::service_message::{Id, JsonRpcMessage, ServiceMessage},
+    log::{debug, error, info, trace},
+    service::service_message::{Id, JsonRpcMessage, JsonRpcSuccess, ServiceMessage},
     tokio::{
         self,
         net::TcpStream,
@@ -37,6 +44,7 @@ use ripple_sdk::{
     uuid::Uuid,
 };
 
+use crate::service::ripple_service::service_controller_state;
 use crate::{
     broker::endpoint_broker::{BrokerCallback, BrokerOutput},
     firebolt::{firebolt_gateway::FireboltGatewayCommand, firebolt_ws::ClientIdentity},
@@ -170,8 +178,37 @@ impl ServiceControllerState {
                     error!("failed to send request {:?}", e);
                 };
             }
-            JsonRpcMessage::Notification(_) => {
-                // TBD: Handle notifications.
+            JsonRpcMessage::Notification(json_rpc_notification) => {
+                info!(
+                    "Received service notification: {:#?}",
+                    json_rpc_notification
+                );
+                if let Some((context_update, update_type)) =
+                    json_rpc_notification.method.split_once(".")
+                {
+                    debug!("Received Service Event Request: {:#?}", update_type);
+                    match context_update {
+                        "rippleContextEvent" => {
+                            state
+                                .service_event_state
+                                .process_event_notification(update_type, sm.clone());
+                        }
+                        "rippleContextUpdateRequest" => {
+                            Self::process_event_update(state, update_type, sm.clone());
+                        }
+                        _ => {
+                            error!("Invalid context update request: {}", context_update);
+                            return;
+                        }
+                    }
+                    debug!(
+                        " service event subscribers: {:#?}",
+                        state.service_event_state.event_subscribers
+                    );
+                } else {
+                    error!("Invalid service event request format");
+                }
+                return;
             }
             JsonRpcMessage::Success(_) | JsonRpcMessage::Error(_) => {
                 // Handling response message
@@ -520,6 +557,240 @@ impl ServiceControllerState {
     }
     pub async fn get_sender(&self, service_id: &String) -> Option<mpsc::Sender<Message>> {
         self.service_info.lock().await.get_sender(service_id).await
+    }
+
+    pub fn process_event_update(
+        platform_state: &PlatformState,
+        update_type: &str,
+        sm: ServiceMessage,
+    ) {
+        let message = sm.message.clone();
+        match message {
+            JsonRpcMessage::Notification(notification) => {
+                info!("Received event notification: {:?}", notification);
+                let params = notification.params;
+                if let Some(params) = params {
+                    match update_type {
+                        "Token" => {
+                            if let Ok(token) =
+                                serde_json::from_value::<AccountToken>(params.clone())
+                            {
+                                let request = RippleContextUpdateRequest::Token(token);
+                                Self::context_update(update_type, request, platform_state, sm);
+                            } else {
+                                error!("Failed to parse token parameters: {:?}", params);
+                            }
+                        }
+                        "Activation" => {
+                            todo!()
+                            // if let Ok(status) = serde_json::from_value::<ActivationStatus>(params.clone()) {
+                            //     request = RippleContextUpdateRequest::Activation(status);
+                            //     Self::context_update(update_type, request, platform_state, sm);
+                            // } else {
+                            //     error!("Failed to parse token parameters: {:?}", params);
+                            // }
+                        }
+                        "InternetStatus" => {
+                            todo!()
+                            // if let Ok(status) = serde_json::from_value::<InternetConnectionStatus>(params.clone()) {
+                            //     request = RippleContextUpdateRequest::InternetStatus(status);
+                            //     Self::context_update(update_type, request, platform_state, sm);
+                            // } else {
+                            //     error!("Failed to parse token parameters: {:?}", params);
+                            // }
+                        }
+                        "PowerState" => {
+                            todo!()
+                            // if let Ok(state) = serde_json::from_value::<PowerState>(params.clone()) {
+                            //         request = RippleContextUpdateRequest::PowerState(state);
+                            // } else {
+                            //     error!("Failed to parse token parameters: {:?}", params);
+                            // }
+                        }
+                        "TimeZone" => {
+                            todo!()
+                            // if let Ok(tz) = serde_json::from_value::<TimeZone>(params.clone()) {
+                            //         request = RippleContextUpdateRequest::TimeZone(tz);
+                            // } else {
+                            //     error!("Failed to parse token parameters: {:?}", params);
+                            // }
+                        }
+                        "UpdateFeatures" => {
+                            todo!()
+                            // if let Ok(features) = serde_json::from_value::<FeatureUpdate>(params.clone()) {
+                            //         request = RippleContextUpdateRequest::UpdateFeatures(features);
+                            // } else {
+                            //     error!("Failed to parse token parameters: {:?}", params);
+                            // }
+                        }
+                        &_ => todo!(),
+                    }
+                    //Self::context_update(update_type, request, platform_state, sm);
+                } else {
+                    error!("parameters are missing in the message");
+                }
+            }
+            _ => {
+                error!("Invalid message type for event update");
+            }
+        }
+
+        // match update_type {
+        //     "Token" => {
+        //         let message = sm.message.clone();
+        //         match message {
+        //             JsonRpcMessage::Notification(notification) => {
+        //                 info!("Received event notification: {:?}", notification);
+        //                 let params = notification.params;
+        //                 if let Some(params) = params {
+        //                     if let Ok(token) =
+        //                         serde_json::from_value::<AccountToken>(params.clone())
+        //                     {
+        //                         let request = RippleContextUpdateRequest::Token(token);
+        //                         Self::context_update(update_type, request, platform_state, sm);
+        //                         return;
+        //                     } else {
+        //                         error!("Failed to parse token parameters: {:?}", params);
+        //                     }
+        //                 } else {
+        //                     error!("Token parameters are missing in the message");
+        //                 }
+        //             }
+        //             _ => {
+        //                 error!("Invalid message type for TokenChanged event update");
+        //                 return;
+        //             }
+        //         }
+        //     }
+        //     "Activation" => {
+        //         info!("^^^ Processing Activation event update");
+        //         let request = RippleContextUpdateRequest::Activation;
+        //         Self::context_update(update_type, request, platform_state, sm);
+
+        //     }
+        //     "InternetStatus" => {
+        //         info!("^^^ Processing InternetStatus event update");
+        //         let request = RippleContextUpdateRequest::InternetStatus;
+        //         Self::context_update(update_type, request, platform_state, sm);
+        //     }
+        //     "PowerState" => {
+        //         info!("^^^ Processing PowerState event update");
+        //         let request = RippleContextUpdateRequest::PowerState(());
+        //         Self::context_update(update_type, request, platform_state, sm);
+        //     }
+        //     "TimeZone" => {
+        //         info!("^^^ Processing TimeZone event update");
+        //         let request = RippleContextUpdateRequest::TimeZone;
+        //         Self::context_update(update_type, request, platform_state, sm);
+        //     }
+        //     "UpdateFeatures" => {
+        //         info!("^^^ Processing UpdateFeature event update");
+        //         let request = RippleContextUpdateRequest::UpdateFeatures;
+        //         Self::context_update(update_type, request, platform_state, sm);
+        //     }
+        //     _ => {
+        //         error!("Unknown update type: {}", update_type);
+        //         return;
+        //     }
+        // }
+        // Self::context_update(request, platform_state, sm);
+    }
+
+    pub fn context_update(
+        update_type: &str,
+        request: RippleContextUpdateRequest,
+        platform_state: &PlatformState,
+        sm: ServiceMessage,
+    ) {
+        info!("^^^ Processing context update_type: {:?}", update_type);
+        let propagate = {
+            let mut ripple_context = platform_state
+                .service_event_state
+                .ripple_context
+                .write()
+                .unwrap();
+            debug!(
+                "Received context request: {:?} current ripple_context: {:?}",
+                request, ripple_context
+            );
+            ripple_context.update(request.clone())
+        };
+        let new_ripple_context = {
+            platform_state
+                .service_event_state
+                .ripple_context
+                .read()
+                .unwrap()
+                .clone()
+        };
+
+        if propagate {
+            let update_type = format!("\"{}Changed\"", update_type);
+            let update_type = serde_json::from_str::<RippleContextUpdateType>(&update_type);
+            match update_type {
+                Ok(update_type) => {
+                    info!("^^^ Parsed update type: {:?}", update_type);
+                    let processors = platform_state
+                        .service_event_state
+                        .get_event_processors(Some(update_type));
+                    for processor in processors {
+                        info!(
+                            "^^^ Subscriber found for new_context: {:?}",
+                            new_ripple_context
+                        );
+
+                        let processor = processor.clone();
+                        let collect = processor.split('&').collect::<Vec<&str>>();
+                        let processor_arr = collect
+                            .iter()
+                            .map(|s| s.to_string())
+                            .collect::<Vec<String>>();
+                        let sender_id = processor_arr.get(0).unwrap().to_string();
+                        let service_id = processor_arr.get(1).unwrap().to_string();
+                        let request_type = processor_arr.get(2).unwrap().to_string();
+
+                        let service_controller_state =
+                            platform_state.service_controller_state.clone();
+                        let context = sm.context.clone();
+
+                        let new_ripple_context =
+                            serde_json::to_string(&new_ripple_context).unwrap();
+
+                        tokio::spawn(async move {
+                            if let Some(sender) =
+                                service_controller_state.get_sender(&service_id).await
+                            {
+                                //TODO assign sender_id, service_id, request_type to new_params as vector value
+                                let context = vec![sender_id, service_id, request_type];
+
+                                let service_message = ServiceMessage {
+                                    message: JsonRpcMessage::Notification(JsonRpcNotification {
+                                        jsonrpc: "2.0".to_string(),
+                                        method: "this is the message send to caller".to_string(),
+                                        params: Some(new_ripple_context.into()),
+                                    }),
+                                    context: Some(context.into()),
+                                };
+                                let msg_str = serde_json::to_string(&service_message).unwrap();
+                                let mes = Message::Text(msg_str.clone());
+                                let send_res = sender.try_send(mes);
+                                trace!("Send to processor result: {:?}", send_res);
+                            }
+                        });
+                    }
+                }
+                Err(e) => {
+                    error!("^^^ Failed to parse update type: {}", e);
+                }
+            }
+            //TODO: Confirm what other listener besides service could subribe to ripple context update event
+            // check for active listeners
+            // if self.has_event_listener(&message.target.as_clear_string()) {
+            //     Self::handle_vec_stream(message, self.event_processors.clone());
+            // }
+        } else {
+            trace!("Context information is already updated. Hence not propagating");
+        }
     }
 }
 
