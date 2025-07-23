@@ -192,7 +192,7 @@ mod tests {
                 app_ready_timeout_ms: 5000,
                 app_finished_timeout_ms: 10000,
             },
-            app_library_state: AppLibraryState {
+            app_library_state: Arc::new(AppLibraryState {
                 default_apps: vec![AppLibraryEntry {
                     app_id: "app1".to_string(),
                     manifest: AppManifestLoad::Remote(
@@ -201,7 +201,7 @@ mod tests {
                     boot_state: BootState::Inactive,
                 }],
                 providers: HashMap::new(),
-            },
+            }),
         };
         let contract_type: RippleContract = RippleContract::Config;
         test_extn_payload_provider(launcher_config, contract_type);

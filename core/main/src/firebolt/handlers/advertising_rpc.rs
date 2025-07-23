@@ -133,8 +133,13 @@ impl RippleRPCProvider<AdvertisingImpl> for AdvertisingRPCProvider {
 }
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
-    use crate::firebolt::handlers::advertising_rpc::AdvertisingImpl;
+    use crate::{
+        firebolt::handlers::advertising_rpc::AdvertisingImpl,
+        state::platform_state::PlatformStateContainer,
+    };
     use ripple_sdk::{api::gateway::rpc_gateway_api::JsonRpcApiRequest, tokio};
     use ripple_tdk::utils::test_utils::Mockable;
     use serde::{Deserialize, Serialize};
@@ -181,7 +186,7 @@ mod tests {
     #[tokio::test]
     pub async fn test_app_bundle_id() {
         let ad_module = (AdvertisingImpl {
-            state: PlatformState::mock(),
+            state: Arc::new(PlatformStateContainer::mock()),
         })
         .into_rpc();
 

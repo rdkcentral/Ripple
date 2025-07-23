@@ -309,7 +309,7 @@ impl AppEvents {
     }
 
     pub fn get_listeners(
-        state: &AppEventsState,
+        state: Arc<AppEventsState>,
         event_name: &str,
         context: Option<String>,
     ) -> Vec<EventListener> {
@@ -351,7 +351,8 @@ impl AppEvents {
     ) {
         // Notify all the default listners by providing the context data as part of the result when context
         // is present. Otherwise event result without context.
-        let listeners = AppEvents::get_listeners(&state.clone().app_events_state, event_name, None);
+        let listeners =
+            AppEvents::get_listeners(state.clone().app_events_state.clone(), event_name, None);
         for i in listeners {
             let decorated_res = i.decorate(state.clone(), event_name, result).await;
             if decorated_res.is_err() {
@@ -376,7 +377,7 @@ impl AppEvents {
         if let Some(ctx) = context {
             let event_ctx_string = Some(ctx.to_string());
             let listeners = AppEvents::get_listeners(
-                &state.clone().app_events_state,
+                state.clone().app_events_state.clone(),
                 event_name,
                 event_ctx_string.clone(),
             );
@@ -394,10 +395,11 @@ impl AppEvents {
         event_name: &str,
         result: &Value,
     ) {
-        let listeners_vec = AppEvents::get_listeners(&state.app_events_state, event_name, None)
-            .into_iter()
-            .filter(|listener| listener.call_ctx.app_id.eq(&app_id))
-            .collect::<Vec<_>>();
+        let listeners_vec =
+            AppEvents::get_listeners(state.app_events_state.clone(), event_name, None)
+                .into_iter()
+                .filter(|listener| listener.call_ctx.app_id.eq(&app_id))
+                .collect::<Vec<_>>();
 
         for i in listeners_vec {
             let decorated_res = i.decorate(state.clone(), event_name, result).await;
@@ -416,7 +418,7 @@ impl AppEvents {
         app_id: String,
         event_name: &str,
     ) -> bool {
-        return AppEvents::get_listeners(&state.app_events_state, event_name, None)
+        return AppEvents::get_listeners(state.app_events_state.clone(), event_name, None)
             .iter()
             .any(|listener| listener.call_ctx.app_id.eq(&app_id));
     }
@@ -447,14 +449,14 @@ impl AppEvents {
 }
 #[cfg(test)]
 pub mod tests {
-    use crate::state::session_state::Session;
+    use crate::state::{platform_state::PlatformStateContainer, session_state::Session};
     use ripple_sdk::tokio;
     use ripple_tdk::utils::test_utils::Mockable;
 
     use super::*;
     #[tokio::test]
     pub async fn test_add_listener() {
-        let platform_state = PlatformState::mock();
+        let platform_state = Arc::new(PlatformStateContainer::mock());
         let call_context = CallContext::mock();
         let listen_request = ListenRequest { listen: true };
         Session::new(call_context.clone().app_id, None);
@@ -464,7 +466,7 @@ pub mod tests {
             .add_session(call_context.clone().session_id, session);
 
         AppEvents::add_listener(
-            platform_state,
+            platform_state.clone(),
             "test_event".to_string(),
             call_context,
             listen_request,
@@ -479,7 +481,7 @@ pub mod tests {
                 == 1
         );
         let listeners =
-            AppEvents::get_listeners(Platform_state.app_events_state, "test_event", None);
+            AppEvents::get_listeners(platform_state.app_events_state.clone(), "test_event", None);
         assert!(listeners.len() == 1);
     }
 }

@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 // Copyright 2023 Comcast Cable Communications Management, LLC
 //
@@ -36,7 +36,9 @@ use ripple_sdk::{
 use ripple_tdk::utils::test_utils::Mockable;
 
 use crate::state::{
-    cap::cap_state::CapState, platform_state::PlatformState, session_state::Session,
+    cap::cap_state::CapState,
+    platform_state::{PlatformState, PlatformStateContainer},
+    session_state::Session,
 };
 
 pub struct MockRuntime {
@@ -47,7 +49,7 @@ pub struct MockRuntime {
 impl MockRuntime {
     pub fn new() -> Self {
         Self {
-            platform_state: PlatformState::mock(),
+            platform_state: Arc::new(PlatformStateContainer::mock()),
             call_context: CallContext::mock(),
         }
     }
@@ -67,7 +69,7 @@ pub fn fb_perm(cap: &str, role: Option<CapabilityRole>) -> FireboltPermission {
 }
 
 pub async fn cap_state_listener(
-    state: &PlatformState,
+    state: PlatformState,
     perm: &FireboltPermission,
     cap_event: CapEvent,
 ) -> Receiver<ApiMessage> {

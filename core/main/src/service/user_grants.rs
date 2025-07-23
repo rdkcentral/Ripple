@@ -2156,7 +2156,7 @@ mod tests {
                     .add_session(ctx.session_id.clone(), sample_app_session);
 
                 ProviderBroker::register_or_unregister_provider(
-                    &state_c,
+                    state_c.clone(),
                     String::from(PIN_CHALLENGE_CAPABILITY),
                     String::from(PIN_CHALLENGE_EVENT),
                     String::from(PIN_CHALLENGE_EVENT),
@@ -2166,7 +2166,7 @@ mod tests {
                 .await;
 
                 ProviderBroker::register_or_unregister_provider(
-                    &state_c,
+                    state_c.clone(),
                     String::from(ACK_CHALLENGE_CAPABILITY),
                     String::from(ACK_CHALLENGE_EVENT),
                     String::from(ACK_CHALLENGE_EVENT),
@@ -2192,7 +2192,7 @@ mod tests {
                                     pin_response.clone(),
                                 ),
                             };
-                            ProviderBroker::provider_response(&platform_state, msg).await;
+                            ProviderBroker::provider_response(platform_state.clone(), msg).await;
                         } else {
                             let req =
                                 serde_json::from_value::<ExternalProviderRequest<Challenge>>(msg);
@@ -2204,7 +2204,8 @@ mod tests {
                                         ack_response.clone(),
                                     ),
                                 };
-                                ProviderBroker::provider_response(&platform_state, msg).await;
+                                ProviderBroker::provider_response(platform_state.clone(), msg)
+                                    .await;
                             }
                         }
                     }
@@ -2240,11 +2241,9 @@ mod tests {
 
             let mut permissions = HashMap::new();
             permissions.insert(ctx.app_id.to_owned(), vec![perm.clone()]);
-            platform_state
-                .cap_state
-                .permitted_state
-                .set_permissions(permissions);
-
+            let mut permitted_state = platform_state.cap_state.permitted_state.clone();
+            //.set_permissions(permissions);
+            permitted_state.set_permissions(permissions);
             (platform_state, ctx, perm, policy)
         }
 
@@ -2255,7 +2254,7 @@ mod tests {
             let app_identifier: AppIdentification = ctx.clone().into();
 
             let result = GrantPolicyEnforcer::evaluate_options(
-                &state,
+                state,
                 &caller_session,
                 &app_identifier,
                 &perm,
@@ -2273,7 +2272,7 @@ mod tests {
             let app_identifier: AppIdentification = ctx.clone().into();
 
             let result = GrantPolicyEnforcer::evaluate_options(
-                &state,
+                state,
                 &caller_session,
                 &app_identifier,
                 &perm,
@@ -2295,7 +2294,7 @@ mod tests {
             };
 
             let result = GrantPolicyEnforcer::evaluate_options(
-                &state,
+                state,
                 &caller_session,
                 &app_identifier,
                 &perm,
@@ -2349,7 +2348,7 @@ mod tests {
             .await;
 
             let evaluate_options = GrantPolicyEnforcer::evaluate_options(
-                &state,
+                state,
                 &caller_session,
                 &app_identifier,
                 &perm,
@@ -2397,7 +2396,7 @@ mod tests {
             //     .send_pinchallenge_success(&state, &ctx);
 
             let evaluate_options = GrantPolicyEnforcer::evaluate_options(
-                &state,
+                state,
                 &caller_session,
                 &app_identifier,
                 &perm,
@@ -2437,7 +2436,7 @@ mod tests {
             let app_identifier: AppIdentification = ctx.clone().into();
 
             let result = GrantPolicyEnforcer::evaluate_options(
-                &state,
+                state,
                 &caller_session,
                 &app_identifier,
                 &perm,
@@ -2498,7 +2497,7 @@ mod tests {
             .await;
 
             let result = GrantPolicyEnforcer::evaluate_options(
-                &state,
+                state,
                 &caller_session,
                 &app_identifier,
                 &perm,
@@ -2560,7 +2559,7 @@ mod tests {
             .await;
 
             let result = GrantPolicyEnforcer::evaluate_options(
-                &state,
+                state,
                 &caller_session,
                 &app_identifier,
                 &perm,
@@ -2628,7 +2627,7 @@ mod tests {
             //     });
 
             let evaluate_options = GrantPolicyEnforcer::evaluate_options(
-                &state,
+                state,
                 &caller_session,
                 &app_identifier,
                 &perm,

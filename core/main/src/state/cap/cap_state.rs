@@ -74,7 +74,8 @@ impl CapState {
         event: CapEvent,
         request: CapListenRPCRequest,
     ) {
-        let mut r = ps.cap_state.primed_listeners.write().unwrap();
+        let r = ps.clone();
+        let mut r = r.cap_state.primed_listeners.write().unwrap();
         if let Some(cap) = FireboltCap::parse(request.capability) {
             let check = CapEventEntry {
                 app_id: call_context.app_id.clone(),
@@ -171,8 +172,11 @@ impl CapState {
             // Additional processing and unique values are possible for the same event on each
             // listener
             // So Step 1: Get all listeners
-            let listeners =
-                AppEvents::get_listeners(&ps.clone().app_events_state, event_name.as_str(), None);
+            let listeners = AppEvents::get_listeners(
+                ps.clone().app_events_state.clone(),
+                event_name.as_str(),
+                None,
+            );
             debug!("listener size {}", listeners.len());
             for listener in listeners {
                 let cc = listener.call_ctx.clone();
@@ -366,7 +370,7 @@ mod tests {
         runtime.platform_state.open_rpc_state =
             OpenRpcState::new(Some(exclusory), Vec::new(), Vec::new());
         if let Ok(v) = CapState::get_cap_info(
-            &runtime.platform_state,
+            runtime.platform_state.clone(),
             MockCallContext::get_from_app_id("some_app"),
             &vec![FireboltCap::Short("device:info".to_owned())],
         )
@@ -386,7 +390,7 @@ mod tests {
         }
 
         if let Ok(v) = CapState::get_cap_info(
-            &runtime.platform_state,
+            runtime.platform_state,
             MockCallContext::get_from_app_id("some_other_app"),
             &vec![FireboltCap::Short("some:many".to_owned())],
         )

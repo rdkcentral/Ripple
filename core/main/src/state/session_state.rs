@@ -26,6 +26,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::{ApiMessage, CallContext},
         session::{AccountSession, ProvisionRequest},
     },
+    log::debug,
     tokio::sync::mpsc::Sender,
     utils::error::RippleError,
 };
@@ -131,7 +132,13 @@ impl SessionState {
 
     pub fn add_session(&self, id: String, session: Session) {
         let mut session_state = self.session_map.write().unwrap();
+        debug!(
+            "add_session capacity: {}: num sessions: {}",
+            session_state.capacity(),
+            session_state.len()
+        );
         session_state.insert(id, session);
+        session_state.shrink_to_fit();
     }
 
     pub fn clear_session(&self, id: &str) {
@@ -172,6 +179,7 @@ impl SessionState {
             return;
         }
         pending_sessions.insert(app_id, info);
+        pending_sessions.shrink_to_fit();
     }
 
     pub fn clear_pending_session(&self, app_id: &String) {

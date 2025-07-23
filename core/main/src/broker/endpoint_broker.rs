@@ -1870,6 +1870,7 @@ mod endpoint_broker_tests {
 
         use crate::{
             broker::rules::rules_engine::{RuleEngine, RuleSet},
+            op_metric_state_default,
             service::extn::ripple_client::RippleClient,
             state::{bootstrap_state::ChannelsState, ops_metrics_state::OpMetricState},
         };
@@ -2476,6 +2477,7 @@ mod endpoint_broker_tests {
         use crate::broker::rules::rules_engine::RuleEngine;
         use crate::broker::rules::rules_engine::RuleSet;
         use crate::broker::rules::rules_engine::{Rule, RuleTransform};
+        use crate::op_metric_state_default;
         use crate::service::extn::ripple_client::RippleClient;
         use crate::state::bootstrap_state::ChannelsState;
         use crate::state::ops_metrics_state::OpMetricState;
@@ -2732,6 +2734,7 @@ mod endpoint_broker_tests {
                 endpoint_broker::{EndpointBrokerState, RenderedRequest},
                 rules::rules_engine::{Rule, RuleEngine, RuleSet},
             },
+            op_metric_state_default,
             service::extn::ripple_client::RippleClient,
             state::{bootstrap_state::ChannelsState, ops_metrics_state::OpMetricState},
         };
@@ -2805,6 +2808,7 @@ mod endpoint_broker_tests {
                 },
                 rules::rules_engine::{Rule, RuleEngine, RuleSet},
             },
+            op_metric_state_default,
             service::extn::ripple_client::RippleClient,
             state::{bootstrap_state::ChannelsState, ops_metrics_state::OpMetricState},
         };
@@ -2830,6 +2834,7 @@ mod endpoint_broker_tests {
             let broker_request = BrokerRequest::default();
             assert!(
                 under_test
+                    .await
                     .render_brokered_request(
                         &Rule::default()
                             .with_alias("static".to_string())
@@ -2839,6 +2844,7 @@ mod endpoint_broker_tests {
                         vec![],
                         None
                     )
+                    .await
                     .is_ok(),
                 "expected Ok"
             );
@@ -2852,7 +2858,8 @@ mod endpoint_broker_tests {
                     .with_alias("provided".to_string())
                     .to_owned(),
             );
-            let under_test =
+            let mut under_test = under_test.await;
+            let mut under_test =
                 under_test.add_endpoint("thunder".to_string(), BrokerSender { sender: bs });
             let broker_request = BrokerRequest::default();
 
@@ -2866,6 +2873,7 @@ mod endpoint_broker_tests {
                         vec![],
                         None,
                     )
+                    .await
                     .is_ok(),
                 "expected Ok but got Err"
             );
@@ -2879,6 +2887,7 @@ mod endpoint_broker_tests {
                         vec![],
                         None,
                     )
+                    .await
                     .is_ok(),
                 "expected Ok but got Err"
             );
@@ -2910,8 +2919,9 @@ mod endpoint_broker_tests {
             let mut request = RpcRequest::mock();
             request.method = "endpoint".to_string();
 
-            let result =
-                under_test.handle_brokerage_workflow(request, None, None, vec![], None, vec![]);
+            let result = under_test
+                .handle_brokerage_workflow(request, None, None, vec![], None, vec![])
+                .await;
             assert!(result.is_ok(), "Expected Ok but got: {:?}", result);
         }
 
@@ -2929,8 +2939,9 @@ mod endpoint_broker_tests {
             let mut request = RpcRequest::mock();
             request.method = "nonexistent".to_string();
 
-            let result =
-                under_test.handle_brokerage_workflow(request, None, None, vec![], None, vec![]);
+            let result = under_test
+                .handle_brokerage_workflow(request, None, None, vec![], None, vec![])
+                .await;
             assert!(
                 matches!(result, Err(HandleBrokerageError::RuleNotFound(_))),
                 "Expected RuleNotFound error but got: {:?}",
@@ -2961,8 +2972,9 @@ mod endpoint_broker_tests {
             let mut request = RpcRequest::mock();
             request.method = "endpoint".to_string();
 
-            let result =
-                under_test.handle_brokerage_workflow(request, None, None, vec![], None, vec![]);
+            let result = under_test
+                .handle_brokerage_workflow(request, None, None, vec![], None, vec![])
+                .await;
             assert!(
                 matches!(result, Err(HandleBrokerageError::BrokerNotFound(_))),
                 "Expected BrokerNotFound error but got: {:?}",
