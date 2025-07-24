@@ -1981,6 +1981,7 @@ impl GrantStepExecutor {
             .get_provider_relation_map()
             .iter()
         {
+            debug!("comparing cap {:?} to {:?}", cap, provider_relation_set);
             if let Some(provides) = &provider_relation_set.provides {
                 if provides.eq(&cap.as_str()) {
                     method_key = Some(key.clone());
@@ -2132,6 +2133,7 @@ mod tests {
                     generic_cap_state::{self, GenericCapState},
                     permitted_state::{self, PermittedState},
                 },
+                openrpc_state::{OpenRpcState, ProviderRelationSet},
                 platform_state::{self, PlatformStateContainerBuilder},
                 session_state::Session,
             },
@@ -2170,17 +2172,19 @@ mod tests {
                 ack_response: ChallengeResponse,
             ) {
                 let (tx, mut rx) = tokio::sync::mpsc::channel(32);
-                let sample_app_session = Session::new("app_id".to_owned(), Some(tx));
+                let sample_app_session = Session::new(ctx.clone().app_id, Some(tx));
                 let state_c = state.clone();
                 let ctx_c = ctx.clone();
                 state
+                    .clone()
                     .session_state
+                    .clone()
                     .add_session(ctx.session_id.clone(), sample_app_session);
 
                 ProviderBroker::register_or_unregister_provider(
                     state_c.clone(),
                     String::from(PIN_CHALLENGE_CAPABILITY),
-                    String::from(PIN_CHALLENGE_EVENT),
+                    String::from("somemethod1"),
                     String::from(PIN_CHALLENGE_EVENT),
                     ctx_c.clone(),
                     ListenRequest { listen: true },
@@ -2190,7 +2194,7 @@ mod tests {
                 ProviderBroker::register_or_unregister_provider(
                     state_c.clone(),
                     String::from(ACK_CHALLENGE_CAPABILITY),
-                    String::from(ACK_CHALLENGE_EVENT),
+                    String::from("somemethod2"),
                     String::from(ACK_CHALLENGE_EVENT),
                     ctx_c.clone(),
                     ListenRequest { listen: true },
@@ -2200,7 +2204,9 @@ mod tests {
                 let platform_state = state.clone();
 
                 tokio::spawn(async move {
+                    debug!("listening...");
                     while let Some(message) = rx.recv().await {
+                        debug!("got message");
                         let json_msg = serde_json::from_str::<Value>(&message.jsonrpc_msg).unwrap();
                         let msg = json_msg.get("result").cloned().unwrap();
                         let req = serde_json::from_value::<
@@ -2240,12 +2246,12 @@ mod tests {
         ) -> (PlatformState, CallContext, FireboltPermission, GrantPolicy) {
             let _ = init_logger("tests".into());
 
-            let ctx = CallContext::mock();
+            let mut ctx = CallContext::mock();
 
-            // let perm = fb_perm(
-            //     "xrn:firebolt:capability:localization:postal-code",
-            //     Some(CapabilityRole::Use),
-            // );
+            let perm = fb_perm(
+                "xrn:firebolt:capability:usergrant:pinchallenge",
+                Some(CapabilityRole::Use),
+            );
 
             let test = fb_perm(
                 "xrn:firebolt:capability:usergrant:acknowledgechallenge",
@@ -2265,23 +2271,47 @@ mod tests {
             ];
 
             let mut permissions = HashMap::new();
-            permissions.insert(ctx.app_id.to_owned(), vec![test.clone()]);
+            permissions.insert(ctx.app_id.to_owned(), vec![perm.clone(), test.clone()]);
 
             let permitted_state = PermittedState::default();
             permitted_state.set_permissions(permissions);
 
-            let generic_cap_state = GenericCapState::new_instance(vec![test.clone()], caps, true);
+            let generic_cap_state =
+                GenericCapState::new_instance(vec![test.clone(), perm.clone()], caps, true);
             let cap_state = CapState {
                 generic: Arc::new(generic_cap_state),
                 permitted_state: Arc::new(permitted_state),
                 ..Default::default()
             };
 
-            let platform_state =
-                PlatformStateContainerBuilder::new().cap_state(Arc::new(cap_state));
+            let provider_relation_set_1 = ProviderRelationSet {
+                event: true,
+                capability: Some("xrn:firebolt:capability:usergrant:pinchallenge".to_string()),
+                provides: Some("xrn:firebolt:capability:usergrant:pinchallenge".to_string()),
+                ..Default::default()
+            };
+            let provider_relation_set_2 = ProviderRelationSet {
+                event: true,
+                capability: Some(
+                    "xrn:firebolt:capability:usergrant:acknowledgechallenge".to_string(),
+                ),
+                provides: Some(
+                    "xrn:firebolt:capability:usergrant:acknowledgechallenge".to_string(),
+                ),
+                ..Default::default()
+            };
+
+            let mut provider_relation_map: HashMap<String, ProviderRelationSet> = HashMap::new();
+            provider_relation_map.insert("somemethod1".to_string(), provider_relation_set_1);
+            provider_relation_map.insert("somemethod2".to_string(), provider_relation_set_2);
+            let open_rpcstate = OpenRpcState::new(None, vec![], vec![ctx.clone().method]);
+            open_rpcstate.set_provider_relation_map(provider_relation_map);
+            let platform_state = PlatformStateContainerBuilder::new()
+                .open_rpc_state(open_rpcstate)
+                .cap_state(Arc::new(cap_state));
 
             let platform_state = platform_state.build();
-            let runtime = MockRuntime::new_with_context(platform_state.clone(), ctx.clone());
+            //let runtime = MockRuntime::new_with_context(platform_state.clone(), ctx.clone());
             let platform_state = Arc::new(platform_state);
 
             (platform_state, ctx, test, policy)
@@ -2625,6 +2655,8 @@ mod tests {
                     },
                 ],
             }]);
+            let mut ctx = ctx;
+            ctx.method = "somemethod1".into();
 
             ProviderApp::start(
                 state.clone(),
@@ -2650,6 +2682,7 @@ mod tests {
                 &policy,
             )
             .await;
+
             debug!("result of evaluate option: {:?}", evaluate_options);
 
             assert!(evaluate_options.is_ok());

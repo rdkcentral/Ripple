@@ -129,7 +129,7 @@ impl ProviderBroker {
             ProviderBroker::register_provider(
                 pst,
                 capability,
-                method,
+                method.clone(),
                 event_name,
                 provider,
                 listen_request,
@@ -178,6 +178,7 @@ impl ProviderBroker {
             capability, method, event_name
         );
         let cap_method = format!("{}:{}", capability, method);
+        debug!("cap_method {}", cap_method);
         AppEvents::add_listener(
             pst.clone(),
             event_name.clone(),
@@ -198,6 +199,7 @@ impl ProviderBroker {
                     provider,
                 },
             );
+            debug!("provider methods {:?}", provider_methods);
         }
         let existing = ProviderBroker::remove_request(pst.clone(), &capability);
         if let Some(request) = existing {
@@ -250,10 +252,21 @@ impl ProviderBroker {
 
         let provider_opt = {
             let provider_methods = pst.provider_broker_state.provider_methods.read().unwrap();
+            debug!(
+                "looking for {} in provider methods {:?}",
+                cap_method,
+                provider_methods.keys()
+            );
             provider_methods.get(&cap_method).cloned()
         };
 
+        debug!("provider_opt {:?}", provider_opt);
+        if provider_opt.is_none() {
+            panic!("provider not found! TEMP FIX ME");
+        }
+
         if let Some(provider_method) = provider_opt {
+            debug!("located provider method: {:?}", provider_method);
             let event_name = provider_method.event_name.clone();
             let req_params = request.request.clone();
 
@@ -345,6 +358,7 @@ impl ProviderBroker {
             request_queue.remove(0);
         }
         request_queue.push(request);
+        drop(request_queue);
     }
 
     pub async fn provider_response(pst: PlatformState, resp: ProviderResponse) {

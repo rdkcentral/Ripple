@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use core::panic;
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, RwLock},
@@ -172,6 +173,7 @@ impl GenericCapState {
         );
         if !result.is_empty() {
             error!("Availability Error for {:?}", result);
+
             return Err(DenyReasonWithCap::new(DenyReason::Unavailable, result));
         }
 

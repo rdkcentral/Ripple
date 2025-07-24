@@ -389,7 +389,6 @@ mod tests {
             "xrn:firebolt:capability:device:info",
             Some(CapabilityRole::Use),
         );
-       
 
         let mut permissions = HashMap::new();
         permissions.insert("some_app".to_string(), vec![test.clone()]);
