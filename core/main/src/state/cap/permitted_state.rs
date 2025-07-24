@@ -68,14 +68,14 @@ impl PermittedState {
         }
     }
 
-    fn ingest(&mut self, extend_perms: HashMap<String, Vec<FireboltPermission>>) {
+    fn ingest(&self, extend_perms: HashMap<String, Vec<FireboltPermission>>) {
         let mut perms = self.permitted.write().unwrap();
         perms.value.extend(extend_perms);
         perms.sync();
     }
 
     #[cfg(test)]
-    pub fn set_permissions(&mut self, permissions: HashMap<String, Vec<FireboltPermission>>) {
+    pub fn set_permissions(&self, permissions: HashMap<String, Vec<FireboltPermission>>) {
         let mut perms = self.permitted.write().unwrap();
         perms.value = permissions;
         perms.sync();
@@ -247,9 +247,8 @@ impl PermissionHandler {
             .into_iter()
             .collect::<HashMap<_, _>>();
 
-        let mut permitted_state = state.clone().cap_state.permitted_state.clone();
+        let permitted_state = state.clone().cap_state.permitted_state.clone();
         permitted_state.ingest(map.clone());
-        info!("Permissions: {:?}", map);
 
         Ok(())
     }

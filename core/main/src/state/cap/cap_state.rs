@@ -52,8 +52,8 @@ use super::{
 
 #[derive(Debug, Clone)]
 pub struct CapState {
-    pub generic: GenericCapState,
-    pub permitted_state: PermittedState,
+    pub generic: Arc<GenericCapState>,
+    pub permitted_state: Arc<PermittedState>,
     pub primed_listeners: Arc<RwLock<HashSet<CapEventEntry>>>,
     pub grant_state: Arc<GrantState>,
 }
@@ -71,9 +71,9 @@ impl Default for CapState {
 impl CapState {
     pub fn new(manifest: DeviceManifest) -> Self {
         CapState {
-            generic: GenericCapState::new(manifest.clone()),
-            permitted_state: PermittedState::new(manifest.clone()),
-            primed_listeners: Arc::new(RwLock::new(HashSet::new())),
+            generic: GenericCapState::new(manifest.clone()).into(),
+            permitted_state: PermittedState::new(manifest.clone()).into(),
+            primed_listeners: RwLock::new(HashSet::new()).into(),
             grant_state: GrantState::new(manifest).into(),
         }
     }
@@ -226,9 +226,11 @@ impl CapState {
         firebolt_caps: &Vec<FireboltCap>,
     ) -> Result<Vec<CapabilityInfo>, RippleError> {
         let mut ignored_app = false;
+
         if state.open_rpc_state.is_app_excluded(&call_context.app_id) {
             ignored_app = true;
         }
+
         let mut capability_infos = Vec::new();
         for cap in firebolt_caps {
             let mut capability_info = CapabilityInfo {
@@ -358,6 +360,7 @@ impl Hash for CapEventEntry {
 mod tests {
     use std::collections::HashMap;
 
+    use httpmock::Method::DELETE;
     use ripple_sdk::{
         api::manifest::exclusory::{AppAuthorizationRules, ExclusoryImpl},
         Mockable,
@@ -365,8 +368,11 @@ mod tests {
 
     use super::*;
     use crate::{
-        state::{openrpc_state::OpenRpcState, platform_state::PlatformStateContainerBuilder},
-        utils::test_utils::{MockCallContext, MockRuntime},
+        state::{
+            cap::cap_state, openrpc_state::OpenRpcState,
+            platform_state::PlatformStateContainerBuilder,
+        },
+        utils::test_utils::{fb_perm, MockCallContext, MockRuntime},
     };
     use ripple_sdk::tokio;
 
@@ -379,21 +385,40 @@ mod tests {
             app_authorization_rules: AppAuthorizationRules { app_ignore_rules },
             method_ignore_rules: Vec::new(),
         };
+        let test = fb_perm(
+            "xrn:firebolt:capability:device:info",
+            Some(CapabilityRole::Use),
+        );
+       
 
-        let mut runtime = MockRuntime::new(
+        let mut permissions = HashMap::new();
+        permissions.insert("some_app".to_string(), vec![test.clone()]);
+
+        let permitted_state = PermittedState::default();
+        permitted_state.set_permissions(permissions);
+
+        let generic_cap_state = GenericCapState::new_instance(vec![test.clone()], vec![], true);
+        let cap_state = CapState {
+            generic: Arc::new(generic_cap_state),
+            permitted_state: Arc::new(permitted_state),
+            ..Default::default()
+        };
+
+        let state = Arc::new(
             PlatformStateContainerBuilder::new()
                 .open_rpc_state(OpenRpcState::new(Some(exclusory), Vec::new(), Vec::new()))
+                .cap_state(Arc::new(cap_state))
                 .build(),
         );
         if let Ok(v) = CapState::get_cap_info(
-            runtime.platform_state.clone(),
+            state.clone(),
             MockCallContext::get_from_app_id("some_app"),
             &vec![FireboltCap::Short("device:info".to_owned())],
         )
         .await
         {
             let cap = v.first().unwrap();
-            assert!(cap.supported);
+            assert!(cap.supported, "{:?}", cap);
             assert!(cap.available);
             assert!(cap._use.permitted);
             assert!(cap._use.granted.unwrap());
@@ -406,7 +431,7 @@ mod tests {
         }
 
         if let Ok(v) = CapState::get_cap_info(
-            runtime.platform_state,
+            state.clone(),
             MockCallContext::get_from_app_id("some_other_app"),
             &vec![FireboltCap::Short("some:many".to_owned())],
         )

@@ -20,6 +20,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use jsonrpsee::tracing::warn;
 use ripple_sdk::{
     api::{
         firebolt::fb_capabilities::{
@@ -27,12 +28,12 @@ use ripple_sdk::{
         },
         manifest::device_manifest::DeviceManifest,
     },
-    log::{error, info, trace},
+    log::{debug, error, info, trace},
 };
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::state::platform_state::PlatformState;
+use crate::state::{cap::cap_state::CapState, platform_state::PlatformState};
 
 #[derive(Clone, Debug, Default)]
 pub struct GenericCapState {
@@ -43,38 +44,63 @@ pub struct GenericCapState {
 
 impl GenericCapState {
     pub fn new(manifest: DeviceManifest) -> GenericCapState {
+        // let cap_state = GenericCapState::default();
+        // cap_state.ingest_supported(manifest.get_supported_caps());
+        // let available = vec![
+        //     FireboltCap::Short("token:account".to_owned()),
+        //     FireboltCap::Short("token:platform".to_owned()),
+        //     FireboltCap::Short("usergrant:acknowledgechallenge".to_owned()),
+        //     FireboltCap::Short("usergrant:pinchallenge".to_owned()),
+        // ];
+        //cap_state.ingest_availability(caps, false);
+        GenericCapState::new_instance(
+            manifest.get_supported_caps(),
+            vec![
+                FireboltCap::Short("token:account".to_owned()),
+                FireboltCap::Short("token:platform".to_owned()),
+                FireboltCap::Short("usergrant:acknowledgechallenge".to_owned()),
+                FireboltCap::Short("usergrant:pinchallenge".to_owned()),
+            ],
+            false,
+        )
+        //cap_state
+    }
+    pub fn new_instance(
+        supported: Vec<FireboltPermission>,
+        available: Vec<FireboltCap>,
+        is_available: bool,
+    ) -> Self {
         let cap_state = GenericCapState::default();
-        cap_state.ingest_supported(manifest.get_supported_caps());
-        let caps = vec![
-            FireboltCap::Short("token:account".to_owned()),
-            FireboltCap::Short("token:platform".to_owned()),
-            FireboltCap::Short("usergrant:acknowledgechallenge".to_owned()),
-            FireboltCap::Short("usergrant:pinchallenge".to_owned()),
-        ];
-        cap_state.ingest_availability(caps, false);
+        cap_state.ingest_supported(supported);
+        cap_state.ingest_availability(available, is_available);
         cap_state
     }
 
     pub fn ingest_supported(&self, request: Vec<FireboltPermission>) {
+        let serialized: HashSet<String> = request
+            .iter()
+            .map(|a| serde_json::to_string(a).unwrap())
+            .collect();
+        {
+            let s = self.supported.read().unwrap();
+            debug!("ingest_supported={:?}", s);
+        }
         let mut supported = self.supported.write().unwrap();
-        supported.extend(
-            request
-                .iter()
-                .map(|a: &FireboltPermission| serde_json::to_string(a).unwrap())
-                .collect::<HashSet<String>>(),
-        );
+        supported.extend(serialized);
+        drop(supported);
     }
 
     pub fn ingest_availability(&self, request: Vec<FireboltCap>, is_available: bool) {
-        let mut not_available = self.not_available.write().unwrap();
-        for cap in request {
+        let mut not_available_write = self.not_available.write().unwrap();
+        for cap in request.clone() {
+            trace!("looking at cap: {:?}", cap);
             if is_available {
-                not_available.remove(&cap.as_str());
+                not_available_write.remove(&cap.as_str());
             } else {
-                not_available.insert(cap.as_str());
+                not_available_write.insert(cap.as_str());
             }
         }
-        info!("Caps that are not available: {:?}", not_available);
+        drop(not_available_write);
     }
 
     pub fn check_for_processor(&self, request: Vec<String>) -> HashMap<String, bool> {
@@ -105,10 +131,10 @@ impl GenericCapState {
             .map(|fb_perm| fb_perm.cap.clone())
             .collect();
 
-        // debug!(
-        //     "checking supported caps request={:?}, not_supported={:?}, supported: {:?}",
-        //     request, not_supported, supported
-        // );
+        debug!(
+            "checking supported caps request={:?}, not_supported={:?}, supported: {:?}",
+            request, not_supported, supported
+        );
 
         if !not_supported.is_empty() {
             return Err(DenyReasonWithCap::new(
@@ -148,6 +174,7 @@ impl GenericCapState {
             error!("Availability Error for {:?}", result);
             return Err(DenyReasonWithCap::new(DenyReason::Unavailable, result));
         }
+
         Ok(())
     }
 

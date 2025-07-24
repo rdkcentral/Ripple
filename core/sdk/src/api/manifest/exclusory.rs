@@ -102,6 +102,7 @@ impl Exclusory for ExclusoryImpl {
         if "internal".eq(app_id) {
             return true;
         }
+
         if let Some(app) = self.app_authorization_rules.app_ignore_rules.get(app_id) {
             return app.contains(&String::from("*"));
         }

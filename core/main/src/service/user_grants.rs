@@ -1681,7 +1681,9 @@ impl GrantPolicyEnforcer {
         platform_state
             .clone()
             .cap_state
+            .clone()
             .generic
+            .clone()
             .check_all(&vec![permission.clone()])?;
 
         if policy.options.is_empty() {
@@ -2127,6 +2129,7 @@ mod tests {
             state::{
                 cap::{
                     self,
+                    generic_cap_state::{self, GenericCapState},
                     permitted_state::{self, PermittedState},
                 },
                 platform_state::{self, PlatformStateContainerBuilder},
@@ -2134,6 +2137,7 @@ mod tests {
             },
             utils::test_utils::{fb_perm, MockRuntime},
         };
+        use httpmock::Method::GET;
         use jaq_interpret::RunPtr;
         use ripple_sdk::{
             api::{
@@ -2238,8 +2242,13 @@ mod tests {
 
             let ctx = CallContext::mock();
 
-            let perm = fb_perm(
-                "xrn:firebolt:capability:localization:postal-code",
+            // let perm = fb_perm(
+            //     "xrn:firebolt:capability:localization:postal-code",
+            //     Some(CapabilityRole::Use),
+            // );
+
+            let test = fb_perm(
+                "xrn:firebolt:capability:usergrant:acknowledgechallenge",
                 Some(CapabilityRole::Use),
             );
             let policy = GrantPolicy {
@@ -2256,26 +2265,26 @@ mod tests {
             ];
 
             let mut permissions = HashMap::new();
-            permissions.insert(ctx.app_id.to_owned(), vec![perm.clone()]);
-            let mut permitted_state = PermittedState::default();
-            permitted_state.set_permissions(permissions);
-            debug!("ctx={}", ctx);
+            permissions.insert(ctx.app_id.to_owned(), vec![test.clone()]);
 
+            let permitted_state = PermittedState::default();
+            permitted_state.set_permissions(permissions);
+
+            let generic_cap_state = GenericCapState::new_instance(vec![test.clone()], caps, true);
             let cap_state = CapState {
-                permitted_state: permitted_state,
+                generic: Arc::new(generic_cap_state),
+                permitted_state: Arc::new(permitted_state),
                 ..Default::default()
             };
-            cap_state.generic.ingest_availability(caps, true);
 
             let platform_state =
                 PlatformStateContainerBuilder::new().cap_state(Arc::new(cap_state));
 
             let platform_state = platform_state.build();
             let runtime = MockRuntime::new_with_context(platform_state.clone(), ctx.clone());
-            debug!("runtime.ctx={}", runtime.call_context);
             let platform_state = Arc::new(platform_state);
 
-            (platform_state, ctx, perm, policy)
+            (platform_state, ctx, test, policy)
         }
 
         #[tokio::test]
@@ -2565,17 +2574,7 @@ mod tests {
             }]);
             let caller_session: CallerSession = CallerSession::default();
             let app_identifier: AppIdentification = ctx.clone().into();
-            // let challenge_responses = state
-            //     .provider_broker_state
-            //     .send_pinchallenge_success(&state, &ctx)
-            //     .then(|_| async {
-            //         // TODO: workout how to do this without sleep
-            //         time::sleep(Duration::new(1, 0)).await;
-            //         state
-            //             .provider_broker_state
-            //             .send_ackchallenge_failure(&state, &ctx)
-            //             .await;
-            //     });
+
             ProviderApp::start(
                 state.clone(),
                 ctx.clone(),
@@ -2626,6 +2625,7 @@ mod tests {
                     },
                 ],
             }]);
+
             ProviderApp::start(
                 state.clone(),
                 ctx.clone(),
@@ -2639,26 +2639,11 @@ mod tests {
             )
             .await;
 
-            // state
-            //     .session_state
-            //     .add_session("app_id".to_owned(), sample_app_session);
-
             let caller_session: CallerSession = CallerSession::default();
             let app_identifier: AppIdentification = ctx.clone().into();
-            // let challenge_responses = state
-            //     .provider_broker_state
-            //     .send_pinchallenge_success(&state, &ctx)
-            //     .then(|_| async {
-            //         // TODO: workout how to do this without sleep
-            //         time::sleep(Duration::new(1, 0)).await;
-            //         state
-            //             .provider_broker_state
-            //             .send_ackchallenge_success(&state, &ctx)
-            //             .await;
-            //     });
 
             let evaluate_options = GrantPolicyEnforcer::evaluate_options(
-                state,
+                state.clone(),
                 &caller_session,
                 &app_identifier,
                 &perm,
