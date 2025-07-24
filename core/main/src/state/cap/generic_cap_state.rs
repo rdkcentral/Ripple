@@ -29,8 +29,6 @@ use ripple_sdk::{
     },
     log::{error, info, trace},
 };
-use serde::Deserialize;
-use serde_json::json;
 
 use crate::state::platform_state::PlatformState;
 
@@ -80,14 +78,14 @@ impl GenericCapState {
     pub fn check_for_processor(&self, request: Vec<String>) -> HashMap<String, bool> {
         let supported = self.supported.read().unwrap();
         let mut result = HashMap::new();
+
         let supported_cap: Vec<String> = supported
             .clone()
             .iter()
-            .map(|f| {
-                FireboltPermission::deserialize(json!(f))
-                    .unwrap()
-                    .cap
-                    .as_str()
+            .filter_map(|f| {
+                serde_json::from_str::<FireboltPermission>(f)
+                    .ok()
+                    .map(|perm| perm.cap.as_str().to_string())
             })
             .collect();
 
