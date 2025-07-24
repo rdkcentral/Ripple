@@ -74,7 +74,6 @@ impl ExtnRequestProcessor for AuthorizedInfoProcessor {
     ) -> bool {
         match extracted_message {
             CapsRequest::Permitted(app_id, request) => {
-                println!("@@@NNA...CapsRequest::Permitted is invoked here..");
                 let result = state
                     .cap_state
                     .permitted_state
@@ -88,9 +87,7 @@ impl ExtnRequestProcessor for AuthorizedInfoProcessor {
                 .is_ok()
             }
             CapsRequest::Supported(request) => {
-                println!("@@@NNA...CapsRequest::Supported invoked here");
                 let result = state.cap_state.generic.check_for_processor(request);
-                println!("@@@NNA...CapsRequest::Supported result: {:?}", result);
                 Self::respond(
                     state.get_client().get_extn_client(),
                     msg,
