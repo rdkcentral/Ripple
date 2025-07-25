@@ -106,17 +106,6 @@ impl ThunderStorageRequestProcessor {
             })
             .await;
 
-        let response = match response {
-            Ok(res) => {
-                info!("Thunder call response msg: {}", res.message);
-                res
-            }
-            Err(e) => {
-                error!("Thunder call failed: {}", e);
-                return Err(RippleError::ProcessorError);
-            }
-        };
-
         match response.message["success"].as_bool() {
             Some(success) => Ok(success),
             None => Err(RippleError::ProcessorError),
@@ -159,17 +148,6 @@ impl ThunderStorageRequestProcessor {
             })
             .await;
 
-        let response = match response {
-            Ok(res) => {
-                info!("Thunder call response msg: {}", res.message);
-                res
-            }
-            Err(e) => {
-                error!("Thunder call failed: {}", e);
-                return false;
-            }
-        };
-
         if response.message.get("success").is_none()
             || !response.message["success"].as_bool().unwrap_or_default()
         {
@@ -190,17 +168,6 @@ impl ThunderStorageRequestProcessor {
                 params: None,
             })
             .await;
-
-        let response = match response {
-            Ok(res) => {
-                info!("Thunder call response msg: {}", res.message);
-                res
-            }
-            Err(e) => {
-                error!("Thunder call failed: {}", e);
-                return false;
-            }
-        };
 
         if response.message.get("success").is_none()
             || !response.message["success"].as_bool().unwrap_or_default()
@@ -237,17 +204,6 @@ impl ThunderStorageRequestProcessor {
                 params,
             })
             .await;
-
-        let response = match response {
-            Ok(res) => {
-                info!("Thunder call response msg: {}", res.message);
-                res
-            }
-            Err(e) => {
-                error!("Thunder call failed: {}", e);
-                return Err(RippleError::ProcessorError);
-            }
-        };
 
         if let Some(status) = response.message["success"].as_bool() {
             if status {
@@ -315,16 +271,12 @@ impl ThunderStorageRequestProcessor {
             })
             .await;
 
-        let response = match response {
-            Ok(resp) => resp,
-            Err(e) => {
-                error!("Thunder call failed: {:?}", e);
-                return Err(RippleError::InvalidOutput);
-            }
-        };
+        if let Some(error) = response.message.get("error") {
+            error!("setValue call FAILED response of error:{:?}", error);
+            return Err(RippleError::InvalidOutput);
+        }
 
-        info!("{}", response.message);
-
+        info!("setValue call response msg: {}", response.message);
         match response.message["success"].as_bool() {
             Some(v) => Ok(v),
             None => Err(RippleError::InvalidOutput),

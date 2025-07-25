@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use ripple_sdk::log::error;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -50,7 +51,7 @@ pub async fn send_to_analytics_plugin(
 ) -> DeviceResponseMessage {
     let method: String = ThunderPlugin::Analytics.method("sendEvent");
 
-    match thunder_state
+    let resp = thunder_state
         .get_thunder_client()
         .call(DeviceCallRequest {
             method,
@@ -58,12 +59,15 @@ pub async fn send_to_analytics_plugin(
                 serde_json::to_string(&metrics_event).unwrap(),
             )),
         })
-        .await
-    {
-        Ok(response) => response,
-        Err(_) => DeviceResponseMessage {
+        .await;
+
+    if let Some(error) = resp.message.get("error") {
+        error!("sendEvent call FAILED response of error:{:?}", error);
+        DeviceResponseMessage {
             message: Value::Null,
             sub_id: None,
-        },
+        }
+    } else {
+        resp
     }
 }

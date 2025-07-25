@@ -28,7 +28,7 @@ pub const DEFAULT_DEVICE_OPERATION_TIMEOUT_SECS: u64 = 5;
 /// Each Device platform should implement this trait based on the underlying service
 #[async_trait]
 pub trait DeviceOperator: Clone {
-    async fn call(&self, request: DeviceCallRequest) -> Result<DeviceResponseMessage, RecvError>;
+    async fn call(&self, request: DeviceCallRequest) -> DeviceResponseMessage;
 
     async fn subscribe(
         &self,

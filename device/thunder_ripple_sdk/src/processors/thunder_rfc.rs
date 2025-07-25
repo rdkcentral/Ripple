@@ -111,7 +111,7 @@ impl ExtnRequestProcessor for ThunderRFCProcessor {
     ) -> bool {
         let flag = extracted_message.flag.clone();
         let rfc_request = json!({ "rfcList": vec![flag] }).to_string();
-        let resp = state
+        let response = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::System.method("getRFCConfig"),
@@ -119,13 +119,10 @@ impl ExtnRequestProcessor for ThunderRFCProcessor {
             })
             .await;
 
-        let response = match resp {
-            Ok(res) => res,
-            Err(e) => {
-                error!("Thunder call failed: {}", e);
-                return false;
-            }
-        };
+        if let Some(error) = response.message.get("error") {
+            error!("getRFCConfig call FAILED response of error:{:?}", error);
+            return false;
+        }
 
         Self::respond(
             state.get_client(),

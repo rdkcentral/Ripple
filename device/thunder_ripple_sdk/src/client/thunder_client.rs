@@ -244,7 +244,7 @@ impl ThunderClient {
 
 #[async_trait]
 impl DeviceOperator for ThunderClient {
-    async fn call(&self, request: DeviceCallRequest) -> Result<DeviceResponseMessage, RecvError> {
+    async fn call(&self, request: DeviceCallRequest) -> DeviceResponseMessage {
         if !self.use_thunder_async {
             let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
             let message = ThunderMessage::ThunderCallMessage(ThunderCallMessage {
@@ -253,8 +253,7 @@ impl DeviceOperator for ThunderClient {
                 callback: tx,
             });
             self.send_message(message).await;
-
-            rx.await
+            rx.await.unwrap()
         } else {
             let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
             let async_request = ThunderAsyncRequest::new(DeviceChannelRequest::Call(request));
@@ -262,7 +261,7 @@ impl DeviceOperator for ThunderClient {
             if let Some(async_client) = &self.thunder_async_client {
                 async_client.send(async_request).await;
             }
-            rx.await
+            rx.await.unwrap()
         }
     }
 
