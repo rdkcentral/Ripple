@@ -29,7 +29,7 @@ pub fn route_service_message(
     state: &RouterState,
     sm: ServiceMessage,
 ) -> Result<(), RippleError> {
-    trace!("Received Service Message: {:?}", sm);
+    trace!("Received Service Message: {:#?}", sm);
     match sm.message {
         JsonRpcMessage::Request(json_rpc_request) => {
             let ctx = sm.context.as_ref().map_or_else(CallContext::default, |v| {
