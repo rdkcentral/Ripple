@@ -7,7 +7,7 @@ use crate::service::service_message::ServiceMessage;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ServiceEventState {
     pub ripple_context: Arc<RwLock<RippleContext>>,
     pub event_subscribers: Arc<RwLock<HashMap<RippleContextUpdateType, Vec<String>>>>,

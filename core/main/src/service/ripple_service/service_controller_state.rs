@@ -32,7 +32,10 @@ use ripple_sdk::{
     },
     framework::ripple_contract::RippleContract,
     log::{debug, error, info, trace},
-    service::service_message::{Id, JsonRpcMessage, JsonRpcSuccess, ServiceMessage},
+    service::{
+        service_event_state::ServiceEventState,
+        service_message::{Id, JsonRpcMessage, JsonRpcSuccess, ServiceMessage},
+    },
     tokio::{
         self,
         net::TcpStream,
@@ -69,6 +72,7 @@ pub struct ServiceInfo {
 #[derive(Debug, Clone, Default)]
 pub struct ServiceControllerState {
     pub service_info: Arc<Mutex<ServiceRegistry>>,
+    pub service_event_state: ServiceEventState,
 }
 
 impl ServiceInfo {
@@ -121,6 +125,7 @@ impl ServiceControllerState {
     pub fn new() -> Self {
         ServiceControllerState {
             service_info: Arc::new(Mutex::new(ServiceRegistry::default())),
+            service_event_state: ServiceEventState::new(),
         }
     }
     // Ripple Main processing the inbound ServiceMessage received from a service.
@@ -178,7 +183,7 @@ impl ServiceControllerState {
                 };
             }
             JsonRpcMessage::Notification(json_rpc_notification) => {
-                info!("Received service notification: {:#?}", sm);
+                debug!("Received service notification: {:#?}", sm);
                 if let Some((context_update, update_type)) =
                     json_rpc_notification.method.split_once(".")
                 {
@@ -186,6 +191,7 @@ impl ServiceControllerState {
                     match context_update {
                         "rippleContextEvent" => {
                             state
+                                .service_controller_state
                                 .service_event_state
                                 .process_event_notification(update_type, sm.clone());
                         }
@@ -199,7 +205,10 @@ impl ServiceControllerState {
                     }
                     debug!(
                         " service event subscribers: {:?}",
-                        state.service_event_state.event_subscribers
+                        state
+                            .service_controller_state
+                            .service_event_state
+                            .event_subscribers
                     );
                 } else {
                     error!("Invalid service event request format");
@@ -563,7 +572,7 @@ impl ServiceControllerState {
         let message = sm.message.clone();
         match message {
             JsonRpcMessage::Notification(notification) => {
-                info!("Received event notification: {:?}", notification);
+                debug!("Received event notification: {:?}", notification);
                 let params = notification.params;
                 if let Some(params) = params {
                     match update_type {
@@ -640,6 +649,7 @@ impl ServiceControllerState {
     ) {
         let propagate = {
             let mut ripple_context = platform_state
+                .service_controller_state
                 .service_event_state
                 .ripple_context
                 .write()
@@ -652,6 +662,7 @@ impl ServiceControllerState {
         };
         let new_ripple_context = {
             platform_state
+                .service_controller_state
                 .service_event_state
                 .ripple_context
                 .read()
@@ -665,6 +676,7 @@ impl ServiceControllerState {
             match update_type {
                 Ok(update_type) => {
                     let processors = platform_state
+                        .service_controller_state
                         .service_event_state
                         .get_event_processors(Some(update_type.clone()));
                     for processor in processors {
