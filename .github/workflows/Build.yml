@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches: [ "main", "1.24.rc" ]
+    branches: [ "main", "1.24.rc", "Memory-Optimization-Phase-2" ]
     
 env:
   CARGO_TERM_COLOR: always
