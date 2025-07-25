@@ -26,6 +26,7 @@ use ripple_sdk::{
     async_trait::async_trait,
     log::{debug, error},
     tokio::sync::oneshot,
+    utils::rpc_utils::rpc_err,
 };
 use std::collections::HashMap;
 
@@ -63,6 +64,9 @@ pub trait Internal {
         ctx: CallContext,
         caps_request: CapsRequest,
     ) -> RpcResult<HashMap<String, bool>>;
+
+    #[method(name = "ripple.getSecondScreenPayload")]
+    async fn get_second_screen_payload(&self, ctx: CallContext) -> RpcResult<String>;
 }
 
 #[derive(Debug)]
@@ -136,6 +140,32 @@ impl InternalServer for InternalImpl {
                 Ok(result)
             }
         }
+    }
+
+    async fn get_second_screen_payload(&self, ctx: CallContext) -> RpcResult<String> {
+        let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
+
+        let app_request = AppRequest::new(
+            AppMethod::GetSecondScreenPayload(ctx.app_id.clone()),
+            app_resp_tx,
+        );
+
+        if let Err(e) = self.state.get_client().send_app_request(app_request) {
+            error!("Send error for GetSecondScreenPayload {:?}", e);
+            return Err(rpc_err("Unable to send app request"));
+        }
+
+        let resp = rpc_await_oneshot(app_resp_rx).await;
+        if let Ok(Ok(AppManagerResponse::SecondScreenPayload(payload))) = resp {
+            return Ok(payload);
+        }
+
+        // return empty string if the payload is not available
+        error!(
+            "Failed to get second screen payload for app_id: {}",
+            ctx.app_id
+        );
+        Ok(String::new())
     }
 }
 
