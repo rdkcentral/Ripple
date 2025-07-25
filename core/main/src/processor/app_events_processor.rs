@@ -73,13 +73,13 @@ impl ExtnEventProcessor for AppEventsProcessor {
                 if let Some(app_id) = event.app_id {
                     let event_name = &event.event_name;
                     let result = &event.result;
-                    AppEvents::emit_to_app(&state, app_id, event_name, result).await;
+                    AppEvents::emit_to_app(state.clone(), app_id, event_name, result).await;
                 } else {
-                    AppEvents::emit_with_app_event(&state, extracted_message).await;
+                    AppEvents::emit_with_app_event(state.clone(), extracted_message).await;
                 }
             }
             AppEventRequest::Register(ctx, event, request) => {
-                AppEvents::add_listener(&state, event, ctx, request);
+                AppEvents::add_listener(state.clone(), event, ctx, request);
             }
         }
         None

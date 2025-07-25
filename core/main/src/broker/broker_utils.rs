@@ -15,9 +15,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::state::platform_state::PlatformState;
+use crate::state::{ops_metrics_state::OpsMetrics, platform_state::PlatformState};
 use jsonrpsee::core::RpcResult;
-use ripple_sdk::api::gateway::rpc_gateway_api::{CallContext, JsonRpcApiError, RpcRequest};
+use ripple_sdk::{
+    api::gateway::rpc_gateway_api::{CallContext, JsonRpcApiError, RpcRequest},
+    async_read_lock,
+};
 use serde_json::Value;
 
 use super::endpoint_broker::BrokerCallback;
@@ -26,38 +29,36 @@ pub struct BrokerUtils;
 
 impl BrokerUtils {
     pub async fn process_for_app_main_request(
-        state: &PlatformState,
+        state: PlatformState,
         method: &str,
         params: Option<Value>,
         app_id: &str,
     ) -> RpcResult<Value> {
         let mut rpc_request = RpcRequest::internal(method, None).with_params(params);
         rpc_request.ctx.app_id = app_id.to_owned();
-        Self::internal_request(state, rpc_request).await
+        Self::internal_request(state.clone(), rpc_request).await
     }
 
-    pub async fn process_internal_main_request<'a>(
-        state: &PlatformState,
-        method: &'a str,
+    pub async fn process_internal_main_request(
+        state: PlatformState,
+        method: &str,
         params: Option<Value>,
     ) -> RpcResult<Value> {
-        Self::process_internal_request(state, None, method, params).await
+        Self::process_internal_request(state.clone(), None, method, params).await
     }
 
-    pub async fn process_internal_request<'a>(
-        state: &PlatformState,
+    pub async fn process_internal_request(
+        state: PlatformState,
         on_behalf_of: Option<CallContext>,
-        method: &'a str,
+        method: &str,
         params: Option<Value>,
     ) -> RpcResult<Value> {
         let rpc_request = RpcRequest::internal(method, on_behalf_of).with_params(params);
-        state
-            .metrics
-            .add_api_stats(&rpc_request.ctx.request_id, method);
-        Self::internal_request(state, rpc_request).await
+        OpsMetrics::add_api_stats(state.metrics.clone(), &rpc_request.ctx.request_id, method).await;
+        Self::internal_request(state.clone(), rpc_request).await
     }
 
-    async fn internal_request(state: &PlatformState, rpc_request: RpcRequest) -> RpcResult<Value> {
+    async fn internal_request(state: PlatformState, rpc_request: RpcRequest) -> RpcResult<Value> {
         let method = rpc_request.method.clone();
         match state.internal_rpc_request(&rpc_request).await {
             Ok(res) => match res.as_value() {
@@ -75,7 +76,7 @@ impl BrokerUtils {
     }
 
     pub async fn process_internal_subscription(
-        state: &mut PlatformState,
+        state: PlatformState,
         method: &str,
         params: Option<Value>,
         app_id: Option<String>,
@@ -85,13 +86,10 @@ impl BrokerUtils {
         if let Some(app_id) = app_id {
             rpc_request.ctx.app_id = app_id.to_owned();
         }
-        state.endpoint_state.handle_brokerage(
-            rpc_request,
-            None,
-            callback,
-            Vec::new(),
-            None,
-            Vec::new(),
-        )
+        {
+            async_read_lock!(state.endpoint_state)
+                .handle_brokerage(rpc_request, None, callback, Vec::new(), None, Vec::new())
+                .await
+        }
     }
 }

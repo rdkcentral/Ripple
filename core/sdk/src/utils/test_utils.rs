@@ -80,3 +80,28 @@ pub fn report_stats(api_stats: &ApiStats) {
         api_stats.stats.get_total_time()
     );
 }
+
+/*
+use this to create Sender<T>
+This implementation is for use cases where the acces the to tx is not needed
+*/
+
+#[macro_export]
+
+macro_rules! default_sender_impl {
+    ($t:ty) => {
+        impl Default for tokio::sync::mpsc::Sender<$t> {
+            fn default() -> Self {
+                let (tx, _rx) = tokio::sync::mpsc::channel(8);
+                tx
+            }
+        }
+    };
+}
+#[macro_export]
+macro_rules! mock_sender {
+    ($t:ty) => {{
+        let (tx, _rx) = ripple_sdk::tokio::sync::mpsc::channel::<$t>(8);
+        tx
+    }};
+}

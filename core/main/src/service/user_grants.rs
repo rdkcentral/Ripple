@@ -72,7 +72,7 @@ pub struct UserGrants {}
 
 type GrantAppMap = Arc<RwLock<FileStore<HashMap<String, HashSet<GrantEntry>>>>>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct GrantState {
     device_grants: Arc<RwLock<FileStore<HashSet<GrantEntry>>>>,
     grant_app_map: GrantAppMap,
@@ -128,13 +128,13 @@ impl GrantState {
         None
     }
 
-    pub async fn sync_grant_map_with_grant_policy(&self, platform_state: &PlatformState) {
+    pub async fn sync_grant_map_with_grant_policy(&self, platform_state: PlatformState) {
         //Remove app user grants
-        let grant_entries_to_remove = Self::fetch_app_grant_entry_to_remove(platform_state);
+        let grant_entries_to_remove = Self::fetch_app_grant_entry_to_remove(platform_state.clone());
         for (app_id, entry_set) in grant_entries_to_remove.iter() {
             for entry in entry_set {
                 Self::force_delete_user_grant_from_local_sources(
-                    platform_state,
+                    platform_state.clone(),
                     Some(app_id),
                     entry,
                 )
@@ -143,21 +143,25 @@ impl GrantState {
         }
 
         //Remove device user grants
-        let grant_entries_to_remove = Self::fetch_device_grant_entry_to_remove(platform_state);
+        let grant_entries_to_remove =
+            Self::fetch_device_grant_entry_to_remove(platform_state.clone());
         for entry in grant_entries_to_remove {
-            Self::force_delete_user_grant_from_local_sources(platform_state, None, &entry).await;
+            Self::force_delete_user_grant_from_local_sources(platform_state.clone(), None, &entry)
+                .await;
         }
     }
 
     fn fetch_app_grant_entry_to_remove(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
     ) -> HashMap<String, HashSet<GrantEntry>> {
         let mut grant_entries_to_remove: HashMap<String, HashSet<GrantEntry>> = HashMap::new();
         let grant_policies_map = platform_state
+            .clone()
             .get_device_manifest()
             .get_grant_policies()
             .unwrap_or_default();
-        let grant_entries = platform_state
+        let grant_entries = platform_state.clone();
+        let grant_entries = grant_entries
             .cap_state
             .grant_state
             .grant_app_map
@@ -181,8 +185,9 @@ impl GrantState {
         grant_entries_to_remove
     }
 
-    fn fetch_device_grant_entry_to_remove(platform_state: &PlatformState) -> HashSet<GrantEntry> {
+    fn fetch_device_grant_entry_to_remove(platform_state: PlatformState) -> HashSet<GrantEntry> {
         let grant_policies_map = platform_state
+            .clone()
             .get_device_manifest()
             .get_grant_policies()
             .unwrap_or_default();
@@ -207,7 +212,7 @@ impl GrantState {
 
     #[allow(clippy::eq_op)]
     async fn force_delete_user_grant_from_local_sources(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         app_id: Option<&str>,
         entry: &GrantEntry,
     ) {
@@ -216,7 +221,7 @@ impl GrantState {
         if let Some(id) = app_id {
             // Delete app grant in local storage and grant state by app id
             let grant_entry_to_remove =
-                Self::force_delete_user_grant(platform_state, id.to_string(), entry);
+                Self::force_delete_user_grant(platform_state.clone(), id.to_string(), entry);
 
             if let Some(gc_opt) = grant_entry_to_remove {
                 gc = gc_opt;
@@ -224,7 +229,8 @@ impl GrantState {
             app_id_opt = Some(id.to_string());
         } else {
             // Delete device grant in local storage and grant state
-            let mut device_grant_map_write = platform_state
+            let device_grant_map_write = platform_state.clone();
+            let mut device_grant_map_write = device_grant_map_write
                 .cap_state
                 .grant_state
                 .device_grants
@@ -240,7 +246,7 @@ impl GrantState {
 
         // Remove grant entry from cloud
         GrantPolicyEnforcer::send_usergrants_for_cloud_storage(
-            platform_state,
+            platform_state.clone(),
             None,
             &gc,
             &app_id_opt,
@@ -249,13 +255,14 @@ impl GrantState {
     }
 
     fn force_delete_user_grant(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         app_id: String,
         entry: &GrantEntry,
     ) -> Option<GrantEntry> {
         let mut gc_opt: Option<GrantEntry> = None;
         {
-            let mut grant_app_map_write = platform_state
+            let grant_app_map_write = platform_state.clone();
+            let mut grant_app_map_write = grant_app_map_write
                 .cap_state
                 .grant_state
                 .grant_app_map
@@ -293,24 +300,25 @@ impl GrantState {
         }
     }
 
-    pub fn clear_local_entries(&self, ps: &PlatformState, persistence_type: PolicyPersistenceType) {
+    pub fn clear_local_entries(&self, ps: PlatformState, persistence_type: PolicyPersistenceType) {
         let mut app_grant_state = self.grant_app_map.write().unwrap();
         for (_, entries) in app_grant_state.value.iter_mut() {
             entries.retain(|entry| {
                 !self.check_grant_policy_persistence(
-                    ps,
+                    ps.clone(),
                     entry.capability.clone(),
                     entry.role,
                     persistence_type.clone(),
                 )
             });
         }
+
         app_grant_state.sync();
 
         let mut device_grant_state = self.device_grants.write().unwrap();
         device_grant_state.value.retain(|entry: &GrantEntry| {
             !self.check_grant_policy_persistence(
-                ps,
+                ps.clone(),
                 entry.capability.clone(),
                 entry.role,
                 persistence_type.clone(),
@@ -321,7 +329,7 @@ impl GrantState {
 
     pub fn check_grant_policy_persistence(
         &self,
-        ps: &PlatformState,
+        ps: PlatformState,
         capability: String,
         role: CapabilityRole,
         persistence: PolicyPersistenceType,
@@ -502,7 +510,7 @@ impl GrantState {
         &self,
         app_id: &str,
         permission: &FireboltPermission,
-        platform_state: Option<&PlatformState>,
+        platform_state: Option<PlatformState>,
     ) -> GrantActiveState {
         if let Some(status) = self.get_grant_status(app_id, permission) {
             GrantActiveState::ActiveGrant(status.into())
@@ -533,7 +541,7 @@ impl GrantState {
     }
 
     pub async fn check_with_roles(
-        state: &PlatformState,
+        state: PlatformState,
         caller_session: &CallerSession,
         app_requested_for: &AppIdentification,
         fb_perms: &[FireboltPermission],
@@ -545,9 +553,14 @@ impl GrantState {
          * Instead of just checking for grants previously, if the user grants are not present,
          * we are taking necessary steps to get the user grant and send back the result.
          */
-        let grant_state = state.clone().cap_state.grant_state;
+        let grant_state = state.clone().cap_state.grant_state.clone();
         let app_id = app_requested_for.app_id.to_owned();
-        let caps_needing_grants = grant_state.caps_needing_grants.clone();
+        let caps_needing_grants = state
+            .clone()
+            .cap_state
+            .grant_state
+            .caps_needing_grants
+            .clone();
         let mut caps_needing_grant_in_request: Vec<FireboltPermission> = fb_perms
             .iter()
             .filter(|&x| caps_needing_grants.contains(&x.cap.as_str()))
@@ -556,7 +569,7 @@ impl GrantState {
 
         if apply_exclusion_filter {
             caps_needing_grant_in_request = GrantPolicyEnforcer::apply_grant_exclusion_filters(
-                state,
+                state.clone(),
                 &app_requested_for.app_id,
                 None,
                 &caps_needing_grant_in_request,
@@ -584,7 +597,7 @@ impl GrantState {
                 })?,
                 GrantActiveState::PendingGrant => {
                     let result = GrantPolicyEnforcer::determine_grant_policies_for_permission(
-                        state,
+                        state.clone(),
                         caller_session,
                         app_requested_for,
                         &permission,
@@ -621,7 +634,7 @@ impl GrantState {
 
     pub fn check_granted(
         &self,
-        state: &PlatformState,
+        state: PlatformState,
         app_id: &str,
         role_info: RoleInfo,
     ) -> Result<bool, RippleError> {
@@ -630,10 +643,10 @@ impl GrantState {
             app_id, role_info
         );
         for perm in FireboltGatekeeper::resolve_dependencies(
-            state,
+            state.clone(),
             &vec![FireboltPermission::from(role_info)],
         ) {
-            match self.get_grant_state(app_id, &perm, Some(state)) {
+            match self.get_grant_state(app_id, &perm, Some(state.clone())) {
                 GrantActiveState::ActiveGrant(grant) => {
                     if grant.is_err() {
                         return Err(RippleError::Permission(DenyReason::GrantDenied));
@@ -723,7 +736,7 @@ impl GrantState {
     }
 
     fn get_mapped_grant_status(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         app_id: &str,
         capability: &str,
         role: CapabilityRole,
@@ -743,20 +756,24 @@ impl GrantState {
             })
     }
     pub fn check_all_granted(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         app_id: &str,
         capability: &str,
     ) -> (Option<bool>, Option<bool>, Option<bool>) {
-        let use_granted =
-            Self::get_mapped_grant_status(platform_state, app_id, capability, CapabilityRole::Use);
+        let use_granted = Self::get_mapped_grant_status(
+            platform_state.clone(),
+            app_id,
+            capability,
+            CapabilityRole::Use,
+        );
         let manage_granted = Self::get_mapped_grant_status(
-            platform_state,
+            platform_state.clone(),
             app_id,
             capability,
             CapabilityRole::Manage,
         );
         let provide_granted = Self::get_mapped_grant_status(
-            platform_state,
+            platform_state.clone(),
             app_id,
             capability,
             CapabilityRole::Provide,
@@ -765,7 +782,7 @@ impl GrantState {
     }
 
     pub async fn grant_modify(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         modify_operation: GrantStateModify,
         app_id: Option<String>,
         role: CapabilityRole,
@@ -847,7 +864,7 @@ impl GrantState {
         entry_modified
     }
     pub fn get_grant_policy(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         permission: &FireboltPermission,
         _app_id: &Option<String>,
     ) -> Option<GrantPolicy> {
@@ -860,7 +877,7 @@ impl GrantState {
     }
 
     pub async fn update_grant(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         granted: GrantStateModify,
         app_id: &Option<String>,
         role: CapabilityRole,
@@ -886,7 +903,7 @@ impl GrantState {
     }
 
     async fn update_grant_as_per_policy(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         granted: GrantStateModify,
         app_id: &Option<String>,
         role: CapabilityRole,
@@ -907,15 +924,15 @@ impl GrantState {
         .with_diagnostic_context_item("grantstatemodify", &format!("{:?}", granted))
         .emit_debug();
 
-        let grant_policy =
-            Self::get_grant_policy(platform_state, &permission, app_id).ok_or_else(|| {
+        let grant_policy = Self::get_grant_policy(platform_state.clone(), &permission, app_id)
+            .ok_or_else(|| {
                 error!(
                     "There are no grant polices for the requesting cap so cant update user grant"
                 );
                 "There are no grant polices for the requesting cap so cant update user grant"
             })?;
 
-        if !GrantPolicyEnforcer::is_policy_valid(platform_state, &grant_policy) {
+        if !GrantPolicyEnforcer::is_policy_valid(platform_state.clone(), &grant_policy) {
             return Err(
                 "There are no valid grant polices for the requesting cap so cant update user grant",
             );
@@ -943,7 +960,7 @@ impl GrantState {
             {
                 //There is no need to update privacy settings so it is enough to update only user grants storage.
                 let result = GrantPolicyEnforcer::store_user_grants(
-                    platform_state,
+                    platform_state.clone(),
                     &permission,
                     &result,
                     app_id,
@@ -963,7 +980,7 @@ impl GrantState {
                 return Ok(());
             } else {
                 GrantPolicyEnforcer::update_privacy_settings_and_user_grants(
-                    platform_state,
+                    platform_state.clone(),
                     &permission,
                     &result,
                     app_id,
@@ -1016,6 +1033,7 @@ impl GrantState {
             };
             debug!("user grant modified with new entry:{:?}", new_entry.clone());
             platform_state
+                .clone()
                 .cap_state
                 .grant_state
                 .update_grant_entry(app_id.clone(), new_entry.clone());
@@ -1027,7 +1045,7 @@ impl GrantState {
             let grant_policy_persistence = grant_policy.persistence.clone();
             if grant_policy_persistence == PolicyPersistenceType::Account {
                 GrantPolicyEnforcer::send_usergrants_for_cloud_storage(
-                    platform_state,
+                    platform_state.clone(),
                     Some(&grant_policy),
                     &new_entry,
                     app_id,
@@ -1060,12 +1078,18 @@ pub struct GrantHandler;
 
 impl GrantHandler {
     pub async fn grant_info(
-        state: &PlatformState,
+        state: PlatformState,
         app_id: String,
         request: CapabilitySet,
     ) -> Result<(), DenyReasonWithCap> {
-        let caps_needing_grants = state.clone().cap_state.grant_state.caps_needing_grants;
-        let user_grant = state.clone().cap_state.grant_state;
+        let caps_needing_grants = state
+            .clone()
+            .cap_state
+            .grant_state
+            .clone()
+            .caps_needing_grants
+            .clone();
+        let user_grant = state.clone().cap_state.clone().grant_state.clone();
         let permissions = request.into_firebolt_permissions_vec();
         let caps_needing_grant_in_request: Vec<FireboltPermission> = permissions
             .into_iter()
@@ -1096,14 +1120,14 @@ impl GrantHandler {
     }
 
     pub fn are_all_user_grants_resolved(
-        state: &PlatformState,
+        state: PlatformState,
         app_id: &str,
         permissions: Vec<FireboltPermission>,
     ) -> Vec<FireboltPermission> {
-        let user_grant = state.clone().cap_state.grant_state;
+        let user_grant = state.clone().cap_state.grant_state.clone();
         let mut final_perms = Vec::new();
         for permission in permissions {
-            let result = user_grant.get_grant_state(app_id, &permission, Some(state));
+            let result = user_grant.get_grant_state(app_id, &permission, Some(state.clone()));
             if let GrantActiveState::PendingGrant = result {
                 final_perms.push(permission.clone());
             }
@@ -1116,7 +1140,7 @@ pub struct GrantPolicyEnforcer;
 
 impl GrantPolicyEnforcer {
     pub async fn send_usergrants_for_cloud_storage(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         grant_policy: Option<&GrantPolicy>,
         grant_entry: &GrantEntry,
         app_id: &Option<String>,
@@ -1193,7 +1217,7 @@ impl GrantPolicyEnforcer {
     }
 
     pub async fn store_user_grants(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         permission: &FireboltPermission,
         result: &Result<(), DenyReasonWithCap>,
         app_id: &Option<String>,
@@ -1248,7 +1272,7 @@ impl GrantPolicyEnforcer {
     }
 
     pub async fn update_privacy_settings_and_user_grants(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         permission: &FireboltPermission,
         result: &Result<(), DenyReasonWithCap>,
         app_id: &Option<String>,
@@ -1258,7 +1282,7 @@ impl GrantPolicyEnforcer {
         if let Some(privacy_setting) = &grant_policy.privacy_setting {
             if privacy_setting.update_property {
                 Self::update_privacy_settings_with_grant(
-                    platform_state,
+                    platform_state.clone(),
                     privacy_setting,
                     result.is_ok(),
                 )
@@ -1266,18 +1290,30 @@ impl GrantPolicyEnforcer {
             }
         }
 
-        Self::store_user_grants(platform_state, permission, result, app_id, grant_policy).await;
+        Self::store_user_grants(
+            platform_state.clone(),
+            permission,
+            result,
+            app_id,
+            grant_policy,
+        )
+        .await;
     }
 
     // Helper function to check
     // 1. Privacy settings for autoApplyPolicy
     // 2. Availability of providers for user grant resolution.
     pub async fn can_proceed_with_user_grant_resolution(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         permissions: &Vec<FireboltPermission>,
     ) -> bool {
         let mut check_status = false;
-        let grant_policies_map = match platform_state.get_device_manifest().get_grant_policies() {
+        let grant_policies_map = match platform_state
+            .clone()
+            .clone()
+            .get_device_manifest()
+            .get_grant_policies()
+        {
             Some(policy) => policy,
             None => {
                 debug!("There are no grant policies for the requesting cap so bailing out");
@@ -1294,7 +1330,7 @@ impl GrantPolicyEnforcer {
                 if let Some(privacy_setting) = policy.privacy_setting {
                     if privacy_setting.auto_apply_policy != AutoApplyPolicy::Never {
                         let result = GrantPolicyEnforcer::evaluate_privacy_settings(
-                            platform_state,
+                            platform_state.clone(),
                             &privacy_setting,
                         )
                         .await;
@@ -1318,6 +1354,7 @@ impl GrantPolicyEnforcer {
                         .collect();
 
                     if platform_state
+                        .clone()
                         .cap_state
                         .generic
                         .check_all(&step_caps)
@@ -1332,7 +1369,7 @@ impl GrantPolicyEnforcer {
     }
 
     pub async fn determine_grant_policies_for_permission(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         caller_session: &CallerSession,
         app_requested_for: &AppIdentification,
         permission: &FireboltPermission,
@@ -1349,6 +1386,7 @@ impl GrantPolicyEnforcer {
             // session id is some, so caller is from method invoke
             debug!("Method invoke caller, check if app is in foreground state");
             let app_state = platform_state
+                .clone()
                 .ripple_client
                 .get_app_state(app_id.as_ref().unwrap())
                 .await;
@@ -1379,7 +1417,10 @@ impl GrantPolicyEnforcer {
             debug!("Lifecyclemanagement.session caller, skip app state check. Check if cap is supported and available")
         }
 
-        let grant_policy_opt = platform_state.get_device_manifest().get_grant_policies();
+        let grant_policy_opt = platform_state
+            .clone()
+            .get_device_manifest()
+            .get_grant_policies();
         let grant_policies_map = match grant_policy_opt {
             Some(map) => map,
             None => {
@@ -1413,7 +1454,7 @@ impl GrantPolicyEnforcer {
             }
         };
 
-        if !Self::is_policy_valid(platform_state, &policy) {
+        if !Self::is_policy_valid(platform_state.clone(), &policy) {
             error!("Configured policy is not valid {:?}", policy);
             return Err(DenyReasonWithCap {
                 caps: vec![permission.clone().cap],
@@ -1421,7 +1462,7 @@ impl GrantPolicyEnforcer {
             });
         }
         let result = GrantPolicyEnforcer::execute(
-            platform_state,
+            platform_state.clone(),
             caller_session,
             app_requested_for,
             permission,
@@ -1443,7 +1484,7 @@ impl GrantPolicyEnforcer {
             debug!("Grant policies executed successfully. Result: {:?}", result);
         }
         Self::update_privacy_settings_and_user_grants(
-            platform_state,
+            platform_state.clone(),
             permission,
             &result,
             &Some(app_requested_for.app_id.to_owned()),
@@ -1454,12 +1495,13 @@ impl GrantPolicyEnforcer {
         result
     }
 
-    fn is_policy_valid(platform_state: &PlatformState, policy: &GrantPolicy) -> bool {
+    fn is_policy_valid(platform_state: PlatformState, policy: &GrantPolicy) -> bool {
         // Privacy settings in a policy takes higher precedence and we are
         // evaluating first.
         if let Some(privacy) = &policy.privacy_setting {
             let privacy_property = &privacy.property;
             return platform_state
+                .clone()
                 .open_rpc_state
                 .check_privacy_property(privacy_property);
         }
@@ -1474,40 +1516,44 @@ impl GrantPolicyEnforcer {
         true
     }
 
-    pub fn get_allow_value(platform_state: &PlatformState, property_name: &str) -> Option<bool> {
+    pub fn get_allow_value(platform_state: PlatformState, property_name: &str) -> Option<bool> {
         // Find the rpc method which has same name as that mentioned in privacy settings, and has allow property.
         platform_state
+            .clone()
             .open_rpc_state
             .get_method_with_allow_value_property(String::from(property_name))
             .map(|method| method.get_allow_value().unwrap()) // We can safely unwrap because the previous step in the chain ensures x-allow-value is present
     }
 
     async fn evaluate_privacy_settings(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         privacy_setting: &GrantPrivacySetting,
     ) -> Option<Result<(), DenyReason>> {
-        let allow_value = Self::get_allow_value(platform_state, privacy_setting.property.as_str())
-            .or_else(|| {
-                debug!(
-                    "Allow value not present for property: {}",
-                    privacy_setting.property.as_str()
-                );
-                None
-            })?;
-
-        // From privacyImpl make the call to the registered method for the configured privacy settings.
-        let stored_value =
-            PrivacyImpl::handle_allow_get_requests(&privacy_setting.property, platform_state)
-                .await
-                .ok()
+        let allow_value =
+            Self::get_allow_value(platform_state.clone(), privacy_setting.property.as_str())
                 .or_else(|| {
                     debug!(
-                        "Unable to get stored value for privacy settings: {}",
+                        "Allow value not present for property: {}",
                         privacy_setting.property.as_str()
                     );
-
                     None
                 })?;
+
+        // From privacyImpl make the call to the registered method for the configured privacy settings.
+        let stored_value = PrivacyImpl::handle_allow_get_requests(
+            &privacy_setting.property,
+            platform_state.clone(),
+        )
+        .await
+        .ok()
+        .or_else(|| {
+            debug!(
+                "Unable to get stored value for privacy settings: {}",
+                privacy_setting.property.as_str()
+            );
+
+            None
+        })?;
 
         debug!(
             "auto apply policy: {:?}, stored_value: {}, allow_value: {}",
@@ -1555,12 +1601,12 @@ impl GrantPolicyEnforcer {
     }
 
     pub async fn update_privacy_settings_with_grant(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         privacy_setting: &GrantPrivacySetting,
         grant: bool,
     ) {
         let allow_value_opt =
-            Self::get_allow_value(platform_state, privacy_setting.property.as_str());
+            Self::get_allow_value(platform_state.clone(), privacy_setting.property.as_str());
         let allow_value = allow_value_opt.unwrap_or(true);
         /*
          * We have to update the privacy settings such that it matches x-allow-value when cap is granted
@@ -1585,7 +1631,7 @@ impl GrantPolicyEnforcer {
             allow_value, grant, set_value
         );
         let method_name =
-            match Self::get_setter_method_name(platform_state, &privacy_setting.property) {
+            match Self::get_setter_method_name(platform_state.clone(), &privacy_setting.property) {
                 Some(method_name) => method_name,
                 None => {
                     error!(
@@ -1597,14 +1643,15 @@ impl GrantPolicyEnforcer {
             };
         debug!("Resolved method_name: {}", &method_name);
         let set_request = SetBoolProperty { value: set_value };
-        let _res =
-            PrivacyImpl::handle_allow_set_requests(&method_name, platform_state, set_request).await;
+        let _res = PrivacyImpl::handle_allow_set_requests(
+            &method_name,
+            platform_state.clone(),
+            set_request,
+        )
+        .await;
     }
 
-    pub fn get_setter_method_name(
-        platform_state: &PlatformState,
-        property: &str,
-    ) -> Option<String> {
+    pub fn get_setter_method_name(platform_state: PlatformState, property: &str) -> Option<String> {
         let firebolt_rpc_method_opt = platform_state
             .open_rpc_state
             .get_open_rpc()
@@ -1615,7 +1662,7 @@ impl GrantPolicyEnforcer {
     }
 
     async fn evaluate_options(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         // call_ctx: &CallContext,
         caller_session: &CallerSession,
         app_requested_for: &AppIdentification,
@@ -1624,8 +1671,11 @@ impl GrantPolicyEnforcer {
     ) -> Result<(), DenyReasonWithCap> {
         // TODO: is this check duplicated on line 1032?
         platform_state
+            .clone()
             .cap_state
+            .clone()
             .generic
+            .clone()
             .check_all(&vec![permission.clone()])?;
 
         if policy.options.is_empty() {
@@ -1641,6 +1691,7 @@ impl GrantPolicyEnforcer {
                 })
                 .collect();
             platform_state
+                .clone()
                 .cap_state
                 .generic
                 .check_all(&step_caps)
@@ -1651,7 +1702,7 @@ impl GrantPolicyEnforcer {
             for step in &first_supported_option.steps {
                 if let Err(e) = GrantStepExecutor::execute(
                     step,
-                    platform_state,
+                    platform_state.clone(),
                     caller_session,
                     app_requested_for,
                     permission,
@@ -1660,7 +1711,7 @@ impl GrantPolicyEnforcer {
                 {
                     debug!("grant step execute Err. step={:?} e={:?}", step, e);
                     CapState::emit(
-                        platform_state,
+                        platform_state.clone(),
                         &CapEvent::OnRevoked,
                         permission.cap.clone(),
                         Some(permission.role),
@@ -1675,7 +1726,7 @@ impl GrantPolicyEnforcer {
             debug!("all grants ok emitting cap");
 
             CapState::emit(
-                platform_state,
+                platform_state.clone(),
                 &CapEvent::OnGranted,
                 permission.cap.clone(),
                 Some(permission.role),
@@ -1703,7 +1754,7 @@ impl GrantPolicyEnforcer {
     }
 
     async fn execute(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         // call_ctx: &CallContext,
         caller_session: &CallerSession,
         app_requested_for: &AppIdentification,
@@ -1713,7 +1764,7 @@ impl GrantPolicyEnforcer {
         if let Some(privacy_setting) = &policy.privacy_setting {
             if privacy_setting.auto_apply_policy != AutoApplyPolicy::Never {
                 if let Some(priv_sett_response) =
-                    Self::evaluate_privacy_settings(platform_state, privacy_setting).await
+                    Self::evaluate_privacy_settings(platform_state.clone(), privacy_setting).await
                 {
                     return priv_sett_response.map_err(|err| DenyReasonWithCap {
                         reason: err,
@@ -1724,7 +1775,7 @@ impl GrantPolicyEnforcer {
         }
 
         Self::evaluate_options(
-            platform_state,
+            platform_state.clone(),
             caller_session,
             app_requested_for,
             permission,
@@ -1733,7 +1784,7 @@ impl GrantPolicyEnforcer {
         .await
     }
 
-    fn get_app_content_catalog(platform_state: &PlatformState, app_id: &str) -> Option<String> {
+    fn get_app_content_catalog(platform_state: PlatformState, app_id: &str) -> Option<String> {
         if let Some(app) = platform_state.app_manager_state.get(app_id) {
             return app.initial_session.app.catalog;
         }
@@ -1741,13 +1792,14 @@ impl GrantPolicyEnforcer {
     }
 
     pub async fn apply_grant_exclusion_filters(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         app_id: &str,
         catalog: Option<String>,
         permissions: &Vec<FireboltPermission>,
     ) -> Vec<FireboltPermission> {
         // If catalog is None, then get catalog from AppSession
         let grant_exclusion_filters = platform_state
+            .clone()
             .get_device_manifest()
             .get_grant_exclusion_filters();
 
@@ -1775,7 +1827,7 @@ impl GrantPolicyEnforcer {
                     // get catalog from AppSession and check if both filers are matching
                     (id, Some(filter_id), None, Some(filter_catalog)) => {
                         if let Some(app_catalog) =
-                            Self::get_app_content_catalog(platform_state, app_id)
+                            Self::get_app_content_catalog(platform_state.clone(), app_id)
                         {
                             filter_id.as_str() == id && *filter_catalog == app_catalog
                         } else {
@@ -1795,7 +1847,7 @@ impl GrantPolicyEnforcer {
                     // get catalog from AppSession and check if catalog filter matches
                     (_id, None, None, Some(filter_catalog)) => {
                         if let Some(app_catalog) =
-                            Self::get_app_content_catalog(platform_state, app_id)
+                            Self::get_app_content_catalog(platform_state.clone(), app_id)
                         {
                             *filter_catalog == app_catalog
                         } else {
@@ -1841,7 +1893,7 @@ pub struct GrantStepExecutor;
 impl GrantStepExecutor {
     pub async fn execute(
         step: &GrantStep,
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         // call_ctx: &CallContext,
         caller_session: &CallerSession,
         app_requested_for: &AppIdentification,
@@ -1855,13 +1907,15 @@ impl GrantStepExecutor {
         );
 
         let firebolt_cap = FireboltCap::Full(capability.to_owned());
-        if let Err(e) = platform_state
-            .cap_state
-            .generic
-            .check_all(&vec![FireboltPermission {
-                cap: firebolt_cap.clone(),
-                role: CapabilityRole::Use,
-            }])
+        if let Err(e) =
+            platform_state
+                .clone()
+                .cap_state
+                .generic
+                .check_all(&vec![FireboltPermission {
+                    cap: firebolt_cap.clone(),
+                    role: CapabilityRole::Use,
+                }])
         {
             return Err(DenyReasonWithCap {
                 reason: DenyReason::GrantProviderMissing,
@@ -1871,7 +1925,7 @@ impl GrantStepExecutor {
         debug!("Cap is supported and available, invoking capability");
 
         Self::invoke_capability(
-            platform_state,
+            platform_state.clone(),
             // call_ctx,
             caller_session,
             app_requested_for,
@@ -1882,11 +1936,14 @@ impl GrantStepExecutor {
         .await
     }
 
-    async fn get_app_name(platform_state: &PlatformState, app_id: String) -> String {
+    async fn get_app_name(platform_state: PlatformState, app_id: String) -> String {
         let mut app_name: String = Default::default();
         let (tx, rx) = oneshot::channel::<AppResponse>();
         let app_request = AppRequest::new(AppMethod::GetAppName(app_id), tx);
-        let send_result = platform_state.get_client().send_app_request(app_request);
+        let send_result = platform_state
+            .clone()
+            .get_client()
+            .send_app_request(app_request);
         if send_result.is_err() {
             return app_name;
         }
@@ -1898,7 +1955,7 @@ impl GrantStepExecutor {
     }
 
     pub async fn invoke_capability(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         caller_session: &CallerSession,
         app_requested_for: &AppIdentification,
         cap: &FireboltCap,
@@ -1911,10 +1968,12 @@ impl GrantStepExecutor {
         let mut method_key: Option<String> = None;
 
         for (key, provider_relation_set) in platform_state
+            .clone()
             .open_rpc_state
             .get_provider_relation_map()
             .iter()
         {
+            debug!("comparing cap {:?} to {:?}", cap, provider_relation_set);
             if let Some(provides) = &provider_relation_set.provides {
                 if provides.eq(&cap.as_str()) {
                     method_key = Some(key.clone());
@@ -1941,7 +2000,7 @@ impl GrantStepExecutor {
          * We call as_str on String to convert String to str to perform our match
          */
         let for_app_id = &app_requested_for.app_id;
-        let app_name = Self::get_app_name(platform_state, for_app_id.clone()).await;
+        let app_name = Self::get_app_name(platform_state.clone(), for_app_id.clone()).await;
         let pr_msg_opt = match p_cap.as_str().as_str() {
             "xrn:firebolt:capability:usergrant:acknowledgechallenge" => {
                 let challenge = Challenge {
@@ -2003,7 +2062,7 @@ impl GrantStepExecutor {
         };
 
         let result = if let Some(pr_msg) = pr_msg_opt {
-            ProviderBroker::invoke_method(&platform_state.clone(), pr_msg).await;
+            ProviderBroker::invoke_method(platform_state.clone(), pr_msg).await;
             match session_rx.await {
                 Ok(result) => match result.as_challenge_response() {
                     Some(res) => {
@@ -2060,9 +2119,15 @@ mod tests {
     mod test_grant_policy_enforcer {
         use super::*;
         use crate::{
-            state::session_state::Session,
-            utils::test_utils::{fb_perm, MockRuntime},
+            state::{
+                cap::{generic_cap_state::GenericCapState, permitted_state::PermittedState},
+                openrpc_state::{OpenRpcState, ProviderRelationSet},
+                platform_state::PlatformStateContainerBuilder,
+                session_state::Session,
+            },
+            utils::test_utils::fb_perm,
         };
+
         use ripple_sdk::{
             api::{
                 device::device_user_grants_data::GrantRequirements,
@@ -2082,6 +2147,7 @@ mod tests {
             tokio,
             utils::logger::init_logger,
         };
+        use ripple_tdk::utils::test_utils::Mockable;
         use serde_json::json;
         struct ProviderApp;
 
@@ -2093,17 +2159,19 @@ mod tests {
                 ack_response: ChallengeResponse,
             ) {
                 let (tx, mut rx) = tokio::sync::mpsc::channel(32);
-                let sample_app_session = Session::new("app_id".to_owned(), Some(tx));
+                let sample_app_session = Session::new(ctx.clone().app_id, Some(tx));
                 let state_c = state.clone();
                 let ctx_c = ctx.clone();
                 state
+                    .clone()
                     .session_state
+                    .clone()
                     .add_session(ctx.session_id.clone(), sample_app_session);
 
                 ProviderBroker::register_or_unregister_provider(
-                    &state_c,
+                    state_c.clone(),
                     String::from(PIN_CHALLENGE_CAPABILITY),
-                    String::from(PIN_CHALLENGE_EVENT),
+                    String::from("somemethod1"),
                     String::from(PIN_CHALLENGE_EVENT),
                     ctx_c.clone(),
                     ListenRequest { listen: true },
@@ -2111,9 +2179,9 @@ mod tests {
                 .await;
 
                 ProviderBroker::register_or_unregister_provider(
-                    &state_c,
+                    state_c.clone(),
                     String::from(ACK_CHALLENGE_CAPABILITY),
-                    String::from(ACK_CHALLENGE_EVENT),
+                    String::from("somemethod2"),
                     String::from(ACK_CHALLENGE_EVENT),
                     ctx_c.clone(),
                     ListenRequest { listen: true },
@@ -2123,7 +2191,9 @@ mod tests {
                 let platform_state = state.clone();
 
                 tokio::spawn(async move {
+                    debug!("listening...");
                     while let Some(message) = rx.recv().await {
+                        debug!("got message");
                         let json_msg = serde_json::from_str::<Value>(&message.jsonrpc_msg).unwrap();
                         let msg = json_msg.get("result").cloned().unwrap();
                         let req = serde_json::from_value::<
@@ -2137,7 +2207,7 @@ mod tests {
                                     pin_response.clone(),
                                 ),
                             };
-                            ProviderBroker::provider_response(&platform_state, msg).await;
+                            ProviderBroker::provider_response(platform_state.clone(), msg).await;
                         } else {
                             let req =
                                 serde_json::from_value::<ExternalProviderRequest<Challenge>>(msg);
@@ -2149,7 +2219,8 @@ mod tests {
                                         ack_response.clone(),
                                     ),
                                 };
-                                ProviderBroker::provider_response(&platform_state, msg).await;
+                                ProviderBroker::provider_response(platform_state.clone(), msg)
+                                    .await;
                             }
                         }
                     }
@@ -2159,74 +2230,123 @@ mod tests {
 
         fn setup(
             policy_options: Vec<GrantRequirements>,
-        ) -> (PlatformState, CallContext, FireboltPermission, GrantPolicy) {
+        ) -> (
+            PlatformState,
+            CallContext,
+            Vec<FireboltPermission>,
+            GrantPolicy,
+        ) {
             let _ = init_logger("tests".into());
-            let runtime = MockRuntime::new();
-            let perm = fb_perm(
-                "xrn:firebolt:capability:localization:postal-code",
-                Some(CapabilityRole::Use),
-            );
+
+            let ctx = CallContext::mock();
+
+            // let test = fb_perm(
+            //     "xrn:firebolt:capability:usergrant:acknowledgechallenge",
+            //     Some(CapabilityRole::Use),
+            // );
+            let perms = vec![
+                fb_perm(
+                    "xrn:firebolt:capability:usergrant:pinchallenge",
+                    Some(CapabilityRole::Use),
+                ),
+                fb_perm(
+                    "xrn:firebolt:capability:usergrant:acknowledgechallenge",
+                    Some(CapabilityRole::Use),
+                ),
+            ];
+
             let policy = GrantPolicy {
                 options: policy_options,
                 ..Default::default()
             };
-            let ctx = runtime.call_context;
-            let mut platform_state = runtime.platform_state;
+
+            //  let mut platform_state = runtime.platform_state;
             let caps = vec![
-                FireboltCap::Short("input:keyboard".to_owned()),
-                FireboltCap::Short("token:account".to_owned()),
                 FireboltCap::Short("usergrant:acknowledgechallenge".to_owned()),
                 FireboltCap::Short("usergrant:pinchallenge".to_owned()),
             ];
-            platform_state
-                .cap_state
-                .generic
-                .ingest_availability(caps, true);
 
             let mut permissions = HashMap::new();
-            permissions.insert(ctx.app_id.to_owned(), vec![perm.clone()]);
-            platform_state
-                .cap_state
-                .permitted_state
-                .set_permissions(permissions);
+            permissions.insert(ctx.app_id.to_owned(), perms.clone());
 
-            (platform_state, ctx, perm, policy)
+            let permitted_state = PermittedState::default();
+            permitted_state.set_permissions(permissions);
+
+            let generic_cap_state = GenericCapState::new_instance(perms.clone(), caps, true);
+            let cap_state = CapState {
+                generic: Arc::new(generic_cap_state),
+                permitted_state: Arc::new(permitted_state),
+                ..Default::default()
+            };
+
+            let pinchallenge = ProviderRelationSet {
+                event: true,
+                capability: Some("xrn:firebolt:capability:usergrant:pinchallenge".to_string()),
+                provides: Some("xrn:firebolt:capability:usergrant:pinchallenge".to_string()),
+                ..Default::default()
+            };
+            let ack_challenge = ProviderRelationSet {
+                event: true,
+                capability: Some(
+                    "xrn:firebolt:capability:usergrant:acknowledgechallenge".to_string(),
+                ),
+                provides: Some(
+                    "xrn:firebolt:capability:usergrant:acknowledgechallenge".to_string(),
+                ),
+                ..Default::default()
+            };
+
+            let mut provider_relation_map: HashMap<String, ProviderRelationSet> = HashMap::new();
+            provider_relation_map.insert("somemethod1".to_string(), pinchallenge);
+            provider_relation_map.insert("somemethod2".to_string(), ack_challenge);
+            let open_rpcstate = OpenRpcState::new(None, vec![], vec![ctx.clone().method]);
+            open_rpcstate.set_provider_relation_map(provider_relation_map);
+            let platform_state = PlatformStateContainerBuilder::new()
+                .open_rpc_state(open_rpcstate)
+                .cap_state(Arc::new(cap_state));
+
+            let platform_state = platform_state.build();
+            let platform_state = Arc::new(platform_state);
+
+            (platform_state, ctx, perms, policy)
         }
 
         #[tokio::test]
         async fn test_evaluate_options_no_options() {
-            let (state, ctx, perm, policy) = setup(vec![]);
+            let (state, ctx, perms, policy) = setup(vec![]);
             let caller_session: CallerSession = ctx.clone().into();
             let app_identifier: AppIdentification = ctx.clone().into();
+            for perm in perms {
+                let result = GrantPolicyEnforcer::evaluate_options(
+                    state.clone(),
+                    &caller_session,
+                    &app_identifier,
+                    &perm,
+                    &policy,
+                )
+                .await;
 
-            let result = GrantPolicyEnforcer::evaluate_options(
-                &state,
-                &caller_session,
-                &app_identifier,
-                &perm,
-                &policy,
-            )
-            .await;
-
-            assert!(result.is_ok());
+                assert!(result.is_ok());
+            }
         }
 
         #[tokio::test]
         async fn test_evaluate_options_no_steps_for_option() {
-            let (state, ctx, perm, policy) = setup(vec![GrantRequirements { steps: vec![] }]);
+            let (state, ctx, perms, policy) = setup(vec![GrantRequirements { steps: vec![] }]);
             let caller_session: CallerSession = ctx.clone().into();
             let app_identifier: AppIdentification = ctx.clone().into();
+            for perm in perms {
+                let result = GrantPolicyEnforcer::evaluate_options(
+                    state.clone(),
+                    &caller_session,
+                    &app_identifier,
+                    &perm,
+                    &policy,
+                )
+                .await;
 
-            let result = GrantPolicyEnforcer::evaluate_options(
-                &state,
-                &caller_session,
-                &app_identifier,
-                &perm,
-                &policy,
-            )
-            .await;
-
-            assert!(result.is_ok());
+                assert!(result.is_ok());
+            }
         }
 
         #[tokio::test]
@@ -2240,7 +2360,7 @@ mod tests {
             };
 
             let result = GrantPolicyEnforcer::evaluate_options(
-                &state,
+                state.clone(),
                 &caller_session,
                 &app_identifier,
                 &perm,
@@ -2260,7 +2380,7 @@ mod tests {
 
         #[tokio::test]
         async fn test_evaluate_options_first_option_suitable() {
-            let (state, ctx, perm, policy) = setup(vec![
+            let (state, ctx, perms, policy) = setup(vec![
                 GrantRequirements {
                     steps: vec![GrantStep {
                         capability: PIN_CHALLENGE_CAPABILITY.to_owned(),
@@ -2292,23 +2412,24 @@ mod tests {
                 },
             )
             .await;
+            for perm in perms {
+                let evaluate_options = GrantPolicyEnforcer::evaluate_options(
+                    state.clone(),
+                    &caller_session,
+                    &app_identifier,
+                    &perm,
+                    &policy,
+                )
+                .await;
+                // let (result, _) = join!(evaluate_options, pinchallenge_response);
 
-            let evaluate_options = GrantPolicyEnforcer::evaluate_options(
-                &state,
-                &caller_session,
-                &app_identifier,
-                &perm,
-                &policy,
-            )
-            .await;
-            // let (result, _) = join!(evaluate_options, pinchallenge_response);
-
-            assert!(evaluate_options.is_ok());
+                assert!(evaluate_options.is_ok());
+            }
         }
 
         #[tokio::test]
         async fn test_evaluate_options_second_option_suitable() {
-            let (state, ctx, perm, policy) = setup(vec![
+            let (state, ctx, perms, policy) = setup(vec![
                 GrantRequirements {
                     steps: vec![GrantStep {
                         capability: "xrn:firebolt:capability:usergrant:notavailableonplatform"
@@ -2337,26 +2458,24 @@ mod tests {
             .await;
             let caller_session: CallerSession = CallerSession::default();
             let app_identifier: AppIdentification = ctx.clone().into();
-            // let pinchallenge_response = state
-            //     .provider_broker_state
-            //     .send_pinchallenge_success(&state, &ctx);
+            for perm in perms {
+                let evaluate_options = GrantPolicyEnforcer::evaluate_options(
+                    state.clone(),
+                    &caller_session,
+                    &app_identifier,
+                    &perm,
+                    &policy,
+                )
+                .await;
+                // let (result, _) = join!(evaluate_options, pinchallenge_response);
 
-            let evaluate_options = GrantPolicyEnforcer::evaluate_options(
-                &state,
-                &caller_session,
-                &app_identifier,
-                &perm,
-                &policy,
-            )
-            .await;
-            // let (result, _) = join!(evaluate_options, pinchallenge_response);
-
-            assert!(evaluate_options.is_ok());
+                assert!(evaluate_options.is_ok());
+            }
         }
 
         #[tokio::test]
         async fn test_evaluate_options_no_options_supported() {
-            let (state, ctx, perm, policy) = setup(vec![
+            let (state, ctx, perms, policy) = setup(vec![
                 GrantRequirements {
                     steps: vec![GrantStep {
                         capability: "xrn:firebolt:capability:usergrant:notavailableonplatform"
@@ -2380,37 +2499,40 @@ mod tests {
             ]);
             let caller_session: CallerSession = ctx.clone().into();
             let app_identifier: AppIdentification = ctx.clone().into();
+            for perm in perms {
+                let result = GrantPolicyEnforcer::evaluate_options(
+                    state.clone(),
+                    &caller_session,
+                    &app_identifier,
+                    &perm,
+                    &policy,
+                )
+                .await;
 
-            let result = GrantPolicyEnforcer::evaluate_options(
-                &state,
-                &caller_session,
-                &app_identifier,
-                &perm,
-                &policy,
-            )
-            .await;
-
-            assert!(result.is_err());
-            assert_eq!(
-                result.err().unwrap(),
-                DenyReasonWithCap {
-                    reason: DenyReason::GrantProviderMissing,
-                    caps: vec![
-                        FireboltCap::Full(
-                            "xrn:firebolt:capability:usergrant:notavailableonplatform".to_owned()
-                        ),
-                        FireboltCap::Full(
-                            "xrn:firebolt:capability:usergrant:notavailableonplatform".to_owned()
-                        ),
-                        FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())
-                    ]
-                }
-            );
+                assert!(result.is_err());
+                assert_eq!(
+                    result.err().unwrap(),
+                    DenyReasonWithCap {
+                        reason: DenyReason::GrantProviderMissing,
+                        caps: vec![
+                            FireboltCap::Full(
+                                "xrn:firebolt:capability:usergrant:notavailableonplatform"
+                                    .to_owned()
+                            ),
+                            FireboltCap::Full(
+                                "xrn:firebolt:capability:usergrant:notavailableonplatform"
+                                    .to_owned()
+                            ),
+                            FireboltCap::Full(ACK_CHALLENGE_CAPABILITY.to_owned())
+                        ]
+                    }
+                );
+            }
         }
 
         #[tokio::test]
         async fn test_evaluate_options_first_step_denied() {
-            let (state, ctx, perm, policy) = setup(vec![GrantRequirements {
+            let (state, ctx, perms, policy) = setup(vec![GrantRequirements {
                 steps: vec![
                     GrantStep {
                         capability: PIN_CHALLENGE_CAPABILITY.to_owned(),
@@ -2424,11 +2546,7 @@ mod tests {
             }]);
             let caller_session: CallerSession = CallerSession::default();
             let app_identifier: AppIdentification = ctx.clone().into();
-            // let challenge_responses = state.provider_broker_state.send_pinchallenge_failure(
-            //     &state,
-            //     &ctx,
-            //     PinChallengeResultReason::ExceededPinFailures,
-            // );
+
             ProviderApp::start(
                 state.clone(),
                 ctx.clone(),
@@ -2441,32 +2559,30 @@ mod tests {
                 },
             )
             .await;
+            for perm in perms {
+                let result = GrantPolicyEnforcer::evaluate_options(
+                    state.clone(),
+                    &caller_session,
+                    &app_identifier,
+                    &perm,
+                    &policy,
+                )
+                .await;
 
-            let result = GrantPolicyEnforcer::evaluate_options(
-                &state,
-                &caller_session,
-                &app_identifier,
-                &perm,
-                &policy,
-            )
-            .await;
-            // let (result, _) = join!(evaluate_options, challenge_responses);
-
-            assert!(result.is_err());
-            assert_eq!(
-                result.err().unwrap(),
-                DenyReasonWithCap {
-                    reason: DenyReason::GrantDenied,
-                    caps: vec![FireboltCap::Full(
-                        "xrn:firebolt:capability:localization:postal-code".to_owned()
-                    )]
-                }
-            );
+                assert!(result.is_err());
+                assert_eq!(
+                    result.err().unwrap(),
+                    DenyReasonWithCap {
+                        reason: DenyReason::GrantDenied,
+                        caps: vec![perm.cap]
+                    }
+                );
+            }
         }
 
         #[tokio::test]
         async fn test_evaluate_options_second_step_denied() {
-            let (state, ctx, perm, policy) = setup(vec![GrantRequirements {
+            let (state, ctx, perms, policy) = setup(vec![GrantRequirements {
                 steps: vec![
                     GrantStep {
                         capability: PIN_CHALLENGE_CAPABILITY.to_owned(),
@@ -2480,17 +2596,7 @@ mod tests {
             }]);
             let caller_session: CallerSession = CallerSession::default();
             let app_identifier: AppIdentification = ctx.clone().into();
-            // let challenge_responses = state
-            //     .provider_broker_state
-            //     .send_pinchallenge_success(&state, &ctx)
-            //     .then(|_| async {
-            //         // TODO: workout how to do this without sleep
-            //         time::sleep(Duration::new(1, 0)).await;
-            //         state
-            //             .provider_broker_state
-            //             .send_ackchallenge_failure(&state, &ctx)
-            //             .await;
-            //     });
+
             ProviderApp::start(
                 state.clone(),
                 ctx.clone(),
@@ -2503,33 +2609,30 @@ mod tests {
                 },
             )
             .await;
+            for perm in perms {
+                let result = GrantPolicyEnforcer::evaluate_options(
+                    state.clone(),
+                    &caller_session,
+                    &app_identifier,
+                    &perm,
+                    &policy,
+                )
+                .await;
 
-            let result = GrantPolicyEnforcer::evaluate_options(
-                &state,
-                &caller_session,
-                &app_identifier,
-                &perm,
-                &policy,
-            )
-            .await;
-
-            // let (result, _) = join!(evaluate_options, challenge_responses);
-
-            assert!(result.is_err());
-            assert_eq!(
-                result.err().unwrap(),
-                DenyReasonWithCap {
-                    reason: DenyReason::GrantDenied,
-                    caps: vec![FireboltCap::Full(
-                        "xrn:firebolt:capability:localization:postal-code".to_owned()
-                    )]
-                }
-            );
+                assert!(result.is_err());
+                assert_eq!(
+                    result.err().unwrap(),
+                    DenyReasonWithCap {
+                        reason: DenyReason::GrantDenied,
+                        caps: vec![perm.cap]
+                    }
+                );
+            }
         }
 
         #[tokio::test]
         pub async fn test_evaluate_options_all_steps_granted() {
-            let (state, ctx, perm, policy) = setup(vec![GrantRequirements {
+            let (state, ctx, perms, policy) = setup(vec![GrantRequirements {
                 steps: vec![
                     GrantStep {
                         capability: PIN_CHALLENGE_CAPABILITY.to_owned(),
@@ -2541,6 +2644,9 @@ mod tests {
                     },
                 ],
             }]);
+            let mut ctx = ctx;
+            ctx.method = "somemethod1".into();
+
             ProviderApp::start(
                 state.clone(),
                 ctx.clone(),
@@ -2554,35 +2660,22 @@ mod tests {
             )
             .await;
 
-            // state
-            //     .session_state
-            //     .add_session("app_id".to_owned(), sample_app_session);
-
             let caller_session: CallerSession = CallerSession::default();
             let app_identifier: AppIdentification = ctx.clone().into();
-            // let challenge_responses = state
-            //     .provider_broker_state
-            //     .send_pinchallenge_success(&state, &ctx)
-            //     .then(|_| async {
-            //         // TODO: workout how to do this without sleep
-            //         time::sleep(Duration::new(1, 0)).await;
-            //         state
-            //             .provider_broker_state
-            //             .send_ackchallenge_success(&state, &ctx)
-            //             .await;
-            //     });
+            for perm in perms {
+                let evaluate_options = GrantPolicyEnforcer::evaluate_options(
+                    state.clone(),
+                    &caller_session,
+                    &app_identifier,
+                    &perm,
+                    &policy,
+                )
+                .await;
 
-            let evaluate_options = GrantPolicyEnforcer::evaluate_options(
-                &state,
-                &caller_session,
-                &app_identifier,
-                &perm,
-                &policy,
-            )
-            .await;
-            debug!("result of evaluate option: {:?}", evaluate_options);
+                debug!("result of evaluate option: {:?}", evaluate_options);
 
-            assert!(evaluate_options.is_ok());
+                assert!(evaluate_options.is_ok());
+            }
         }
     }
 }

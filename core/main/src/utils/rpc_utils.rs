@@ -50,7 +50,7 @@ pub async fn rpc_await_oneshot<T>(rx: oneshot::Receiver<T>) -> RpcResult<T> {
 
 /// listener for events any events.
 pub async fn rpc_add_event_listener(
-    state: &PlatformState,
+    state: PlatformState,
     ctx: CallContext,
     request: ListenRequest,
     event_name: &'static str,
@@ -66,7 +66,7 @@ pub async fn rpc_add_event_listener(
 
 /// listener for events any events.
 pub async fn rpc_add_event_listener_with_decorator(
-    state: &PlatformState,
+    state: PlatformState,
     ctx: CallContext,
     request: ListenRequest,
     event_name: &'static str,

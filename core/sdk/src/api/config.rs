@@ -15,12 +15,15 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
+    api::manifest::app_library::{
+        deserialize_arc_app_library_state, serialize_arc_app_library_state,
+    },
     extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, ExtnResponse},
     framework::ripple_contract::RippleContract,
 };
@@ -126,7 +129,11 @@ pub enum ConfigResponse {
 pub struct LauncherConfig {
     pub retention_policy: RetentionPolicy,
     pub lifecycle_policy: LifecyclePolicy,
-    pub app_library_state: AppLibraryState,
+    #[serde(
+        deserialize_with = "deserialize_arc_app_library_state",
+        serialize_with = "serialize_arc_app_library_state"
+    )]
+    pub app_library_state: Arc<AppLibraryState>,
 }
 
 impl ExtnPayloadProvider for LauncherConfig {
@@ -185,7 +192,7 @@ mod tests {
                 app_ready_timeout_ms: 5000,
                 app_finished_timeout_ms: 10000,
             },
-            app_library_state: AppLibraryState {
+            app_library_state: Arc::new(AppLibraryState {
                 default_apps: vec![AppLibraryEntry {
                     app_id: "app1".to_string(),
                     manifest: AppManifestLoad::Remote(
@@ -194,7 +201,7 @@ mod tests {
                     boot_state: BootState::Inactive,
                 }],
                 providers: HashMap::new(),
-            },
+            }),
         };
         let contract_type: RippleContract = RippleContract::Config;
         test_extn_payload_provider(launcher_config, contract_type);

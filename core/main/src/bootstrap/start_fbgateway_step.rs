@@ -101,7 +101,8 @@ impl Bootstep<BootstrapState> for FireboltGatewayStep {
         {
             return Err(RippleError::BootstrapError);
         }
-        TelemetryBuilder::send_ripple_telemetry(&state.platform_state);
+        let ps = state.platform_state.clone();
+        TelemetryBuilder::send_ripple_telemetry(ps.clone()).await;
         info!(
             "Ripple Total Bootstrap time: {}",
             Instant::now().duration_since(state.start_time).as_millis()

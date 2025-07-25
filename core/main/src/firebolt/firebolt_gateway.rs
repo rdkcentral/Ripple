@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use jsonrpsee::{core::server::rpc_module::Methods, types::TwoPointZero};
 use ripple_sdk::{
@@ -30,6 +30,7 @@ use ripple_sdk::{
         },
         observability::{log_signal::LogSignal, metrics_util::ApiStats},
     },
+    async_read_lock,
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
     log::{debug, error, info, trace, warn},
@@ -47,7 +48,7 @@ use crate::{
     },
     state::{
         bootstrap_state::BootstrapState, openrpc_state::OpenRpcState,
-        platform_state::PlatformState, session_state::Session,
+        ops_metrics_state::OpsMetrics, platform_state::PlatformState, session_state::Session,
     },
     utils::router_utils::{capture_stage, get_rpc_header_with_status},
 };
@@ -135,15 +136,22 @@ impl FireboltGateway {
                         .add_session(session_id, session);
                 }
                 UnregisterSession { session_id, cid } => {
-                    AppEvents::remove_session(&self.state.platform_state, session_id.clone());
-                    ProviderBroker::unregister_session(&self.state.platform_state, cid.clone())
-                        .await;
-                    self.state
-                        .platform_state
-                        .endpoint_state
-                        .cleanup_for_app(&cid)
-                        .await;
-                    self.state.platform_state.session_state.clear_session(&cid);
+                    AppEvents::remove_session(
+                        self.state.platform_state.clone(),
+                        session_id.clone(),
+                    );
+                    ProviderBroker::unregister_session(
+                        self.state.platform_state.clone(),
+                        cid.clone(),
+                    )
+                    .await;
+                    {
+                        let platform_state = self.state.platform_state.clone();
+                        async_read_lock!(platform_state.endpoint_state)
+                            .cleanup_for_app(&cid)
+                            .await;
+                        platform_state.session_state.clear_session(&cid);
+                    }
                 }
                 HandleRpc { request } => self.handle(request, None).await,
                 HandleRpcForExtn { msg } => {
@@ -154,7 +162,7 @@ impl FireboltGateway {
                     }
                 }
                 HandleResponse { response } => {
-                    self.handle_response(response);
+                    self.handle_response(response).await;
                 }
                 StopServer => {
                     error!("Stopping server");
@@ -201,20 +209,23 @@ impl FireboltGateway {
                         let mut api_message =
                             ApiMessage::new(protocol, data, rpc_request.ctx.request_id.clone());
 
-                        if let Some(api_stats) = platform_state
-                            .metrics
-                            .get_api_stats(&rpc_request.ctx.request_id.clone())
+                        if let Some(api_stats) = OpsMetrics::get_api_stats(
+                            platform_state.metrics.clone(),
+                            &rpc_request.ctx.request_id,
+                        )
+                        .await
                         {
                             api_message.stats = Some(api_stats);
                         }
 
                         TelemetryBuilder::send_fb_tt(
-                            &platform_state,
+                            platform_state,
                             rpc_request,
                             now - start,
                             !broker_output.data.is_error(),
                             &api_message,
-                        );
+                        )
+                        .await;
                     }
                 }
                 Err(e) => error!(
@@ -227,11 +238,8 @@ impl FireboltGateway {
         requestor_callback_tx
     }
 
-    pub fn handle_response(&self, response: JsonRpcApiResponse) {
-        self.state
-            .platform_state
-            .endpoint_state
-            .handle_broker_response(response);
+    pub async fn handle_response(&self, response: JsonRpcApiResponse) {
+        async_read_lock!(self.state.platform_state.endpoint_state).handle_broker_response(response);
     }
 
     pub async fn handle(&self, request: RpcRequest, extn_msg: Option<ExtnMessage>) {
@@ -265,7 +273,7 @@ impl FireboltGateway {
                 }
             }
         }
-        let mut platform_state = self.state.platform_state.clone();
+        let platform_state = self.state.platform_state.clone();
 
         /*
          * The reason for spawning a new thread is that when request-1 comes, and it waits for
@@ -276,10 +284,12 @@ impl FireboltGateway {
          */
         let mut request_c = request.clone();
         request_c.method = FireboltOpenRpcMethod::name_with_lowercase_module(&request.method);
-
-        platform_state
-            .metrics
-            .add_api_stats(&request_c.ctx.request_id, &request_c.method);
+        OpsMetrics::add_api_stats(
+            platform_state.metrics.clone(),
+            &request_c.ctx.request_id,
+            &request_c.method,
+        )
+        .await;
 
         let fail_open = matches!(
             platform_state
@@ -292,20 +302,20 @@ impl FireboltGateway {
         let open_rpc_state = self.state.platform_state.open_rpc_state.clone();
 
         tokio::spawn(async move {
-            capture_stage(&platform_state.metrics, &request_c, "context_ready");
+            capture_stage(platform_state.metrics.clone(), &request_c, "context_ready").await;
             // Validate incoming request parameters.
-            if let Err(error_string) = validate_request(open_rpc_state, &request_c, fail_open) {
+            if let Err(error_string) = validate_request(&open_rpc_state, &request_c, fail_open) {
                 let json_rpc_error = JsonRpcError {
                     code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
                     message: error_string,
                     data: None,
                 };
 
-                send_json_rpc_error(&mut platform_state, &request, json_rpc_error).await;
+                send_json_rpc_error(platform_state.clone(), &request, json_rpc_error).await;
                 return;
             }
 
-            capture_stage(&platform_state.metrics, &request_c, "openrpc_val");
+            capture_stage(platform_state.metrics.clone(), &request_c, "openrpc_val").await;
 
             let result = if extn_request {
                 // extn protocol means its an internal Ripple request skip permissions.
@@ -314,7 +324,7 @@ impl FireboltGateway {
                 FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await
             };
 
-            capture_stage(&platform_state.metrics, &request_c, "permission");
+            capture_stage(platform_state.metrics.clone(), &request_c, "permission").await;
 
             match result {
                 Ok(p) => {
@@ -337,15 +347,21 @@ impl FireboltGateway {
                     let requestor_callback_tx =
                         Self::handle_broker_callback(platform_state.clone(), request_c.clone());
 
-                    let handled = platform_state.endpoint_state.handle_brokerage(
-                        request_c.clone(),
-                        extn_msg.clone(),
-                        None,
-                        p,
-                        session.clone(),
-                        vec![requestor_callback_tx],
-                    );
-                    //.is_ok();
+                    let handled = {
+                        let es_arc = platform_state.clone();
+                        let es_arc = es_arc.endpoint_state.clone();
+                        let es_arc = async_read_lock!(es_arc);
+                        es_arc
+                            .handle_brokerage(
+                                request_c.clone(),
+                                extn_msg.clone(),
+                                None,
+                                p,
+                                session.clone(),
+                                vec![requestor_callback_tx],
+                            )
+                            .await
+                    };
 
                     if !handled {
                         // Route
@@ -415,7 +431,7 @@ impl FireboltGateway {
                     .with_diagnostic_context(diagnostic_context)
                     .emit_debug();
 
-                    send_json_rpc_error(&mut platform_state, &request, json_rpc_error).await;
+                    send_json_rpc_error(platform_state.clone(), &request, json_rpc_error).await;
                 }
             }
         });
@@ -423,7 +439,7 @@ impl FireboltGateway {
 }
 
 fn validate_request(
-    open_rpc_state: OpenRpcState,
+    open_rpc_state: &Arc<OpenRpcState>,
     request: &RpcRequest,
     fail_open: bool,
 ) -> Result<(), String> {
@@ -499,7 +515,7 @@ fn validate_request(
 }
 
 async fn send_json_rpc_error(
-    platform_state: &mut PlatformState,
+    platform_state: PlatformState,
     request: &RpcRequest,
     json_rpc_error: JsonRpcError,
 ) {
@@ -522,9 +538,9 @@ async fn send_json_rpc_error(
                 request.clone().ctx.request_id,
             );
 
-            if let Some(api_stats) = platform_state
-                .metrics
-                .get_api_stats(&request.ctx.request_id)
+            if let Some(api_stats) =
+                OpsMetrics::get_api_stats(platform_state.metrics.clone(), &request.ctx.request_id)
+                    .await
             {
                 api_message.stats = Some(ApiStats {
                     api: request.method.clone(),
@@ -532,10 +548,12 @@ async fn send_json_rpc_error(
                     stats: api_stats.stats.clone(),
                 });
             }
-            platform_state.metrics.update_api_stats_ref(
+            OpsMetrics::update_api_stats_ref(
+                platform_state.metrics.clone(),
                 &request.ctx.request_id,
                 get_rpc_header_with_status(request, status_code),
-            );
+            )
+            .await;
 
             if let Err(e) = session.send_json_rpc(api_message).await {
                 error!(

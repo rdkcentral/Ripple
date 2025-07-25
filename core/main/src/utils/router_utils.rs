@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 // Copyright 2023 Comcast Cable Communications Management, LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,11 +18,13 @@
 //
 use ripple_sdk::{
     api::gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse, RpcRequest},
+    async_write_lock,
     extn::{
         client::extn_client::ExtnClient,
         extn_client_message::{ExtnMessage, ExtnResponse},
     },
     log::trace,
+    tokio::sync::RwLock,
 };
 
 use crate::state::ops_metrics_state::OpMetricState;
@@ -58,9 +62,13 @@ pub fn add_telemetry_status_code(original_ref: &str, status_code: &str) -> Optio
     Some(format!("{},{}", original_ref, status_code))
 }
 
-pub fn capture_stage(metrics_state: &OpMetricState, request: &RpcRequest, stage: &str) {
-    let mut state = metrics_state.clone();
-    let duration = state.update_api_stage(&request.ctx.request_id, stage);
+pub async fn capture_stage(
+    metrics_state: Arc<RwLock<OpMetricState>>,
+    request: &RpcRequest,
+    stage: &str,
+) {
+    let duration =
+        { async_write_lock!(metrics_state).update_api_stage(&request.ctx.request_id, stage) }.await;
 
     trace!(
         "Firebolt processing stage: {},{},{},{}",

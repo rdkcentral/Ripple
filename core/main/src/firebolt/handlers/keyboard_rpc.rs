@@ -154,7 +154,7 @@ impl KeyboardServer for KeyboardImpl {
         resp: KeyboardProviderResponse,
     ) -> RpcResult<Option<()>> {
         let msg = resp.to_provider_response();
-        ProviderBroker::provider_response(&self.platform_state, msg).await;
+        ProviderBroker::provider_response(self.platform_state.clone(), msg).await;
         Ok(None)
     }
 
@@ -164,7 +164,7 @@ impl KeyboardServer for KeyboardImpl {
         request: FocusRequest,
     ) -> RpcResult<Option<()>> {
         ProviderBroker::focus(
-            &self.platform_state,
+            self.platform_state.clone(),
             ctx,
             KEYBOARD_PROVIDER_CAPABILITY.to_string(),
             request,
@@ -179,13 +179,13 @@ impl KeyboardServer for KeyboardImpl {
         resp: KeyboardProviderResponse,
     ) -> RpcResult<Option<()>> {
         let msg = resp.to_provider_response();
-        ProviderBroker::provider_response(&self.platform_state, msg).await;
+        ProviderBroker::provider_response(self.platform_state.clone(), msg).await;
         Ok(None)
     }
 
     async fn email_focus(&self, ctx: CallContext, request: FocusRequest) -> RpcResult<Option<()>> {
         ProviderBroker::focus(
-            &self.platform_state,
+            self.platform_state.clone(),
             ctx,
             KEYBOARD_PROVIDER_CAPABILITY.to_string(),
             request,
@@ -200,7 +200,7 @@ impl KeyboardServer for KeyboardImpl {
         resp: KeyboardProviderResponse,
     ) -> RpcResult<Option<()>> {
         let msg = resp.to_provider_response();
-        ProviderBroker::provider_response(&self.platform_state, msg).await;
+        ProviderBroker::provider_response(self.platform_state.clone(), msg).await;
         Ok(None)
     }
 
@@ -210,7 +210,7 @@ impl KeyboardServer for KeyboardImpl {
         request: FocusRequest,
     ) -> RpcResult<Option<()>> {
         ProviderBroker::focus(
-            &self.platform_state,
+            self.platform_state.clone(),
             ctx,
             KEYBOARD_PROVIDER_CAPABILITY.to_string(),
             request,
@@ -274,7 +274,7 @@ impl KeyboardImpl {
             tx: session_tx,
             app_id: None,
         };
-        ProviderBroker::invoke_method(&self.platform_state, pr_msg).await;
+        ProviderBroker::invoke_method(self.platform_state.clone(), pr_msg).await;
         match session_rx.await {
             Ok(result) => match result.as_keyboard_result() {
                 Some(res) => Ok(res),
@@ -299,7 +299,7 @@ impl KeyboardImpl {
         let method = String::from(typ.to_provider_method());
         // TODO which capability this rpc method providers should come from firebolt spec
         ProviderBroker::register_or_unregister_provider(
-            &self.platform_state,
+            self.platform_state.clone(),
             String::from(KEYBOARD_PROVIDER_CAPABILITY),
             method,
             String::from(event_name),

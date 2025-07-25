@@ -44,7 +44,7 @@ pub struct AudioDescriptionImpl {
 impl AudioDescriptionServer for AudioDescriptionImpl {
     async fn ad_settings_get(&self, _ctx: CallContext) -> RpcResult<AudioDescriptionSettings> {
         let v = StorageManager::get_bool(
-            &self.platform_state,
+            self.platform_state.clone(),
             StorageProperty::AudioDescriptionEnabled,
         )
         .await?;

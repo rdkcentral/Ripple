@@ -171,11 +171,13 @@ impl EndpointBroker for ExtnBroker {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::broker::endpoint_broker::BrokerOutput;
     use crate::broker::rules::rules_engine::Rule;
     use crate::service::extn::ripple_client::RippleClient;
     use crate::state::bootstrap_state::ChannelsState;
+    use crate::state::platform_state::PlatformStateContainer;
     use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
     use ripple_sdk::api::manifest::device_manifest::DeviceManifest;
     use ripple_sdk::api::manifest::extn_manifest::ExtnManifest;
@@ -287,7 +289,7 @@ mod tests {
             telemetry_response_listeners: vec![],
         };
 
-        let platform_state = PlatformState::new(
+        let platform_state = PlatformStateContainer::new(
             ExtnManifest::default(),
             DeviceManifest::default(),
             RippleClient::new(ChannelsState::default()),

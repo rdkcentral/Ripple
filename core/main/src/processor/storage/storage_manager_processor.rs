@@ -78,7 +78,7 @@ impl ExtnRequestProcessor for StorageManagerProcessor {
         let client = state.get_client().get_extn_client();
         match extracted_message {
             StorageManagerRequest::GetBool(key, default_value) => {
-                let result = StorageManager::get_bool(&state, key)
+                let result = StorageManager::get_bool(state, key)
                     .await
                     .unwrap_or(default_value);
                 Self::respond(client, msg, ExtnResponse::Boolean(result))
@@ -86,7 +86,7 @@ impl ExtnRequestProcessor for StorageManagerProcessor {
                     .is_ok()
             }
             StorageManagerRequest::GetString(key) => {
-                if let Ok(result) = StorageManager::get_string(&state, key).await {
+                if let Ok(result) = StorageManager::get_string(state, key).await {
                     Self::respond(client, msg, ExtnResponse::String(result))
                         .await
                         .is_ok()

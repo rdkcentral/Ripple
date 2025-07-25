@@ -32,6 +32,7 @@ use ripple_sdk::{
     },
     utils::error::RippleError,
 };
+
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -66,7 +67,7 @@ impl ProviderRelationSet {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct OpenRpcState {
     open_rpc: Arc<FireboltOpenRpc>,
     exclusory: Arc<Option<ExclusoryImpl>>,
@@ -115,7 +116,7 @@ impl OpenRpcState {
         }
     }
 
-    pub fn new(
+    pub fn new_instance(
         exclusory: Option<ExclusoryImpl>,
         extn_sdks: Vec<String>,
         provider_registrations: Vec<String>,
@@ -152,6 +153,17 @@ impl OpenRpcState {
         }
 
         v
+    }
+    pub fn new(
+        exclusory: Option<ExclusoryImpl>,
+        extn_sdks: Vec<String>,
+        provider_registrations: Vec<String>,
+    ) -> Arc<OpenRpcState> {
+        Arc::new(Self::new_instance(
+            exclusory,
+            extn_sdks,
+            provider_registrations,
+        ))
     }
 
     pub fn add_open_rpc(&self, open_rpc: FireboltOpenRpc) {

@@ -82,9 +82,9 @@ impl ParametersServer for ParametersImpl {
             AppMethod::GetLaunchRequest(ctx.app_id.to_owned()),
             app_resp_tx,
         );
-        let mut platform_state = self.platform_state.clone();
+        let platform_state = self.platform_state.clone();
         let privacy_data = privacy_rpc::get_allow_app_content_ad_targeting_settings(
-            &mut platform_state,
+            platform_state.clone(),
             None,
             &ctx.app_id.to_string(),
             &ctx,

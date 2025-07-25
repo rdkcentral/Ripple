@@ -61,6 +61,20 @@ pub struct RippleClient {
     broker_sender: Sender<BrokerOutput>,
 }
 
+#[cfg(test)]
+impl Default for RippleClient {
+    fn default() -> Self {
+        use ripple_sdk::{extn::client::extn_client::Mockable, mock_sender};
+
+        Self {
+            client: Arc::new(RwLock::new(ExtnClient::mock())),
+            gateway_sender: mock_sender!(FireboltGatewayCommand),
+            app_mgr_sender: mock_sender!(AppRequest),
+            broker_sender: mock_sender!(BrokerOutput),
+        }
+    }
+}
+
 impl RippleClient {
     pub fn new(state: ChannelsState) -> RippleClient {
         let extn_client = ExtnClient::new_main();

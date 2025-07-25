@@ -327,7 +327,7 @@ pub mod tests {
     use super::*;
     use crate::api::manifest::extn_manifest::ExtnSymbol;
     use crate::api::session::{EventAdjective, SessionAdjective};
-    use crate::extn::client::extn_client::{tests::Mockable, ExtnClient};
+    use crate::extn::client::extn_client::{ExtnClient, Mockable};
     use crate::extn::client::extn_sender::{tests::Mockable as extn_sender_mockable, ExtnSender};
     use crate::extn::extn_client_message::ExtnEvent;
     use crate::extn::extn_id::ExtnId;

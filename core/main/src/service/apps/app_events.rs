@@ -46,7 +46,7 @@ impl From<serde_json::Error> for AppEventDecorationError {
 pub trait AppEventDecorator: Send + Sync {
     async fn decorate(
         &self,
-        state: &PlatformState,
+        state: PlatformState,
         ctx: &CallContext,
         event_name: &str,
         val_in: &Value,
@@ -129,7 +129,7 @@ pub struct EventListener {
 impl EventListener {
     async fn decorate(
         &self,
-        state: &PlatformState,
+        state: PlatformState,
         event_name: &str,
         result: &Value,
     ) -> Result<Value, AppEventDecorationError> {
@@ -171,7 +171,7 @@ impl AppEvents {
     }
 
     pub fn add_listener(
-        state: &PlatformState,
+        state: PlatformState,
         event_name: String,
         call_ctx: CallContext,
         listen_request: ListenRequest,
@@ -187,7 +187,7 @@ impl AppEvents {
     }
 
     pub fn add_listener_with_decorator(
-        state: &PlatformState,
+        state: PlatformState,
         event_name: String,
         call_ctx: CallContext,
         listen_request: ListenRequest,
@@ -204,14 +204,14 @@ impl AppEvents {
     }
 
     pub fn add_listener_with_context(
-        state: &PlatformState,
+        state: PlatformState,
         event_name: String,
         call_ctx: CallContext,
         listen_request: ListenRequest,
         event_context: Option<Value>,
     ) {
         AppEvents::add_listener_with_context_and_decorator(
-            state,
+            state.clone(),
             event_name,
             call_ctx,
             listen_request,
@@ -221,14 +221,14 @@ impl AppEvents {
     }
 
     pub fn add_listener_with_context_and_decorator(
-        state: &PlatformState,
+        state: PlatformState,
         event_name: String,
         call_ctx: CallContext,
         listen_request: ListenRequest,
         event_context: Option<Value>,
         decorator: Option<Box<dyn AppEventDecorator + Send + Sync>>,
     ) {
-        let session = match state.session_state.get_session(&call_ctx) {
+        let session = match state.clone().session_state.get_session(&call_ctx) {
             Some(session) => session,
             None => {
                 error!("No open sessions for id '{:?}'", call_ctx.session_id);
@@ -309,7 +309,7 @@ impl AppEvents {
     }
 
     pub fn get_listeners(
-        state: &AppEventsState,
+        state: Arc<AppEventsState>,
         event_name: &str,
         context: Option<String>,
     ) -> Vec<EventListener> {
@@ -327,14 +327,14 @@ impl AppEvents {
         vec
     }
 
-    pub async fn emit(state: &PlatformState, event_name: &str, result: &Value) {
+    pub async fn emit(state: PlatformState, event_name: &str, result: &Value) {
         AppEvents::emit_with_context(state, event_name, result, None).await;
     }
 
-    pub async fn emit_with_app_event(state: &PlatformState, event: AppEventRequest) {
+    pub async fn emit_with_app_event(state: PlatformState, event: AppEventRequest) {
         if let AppEventRequest::Emit(app_event) = event {
             AppEvents::emit_with_context(
-                state,
+                state.clone(),
                 &app_event.event_name,
                 &app_event.result,
                 app_event.context,
@@ -344,16 +344,17 @@ impl AppEvents {
     }
 
     pub async fn emit_with_context(
-        state: &PlatformState,
+        state: PlatformState,
         event_name: &str,
         result: &Value,
         context: Option<Value>,
     ) {
         // Notify all the default listners by providing the context data as part of the result when context
         // is present. Otherwise event result without context.
-        let listeners = AppEvents::get_listeners(&state.app_events_state, event_name, None);
+        let listeners =
+            AppEvents::get_listeners(state.clone().app_events_state.clone(), event_name, None);
         for i in listeners {
-            let decorated_res = i.decorate(state, event_name, result).await;
+            let decorated_res = i.decorate(state.clone(), event_name, result).await;
             if decorated_res.is_err() {
                 error!("could not generate event for '{}'", event_name);
                 continue;
@@ -376,7 +377,7 @@ impl AppEvents {
         if let Some(ctx) = context {
             let event_ctx_string = Some(ctx.to_string());
             let listeners = AppEvents::get_listeners(
-                &state.app_events_state,
+                state.clone().app_events_state.clone(),
                 event_name,
                 event_ctx_string.clone(),
             );
@@ -385,22 +386,23 @@ impl AppEvents {
             }
         }
 
-        TelemetryBuilder::send_fb_event(state, event_name, result.clone());
+        TelemetryBuilder::send_fb_event(state.clone(), event_name, result.clone()).await;
     }
 
     pub async fn emit_to_app(
-        state: &PlatformState,
+        state: PlatformState,
         app_id: String,
         event_name: &str,
         result: &Value,
     ) {
-        let listeners_vec = AppEvents::get_listeners(&state.app_events_state, event_name, None)
-            .into_iter()
-            .filter(|listener| listener.call_ctx.app_id.eq(&app_id))
-            .collect::<Vec<_>>();
+        let listeners_vec =
+            AppEvents::get_listeners(state.app_events_state.clone(), event_name, None)
+                .into_iter()
+                .filter(|listener| listener.call_ctx.app_id.eq(&app_id))
+                .collect::<Vec<_>>();
 
         for i in listeners_vec {
-            let decorated_res = i.decorate(state, event_name, result).await;
+            let decorated_res = i.decorate(state.clone(), event_name, result).await;
             if let Ok(res) = decorated_res {
                 AppEvents::send_event(&i, &res).await;
             } else {
@@ -408,15 +410,15 @@ impl AppEvents {
             }
         }
 
-        TelemetryBuilder::send_fb_event(state, event_name, result.clone());
+        TelemetryBuilder::send_fb_event(state.clone(), event_name, result.clone()).await;
     }
 
     pub fn is_app_registered_for_event(
-        state: &PlatformState,
+        state: PlatformState,
         app_id: String,
         event_name: &str,
     ) -> bool {
-        return AppEvents::get_listeners(&state.app_events_state, event_name, None)
+        return AppEvents::get_listeners(state.app_events_state.clone(), event_name, None)
             .iter()
             .any(|listener| listener.call_ctx.app_id.eq(&app_id));
     }
@@ -429,7 +431,7 @@ impl AppEvents {
         }
     }
 
-    pub fn remove_session(state: &PlatformState, session_id: String) {
+    pub fn remove_session(state: PlatformState, session_id: String) {
         state.session_state.clear_session(&session_id);
         let mut listeners = state.app_events_state.listeners.write().unwrap();
         let all_events = listeners.keys().cloned().collect::<Vec<String>>();
@@ -447,14 +449,14 @@ impl AppEvents {
 }
 #[cfg(test)]
 pub mod tests {
-    use crate::state::session_state::Session;
+    use crate::state::{platform_state::PlatformStateContainer, session_state::Session};
     use ripple_sdk::tokio;
     use ripple_tdk::utils::test_utils::Mockable;
 
     use super::*;
     #[tokio::test]
     pub async fn test_add_listener() {
-        let platform_state = PlatformState::mock();
+        let platform_state = Arc::new(PlatformStateContainer::mock());
         let call_context = CallContext::mock();
         let listen_request = ListenRequest { listen: true };
         Session::new(call_context.clone().app_id, None);
@@ -464,7 +466,7 @@ pub mod tests {
             .add_session(call_context.clone().session_id, session);
 
         AppEvents::add_listener(
-            &platform_state,
+            platform_state.clone(),
             "test_event".to_string(),
             call_context,
             listen_request,
@@ -479,7 +481,7 @@ pub mod tests {
                 == 1
         );
         let listeners =
-            AppEvents::get_listeners(&platform_state.app_events_state, "test_event", None);
+            AppEvents::get_listeners(platform_state.app_events_state.clone(), "test_event", None);
         assert!(listeners.len() == 1);
     }
 }
