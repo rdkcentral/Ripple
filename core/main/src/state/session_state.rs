@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use core::panic;
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},

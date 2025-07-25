@@ -32,6 +32,7 @@ use ripple_sdk::{
     },
     utils::error::RippleError,
 };
+
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -66,7 +67,7 @@ impl ProviderRelationSet {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct OpenRpcState {
     open_rpc: Arc<FireboltOpenRpc>,
     exclusory: Arc<Option<ExclusoryImpl>>,
@@ -78,22 +79,6 @@ pub struct OpenRpcState {
     openrpc_validator: Arc<RwLock<RpcMethodValidator>>,
     provider_registrations: Arc<Vec<String>>,
     json_schema_cache: Arc<RwLock<HashMap<String, JSONSchema>>>,
-}
-impl Default for OpenRpcState {
-    fn default() -> Self {
-        Self {
-            open_rpc: Default::default(),
-            exclusory: Default::default(),
-            firebolt_cap_map: Default::default(),
-            ripple_cap_map: Default::default(),
-            cap_policies: Default::default(),
-            extended_rpc: Default::default(),
-            provider_relation_map: Default::default(),
-            openrpc_validator: Default::default(),
-            provider_registrations: Default::default(),
-            json_schema_cache: Default::default(),
-        }
-    }
 }
 
 impl OpenRpcState {

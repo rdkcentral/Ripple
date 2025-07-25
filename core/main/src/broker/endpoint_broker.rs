@@ -2859,7 +2859,7 @@ mod endpoint_broker_tests {
                     .to_owned(),
             );
             let mut under_test = under_test.await;
-            let mut under_test =
+            let under_test =
                 under_test.add_endpoint("thunder".to_string(), BrokerSender { sender: bs });
             let broker_request = BrokerRequest::default();
 

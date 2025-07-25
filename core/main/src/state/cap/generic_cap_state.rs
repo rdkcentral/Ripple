@@ -15,13 +15,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use core::panic;
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, RwLock},
 };
 
-use jsonrpsee::tracing::warn;
 use ripple_sdk::{
     api::{
         firebolt::fb_capabilities::{
@@ -29,12 +27,12 @@ use ripple_sdk::{
         },
         manifest::device_manifest::DeviceManifest,
     },
-    log::{debug, error, info, trace},
+    log::{debug, error, trace},
 };
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::state::{cap::cap_state::CapState, platform_state::PlatformState};
+use crate::state::platform_state::PlatformState;
 
 #[derive(Clone, Debug, Default)]
 pub struct GenericCapState {

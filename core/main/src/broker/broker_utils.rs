@@ -39,18 +39,18 @@ impl BrokerUtils {
         Self::internal_request(state.clone(), rpc_request).await
     }
 
-    pub async fn process_internal_main_request<'a>(
+    pub async fn process_internal_main_request(
         state: PlatformState,
-        method: &'a str,
+        method: &str,
         params: Option<Value>,
     ) -> RpcResult<Value> {
         Self::process_internal_request(state.clone(), None, method, params).await
     }
 
-    pub async fn process_internal_request<'a>(
+    pub async fn process_internal_request(
         state: PlatformState,
         on_behalf_of: Option<CallContext>,
-        method: &'a str,
+        method: &str,
         params: Option<Value>,
     ) -> RpcResult<Value> {
         let rpc_request = RpcRequest::internal(method, on_behalf_of).with_params(params);

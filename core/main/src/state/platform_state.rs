@@ -247,6 +247,7 @@ impl PlatformStateContainer {
 }
 
 #[cfg(test)]
+#[derive(Default)]
 pub struct PlatformStateContainerBuilder {
     extn_manifest: Option<Arc<ExtnManifest>>,
     device_manifest: Option<Arc<DeviceManifest>>,

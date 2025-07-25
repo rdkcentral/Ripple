@@ -50,22 +50,12 @@ use super::{
     permitted_state::{PermissionHandler, PermittedState},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct CapState {
     pub generic: Arc<GenericCapState>,
     pub permitted_state: Arc<PermittedState>,
     pub primed_listeners: Arc<RwLock<HashSet<CapEventEntry>>>,
     pub grant_state: Arc<GrantState>,
-}
-impl Default for CapState {
-    fn default() -> Self {
-        Self {
-            generic: Default::default(),
-            permitted_state: Default::default(),
-            primed_listeners: Default::default(),
-            grant_state: Default::default(),
-        }
-    }
 }
 
 impl CapState {
@@ -360,19 +350,12 @@ impl Hash for CapEventEntry {
 mod tests {
     use std::collections::HashMap;
 
-    use httpmock::Method::DELETE;
-    use ripple_sdk::{
-        api::manifest::exclusory::{AppAuthorizationRules, ExclusoryImpl},
-        Mockable,
-    };
+    use ripple_sdk::api::manifest::exclusory::{AppAuthorizationRules, ExclusoryImpl};
 
     use super::*;
     use crate::{
-        state::{
-            cap::cap_state, openrpc_state::OpenRpcState,
-            platform_state::PlatformStateContainerBuilder,
-        },
-        utils::test_utils::{fb_perm, MockCallContext, MockRuntime},
+        state::{openrpc_state::OpenRpcState, platform_state::PlatformStateContainerBuilder},
+        utils::test_utils::{fb_perm, MockCallContext},
     };
     use ripple_sdk::tokio;
 

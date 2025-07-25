@@ -239,8 +239,7 @@ impl FireboltGateway {
     }
 
     pub async fn handle_response(&self, response: JsonRpcApiResponse) {
-        let _ = async_read_lock!(self.state.platform_state.endpoint_state)
-            .handle_broker_response(response);
+        async_read_lock!(self.state.platform_state.endpoint_state).handle_broker_response(response);
     }
 
     pub async fn handle(&self, request: RpcRequest, extn_msg: Option<ExtnMessage>) {

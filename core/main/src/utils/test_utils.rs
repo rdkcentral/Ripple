@@ -59,7 +59,7 @@ impl MockRuntime {
     ) -> Self {
         Self {
             platform_state: Arc::new(platform_state),
-            call_context: call_context,
+            call_context,
         }
     }
     pub fn call_context(&self) -> CallContext {
