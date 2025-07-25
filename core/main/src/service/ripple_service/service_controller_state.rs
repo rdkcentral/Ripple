@@ -17,11 +17,9 @@
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use futures::{stream::SplitStream, SinkExt, StreamExt};
+use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
 use ripple_sdk::{
-    api::{
-        gateway::rpc_gateway_api::{ApiMessage, JsonRpcApiResponse},
-        manifest::extn_manifest::ExtnSymbol,
-    },
+    api::{gateway::rpc_gateway_api::ApiMessage, manifest::extn_manifest::ExtnSymbol},
     extn::{
         extn_client_message::{ExtnMessage, ExtnPayload, ExtnResponse},
         extn_id::ExtnId,
@@ -41,12 +39,17 @@ use ripple_sdk::{
 
 use crate::{
     broker::endpoint_broker::{BrokerCallback, BrokerOutput},
-    firebolt::firebolt_ws::ClientIdentity,
+    firebolt::{firebolt_gateway::FireboltGatewayCommand, firebolt_ws::ClientIdentity},
     service::extn::ripple_client::RippleClient,
     state::{platform_state::PlatformState, session_state::Session},
 };
 
 use super::service_registry::ServiceRegistry;
+use serde_json::Value;
+const ALLOWED_SERVICES_LIST: [&str; 2] = [
+    "ripple:channel:gateway:badger",
+    "ripple:channel:distributor:eos",
+];
 
 #[derive(Debug, Clone)]
 pub struct ServiceInfo {
@@ -124,40 +127,48 @@ impl ServiceControllerState {
     ) {
         match &sm.message {
             JsonRpcMessage::Request(json_rpc_request) => {
-                // In Ripple Service Architecture Ripple Main will not honor any request originated from any connected service other than
-                // service registration and unregistration request
+                // In Ripple Service Architecture Ripple Main will not honor any request originated from any connected service that is not included in `ALLOWED_SERVICES_LIST`
+                // other than service registration and unregistration request
                 // (TBD) Handling register/unregister
 
-                // send a rejection for all other responses
-                //let request_id = sm.get_request_id();
-                let message = ServiceMessage::new_error(
-                    -32600,
-                    "Ripple Main does not support this request from Service".to_string(),
-                    None,
-                    Id::Number(sm.get_request_id() as i64),
-                );
-                error!(
-                    "Error handling inbound service message: {} {} ",
-                    json_rpc_request, message
-                );
-                // send the error message back to the service through the service connection
-                if let Some(sender) = state
-                    .service_controller_state
-                    .get_sender(&connection_id.to_string())
-                    .await
-                {
-                    if let Err(err) = sender
-                        .send(Message::Text(serde_json::to_string(&message).unwrap()))
-                        .await
-                    {
-                        error!("Failed to send error message back to service: {}", err);
+                if let Some(context) = sm.context.clone() {
+                    if !(Self::validate_sender(context).await) {
+                        let message = ServiceMessage::new_error(
+                            -32600,
+                            "Ripple Main does not support this request from Service".to_string(),
+                            None,
+                            Id::Number(sm.get_request_id() as i64),
+                        );
+                        error!(
+                            "Error handling inbound service message: {} {} ",
+                            json_rpc_request, message
+                        );
+
+                        //send the error message back to the service through the service connection
+                        if let Some(sender) = state
+                            .service_controller_state
+                            .get_sender(&connection_id.to_string())
+                            .await
+                        {
+                            if let Err(err) = sender
+                                .send(Message::Text(serde_json::to_string(&message).unwrap()))
+                                .await
+                            {
+                                error!("Failed to send error message back to service: {}", err);
+                            }
+                        } else {
+                            error!(
+                                "No sender found for service connection_id: {}",
+                                connection_id
+                            );
+                        }
+                        return;
                     }
-                } else {
-                    error!(
-                        "No sender found for service connection_id: {}",
-                        connection_id
-                    );
                 }
+                let msg = FireboltGatewayCommand::HandleRpcForService { msg: sm.clone() };
+                if let Err(e) = state.get_client().send_gateway_command(msg) {
+                    error!("failed to send request {:?}", e);
+                };
             }
             JsonRpcMessage::Notification(_) => {
                 // TBD: Handle notifications.
@@ -185,6 +196,41 @@ impl ServiceControllerState {
 
     fn is_contract_used_for_routing(symbol: &ExtnSymbol) -> bool {
         !symbol.uses.is_empty() || !symbol.fulfills.is_empty()
+    }
+
+    async fn validate_sender(context: Value) -> bool {
+        let ctx = serde_json::from_value::<serde_json::Map<String, Value>>(context);
+        match ctx {
+            Ok(c) => {
+                let context = c.get("context");
+                if let Some(context) = context {
+                    if let Some(context_array) = context.as_array() {
+                        if context_array.len() < 2 {
+                            error!("Context does not contain a valid service id");
+                        }
+                        let id = context[1].as_str();
+                        if let Some(service_id) = id {
+                            if !ALLOWED_SERVICES_LIST.contains(&service_id) {
+                                error!(
+                                    "Service id {:?} is not allowed to send messages to Ripple Main",
+                                    service_id
+                                );
+                            } else {
+                                return true;
+                            }
+                        } else {
+                            error!("Context does not contain a valid service id");
+                        }
+                    }
+                } else {
+                    error!("Context does not contain a valid service id");
+                }
+            }
+            Err(e) => {
+                error!("Failed to parse context: {}", e);
+            }
+        }
+        false
     }
 
     pub async fn handle_service_connection(
@@ -413,8 +459,8 @@ impl ServiceControllerState {
     ) -> Result<BrokerOutput, RippleError> {
         let data = sm.message.clone();
         // get JsonRpcApiResponse from JsonRpcApiResponse
-        let resposne = serde_json::to_string(&data).map_err(|_| RippleError::ParseError)?;
-        let data = match serde_json::from_str::<JsonRpcApiResponse>(&resposne) {
+        let response = serde_json::to_string(&data).map_err(|_| RippleError::ParseError)?;
+        let data = match serde_json::from_str::<JsonRpcApiResponse>(&response) {
             Ok(data) => data,
             Err(_) => {
                 error!("Failed to parse JsonRpcApiResponse from service message");
@@ -500,5 +546,25 @@ async fn return_invalid_service_error_message(
             ts: None,
         };
         let _ = session.send_json_rpc(msg.into()).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_validate_sender() {
+        let context = serde_json::json!({
+            "context": ["some_value", "ripple:channel:gateway:badger"]
+        });
+        let result = ServiceControllerState::validate_sender(context).await;
+        assert!(result, "{}", true);
+
+        let context = serde_json::json!({
+            "context": ["some_value", "invalid_service_id"]
+        });
+        let result = ServiceControllerState::validate_sender(context).await;
+        assert!(!result, "{}", false);
     }
 }
