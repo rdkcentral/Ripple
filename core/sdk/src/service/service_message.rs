@@ -17,6 +17,7 @@ use crate::api::gateway::rpc_gateway_api::RpcRequest;
 //
 use crate::utils::error::RippleError;
 use jsonrpsee::core::{server::rpc_module::Methods, Error, RpcResult};
+use log::debug;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

@@ -351,26 +351,6 @@ impl ServiceClient {
     pub async fn call_and_parse_ripple_event_rpc(
         &mut self,
         method: &str,
-        timeout: u64,
-        service_id: &str,
-        error_msg: &str,
-        event_sender: MSender<ServiceMessage>,
-    ) -> RpcResult<bool> {
-        self.request_event_handler(
-            "rippleContextEvent.TokenChanged",
-            None,
-            None,
-            5000,
-            service_id,
-            "Failed to request token changed notification",
-            event_sender,
-        )
-        .await
-    }
-
-    pub async fn request_event_handler(
-        &mut self,
-        method: &str,
         params: Option<serde_json::Value>,
         ctx: Option<&CallContext>,
         timeout: u64,

@@ -56,14 +56,13 @@ impl ServiceEventState {
         let update_type = serde_json::from_str::<RippleContextUpdateType>(&update_type);
         match update_type {
             Ok(update_type) => {
-                info!("^^^ Parsed update type: {:?}", update_type);
                 let ctx = &sm.context.as_ref().map_or_else(CallContext::default, |v| {
                     serde_json::from_value(v.clone()).unwrap_or_default()
                 });
 
-                info!("^^^ Context: {:#?}", ctx);
+                debug!("process_event_notification context: {:?}", ctx);
 
-                //TODO we need to store context[sender_id, service_id, request_type] in event processors as string split by "&"
+                //Add context[sender_id, service_id, request_type] in event processors as string split by "&"
                 let sender_tx = ctx.context.get(0);
                 let subscriber = ctx.context.get(1);
                 let request_type = ctx.context.get(2);
@@ -75,13 +74,12 @@ impl ServiceEventState {
                 );
                 if let Some(s) = subscriber {
                     self.add_event_processor(update_type, new_event_processor);
-                    info!("^^^ Adding event processor for update type");
                 } else {
-                    error!("^^^ Subscriber not found in context");
+                    error!("Subscriber not found in context");
                 }
             }
             Err(e) => {
-                error!("^^^ Failed to parse update type: {}", e);
+                error!("Failed to parse update type: {}", e);
             }
         }
     }
