@@ -501,11 +501,11 @@ impl EndpointBrokerState {
         self.rule_engine = rule_engine;
         self
     }
-    pub async fn add_rule(self, rule: Rule) -> Self {
+    pub fn add_rule(self, rule: Rule) -> Self {
         sync_write_lock!(self.rule_engine).add_rule(rule);
         self
     }
-    pub async fn has_rule(&self, rule: &str) -> bool {
+    pub fn has_rule(&self, rule: &str) -> bool {
         sync_read_lock!(self.rule_engine).has_rule(rule)
     }
     #[cfg(not(test))]
@@ -2834,7 +2834,6 @@ mod endpoint_broker_tests {
             let broker_request = BrokerRequest::default();
             assert!(
                 under_test
-                    .await
                     .render_brokered_request(
                         &Rule::default()
                             .with_alias("static".to_string())
@@ -2853,12 +2852,11 @@ mod endpoint_broker_tests {
         #[tokio::test]
         async fn test_dispatch_brokerage_provided_rule() {
             let (bs, _) = channel(2);
-            let under_test = endpoint_broker_state_under_test(vec![]).add_rule(
+            let mut under_test = endpoint_broker_state_under_test(vec![]).add_rule(
                 Rule::default()
                     .with_alias("provided".to_string())
                     .to_owned(),
             );
-            let mut under_test = under_test.await;
             let under_test =
                 under_test.add_endpoint("thunder".to_string(), BrokerSender { sender: bs });
             let broker_request = BrokerRequest::default();

@@ -831,7 +831,7 @@ impl DelegatedLauncherHandler {
             let endpoint_state = platform_state.clone();
             let endpoint_state = endpoint_state.endpoint_state.clone();
             let endpoint_state = async_read_lock!(endpoint_state);
-            if endpoint_state.has_rule("ripple.reportSessionUpdate").await {
+            if endpoint_state.has_rule("ripple.reportSessionUpdate") {
                 if let Ok(AppManagerResponse::Session(a)) = app_manager_response {
                     let params = serde_json::to_value(a).unwrap();
                     if BrokerUtils::process_internal_main_request(
@@ -853,7 +853,6 @@ impl DelegatedLauncherHandler {
             .read()
             .await
             .has_rule("ripple.reportLifecycleStateChange")
-            .await
         {
             let previous_state = platform_state
                 .clone()
