@@ -409,7 +409,7 @@ impl PluginManager {
 
         if let Some(error) = resp.message.get("error") {
             error!("activate_plugin call FAILED response of error:{:?}", error);
-            return PluginState::Error;
+            PluginState::Error
         } else {
             if let Ok(plugin_error) = serde_json::from_value::<ThunderError>(resp.message) {
                 return plugin_error.get_plugin_state();
