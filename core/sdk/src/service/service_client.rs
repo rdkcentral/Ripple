@@ -43,7 +43,6 @@ use uuid::Uuid;
 
 use super::service_message::ServiceMessage;
 #[derive(Debug, Clone, Default)]
-#[derive(Debug, Clone, Default)]
 pub struct ServiceClient {
     pub service_sender: Option<MSender<ServiceMessage>>,
     pub service_router: Arc<RwLock<RouterState>>,
@@ -246,29 +245,6 @@ impl ServiceClient {
         }
         debug!("Initialize Ended Abruptly");
     }
-
-    fn send_service_response(&self, sm: ServiceMessage) {
-        if let Some(context) = &sm.context {
-            if let Some(Value::String(id)) = context
-                .get("context")
-                .and_then(|c| c.as_array())
-                .and_then(|a| a.first())
-            {
-                if let Some(processor) = self.response_processors.write().unwrap().remove(id) {
-                    if let Err(e) = processor.send(sm) {
-                        error!("Failed to send service response: {:?}", e);
-                    }
-                } else {
-                    warn!("No processor found for id: {}", id);
-                }
-            } else {
-                warn!("Context does not contain a valid sender_id");
-            }
-        } else {
-            warn!("Service message context is None");
-        }
-    }
-
 
     fn send_service_response(&self, sm: ServiceMessage) {
         if let Some(context) = &sm.context {
