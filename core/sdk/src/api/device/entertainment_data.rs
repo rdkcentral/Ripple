@@ -1023,9 +1023,17 @@ pub struct SearchIntent {
     pub context: DiscoveryContext,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Suggestion {
+    pub entity_id: String,
+    pub entity_type: String,
+    pub program_type: String,
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SearchIntentData {
     pub query: String,
+    pub suggestions: Option<Vec<Suggestion>>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
