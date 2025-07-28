@@ -28,6 +28,7 @@ use ripple_sdk::{
         manifest::device_manifest::DeviceManifest,
     },
     log::{debug, error, trace},
+    sync_read_lock,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -123,24 +124,32 @@ impl GenericCapState {
     }
 
     pub fn check_supported(&self, request: &[FireboltPermission]) -> Result<(), DenyReasonWithCap> {
-        let supported = self.supported.read().unwrap();
+        let guard = sync_read_lock!(self.supported);
+        let supported = guard.clone();
         let not_supported: Vec<FireboltCap> = request
             .iter()
             .filter(|fb_perm| !supported.contains(&serde_json::to_string(fb_perm).unwrap()))
             .map(|fb_perm| fb_perm.cap.clone())
             .collect();
 
-        debug!(
+        trace!(
             "checking supported caps request={:?}, not_supported={:?}, supported: {:?}",
-            request, not_supported, supported
+            request,
+            not_supported,
+            supported
         );
 
         if !not_supported.is_empty() {
+            debug!("requested but not supported caps are: {:?}", not_supported);
+            drop(guard);
             return Err(DenyReasonWithCap::new(
                 DenyReason::Unsupported,
                 not_supported,
             ));
         }
+        drop(guard);
+        trace!("supported caps are: {:?}", supported);
+
         Ok(())
     }
 
@@ -155,7 +164,9 @@ impl GenericCapState {
         request: &Vec<FireboltPermission>,
     ) -> Result<(), DenyReasonWithCap> {
         self.check_supported(request)?;
-        let not_available = self.not_available.read().unwrap();
+
+        let guard = sync_read_lock!(self.not_available);
+        let not_available = guard.clone();
         let mut result: Vec<FireboltCap> = Vec::new();
         for fb_perm in request {
             if fb_perm.role == CapabilityRole::Use && not_available.contains(&fb_perm.cap.as_str())
@@ -170,11 +181,12 @@ impl GenericCapState {
             result
         );
         if !result.is_empty() {
+            drop(guard);
             error!("Availability Error for {:?}", result);
 
             return Err(DenyReasonWithCap::new(DenyReason::Unavailable, result));
         }
-
+        drop(guard);
         Ok(())
     }
 

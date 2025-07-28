@@ -228,6 +228,7 @@ impl ExtnClient {
                     None => error!("Unknown contract {}", contract),
                 }
             }
+
             let mut contract_map = self.contract_map.write().unwrap();
             contract_map.extend(map);
         }

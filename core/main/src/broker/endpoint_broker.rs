@@ -530,23 +530,23 @@ impl EndpointBrokerState {
     }
 
     fn get_request(&self, id: u64) -> Result<BrokerRequest, RippleError> {
-        let result = { self.request_map.read().unwrap().get(&id).cloned() };
-        if result.is_none() {
+        let mut map = self.request_map.write().unwrap();
+
+        let Some(req) = map.get(&id).cloned() else {
             return Err(RippleError::InvalidInput);
+        };
+
+        if !req.rpc.is_subscription() {
+            map.remove(&id);
         }
 
-        let result = result.unwrap();
-        if !result.rpc.is_subscription() {
-            let _ = self.request_map.write().unwrap().remove(&id);
-        }
-        Ok(result)
+        Ok(req)
     }
 
     fn update_unsubscribe_request(&self, id: u64) {
-        let mut result = self.request_map.write().unwrap();
-        if let Some(mut value) = result.remove(&id) {
+        let mut map = self.request_map.write().unwrap();
+        if let Some(value) = map.get_mut(&id) {
             value.subscription_processed = Some(true);
-            let _ = result.insert(id, value);
         }
     }
 
@@ -1234,7 +1234,7 @@ impl BrokerOutputForwarder {
 
         tokio::spawn(async move {
             while let Some(output) = rx.recv().await {
-                debug!("received broker output");
+                debug!("received broker output {:?}", output);
 
                 let output_c = output.clone();
                 let mut response = output.data.clone();

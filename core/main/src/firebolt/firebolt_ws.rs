@@ -488,8 +488,12 @@ impl FireboltWs {
                         ) {
                             info!("Received Firebolt request {}", request.params_json);
                             let msg = FireboltGatewayCommand::HandleRpc { request };
-                            if let Err(e) = client.clone().send_gateway_command(msg) {
-                                error!("failed to send request {:?}", e);
+                            {
+                                let guard = client.clone();
+                                if let Err(e) = guard.send_gateway_command(msg) {
+                                    error!("failed to send request {:?}", e);
+                                }
+                                drop(guard);
                             }
                         } else if let Some(response) = JsonRpcApiResponse::get_response(&req_text) {
                             let msg = FireboltGatewayCommand::HandleResponse { response };

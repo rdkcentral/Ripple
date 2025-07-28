@@ -179,7 +179,7 @@ impl FireboltGateway {
         const REQUESTOR_CALLBACK_TIMEOUT_SECS: u64 = 10;
 
         let (requestor_callback_tx, mut requestor_callback_rx) =
-            tokio::sync::mpsc::channel::<BrokerOutput>(1);
+            tokio::sync::mpsc::channel::<BrokerOutput>(10);
 
         let start = Utc::now().timestamp_millis();
         let protocol = rpc_request.ctx.protocol.clone();
@@ -348,10 +348,13 @@ impl FireboltGateway {
                         Self::handle_broker_callback(platform_state.clone(), request_c.clone());
 
                     let handled = {
-                        let es_arc = platform_state.clone();
-                        let es_arc = es_arc.endpoint_state.clone();
-                        let es_arc = async_read_lock!(es_arc);
-                        es_arc
+                        let broker_endpoint = {
+                            let es_arc = platform_state.clone();
+                            let es_arc = es_arc.endpoint_state.clone();
+                            let es_arc = async_read_lock!(es_arc);
+                            es_arc.clone()
+                        };
+                        broker_endpoint
                             .handle_brokerage(
                                 request_c.clone(),
                                 extn_msg.clone(),

@@ -144,8 +144,13 @@ impl ThunderState {
     }
 
     pub fn start_event_thread(&self) {
-        let mut rx = self.receiver.write().unwrap();
-        let rx = rx.take();
+        let rx = {
+            let mut guard = self.receiver.write().unwrap();
+            let rx = guard.take();
+            drop(guard);
+            rx
+        };
+
         if let Some(mut r) = rx {
             let state_c = self.clone();
             tokio::spawn(async move {
