@@ -1,4 +1,3 @@
-use crate::api::gateway::rpc_gateway_api::RpcRequest;
 // Copyright 2023 Comcast Cable Communications Management, LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,8 +15,7 @@ use crate::api::gateway::rpc_gateway_api::RpcRequest;
 // SPDX-License-Identifier: Apache-2.0
 //
 use crate::utils::error::RippleError;
-use jsonrpsee::core::{server::rpc_module::Methods, Error, RpcResult};
-use log::debug;
+use jsonrpsee::core::RpcResult;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

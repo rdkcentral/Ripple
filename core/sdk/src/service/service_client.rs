@@ -15,9 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::api::context::ActivationStatus;
-use crate::api::context::RippleContext;
-use crate::api::context::RippleContextUpdateType;
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -47,7 +44,7 @@ use tokio_tungstenite::tungstenite::Message;
 use uuid::Uuid;
 
 use super::service_message::{
-    JsonRpcNotification, JsonRpcRequest, JsonRpcSuccess, ServiceMessage, ServiceRequestType,
+    JsonRpcNotification, JsonRpcSuccess, ServiceMessage, ServiceRequestType,
 };
 #[derive(Debug, Clone, Default)]
 pub struct ServiceClient {
