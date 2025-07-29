@@ -336,7 +336,7 @@ impl ThunderDeviceInfoRequestProcessor {
             return HashMap::new();
         }
 
-        get_audio_profile_from_value(response.message.clone())
+        get_audio_profile_from_value(response.message)
     }
 
     async fn audio(state: CachedState, req: ExtnMessage) -> bool {

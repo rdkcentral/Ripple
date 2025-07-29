@@ -246,6 +246,8 @@ impl PluginManager {
             } else {
                 info!("Successfully subscribed to statechange");
             }
+        } else if let Err(e) = resp.as_ref() {
+            error!("Failed to subscribe to statechange, error: {:?}", e);
         }
 
         // Spawn command thread
