@@ -170,14 +170,12 @@ async fn check_account_session_token(state: &PlatformState) -> bool {
 }
 
 fn handle_power_state(state: &PlatformState, power_state: &Option<SystemPowerState>) {
-    // fn handle_power_state(state: &PlatformState, power_state: &SystemPowerState) {
     let power_state = match power_state {
         Some(state) => state,
         None => return,
     };
 
     if matches!(power_state.power_state, PowerState::On) && handle_power_active_cleanup(state) {
-        // if power_state.power_state != PowerState::On && Self::handle_power_active_cleanup(state) {
         info!("Usergrants updated for Powerstate");
     }
 }

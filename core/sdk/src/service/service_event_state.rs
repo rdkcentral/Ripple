@@ -106,8 +106,6 @@ impl ServiceEventState {
                 } else {
                     error!("Subscriber not found in context");
                 }
-
-                debug!("^^^909 event processors: {:?}", self.event_subscribers);
             }
             Err(e) => {
                 error!("Failed to parse update type: {}", e);
