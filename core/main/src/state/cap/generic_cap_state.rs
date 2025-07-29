@@ -82,11 +82,7 @@ impl GenericCapState {
         let supported_cap: Vec<String> = supported
             .clone()
             .iter()
-            .filter_map(|f| {
-                serde_json::from_str::<FireboltPermission>(f)
-                    .ok()
-                    .map(|perm| perm.cap.as_str().to_string())
-            })
+            .map(|f| f.trim_matches('"').to_string())
             .collect();
 
         for cap in request {
