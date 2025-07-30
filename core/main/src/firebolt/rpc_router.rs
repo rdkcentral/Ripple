@@ -43,7 +43,7 @@ use std::sync::{Arc, RwLock};
 use crate::{
     firebolt::firebolt_gateway::JsonRpcMessage,
     service::telemetry_builder::TelemetryBuilder,
-    state::{ops_metrics_state::OpsMetrics, platform_state::PlatformState, session_state::Session},
+    state::{platform_state::PlatformState, session_state::Session},
     utils::router_utils::{
         add_telemetry_status_code, capture_stage, get_rpc_header, return_extn_response,
     },
@@ -183,18 +183,16 @@ async fn resolve_route(
             1
         };
 
-        capture_stage(platform_state.metrics.clone(), &req, "routing").await;
-        OpsMetrics::update_api_stats_ref(
-            platform_state.metrics.clone(),
-            &request_id,
-            add_telemetry_status_code(&rpc_header, status_code.to_string().as_str()),
-        )
-        .await;
+        capture_stage(platform_state.clone(), &req, "routing").await;
+        platform_state
+            .update_api_stats_ref(
+                &request_id,
+                add_telemetry_status_code(&rpc_header, status_code.to_string().as_str()),
+            )
+            .await;
 
         let mut msg = ApiMessage::new(protocol, r, request_id.clone());
-        if let Some(api_stats) =
-            OpsMetrics::get_api_stats(platform_state.metrics.clone(), &request_id).await
-        {
+        if let Some(api_stats) = platform_state.get_api_stats(&request_id).await {
             msg.stats = Some(api_stats);
         }
 

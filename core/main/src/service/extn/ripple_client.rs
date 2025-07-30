@@ -61,7 +61,6 @@ pub struct RippleClient {
     broker_sender: Sender<BrokerOutput>,
 }
 
-#[cfg(test)]
 impl Default for RippleClient {
     fn default() -> Self {
         use ripple_sdk::{extn::client::extn_client::Mockable, mock_sender};

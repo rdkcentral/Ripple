@@ -50,11 +50,7 @@ use crate::{
     broker::broker_utils::BrokerUtils,
     firebolt::firebolt_gateway::JsonRpcError,
     service::extn::ripple_client::RippleClient,
-    state::{
-        ops_metrics_state::{OpMetricState, OpsMetrics},
-        platform_state::PlatformState,
-        session_state::Session,
-    },
+    state::{platform_state::PlatformState, session_state::Session},
     utils::router_utils::{
         add_telemetry_status_code, capture_stage, get_rpc_header, return_extn_response,
     },
@@ -376,7 +372,6 @@ pub struct EndpointBrokerState {
     cleaner_list: Arc<RwLock<Vec<BrokerCleaner>>>,
     reconnect_tx: Sender<BrokerConnectRequest>,
     provider_broker_state: ProvideBrokerState,
-    metrics_state: Arc<tokio::sync::RwLock<OpMetricState>>,
 }
 
 #[derive(Debug)]
@@ -467,14 +462,12 @@ impl Default for EndpointBrokerState {
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx: mpsc::channel(2).0,
             provider_broker_state: ProvideBrokerState::default(),
-            metrics_state: Arc::new(tokio::sync::RwLock::new(OpMetricState::default())),
         }
     }
 }
 
 impl EndpointBrokerState {
     pub fn new(
-        metrics_state: Arc<tokio::sync::RwLock<OpMetricState>>,
         tx: Sender<BrokerOutput>,
         rule_engine: RuleEngine,
         _ripple_client: RippleClient,
@@ -489,7 +482,6 @@ impl EndpointBrokerState {
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx,
             provider_broker_state: ProvideBrokerState::default(),
-            metrics_state,
         };
         /*bobra: configuring this out for unit tests */
         #[cfg(not(test))]
@@ -747,7 +739,11 @@ impl EndpointBrokerState {
         }
     }
 
-    async fn handle_static_request(&self, rpc_request: RpcRequest) -> JsonRpcApiResponse {
+    async fn handle_static_request(
+        &self,
+        platform_state: PlatformState,
+        rpc_request: RpcRequest,
+    ) -> JsonRpcApiResponse {
         let mut data = JsonRpcApiResponse::default();
         // return empty result and handle the rest with jq rule
         let jv: Value = "".into();
@@ -755,12 +751,7 @@ impl EndpointBrokerState {
         data.id = Some(rpc_request.ctx.call_id);
         //let output = BrokerOutput::new(data);
 
-        capture_stage(
-            self.metrics_state.clone(),
-            &rpc_request,
-            "static_rule_request",
-        )
-        .await;
+        capture_stage(platform_state.clone(), &rpc_request, "static_rule_request").await;
         data
     }
 
@@ -829,8 +820,10 @@ impl EndpointBrokerState {
     }
     /// Main handler method which checks for brokerage and then sends the request for
     /// asynchronous processing
+    #[allow(clippy::too_many_arguments)]
     pub async fn handle_brokerage(
         &self,
+        platform_state: PlatformState,
         rpc_request: RpcRequest,
         extn_message: Option<ExtnMessage>,
         custom_callback: Option<BrokerCallback>,
@@ -848,6 +841,7 @@ impl EndpointBrokerState {
 
         let resp = self
             .handle_brokerage_workflow(
+                platform_state.clone(),
                 rpc_request.clone(),
                 extn_message,
                 custom_callback,
@@ -904,6 +898,7 @@ impl EndpointBrokerState {
     */
     pub async fn render_brokered_request(
         &self,
+        platform_state: PlatformState,
         rule: &Rule,
         broker_request: &BrokerRequest,
         permissions: Vec<FireboltPermission>,
@@ -924,8 +919,10 @@ impl EndpointBrokerState {
         let rpc_request = broker_request.rpc.clone();
         match rule.rule_type() {
             super::rules::rules_engine::RuleType::Static => {
-                let response =
-                    RenderedRequest::JsonRpc(self.handle_static_request(rpc_request.clone()).await);
+                let response = RenderedRequest::JsonRpc(
+                    self.handle_static_request(platform_state.clone(), rpc_request.clone())
+                        .await,
+                );
                 Ok(response)
             }
             super::rules::rules_engine::RuleType::Provider => {
@@ -946,9 +943,10 @@ impl EndpointBrokerState {
             }
         }
     }
-
+    #[allow(clippy::too_many_arguments)]
     pub async fn handle_brokerage_workflow(
         &self,
+        platform_state: PlatformState,
         rpc_request: RpcRequest,
         extn_message: Option<ExtnMessage>,
         workflow_callback: Option<BrokerCallback>,
@@ -982,6 +980,7 @@ impl EndpointBrokerState {
 
         match self
             .render_brokered_request(
+                platform_state.clone(),
                 &rule,
                 &self.update_request(
                     &rpc_request,
@@ -1472,29 +1471,25 @@ impl BrokerOutputForwarder {
                                     }
                                 }
                             }
-                            OpsMetrics::update_api_stats_ref(
-                                platform_state.metrics.clone(),
-                                &rpc_request.ctx.request_id,
-                                add_telemetry_status_code(
-                                    &tm_str,
-                                    status_code.to_string().as_str(),
-                                ),
-                            )
-                            .await;
+                            platform_state
+                                .update_api_stats_ref(
+                                    &rpc_request.ctx.request_id,
+                                    add_telemetry_status_code(
+                                        &tm_str,
+                                        status_code.to_string().as_str(),
+                                    ),
+                                )
+                                .await;
 
-                            if let Some(api_stats) = OpsMetrics::get_api_stats(
-                                platform_state.metrics.clone(),
-                                &rpc_request.ctx.request_id,
-                            )
-                            .await
+                            if let Some(api_stats) = platform_state
+                                .get_api_stats(&rpc_request.ctx.request_id)
+                                .await
                             {
                                 message.stats = Some(api_stats);
                                 if rpc_request.ctx.app_id.eq_ignore_ascii_case("internal") {
-                                    OpsMetrics::remove_api_stats(
-                                        platform_state.metrics.clone(),
-                                        &rpc_request.ctx.request_id,
-                                    )
-                                    .await;
+                                    platform_state
+                                        .remove_api_stats(&rpc_request.ctx.request_id)
+                                        .await;
                                 }
                             }
 
@@ -1870,9 +1865,8 @@ mod endpoint_broker_tests {
 
         use crate::{
             broker::rules::rules_engine::{RuleEngine, RuleSet},
-            op_metric_state_default,
             service::extn::ripple_client::RippleClient,
-            state::{bootstrap_state::ChannelsState, ops_metrics_state::OpMetricState},
+            state::bootstrap_state::ChannelsState,
         };
 
         use super::EndpointBrokerState;
@@ -2007,7 +2001,6 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2038,7 +2031,6 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2069,7 +2061,6 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2100,7 +2091,6 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2131,7 +2121,6 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2162,7 +2151,6 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2193,7 +2181,6 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2226,7 +2213,6 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2477,10 +2463,8 @@ mod endpoint_broker_tests {
         use crate::broker::rules::rules_engine::RuleEngine;
         use crate::broker::rules::rules_engine::RuleSet;
         use crate::broker::rules::rules_engine::{Rule, RuleTransform};
-        use crate::op_metric_state_default;
         use crate::service::extn::ripple_client::RippleClient;
         use crate::state::bootstrap_state::ChannelsState;
-        use crate::state::ops_metrics_state::OpMetricState;
         use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
         use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
 
@@ -2498,7 +2482,6 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2544,7 +2527,6 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2592,7 +2574,6 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2639,7 +2620,6 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2685,7 +2665,6 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut state = EndpointBrokerState::new(
-                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2734,9 +2713,8 @@ mod endpoint_broker_tests {
                 endpoint_broker::{EndpointBrokerState, RenderedRequest},
                 rules::rules_engine::{Rule, RuleEngine, RuleSet},
             },
-            op_metric_state_default,
             service::extn::ripple_client::RippleClient,
-            state::{bootstrap_state::ChannelsState, ops_metrics_state::OpMetricState},
+            state::bootstrap_state::ChannelsState,
         };
         use ripple_sdk::{
             api::gateway::rpc_gateway_api::RpcRequest, tokio::sync::mpsc::channel, Mockable,
@@ -2760,8 +2738,7 @@ mod endpoint_broker_tests {
             };
             engine.add_rule(r);
 
-            let under_test =
-                EndpointBrokerState::new(op_metric_state_default!(), tx, engine, client);
+            let under_test = EndpointBrokerState::new(tx, engine, client);
 
             let f = under_test.handle_provided_request(
                 &RpcRequest::mock(),
@@ -2784,7 +2761,6 @@ mod endpoint_broker_tests {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
             let mut endpoint_broker = EndpointBrokerState::new(
-                op_metric_state_default!(),
                 tx,
                 RuleEngine {
                     rules: RuleSet::default(),
@@ -2799,7 +2775,7 @@ mod endpoint_broker_tests {
 
             endpoint_broker
         }
-        use std::collections::HashMap;
+        use std::{collections::HashMap, sync::Arc};
 
         use crate::{
             broker::{
@@ -2808,9 +2784,8 @@ mod endpoint_broker_tests {
                 },
                 rules::rules_engine::{Rule, RuleEngine, RuleSet},
             },
-            op_metric_state_default,
             service::extn::ripple_client::RippleClient,
-            state::{bootstrap_state::ChannelsState, ops_metrics_state::OpMetricState},
+            state::{bootstrap_state::ChannelsState, platform_state::PlatformStateContainer},
         };
         use ripple_sdk::{
             api::gateway::rpc_gateway_api::RpcRequest,
@@ -2835,6 +2810,7 @@ mod endpoint_broker_tests {
             assert!(
                 under_test
                     .render_brokered_request(
+                        Arc::new(PlatformStateContainer::default()),
                         &Rule::default()
                             .with_alias("static".to_string())
                             .with_endpoint("thunder".to_string())
@@ -2860,10 +2836,12 @@ mod endpoint_broker_tests {
             let under_test =
                 under_test.add_endpoint("thunder".to_string(), BrokerSender { sender: bs });
             let broker_request = BrokerRequest::default();
+            let ps = Arc::new(PlatformStateContainer::default());
 
             assert!(
                 under_test
                     .render_brokered_request(
+                        ps.clone(),
                         &Rule::default()
                             .with_alias("provided".to_string())
                             .to_owned(),
@@ -2878,6 +2856,7 @@ mod endpoint_broker_tests {
             assert!(
                 under_test
                     .render_brokered_request(
+                        ps.clone(),
                         &Rule::default()
                             .with_alias("provided".to_string())
                             .to_owned(),
@@ -2908,8 +2887,7 @@ mod endpoint_broker_tests {
                 sources: None,
             };
             engine.add_rule(rule);
-            let mut under_test =
-                EndpointBrokerState::new(op_metric_state_default!(), tx, engine, client);
+            let mut under_test = EndpointBrokerState::new(tx, engine, client);
 
             let (tx, _) = mpsc::channel::<BrokerRequest>(10);
             under_test.add_endpoint("thunder".to_string(), BrokerSender { sender: tx });
@@ -2918,7 +2896,15 @@ mod endpoint_broker_tests {
             request.method = "endpoint".to_string();
 
             let result = under_test
-                .handle_brokerage_workflow(request, None, None, vec![], None, vec![])
+                .handle_brokerage_workflow(
+                    Arc::new(PlatformStateContainer::default()),
+                    request,
+                    None,
+                    None,
+                    vec![],
+                    None,
+                    vec![],
+                )
                 .await;
             assert!(result.is_ok(), "Expected Ok but got: {:?}", result);
         }
@@ -2931,14 +2917,21 @@ mod endpoint_broker_tests {
                 rules: RuleSet::default(),
                 functions: HashMap::default(),
             };
-            let under_test =
-                EndpointBrokerState::new(op_metric_state_default!(), tx, engine, client);
+            let under_test = EndpointBrokerState::new(tx, engine, client);
 
             let mut request = RpcRequest::mock();
             request.method = "nonexistent".to_string();
 
             let result = under_test
-                .handle_brokerage_workflow(request, None, None, vec![], None, vec![])
+                .handle_brokerage_workflow(
+                    Arc::new(PlatformStateContainer::default()),
+                    request,
+                    None,
+                    None,
+                    vec![],
+                    None,
+                    vec![],
+                )
                 .await;
             assert!(
                 matches!(result, Err(HandleBrokerageError::RuleNotFound(_))),
@@ -2964,14 +2957,21 @@ mod endpoint_broker_tests {
                 sources: None,
             };
             engine.add_rule(rule);
-            let under_test =
-                EndpointBrokerState::new(op_metric_state_default!(), tx, engine, client);
+            let under_test = EndpointBrokerState::new(tx, engine, client);
 
             let mut request = RpcRequest::mock();
             request.method = "endpoint".to_string();
 
             let result = under_test
-                .handle_brokerage_workflow(request, None, None, vec![], None, vec![])
+                .handle_brokerage_workflow(
+                    Arc::new(PlatformStateContainer::default()),
+                    request,
+                    None,
+                    None,
+                    vec![],
+                    None,
+                    vec![],
+                )
                 .await;
             assert!(
                 matches!(result, Err(HandleBrokerageError::BrokerNotFound(_))),
@@ -2983,13 +2983,9 @@ mod endpoint_broker_tests {
         mod update_request {
             use ripple_sdk::{api::gateway::rpc_gateway_api::RpcRequest, tokio};
 
-            use crate::{
-                broker::{
-                    endpoint_broker::BrokerCallback,
-                    rules::rules_engine::{Rule, RuleSet, RuleTransform},
-                },
-                op_metric_state_default,
-                state::ops_metrics_state::OpMetricState,
+            use crate::broker::{
+                endpoint_broker::BrokerCallback,
+                rules::rules_engine::{Rule, RuleSet, RuleTransform},
             };
 
             use super::*;
@@ -3000,7 +2996,6 @@ mod endpoint_broker_tests {
                 let (tx, _) = channel(2);
                 let client = RippleClient::new(ChannelsState::new());
                 let state = EndpointBrokerState::new(
-                    op_metric_state_default!(),
                     tx,
                     RuleEngine {
                         rules: RuleSet::default(),
@@ -3029,7 +3024,6 @@ mod endpoint_broker_tests {
                 let (tx, _) = channel(2);
                 let client = RippleClient::new(ChannelsState::new());
                 let state = EndpointBrokerState::new(
-                    op_metric_state_default!(),
                     tx,
                     RuleEngine {
                         rules: RuleSet::default(),
@@ -3060,7 +3054,6 @@ mod endpoint_broker_tests {
                 let (tx, _) = channel(2);
                 let client = RippleClient::new(ChannelsState::new());
                 let state = EndpointBrokerState::new(
-                    op_metric_state_default!(),
                     tx,
                     RuleEngine {
                         rules: RuleSet::default(),
@@ -3097,7 +3090,6 @@ mod endpoint_broker_tests {
                 let (tx, _) = channel(2);
                 let client = RippleClient::new(ChannelsState::new());
                 let state = EndpointBrokerState::new(
-                    op_metric_state_default!(),
                     tx,
                     RuleEngine {
                         rules: RuleSet::default(),

@@ -27,7 +27,7 @@ use ripple_sdk::{
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
 
-use crate::state::{ops_metrics_state::OpsMetrics, platform_state::PlatformState};
+use crate::state::platform_state::PlatformState;
 
 type DecoratorFunctionType = Arc<
     dyn Fn(
@@ -89,12 +89,9 @@ impl EventManagementUtility {
             params_json: RpcRequest::prepend_ctx(None, &new_ctx),
         };
 
-        OpsMetrics::add_api_stats(
-            platform_state.metrics.clone(),
-            &ctx.request_id,
-            "advertising.policy",
-        )
-        .await;
+        platform_state
+            .add_api_stats(&ctx.request_id, "advertising.policy")
+            .await;
 
         let resp = platform_state
             .get_client()

@@ -30,7 +30,7 @@ use ripple_sdk::{
 use crate::{
     firebolt::rpc::RippleRPCProvider,
     service::{apps::app_events::AppEvents, telemetry_builder::TelemetryBuilder},
-    state::{ops_metrics_state::OpsMetrics, platform_state::PlatformState},
+    state::platform_state::PlatformState,
     utils::rpc_utils::rpc_await_oneshot,
 };
 
@@ -74,7 +74,7 @@ impl InternalServer for InternalImpl {
         _ctx: CallContext,
         session_id: String,
     ) -> RpcResult<()> {
-        OpsMetrics::update_session_id(self.state.metrics.clone(), Some(session_id)).await;
+        self.state.update_session_id(Some(session_id)).await;
         Ok(())
     }
 

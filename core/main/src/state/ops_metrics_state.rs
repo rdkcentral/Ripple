@@ -22,7 +22,7 @@ use std::{
 
 use ripple_sdk::{
     api::observability::metrics_util::ApiStats,
-    async_read, async_read_async, async_write, async_write_async,
+    async_read, async_write,
     chrono::{DateTime, Utc},
     log::{error, warn},
     tokio::sync::RwLock,
@@ -34,7 +34,7 @@ const API_STATS_MAP_SIZE_WARNING: usize = 10;
 
 #[derive(Debug, Clone, Default)]
 pub struct OpMetricState {
-    pub start_time: DateTime<Utc>,
+    start_time: DateTime<Utc>,
     operational_telemetry_listeners: Arc<RwLock<HashSet<String>>>,
     pub api_stats_map: Arc<RwLock<HashMap<String, ApiStats>>>,
     device_session_id: Arc<RwLock<Option<String>>>,
@@ -112,129 +112,11 @@ impl OpMetricState {
             }
         })
     }
+    pub fn get_start_time(&self) -> DateTime<Utc> {
+        self.start_time
+    }
 
     pub async fn get_api_stats(&self, request_id: &str) -> Option<ApiStats> {
         async_read!(self.api_stats_map, |map| { map.get(request_id).cloned() })
     }
-}
-pub struct OpsMetrics {}
-impl OpsMetrics {
-    /*
-    free functions to enabled better synchronization */
-    pub async fn add_api_stats(
-        ops_metrics: Arc<RwLock<OpMetricState>>,
-        request_id: &str,
-        api: &str,
-    ) {
-        // ops_metrics
-        //     .write()
-        //     .await
-        //     .add_api_stats(request_id, api)
-        //     .await;
-        async_write_async!(ops_metrics, |metrics| {
-            metrics.add_api_stats(request_id, api).await;
-        });
-    }
-
-    pub async fn remove_api_stats(ops_metrics: Arc<RwLock<OpMetricState>>, request_id: &str) {
-        async_write_async!(ops_metrics, |metrics| {
-            metrics.remove_api_stats(request_id).await;
-        });
-    }
-
-    pub async fn update_api_stats_ref(
-        ops_metrics: Arc<RwLock<OpMetricState>>,
-        request_id: &str,
-        stats_ref: Option<String>,
-    ) {
-        async_write_async!(ops_metrics, |metrics| {
-            let mut stats_ref_map = metrics.api_stats_map.write().await;
-            if let Some(stats) = stats_ref_map.get_mut(request_id) {
-                stats.stats_ref = stats_ref;
-            } else {
-                println!(
-                    "update_api_stats_ref: request_id not found: request_id={}",
-                    request_id
-                );
-            }
-            drop(stats_ref_map);
-        });
-    }
-    pub async fn get_api_stats(
-        ops_metrics: Arc<RwLock<OpMetricState>>,
-        request_id: &str,
-    ) -> Option<ApiStats> {
-        async_read_async!(ops_metrics, |metrics| {
-            let api_stats = metrics.api_stats_map.read().await;
-            api_stats.get(request_id).cloned()
-        })
-    }
-
-    pub async fn update_api_stage(
-        ops_metrics: Arc<RwLock<OpMetricState>>,
-        request_id: &str,
-        stage: &str,
-    ) -> i64 {
-        async_write_async!(ops_metrics, |metrics| {
-            let mut api_stats_map = metrics.api_stats_map.write().await;
-            let updated = if let Some(stats) = api_stats_map.get_mut(request_id) {
-                stats.stats.update_stage(stage)
-            } else {
-                error!(
-                    "update_api_stage: request_id not found: request_id={}",
-                    request_id
-                );
-                -1
-            };
-
-            drop(api_stats_map);
-            updated
-        })
-    }
-    pub async fn get_device_session_id(ops_metrics: Arc<RwLock<OpMetricState>>) -> String {
-        async_read_async!(ops_metrics, |metrics| {
-            let device_session_id_guard = metrics.device_session_id.clone();
-            let device_session_id_guard = device_session_id_guard.read().await;
-            let device_session_id = device_session_id_guard.as_ref();
-            let returned = device_session_id.cloned().unwrap_or_default();
-            drop(device_session_id_guard);
-            returned
-        })
-    }
-
-    pub async fn update_session_id(ops_metrics: Arc<RwLock<OpMetricState>>, value: Option<String>) {
-        let value = value.unwrap_or_default();
-        async_write_async!(ops_metrics, |metrics| {
-            let mut session = metrics.device_session_id.write().await;
-            let _ = session.insert(value);
-            drop(session);
-        });
-    }
-    pub async fn get_listeners(ops_metrics: Arc<RwLock<OpMetricState>>) -> Vec<String> {
-        async_read_async!(ops_metrics, |metrics| { metrics.get_listeners().await })
-    }
-
-    pub async fn operational_telemetry_listener(
-        ops_metrics: Arc<RwLock<OpMetricState>>,
-        target: &str,
-        listen: bool,
-    ) {
-        async_write_async!(ops_metrics, |metrics| {
-            let mut listeners = metrics.operational_telemetry_listeners.write().await;
-            if listen {
-                listeners.insert(target.to_string());
-            } else {
-                listeners.remove(target);
-            }
-            drop(listeners);
-        })
-    }
-}
-#[macro_export]
-macro_rules! op_metric_state_default {
-    () => {
-        std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(
-            OpMetricState::default(),
-        ))
-    };
 }

@@ -47,7 +47,7 @@ use crate::{
     },
     state::{
         bootstrap_state::BootstrapState, openrpc_state::OpenRpcState,
-        ops_metrics_state::OpsMetrics, platform_state::PlatformState, session_state::Session,
+        platform_state::PlatformState, session_state::Session,
     },
     utils::router_utils::{capture_stage, get_rpc_header_with_status},
 };
@@ -211,11 +211,9 @@ impl FireboltGateway {
                         let mut api_message =
                             ApiMessage::new(protocol, data, rpc_request.ctx.request_id.clone());
 
-                        if let Some(api_stats) = OpsMetrics::get_api_stats(
-                            platform_state.metrics.clone(),
-                            &rpc_request.ctx.request_id,
-                        )
-                        .await
+                        if let Some(api_stats) = platform_state
+                            .get_api_stats(&rpc_request.ctx.request_id)
+                            .await
                         {
                             api_message.stats = Some(api_stats);
                         }
@@ -290,12 +288,10 @@ impl FireboltGateway {
          */
         let mut request_c = request.clone();
         request_c.method = FireboltOpenRpcMethod::name_with_lowercase_module(&request.method);
-        OpsMetrics::add_api_stats(
-            platform_state.metrics.clone(),
-            &request_c.ctx.request_id,
-            &request_c.method,
-        )
-        .await;
+
+        platform_state
+            .add_api_stats(&request_c.ctx.request_id, &request_c.method)
+            .await;
 
         let fail_open = matches!(
             platform_state
@@ -308,7 +304,7 @@ impl FireboltGateway {
         let open_rpc_state = self.state.platform_state.open_rpc_state.clone();
 
         tokio::spawn(async move {
-            capture_stage(platform_state.metrics.clone(), &request_c, "context_ready").await;
+            capture_stage(platform_state.clone(), &request_c, "context_ready").await;
             // Validate incoming request parameters.
             if let Err(error_string) = validate_request(&open_rpc_state, &request_c, fail_open) {
                 let json_rpc_error = JsonRpcError {
@@ -321,7 +317,7 @@ impl FireboltGateway {
                 return;
             }
 
-            capture_stage(platform_state.metrics.clone(), &request_c, "openrpc_val").await;
+            capture_stage(platform_state.clone(), &request_c, "openrpc_val").await;
 
             let result = if extn_request {
                 // extn protocol means its an internal Ripple request skip permissions.
@@ -330,7 +326,7 @@ impl FireboltGateway {
                 FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await
             };
 
-            capture_stage(platform_state.metrics.clone(), &request_c, "permission").await;
+            capture_stage(platform_state.clone(), &request_c, "permission").await;
 
             match result {
                 Ok(p) => {
@@ -357,9 +353,11 @@ impl FireboltGateway {
                         let request_f = request.clone();
                         let session_c = session.clone();
                         let extn_c = extn_msg.clone();
+                        let ps_c = platform_state.clone();
                         platform_state
                             .endpoint_state(|es| async move {
                                 es.handle_brokerage(
+                                    ps_c.clone(),
                                     request_f,
                                     extn_c,
                                     None,
@@ -547,22 +545,19 @@ async fn send_json_rpc_error(
                 request.clone().ctx.request_id,
             );
 
-            if let Some(api_stats) =
-                OpsMetrics::get_api_stats(platform_state.metrics.clone(), &request.ctx.request_id)
-                    .await
-            {
+            if let Some(api_stats) = platform_state.get_api_stats(&request.ctx.request_id).await {
                 api_message.stats = Some(ApiStats {
                     api: request.method.clone(),
                     stats_ref: get_rpc_header_with_status(request, status_code),
                     stats: api_stats.stats.clone(),
                 });
             }
-            OpsMetrics::update_api_stats_ref(
-                platform_state.metrics.clone(),
-                &request.ctx.request_id,
-                get_rpc_header_with_status(request, status_code),
-            )
-            .await;
+            platform_state
+                .update_api_stats_ref(
+                    &request.ctx.request_id,
+                    get_rpc_header_with_status(request, status_code),
+                )
+                .await;
 
             if let Err(e) = session.send_json_rpc(api_message).await {
                 error!(

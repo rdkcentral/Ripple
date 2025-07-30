@@ -27,7 +27,7 @@ use ripple_sdk::{
     tokio::sync::mpsc::{Receiver as MReceiver, Sender as MSender},
 };
 
-use crate::state::{ops_metrics_state::OpsMetrics, platform_state::PlatformState};
+use crate::state::platform_state::PlatformState;
 /// Supports processing of Metrics request from extensions and forwards the metrics accordingly.
 
 /// Supports processing of Metrics request from extensions and forwards the metrics accordingly.
@@ -76,11 +76,11 @@ impl ExtnRequestProcessor for OpMetricsProcessor {
         let requestor = msg.requestor.to_string();
         match extracted_message {
             OperationalMetricRequest::Subscribe => {
-                OpsMetrics::operational_telemetry_listener(state.metrics.clone(), &requestor, true)
-                    .await
+                state.operational_telemetry_listener(&requestor, true).await
             }
             OperationalMetricRequest::UnSubscribe => {
-                OpsMetrics::operational_telemetry_listener(state.metrics.clone(), &requestor, false)
+                state
+                    .operational_telemetry_listener(&requestor, false)
                     .await
             }
         }

@@ -25,8 +25,10 @@ use ripple_sdk::{
             exclusory::ExclusoryImpl,
             extn_manifest::ExtnManifest,
         },
+        observability::metrics_util::ApiStats,
         session::SessionAdjective,
     },
+    chrono::{DateTime, Utc},
     extn::{
         extn_client_message::{ExtnMessage, ExtnPayloadProvider},
         extn_id::ExtnId,
@@ -92,7 +94,7 @@ impl From<String> for DeviceSessionIdentifier {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PlatformStateContainer {
     pub extn_manifest: Arc<ExtnManifest>,
     device_manifest: Arc<DeviceManifest>,
@@ -105,7 +107,7 @@ pub struct PlatformStateContainer {
     pub app_manager_state: Arc<AppManagerState>,
     pub open_rpc_state: Arc<OpenRpcState>,
     pub router_state: Arc<RouterState>,
-    pub metrics: AsyncShared<OpMetricState>,
+    metrics: AsyncShared<OpMetricState>,
     pub device_session_id: DeviceSessionIdentifier,
     ripple_cache: AsyncShared<RippleCache>,
     pub version: Option<String>,
@@ -146,7 +148,6 @@ impl PlatformStateContainer {
             version,
 
             endpoint_state: Arc::new(tokio::sync::RwLock::new(EndpointBrokerState::new(
-                metrics_state.clone(),
                 broker_sender,
                 rule_engine,
                 client,
@@ -289,7 +290,7 @@ impl PlatformStateContainer {
         self.router_state.clone()
     }
 
-    pub fn metrics(&self) -> Arc<RwLock<OpMetricState>> {
+    pub fn _metrics(&self) -> Arc<RwLock<OpMetricState>> {
         self.metrics.clone()
     }
 
@@ -345,7 +346,7 @@ impl PlatformStateContainer {
         F: FnOnce(&RippleCache) -> R,
     {
         let guard = self.ripple_cache.read().await;
-        f(&*guard)
+        f(&guard)
     }
 
     // Mutable async access to ripple_cache
@@ -354,7 +355,82 @@ impl PlatformStateContainer {
         F: FnOnce(&mut RippleCache) -> R,
     {
         let mut guard = self.ripple_cache.write().await;
-        f(&mut *guard)
+        f(&mut guard)
+    }
+    pub async fn add_api_stats(&self, request_id: &str, method: &str) {
+        let metrics = self.metrics.write().await;
+        metrics.add_api_stats(request_id, method).await;
+    }
+    pub async fn update_api_stage(&self, request_id: &str, stage: &str) -> i64 {
+        let mut metrics = self.metrics.write().await;
+        metrics.update_api_stage(request_id, stage).await
+    }
+
+    pub async fn update_api_stats_ref(&self, request_id: &str, stats_ref: Option<String>) {
+        let mut metrics = self.metrics.write().await;
+        metrics.update_api_stats_ref(request_id, stats_ref).await;
+    }
+    pub async fn remove_api_stats(&self, request_id: &str) {
+        let mut metrics = self.metrics.write().await;
+        metrics.remove_api_stats(request_id).await
+    }
+
+    pub async fn get_device_session_id(&self) -> String {
+        let metrics = self.metrics.read().await;
+        metrics.get_device_session_id().await
+    }
+
+    pub async fn update_session_id(&self, value: Option<String>) {
+        let metrics = self.metrics.write().await;
+        let _ = metrics.update_session_id(value).await;
+    }
+
+    pub async fn get_listeners(&self) -> Vec<String> {
+        let metrics = self.metrics.read().await;
+        metrics.get_listeners().await
+    }
+
+    pub async fn operational_telemetry_listener(&self, target: &str, listen: bool) {
+        let metrics = self.metrics.write().await;
+        metrics.operational_telemetry_listener(target, listen).await;
+    }
+    pub async fn get_metrics_start_time(&self) -> DateTime<Utc> {
+        let metrics = self.metrics.read().await;
+        metrics.get_start_time()
+    }
+    pub async fn get_api_stats(&self, request_id: &str) -> Option<ApiStats> {
+        let metrics = self.metrics.read().await;
+        metrics.get_api_stats(request_id).await
+    }
+
+    pub async fn metrics<R, F>(&self, f: F) -> R
+    where
+        F: FnOnce(&OpMetricState) -> R,
+    {
+        let guard = self.metrics.read().await;
+        f(&guard)
+    }
+
+    // Mutable async access to metrics
+    pub async fn metrics_mut<R, F>(&self, f: F) -> R
+    where
+        F: FnOnce(&mut OpMetricState) -> R,
+    {
+        let mut guard = self.metrics.write().await;
+        f(&mut guard)
+    }
+
+    // Optional sync variant for testing or CLI tools
+    #[cfg(test)]
+    pub fn metrics_sync_mut<R, F>(&self, f: F) -> R
+    where
+        F: FnOnce(&mut OpMetricState) -> R,
+    {
+        if tokio::runtime::Handle::try_current().is_ok() {
+            panic!("Cannot use blocking_write inside async runtime");
+        }
+        let mut guard = self.metrics.blocking_write();
+        f(&mut guard)
     }
 }
 #[cfg(test)]
