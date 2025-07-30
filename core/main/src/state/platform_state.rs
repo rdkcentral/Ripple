@@ -108,7 +108,7 @@ pub struct PlatformStateContainer {
     pub open_rpc_state: Arc<OpenRpcState>,
     pub router_state: Arc<RouterState>,
     metrics: AsyncShared<OpMetricState>,
-    pub device_session_id: DeviceSessionIdentifier,
+    pub device_session_id: Arc<DeviceSessionIdentifier>,
     ripple_cache: AsyncShared<RippleCache>,
     pub version: Option<String>,
     endpoint_state: AsyncShared<EndpointBrokerState>,
@@ -143,7 +143,7 @@ impl PlatformStateContainer {
             open_rpc_state: OpenRpcState::new(Some(exclusory), extn_sdks, provider_registations),
             router_state: Arc::new(RouterState::new()),
             metrics: metrics_state.clone(),
-            device_session_id: DeviceSessionIdentifier::default(),
+            device_session_id: DeviceSessionIdentifier::default().into(),
             ripple_cache: Arc::new(tokio::sync::RwLock::new(RippleCache::default())),
             version,
 
