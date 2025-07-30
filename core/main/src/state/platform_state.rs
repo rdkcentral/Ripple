@@ -589,7 +589,7 @@ impl PlatformStateContainerBuilder {
             metrics: self
                 .metrics
                 .unwrap_or_else(|| Arc::new(RwLock::new(Default::default()))),
-            device_session_id: self.device_session_id.unwrap_or_default(),
+            device_session_id: self.device_session_id.unwrap_or_default().into(),
             ripple_cache: self
                 .ripple_cache
                 .unwrap_or_else(|| Arc::new(AsyncRwLock::new(Default::default()))),
