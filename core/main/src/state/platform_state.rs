@@ -107,7 +107,7 @@ pub struct PlatformStateContainer {
     pub router_state: Arc<RouterState>,
     pub metrics: AsyncShared<OpMetricState>,
     pub device_session_id: DeviceSessionIdentifier,
-    pub ripple_cache: AsyncShared<RippleCache>,
+    ripple_cache: AsyncShared<RippleCache>,
     pub version: Option<String>,
     endpoint_state: AsyncShared<EndpointBrokerState>,
     pub lifecycle2_app_state: Arc<AppManagerState2_0>,
