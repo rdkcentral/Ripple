@@ -33,10 +33,7 @@ use ripple_sdk::{
     },
     framework::ripple_contract::RippleContract,
     tokio::{self, sync::RwLock},
-    utils::{
-        error::RippleError,
-        sync::{AsyncRwLock, AsyncShared},
-    },
+    utils::{error::RippleError, sync::AsyncShared},
     uuid::Uuid,
 };
 use std::{collections::HashMap, future::Future, sync::Arc};
@@ -304,10 +301,6 @@ impl PlatformStateContainer {
         self.version.clone()
     }
 
-    pub fn ripple_cache(&self) -> Arc<AsyncRwLock<RippleCache>> {
-        self.ripple_cache.clone()
-    }
-
     pub fn lifecycle2_app_state(&self) -> Arc<AppManagerState2_0> {
         self.lifecycle2_app_state.clone()
     }
@@ -347,7 +340,25 @@ impl PlatformStateContainer {
         drop(guard);
         f(cloned).await
     }
+    pub async fn ripple_cache<R, F>(&self, f: F) -> R
+    where
+        F: FnOnce(&RippleCache) -> R,
+    {
+        let guard = self.ripple_cache.read().await;
+        f(&*guard)
+    }
+
+    // Mutable async access to ripple_cache
+    pub async fn ripple_cache_write<R, F>(&self, f: F) -> R
+    where
+        F: FnOnce(&mut RippleCache) -> R,
+    {
+        let mut guard = self.ripple_cache.write().await;
+        f(&mut *guard)
+    }
 }
+#[cfg(test)]
+use ripple_sdk::utils::sync::AsyncRwLock;
 
 #[cfg(test)]
 #[derive(Default)]

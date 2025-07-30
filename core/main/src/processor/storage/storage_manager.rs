@@ -25,7 +25,6 @@ use ripple_sdk::{
         firebolt::fb_capabilities::CAPABILITY_NOT_AVAILABLE,
         storage_property::{StorageProperty, StoragePropertyData},
     },
-    async_read_lock, async_write_lock,
     extn::extn_client_message::ExtnResponse,
     log::trace,
     serde_json::{json, Value},
@@ -79,7 +78,9 @@ pub struct StorageManager;
 impl StorageManager {
     pub async fn get_bool(state: PlatformState, property: StorageProperty) -> RpcResult<bool> {
         if let Some(val) = {
-            async_read_lock!(state.clone().ripple_cache).get_cached_bool_storage_property(&property)
+            state
+                .ripple_cache(|rc| rc.get_cached_bool_storage_property(&property))
+                .await
         } {
             return Ok(val);
         }
@@ -93,8 +94,11 @@ impl StorageManager {
         {
             Ok(StorageManagerResponse::Ok(value)) | Ok(StorageManagerResponse::NoChange(value)) => {
                 Ok({
-                    async_write_lock!(state.clone().ripple_cache)
-                        .update_cached_bool_storage_property(&property, value);
+                    state
+                        .ripple_cache_write(|rc| {
+                            rc.update_cached_bool_storage_property(&property, value)
+                        })
+                        .await;
                     value
                 })
             }
@@ -112,8 +116,9 @@ impl StorageManager {
         let data = property.as_data();
         trace!("Storage property: {:?} as data: {:?}", property, data);
 
-        if let Some(val) =
-            async_read_lock!(state.clone().ripple_cache).get_cached_bool_storage_property(&property)
+        if let Some(val) = state
+            .ripple_cache(|rc| rc.get_cached_bool_storage_property(&property))
+            .await
         {
             if val == value {
                 return Ok(());
@@ -131,8 +136,11 @@ impl StorageManager {
         .await
         {
             Ok(StorageManagerResponse::Ok(_)) | Ok(StorageManagerResponse::NoChange(_)) => {
-                async_write_lock!(state.clone().ripple_cache)
-                    .update_cached_bool_storage_property(&property, value);
+                state
+                    .ripple_cache_write(|rc| {
+                        rc.update_cached_bool_storage_property(&property, value)
+                    })
+                    .await;
                 Ok(())
             }
             Ok(StorageManagerResponse::Default(_)) => Ok(()),
