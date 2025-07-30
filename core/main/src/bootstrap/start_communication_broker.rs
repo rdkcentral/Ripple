@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use ripple_sdk::async_write_lock;
 use ripple_sdk::{
     async_trait::async_trait, framework::bootstrap::Bootstep, utils::error::RippleError,
 };
@@ -48,9 +47,15 @@ impl Bootstep<BootstrapState> for StartCommunicationBroker {
         // Setup the endpoints from the manifests
         let ps_arc = ps.clone();
 
-        let mut endpoint_state = async_write_lock!(ps_arc.endpoint_state);
-        endpoint_state.build_thunder_endpoint(Some(state.platform_state.clone()));
-        drop(endpoint_state);
+        //let mut endpoint_state = async_write_lock!(ps_arc.endpoint_state);
+        let ps_f = ps.clone();
+        ps_arc
+            .endpoint_state_write(|mut es| async move {
+                es.build_thunder_endpoint(Some(ps_f));
+            })
+            .await;
+        //endpoint_state.build_thunder_endpoint(Some(state.platform_state.clone()));
+        //drop(endpoint_state);
 
         Ok(())
     }
@@ -72,8 +77,13 @@ impl Bootstep<BootstrapState> for StartOtherBrokers {
         }
         // Setup the endpoints from the manifests
         let ps_arc = ps.clone();
-        let mut endpoint_state = async_write_lock!(ps_arc.endpoint_state);
-        endpoint_state.build_other_endpoints(ps.clone(), ps.session_state.get_account_session());
+        let ps_f = ps.clone();
+        ps_arc
+            .endpoint_state_sync_write(|es| {
+                es.build_other_endpoints(ps_f.clone(), ps_f.session_state.get_account_session())
+            })
+            .await;
+
         Ok(())
     }
 }

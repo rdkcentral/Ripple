@@ -42,7 +42,6 @@ use ripple_sdk::{
         },
         gateway::rpc_gateway_api::{AppIdentification, CallerSession},
     },
-    async_read_lock,
     log::{debug, error, warn},
     serde_json::{self},
     sync_read_lock, sync_write_lock,
@@ -828,10 +827,10 @@ impl DelegatedLauncherHandler {
         app_manager_response: Result<AppManagerResponse, AppError>,
     ) {
         if let AppMethod::BrowserSession(_) = method {
-            let endpoint_state = platform_state.clone();
-            let endpoint_state = endpoint_state.endpoint_state.clone();
-            let endpoint_state = async_read_lock!(endpoint_state);
-            if endpoint_state.has_rule("ripple.reportSessionUpdate") {
+            if platform_state
+                .endpoint_state_sync(|es| es.has_rule("ripple.reportSessionUpdate"))
+                .await
+            {
                 if let Ok(AppManagerResponse::Session(a)) = app_manager_response {
                     let params = serde_json::to_value(a).unwrap();
                     if BrokerUtils::process_internal_main_request(
@@ -847,13 +846,17 @@ impl DelegatedLauncherHandler {
                 }
             }
         }
-        let rules = platform_state.clone();
-        let rules = rules.endpoint_state.clone();
-        if rules
-            .read()
+        //let rules = platform_state.clone();
+        //let rules = rules.endpoint_state.clone();
+        if platform_state
+            .endpoint_state_sync(|es| es.has_rule("ripple.reportLifecycleStateChange"))
             .await
-            .has_rule("ripple.reportLifecycleStateChange")
         {
+            // if rules
+            //     .read()
+            //     .await
+            //     .has_rule("ripple.reportLifecycleStateChange")
+            // {
             let previous_state = platform_state
                 .clone()
                 .app_manager_state

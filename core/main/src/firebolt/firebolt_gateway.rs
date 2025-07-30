@@ -30,7 +30,6 @@ use ripple_sdk::{
         },
         observability::{log_signal::LogSignal, metrics_util::ApiStats},
     },
-    async_read_lock,
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
     log::{debug, error, info, trace, warn},
@@ -147,9 +146,12 @@ impl FireboltGateway {
                     .await;
                     {
                         let platform_state = self.state.platform_state.clone();
-                        async_read_lock!(platform_state.endpoint_state)
-                            .cleanup_for_app(&cid)
+                        let cid_f = cid.clone();
+
+                        platform_state
+                            .endpoint_state(|es| async move { es.cleanup_for_app(&cid_f).await })
                             .await;
+
                         platform_state.session_state.clear_session(&cid);
                     }
                 }
@@ -239,7 +241,11 @@ impl FireboltGateway {
     }
 
     pub async fn handle_response(&self, response: JsonRpcApiResponse) {
-        async_read_lock!(self.state.platform_state.endpoint_state).handle_broker_response(response);
+        self.state
+            .platform_state
+            .clone()
+            .endpoint_state_sync(|es| es.handle_broker_response(response))
+            .await
     }
 
     pub async fn handle(&self, request: RpcRequest, extn_msg: Option<ExtnMessage>) {
@@ -348,21 +354,21 @@ impl FireboltGateway {
                         Self::handle_broker_callback(platform_state.clone(), request_c.clone());
 
                     let handled = {
-                        let broker_endpoint = {
-                            let es_arc = platform_state.clone();
-                            let es_arc = es_arc.endpoint_state.clone();
-                            let es_arc = async_read_lock!(es_arc);
-                            es_arc.clone()
-                        };
-                        broker_endpoint
-                            .handle_brokerage(
-                                request_c.clone(),
-                                extn_msg.clone(),
-                                None,
-                                p,
-                                session.clone(),
-                                vec![requestor_callback_tx],
-                            )
+                        let request_f = request.clone();
+                        let session_c = session.clone();
+                        let extn_c = extn_msg.clone();
+                        platform_state
+                            .endpoint_state(|es| async move {
+                                es.handle_brokerage(
+                                    request_f,
+                                    extn_c,
+                                    None,
+                                    p,
+                                    session_c,
+                                    vec![requestor_callback_tx],
+                                )
+                                .await
+                            })
                             .await
                     };
 

@@ -68,7 +68,7 @@ impl Default for RippleClient {
 
         Self {
             client: Arc::new(RwLock::new(ExtnClient::mock())),
-            gateway_sender: mock_sender!(FireboltGatewayCommand),
+            gateway_sender: mock_sender!(FireboltGatewayCommand).into(),
             app_mgr_sender: mock_sender!(AppRequest),
             broker_sender: mock_sender!(BrokerOutput),
         }

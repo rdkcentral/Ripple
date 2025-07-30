@@ -39,7 +39,7 @@ use ripple_sdk::{
     },
     uuid::Uuid,
 };
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, future::Future, sync::Arc};
 
 use crate::{
     broker::{endpoint_broker::EndpointBrokerState, rules::rules_engine::RuleEngine},
@@ -108,11 +108,11 @@ pub struct PlatformStateContainer {
     pub app_manager_state: Arc<AppManagerState>,
     pub open_rpc_state: Arc<OpenRpcState>,
     pub router_state: Arc<RouterState>,
-    pub metrics: Arc<RwLock<OpMetricState>>,
+    pub metrics: AsyncShared<OpMetricState>,
     pub device_session_id: DeviceSessionIdentifier,
-    pub ripple_cache: Arc<AsyncRwLock<RippleCache>>,
+    pub ripple_cache: AsyncShared<RippleCache>,
     pub version: Option<String>,
-    pub endpoint_state: AsyncShared<EndpointBrokerState>,
+    endpoint_state: AsyncShared<EndpointBrokerState>,
     pub lifecycle2_app_state: Arc<AppManagerState2_0>,
 }
 
@@ -243,6 +243,109 @@ impl PlatformStateContainer {
             .get_extn_client()
             .main_internal_request(rpc_request.to_owned())
             .await
+    }
+
+    /*
+    accessors to attempt to jail access
+     */
+    pub fn extn_manifest(&self) -> Arc<ExtnManifest> {
+        self.extn_manifest.clone()
+    }
+
+    pub fn device_manifest(&self) -> Arc<DeviceManifest> {
+        self.device_manifest.clone()
+    }
+
+    pub fn ripple_client(&self) -> Arc<RippleClient> {
+        self.ripple_client.clone()
+    }
+
+    pub fn app_library_state(&self) -> Arc<AppLibraryState> {
+        self.app_library_state.clone()
+    }
+
+    pub fn session_state(&self) -> Arc<SessionState> {
+        self.session_state.clone()
+    }
+
+    pub fn cap_state(&self) -> Arc<CapState> {
+        self.cap_state.clone()
+    }
+
+    pub fn app_events_state(&self) -> Arc<AppEventsState> {
+        self.app_events_state.clone()
+    }
+
+    pub fn provider_broker_state(&self) -> Arc<ProviderBrokerState> {
+        self.provider_broker_state.clone()
+    }
+
+    pub fn app_manager_state(&self) -> Arc<AppManagerState> {
+        self.app_manager_state.clone()
+    }
+
+    pub fn open_rpc_state(&self) -> Arc<OpenRpcState> {
+        self.open_rpc_state.clone()
+    }
+
+    pub fn router_state(&self) -> Arc<RouterState> {
+        self.router_state.clone()
+    }
+
+    pub fn metrics(&self) -> Arc<RwLock<OpMetricState>> {
+        self.metrics.clone()
+    }
+
+    pub fn device_session_id(&self) -> &DeviceSessionIdentifier {
+        &self.device_session_id
+    }
+
+    pub fn version(&self) -> Option<String> {
+        self.version.clone()
+    }
+
+    pub fn ripple_cache(&self) -> Arc<AsyncRwLock<RippleCache>> {
+        self.ripple_cache.clone()
+    }
+
+    pub fn lifecycle2_app_state(&self) -> Arc<AppManagerState2_0> {
+        self.lifecycle2_app_state.clone()
+    }
+
+    pub async fn endpoint_state<R, F, Fut>(&self, f: F) -> R
+    where
+        F: FnOnce(EndpointBrokerState) -> Fut,
+        Fut: std::future::Future<Output = R>,
+    {
+        let guard = self.endpoint_state.read().await;
+        let cloned = guard.clone(); // ✅ requires Clone
+        drop(guard); // ✅ release lock before `.await`
+        f(cloned).await
+    }
+    /// For sync usage (new version)
+    pub async fn endpoint_state_sync<R, F>(&self, f: F) -> R
+    where
+        F: FnOnce(&EndpointBrokerState) -> R,
+    {
+        let guard = self.endpoint_state.read().await; // sync read
+        f(&guard)
+    }
+    pub async fn endpoint_state_sync_write<R, F>(&self, f: F) -> R
+    where
+        F: FnOnce(&mut EndpointBrokerState) -> R,
+    {
+        let mut guard = self.endpoint_state.write().await;
+        f(&mut guard)
+    }
+    pub async fn endpoint_state_write<R, F, Fut>(&self, f: F) -> R
+    where
+        F: FnOnce(EndpointBrokerState) -> Fut, // take ownership
+        Fut: Future<Output = R>,
+    {
+        let guard = self.endpoint_state.write().await;
+        let cloned = guard.clone();
+        drop(guard);
+        f(cloned).await
     }
 }
 

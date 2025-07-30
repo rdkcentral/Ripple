@@ -22,8 +22,7 @@ use std::{
 
 use ripple_sdk::{
     api::observability::metrics_util::ApiStats,
-    async_read, async_read_async, async_read_lock, async_write, async_write_async,
-    async_write_lock, async_write_unlock,
+    async_read, async_read_async, async_write, async_write_async,
     chrono::{DateTime, Utc},
     log::{error, warn},
     tokio::sync::RwLock,
@@ -66,7 +65,7 @@ impl OpMetricState {
 
     pub async fn update_session_id(&self, value: Option<String>) {
         async_write!(self.device_session_id, |device_session_id| {
-            device_session_id.insert(value.unwrap_or_default());
+            let _ = device_session_id.insert(value.unwrap_or_default());
         });
     }
 

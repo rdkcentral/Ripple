@@ -27,7 +27,6 @@ use ripple_sdk::{
         observability::log_signal::LogSignal,
         session::AccountSession,
     },
-    async_read_lock, async_write_lock,
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
     log::{debug, error, info, trace},
@@ -1248,8 +1247,9 @@ impl BrokerOutputForwarder {
                 };
 
                 if let Some(id) = id {
-                    if let Ok(broker_request) =
-                        async_read_lock!(platform_state.clone().endpoint_state).get_request(id)
+                    if let Ok(broker_request) = platform_state
+                        .endpoint_state_sync(|es| es.get_request(id))
+                        .await
                     {
                         LogSignal::new(
                             "start_forwarder".to_string(),
@@ -1386,10 +1386,10 @@ impl BrokerOutputForwarder {
                                     "listening" : rpc_request.is_listening(),
                                     "event" : rpc_request.ctx.method
                                 }));
-                                {
-                                    async_write_lock!(platform_state.clone().endpoint_state)
-                                        .update_unsubscribe_request(id);
-                                }
+
+                                platform_state
+                                    .endpoint_state_sync(|es| es.update_unsubscribe_request(id))
+                                    .await;
                             } else {
                                 apply_response_needed = true;
                             }
@@ -1500,9 +1500,9 @@ impl BrokerOutputForwarder {
 
                             // Step 3: Handle Non Extension
                             if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
-                                if let Ok(extn_message) =
-                                    async_read_lock!(platform_state.clone().endpoint_state)
-                                        .get_extn_message(id, is_event)
+                                if let Ok(extn_message) = platform_state
+                                    .endpoint_state_sync(|es| es.get_extn_message(id, is_event))
+                                    .await
                                 {
                                     let client = platform_state.get_client().get_extn_client();
                                     if is_event {

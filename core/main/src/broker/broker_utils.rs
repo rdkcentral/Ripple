@@ -17,10 +17,7 @@
 
 use crate::state::{ops_metrics_state::OpsMetrics, platform_state::PlatformState};
 use jsonrpsee::core::RpcResult;
-use ripple_sdk::{
-    api::gateway::rpc_gateway_api::{CallContext, JsonRpcApiError, RpcRequest},
-    async_read_lock,
-};
+use ripple_sdk::api::gateway::rpc_gateway_api::{CallContext, JsonRpcApiError, RpcRequest};
 use serde_json::Value;
 
 use super::endpoint_broker::BrokerCallback;
@@ -86,10 +83,12 @@ impl BrokerUtils {
         if let Some(app_id) = app_id {
             rpc_request.ctx.app_id = app_id.to_owned();
         }
-        {
-            async_read_lock!(state.endpoint_state)
-                .handle_brokerage(rpc_request, None, callback, Vec::new(), None, Vec::new())
-                .await
-        }
+
+        state
+            .endpoint_state(|es| async move {
+                es.handle_brokerage(rpc_request, None, callback, Vec::new(), None, Vec::new())
+                    .await
+            })
+            .await
     }
 }
