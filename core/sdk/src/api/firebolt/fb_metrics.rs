@@ -805,7 +805,7 @@ impl MetricsContext {
             mac_address: String::from(""),
             serial_number: String::from(""),
             account_id: None,
-            platform: String::from("entos:rdk"),
+            platform: String::from("entos-rdk"),
             os_name: String::from(""),
             os_ver: String::from(""),
             device_session_id: String::from(""),

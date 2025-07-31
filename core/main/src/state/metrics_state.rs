@@ -338,7 +338,7 @@ impl MetricsState {
         let primary_provider =
             Self::get_persistent_store_string(state, PERSISTENT_STORAGE_KEY_PRIMARY_PROVIDER).await;
 
-        let platform = proposition.clone();
+        let platform = "entos-rdk".to_string(); // Hardcoded for now, as per the original code
 
         let coam = Self::get_persistent_store_bool(state, PERSISTENT_STORAGE_KEY_COAM).await;
 
