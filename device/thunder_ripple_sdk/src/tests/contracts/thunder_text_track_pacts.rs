@@ -769,7 +769,7 @@ async fn test_text_track_set_background_opacity() {
                         "id": "matching(integer, 16)",
                         "method": "org.rdk.TextTrack.setBackgroundOpacity",
                         "params": {
-                            "backgroundOpacity": "matching(type, 1)"
+                            "backgroundOpacity": "matching(integer, 1)"
                         }
                     },
                     "requestMetadata": {
