@@ -703,6 +703,8 @@ impl EndpointBrokerState {
     }
 
     fn build_endpoint(&mut self, ps: Option<PlatformState>, request: BrokerConnectRequest) {
+        ripple_sdk::utils::test_utils::log_memory_usage("Before-build_endpoint");
+
         let endpoint = request.endpoint.clone();
         let key = request.key.clone();
         let (broker, cleaner) = match endpoint.protocol {
@@ -742,6 +744,7 @@ impl EndpointBrokerState {
             let mut cleaner_list = self.cleaner_list.write().unwrap();
             cleaner_list.push(cleaner);
         }
+        ripple_sdk::utils::test_utils::log_memory_usage("After-build_endpoint");
     }
 
     fn handle_static_request(&self, rpc_request: RpcRequest) -> JsonRpcApiResponse {

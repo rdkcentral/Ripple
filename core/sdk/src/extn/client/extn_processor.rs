@@ -193,6 +193,7 @@ pub trait ExtnRequestProcessor: ExtnStreamProcessor + Send + Sync + 'static {
     }
 
     fn check_prerequisties(prereq: &Prerequisites, _client: &ExtnClient) -> bool {
+        println!("Checking prerequisites: {:?}", prereq);
         match (prereq.need_internet, false) {
             (true, true) | (false, _) => true,
             (true, false) => false,

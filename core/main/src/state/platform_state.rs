@@ -91,8 +91,12 @@ impl From<String> for DeviceSessionIdentifier {
         }
     }
 }
+use std::sync::atomic::{AtomicUsize, Ordering};
 
-#[derive(Debug, Clone)]
+static PLATFORM_STATE_CLONE_COUNT: AtomicUsize = AtomicUsize::new(0);
+static PLATFORM_STATE_DROP_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+#[derive(Debug)]
 pub struct PlatformState {
     pub extn_manifest: ExtnManifest,
     device_manifest: DeviceManifest,
@@ -224,6 +228,51 @@ impl PlatformState {
             .get_extn_client()
             .main_internal_request(rpc_request.to_owned())
             .await
+    }
+}
+
+impl Clone for PlatformState {
+    fn clone(&self) -> Self {
+        let count = PLATFORM_STATE_CLONE_COUNT.fetch_add(1, Ordering::SeqCst) + 1;
+        let drop_count = PLATFORM_STATE_DROP_COUNT.load(Ordering::SeqCst);
+        let outstanding = count.saturating_sub(drop_count);
+        let size = std::mem::size_of::<PlatformState>();
+        println!(
+            "PlatformState cloned. Stack size: {} bytes. Total clones: {}. Outstanding: {}",
+            size, count, outstanding
+        );
+        Self {
+            extn_manifest: self.extn_manifest.clone(),
+            device_manifest: self.device_manifest.clone(),
+            ripple_client: self.ripple_client.clone(),
+            app_library_state: self.app_library_state.clone(),
+            session_state: self.session_state.clone(),
+            cap_state: self.cap_state.clone(),
+            app_events_state: self.app_events_state.clone(),
+            provider_broker_state: self.provider_broker_state.clone(),
+            app_manager_state: self.app_manager_state.clone(),
+            open_rpc_state: self.open_rpc_state.clone(),
+            router_state: self.router_state.clone(),
+            metrics: self.metrics.clone(),
+            device_session_id: self.device_session_id.clone(),
+            ripple_cache: self.ripple_cache.clone(),
+            version: self.version.clone(),
+            endpoint_state: self.endpoint_state.clone(),
+            lifecycle2_app_state: self.lifecycle2_app_state.clone(),
+            service_controller_state: self.service_controller_state.clone(),
+        }
+    }
+}
+
+impl Drop for PlatformState {
+    fn drop(&mut self) {
+        let drop_count = PLATFORM_STATE_DROP_COUNT.fetch_add(1, Ordering::SeqCst) + 1;
+        let clone_count = PLATFORM_STATE_CLONE_COUNT.load(Ordering::SeqCst);
+        let outstanding = clone_count.saturating_sub(drop_count);
+        println!(
+            "PlatformState dropped. Total drops: {}. Outstanding: {}",
+            drop_count, outstanding
+        );
     }
 }
 
