@@ -95,10 +95,10 @@ async fn test_device_set_presentation_language() {
                     "pact:content-type": "application/json",
                     "request": {
                         "jsonrpc": "matching(type, '2.0')",
-                        "id": "matching(integer, 0)",
+                        "id": "matching(integer, 42)",
                         "method": "org.rdk.UserSettings.setPresentationLanguage",
                         "params": {
-                            "language": "matching(type, 'en-US')"
+                            "presentationLanguage": "matching(type, 'en-US')"
                         }
                     },
                     "requestMetadata": {
@@ -106,8 +106,8 @@ async fn test_device_set_presentation_language() {
                     },
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
-                        "id": "matching(integer, 0)",
-                        "result": "matching(type, 'success')"
+                        "id": "matching(integer, 42)",
+                        "result": null
                     }]
                 }))
                 .await;
@@ -128,10 +128,10 @@ async fn test_device_set_presentation_language() {
             .to_string(),
         json!({
             "jsonrpc": "2.0",
-            "id": 0,
+            "id": 42,
             "method": "org.rdk.UserSettings.setPresentationLanguage",
             "params": {
-                "language": "en-US"
+                "presentationLanguage": "en-US"
             }
         })
     )
@@ -200,7 +200,7 @@ async fn test_device_set_preferred_audio_languages() {
                     "pact:content-type": "application/json",
                     "request": {
                         "jsonrpc": "matching(type, '2.0')",
-                        "id": "matching(integer, 0)",
+                        "id": "matching(integer, 42)",
                         "method": "org.rdk.UserSettings.setPreferredAudioLanguages",
                         "params": {
                             "languages": "matching(type, 'eng')"
@@ -211,8 +211,8 @@ async fn test_device_set_preferred_audio_languages() {
                     },
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
-                        "id": "matching(integer, 0)",
-                        "result": "matching(type, 'success')"
+                        "id": "matching(integer, 42)",
+                        "result": null
                     }]
                 }))
                 .await;
@@ -233,7 +233,7 @@ async fn test_device_set_preferred_audio_languages() {
             .to_string(),
         json!({
             "jsonrpc": "2.0",
-            "id": 0,
+            "id": 42,
             "method": "org.rdk.UserSettings.setPreferredAudioLanguages",
             "params": {
                 "languages": "eng"
@@ -256,7 +256,7 @@ async fn test_device_set_voice_guidance() {
                     "pact:content-type": "application/json",
                     "request": {
                         "jsonrpc": "matching(type, '2.0')",
-                        "id": "matching(integer, 0)",
+                        "id": "matching(integer, 42)",
                         "method": "org.rdk.UserSettings.setVoiceGuidance",
                         "params": {
                             "enabled": "matching(type, true)"
@@ -267,8 +267,8 @@ async fn test_device_set_voice_guidance() {
                     },
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
-                        "id": "matching(integer, 0)",
-                        "result": "matching(type, 'success')"
+                        "id": "matching(integer, 42)",
+                        "result": null
                     }]
                 }))
                 .await;
@@ -289,7 +289,7 @@ async fn test_device_set_voice_guidance() {
             .to_string(),
         json!({
             "jsonrpc": "2.0",
-            "id": 0,
+            "id": 42,
             "method": "org.rdk.UserSettings.setVoiceGuidance",
             "params": {
                 "enabled": true
@@ -312,7 +312,7 @@ async fn test_device_get_voice_guidance_rate() {
                     "pact:content-type": "application/json",
                     "request": {
                         "jsonrpc": "matching(type, '2.0')",
-                        "id": "matching(integer, 0)",
+                        "id": "matching(integer, 42)",
                         "method": "org.rdk.UserSettings.getVoiceGuidanceRate"
                     },
                     "requestMetadata": {
@@ -320,8 +320,8 @@ async fn test_device_get_voice_guidance_rate() {
                     },
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
-                        "id": "matching(integer, 0)",
-                        "result": "matching(type, '0.1')"
+                        "id": "matching(integer, 42)",
+                        "result": "matching(type, 0.1)"
                     }]
                 }))
                 .await;
@@ -342,7 +342,7 @@ async fn test_device_get_voice_guidance_rate() {
             .to_string(),
         json!({
             "jsonrpc": "2.0",
-            "id": 0,
+            "id": 42,
             "method": "org.rdk.UserSettings.getVoiceGuidanceRate"
         })
     )
@@ -362,10 +362,10 @@ async fn test_device_set_voice_guidance_rate() {
                     "pact:content-type": "application/json",
                     "request": {
                         "jsonrpc": "matching(type, '2.0')",
-                        "id": "matching(integer, 0)",
+                        "id": "matching(integer, 42)",
                         "method": "org.rdk.UserSettings.setVoiceGuidanceRate",
                         "params": {
-                            "rate": "matching(type, '0.1')"
+                            "rate": "matching(type, 0.1)"
                         }
                     },
                     "requestMetadata": {
@@ -373,8 +373,8 @@ async fn test_device_set_voice_guidance_rate() {
                     },
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
-                        "id": "matching(integer, 0)",
-                        "result": "matching(type, 'success')"
+                        "id": "matching(integer, 42)",
+                        "result": null
                     }]
                 }))
                 .await;
@@ -395,10 +395,10 @@ async fn test_device_set_voice_guidance_rate() {
             .to_string(),
         json!({
             "jsonrpc": "2.0",
-            "id": 0,
+            "id": 42,
             "method": "org.rdk.UserSettings.setVoiceGuidanceRate",
             "params": {
-                "rate": "0.1"
+                "rate": 0.1
             }
         })
     )
@@ -468,7 +468,7 @@ async fn test_device_set_audio_description() {
                     "pact:content-type": "application/json",
                     "request": {
                         "jsonrpc": "matching(type, '2.0')",
-                        "id": "matching(integer, 0)",
+                        "id": "matching(integer, 42)",
                         "method": "org.rdk.UserSettings.setAudioDescription",
                         "params": {
                             "enabled": "matching(type, true)"
@@ -479,8 +479,8 @@ async fn test_device_set_audio_description() {
                     },
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
-                        "id": "matching(integer, 0)",
-                        "result": "matching(type, 'success')"
+                        "id": "matching(integer, 42)",
+                        "result": null
                     }]
                 }))
                 .await;
@@ -501,7 +501,7 @@ async fn test_device_set_audio_description() {
             .to_string(),
         json!({
             "jsonrpc": "2.0",
-            "id": 0,
+            "id": 42,
             "method": "org.rdk.UserSettings.setAudioDescription",
             "params": {
                 "enabled": true
@@ -623,7 +623,7 @@ async fn test_device_set_captions() {
                     "pact:content-type": "application/json",
                     "request": {
                         "jsonrpc": "matching(type, '2.0')",
-                        "id": "matching(integer, 0)",
+                        "id": "matching(integer, 42)",
                         "method": "org.rdk.UserSettings.setCaptions",
                         "params": {
                             "enabled": "matching(type, true)"
@@ -634,8 +634,8 @@ async fn test_device_set_captions() {
                     },
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
-                        "id": "matching(integer, 0)",
-                        "result": "matching(type, 'success')"
+                        "id": "matching(integer, 42)",
+                        "result": null
                     }]
                 }))
                 .await;
@@ -656,7 +656,7 @@ async fn test_device_set_captions() {
             .to_string(),
         json!({
             "jsonrpc": "2.0",
-            "id": 0,
+            "id": 42,
             "method": "org.rdk.UserSettings.setCaptions",
             "params": {
                 "enabled": true
@@ -729,7 +729,7 @@ async fn test_device_set_preferred_captions_languages() {
                     "pact:content-type": "application/json",
                     "request": {
                         "jsonrpc": "matching(type, '2.0')",
-                        "id": "matching(integer, 0)",
+                        "id": "matching(integer, 42)",
                         "method": "org.rdk.UserSettings.setPreferredCaptionsLanguages",
                         "params": {
                             "languages": "matching(type, 'eng')"
@@ -740,8 +740,8 @@ async fn test_device_set_preferred_captions_languages() {
                     },
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
-                        "id": "matching(integer, 0)",
-                        "result": "matching(type, 'success')"
+                        "id": "matching(integer, 42)",
+                        "result": null
                     }]
                 }))
                 .await;
@@ -762,7 +762,7 @@ async fn test_device_set_preferred_captions_languages() {
             .to_string(),
         json!({
             "jsonrpc": "2.0",
-            "id": 0,
+            "id": 42,
             "method": "org.rdk.UserSettings.setPreferredCaptionsLanguages",
             "params": {
                 "languages": "eng"
@@ -785,7 +785,7 @@ async fn test_device_get_voice_guidance_hints() {
                     "pact:content-type": "application/json",
                     "request": {
                         "jsonrpc": "matching(type, '2.0')",
-                        "id": "matching(integer, 0)",
+                        "id": "matching(integer, 42)",
                         "method": "org.rdk.UserSettings.getVoiceGuidanceHints"
                     },
                     "requestMetadata": {
@@ -793,8 +793,8 @@ async fn test_device_get_voice_guidance_hints() {
                     },
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
-                        "id": "matching(integer, 0)",
-                        "result": "matching(type, 'enabled')"
+                        "id": "matching(integer, 42)",
+                        "result": "matching(type, true)"
                     }]
                 }))
                 .await;
@@ -815,7 +815,7 @@ async fn test_device_get_voice_guidance_hints() {
             .to_string(),
         json!({
             "jsonrpc": "2.0",
-            "id": 0,
+            "id": 42,
             "method": "org.rdk.UserSettings.getVoiceGuidanceHints"
         })
     )
@@ -835,7 +835,7 @@ async fn test_device_set_voice_guidance_hints() {
                     "pact:content-type": "application/json",
                     "request": {
                         "jsonrpc": "matching(type, '2.0')",
-                        "id": "matching(integer, 0)",
+                        "id": "matching(integer, 42)",
                         "method": "org.rdk.UserSettings.setVoiceGuidanceHints",
                         "params": {
                             "hints": "matching(type, 'enabled')"
@@ -846,8 +846,8 @@ async fn test_device_set_voice_guidance_hints() {
                     },
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
-                        "id": "matching(integer, 0)",
-                        "result": "matching(type, 'success')"
+                        "id": "matching(integer, 42)",
+                        "result": null
                     }]
                 }))
                 .await;
@@ -868,7 +868,7 @@ async fn test_device_set_voice_guidance_hints() {
             .to_string(),
         json!({
             "jsonrpc": "2.0",
-            "id": 0,
+            "id": 42,
             "method": "org.rdk.UserSettings.setVoiceGuidanceHints",
             "params": {
                 "hints": "enabled"
