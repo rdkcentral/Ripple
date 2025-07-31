@@ -42,7 +42,7 @@ use ripple_sdk::{
         tungstenite::{self, Message},
         WebSocketStream,
     },
-    utils::error::RippleError,
+    utils::{error::RippleError, test_utils::log_memory_usage},
 };
 use ripple_sdk::{
     api::{
@@ -419,6 +419,11 @@ impl FireboltWs {
                                 stats.stats_ref,
                                 stats.stats.get_total_time()
                             );
+
+                            ripple_sdk::utils::test_utils::log_memory_usage(
+                                "sent_firebolt_response",
+                            );
+
                             debug!(
                                 "Full Firebolt Split: {:?},{}",
                                 stats.stats_ref,
@@ -480,6 +485,10 @@ impl FireboltWs {
                             context,
                         ) {
                             info!("Received Firebolt request {}", request.params_json);
+                            log_memory_usage(&format!(
+                                " Received firebolt request {}",
+                                request.params_json
+                            ));
                             let msg = FireboltGatewayCommand::HandleRpc { request };
                             {
                                 let guard = client.clone();
