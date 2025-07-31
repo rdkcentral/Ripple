@@ -184,6 +184,9 @@ impl SessionState {
     }
 
     pub fn clear_pending_session(&self, app_id: &String) {
-        self.pending_sessions.write().unwrap().remove(app_id);
+        let mut sessions = self.pending_sessions.write().unwrap();
+        sessions.remove(app_id);
+        sessions.shrink_to_fit();
+        drop(sessions);
     }
 }
