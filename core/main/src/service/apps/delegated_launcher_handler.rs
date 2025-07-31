@@ -1358,6 +1358,9 @@ impl DelegatedLauncherHandler {
             if let Some(timer) = self.timer_map.remove(app_id) {
                 timer.cancel();
             }
+            self.platform_state
+                .session_state
+                .clear_pending_session(&String::from(app_id));
             if let Some(app_session) = app {
                 if let Some(session_id) = app_session.active_session_id {
                     self.platform_state.session_state.clear_session(&session_id);

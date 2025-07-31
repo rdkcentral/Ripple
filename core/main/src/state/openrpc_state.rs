@@ -172,6 +172,7 @@ impl OpenRpcState {
 
         let mut ext_rpcs = self.extended_rpc.write().unwrap();
         ext_rpcs.push(open_rpc);
+        ext_rpcs.shrink_to_fit();
     }
 
     pub fn is_app_excluded(&self, app_id: &str) -> bool {
@@ -439,11 +440,11 @@ impl OpenRpcState {
                 );
             }
         }
-
-        self.provider_relation_map
-            .write()
-            .unwrap()
-            .extend(provider_relation_sets)
+        {
+            let mut provider_relations = self.provider_relation_map.write().unwrap();
+            provider_relations.extend(provider_relation_sets);
+            provider_relations.shrink_to_fit();
+        }
     }
 
     pub fn add_json_schema_cache(&self, method: String, schema: JSONSchema) {
