@@ -359,7 +359,9 @@ impl AppManagerState {
 
     fn remove(&self, app_id: &str) -> Option<App> {
         let mut apps = self.apps.write().unwrap();
-        apps.remove(app_id)
+        let result = apps.remove(app_id);
+        apps.shrink_to_fit();
+        result
     }
     fn set_internal_state(&self, app_id: &str, method: AppMethod) {
         let mut apps = self.apps.write().unwrap();
@@ -1350,10 +1352,16 @@ impl DelegatedLauncherHandler {
 
     async fn end_session(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
         debug!("end_session: entry: app_id={}", app_id);
+        /*cleanup app manager session */
         let app = self.platform_state.app_manager_state.remove(app_id);
         if app.is_some() {
             if let Some(timer) = self.timer_map.remove(app_id) {
                 timer.cancel();
+            }
+            if let Some(app_session) = app {
+                if let Some(session_id) = app_session.active_session_id {
+                    self.platform_state.session_state.clear_session(&session_id);
+                }
             }
         } else {
             error!("end_session app_id={} Not found", app_id);

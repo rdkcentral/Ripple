@@ -144,6 +144,7 @@ impl SessionState {
     pub fn clear_session(&self, id: &str) {
         let mut session_state = self.session_map.write().unwrap();
         session_state.remove(id);
+        session_state.shrink_to_fit();
     }
 
     pub fn update_account_session(&self, provision: ProvisionRequest) {
