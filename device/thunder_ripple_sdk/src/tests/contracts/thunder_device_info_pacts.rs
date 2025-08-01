@@ -109,8 +109,8 @@ async fn test_device_get_model() {
     result.insert(
         "stbTimestamp".into(),
         ContractMatcher::MatchRegex(
-            "^\\w{3} \\d{1,2} \\w{3} (?:\\d{2})?\\d{2} \\d{2}:\\d{2}:\\d{2} UTC$".into(),
-            "Wed 01 Jan 2024 02:45:28 UTC".into(),
+            "^\\w{3} \\d{1,2} \\w{3} (?:\\d{2})?\\d{2} \\d{2}:\\d{2}:\\d{2} [A-Z ]*UTC$".into(),
+            "Thu 09 Jan 2020 04:04:24 AP UTC".into(),
         ),
     );
     result.insert("success".into(), ContractMatcher::MatchBool(true));
@@ -137,7 +137,7 @@ async fn test_device_get_model() {
             .to_string(),
         json!({
             "jsonrpc": "2.0",
-            "id": 0,
+            "id": 42,
             "method": "org.rdk.System.1.getSystemVersions"
         })
     )

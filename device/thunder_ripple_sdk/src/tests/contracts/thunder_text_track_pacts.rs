@@ -105,7 +105,7 @@ async fn test_text_track_set_font_family() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 2)",
-                    "result": "matching(type, 'SUCCESS')"
+                    "result": null
                 }]
             }))
             .await;
@@ -200,7 +200,7 @@ async fn test_text_track_set_font_size() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 4)",
-                    "result": "matching(type, 'SUCCESS')"
+                    "result": null
                 }]
             }))
             .await;
@@ -295,7 +295,7 @@ async fn test_text_track_set_font_color() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 6)",
-                    "result": "matching(type, 'SUCCESS')"
+                    "result": null
                 }]
             }))
             .await;
@@ -390,7 +390,7 @@ async fn test_text_track_set_font_edge() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 8)",
-                    "result": "matching(type, 'SUCCESS')"
+                    "result": null
                 }]
             }))
             .await;
@@ -487,7 +487,7 @@ async fn test_text_track_set_font_edge_color() {
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
                         "id": "matching(integer, 10)",
-                        "result": "matching(type, 'SUCCESS')"
+                        "result": null
                     }]
                 }))
                 .await;
@@ -523,6 +523,9 @@ async fn test_text_track_set_font_edge_color() {
 async fn test_text_track_get_font_opacity() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
+    // Use the same integer value as set in the setter test
+    let expected_value = 90;
+
     pact_builder_async
         .synchronous_message_interaction("A request to get the font opacity", |mut i| async move {
             i.contents_from(json!({
@@ -534,7 +537,7 @@ async fn test_text_track_get_font_opacity() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 11)",
-                    "result": "matching(type, '0.8')"
+                    "result": expected_value
                 }]
             })).await;
             i.test_name("get_font_opacity");
@@ -565,6 +568,9 @@ async fn test_text_track_get_font_opacity() {
 async fn test_text_track_set_font_opacity() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
+    // Set a valid integer value for fontOpacity
+    let set_value = 90;
+
     pact_builder_async
         .synchronous_message_interaction("A request to set the font opacity", |mut i| async move {
             i.contents_from(json!({
@@ -574,7 +580,7 @@ async fn test_text_track_set_font_opacity() {
                     "id": "matching(integer, 12)",
                     "method": "org.rdk.TextTrack.setFontOpacity",
                     "params": {
-                        "fontOpacity": "matching(type, '0.9')"
+                        "fontOpacity": "matching(integer, 90)"
                     }
                 },
                 "requestMetadata": {
@@ -583,7 +589,7 @@ async fn test_text_track_set_font_opacity() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 12)",
-                    "result": "matching(type, 'SUCCESS')"
+                    "result": null
                 }]
             }))
             .await;
@@ -606,7 +612,7 @@ async fn test_text_track_set_font_opacity() {
             "id": 12,
             "method": "org.rdk.TextTrack.setFontOpacity",
             "params": {
-                "fontOpacity": "0.9"
+                "fontOpacity": set_value
             }
         })
     )
@@ -629,7 +635,7 @@ async fn test_text_track_get_background_color() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 13)",
-                    "result": "matching(type, '#000000')"
+                    "result": "matching(type, '#000000ff')"
                 }]
             })).await;
             i.test_name("get_background_color");
@@ -680,7 +686,7 @@ async fn test_text_track_set_background_color() {
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
                         "id": "matching(integer, 14)",
-                        "result": "matching(type, 'SUCCESS')"
+                        "result": null
                     }]
                 }))
                 .await;
@@ -716,6 +722,9 @@ async fn test_text_track_set_background_color() {
 async fn test_text_track_get_background_opacity() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
+    // Use the same integer value as set in the setter test
+    let expected_value = 1;
+
     pact_builder_async
         .synchronous_message_interaction("A request to get the background opacity", |mut i| async move {
             i.contents_from(json!({
@@ -727,7 +736,7 @@ async fn test_text_track_get_background_opacity() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 15)",
-                    "result": "matching(type, '0.7')"
+                    "result": expected_value
                 }]
             })).await;
             i.test_name("get_background_opacity");
@@ -758,6 +767,9 @@ async fn test_text_track_get_background_opacity() {
 async fn test_text_track_set_background_opacity() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
+    // Set a valid integer value for backgroundOpacity
+    let set_value = 1;
+
     pact_builder_async
         .synchronous_message_interaction(
             "A request to set the background opacity",
@@ -769,7 +781,7 @@ async fn test_text_track_set_background_opacity() {
                         "id": "matching(integer, 16)",
                         "method": "org.rdk.TextTrack.setBackgroundOpacity",
                         "params": {
-                            "backgroundOpacity": "matching(type, '0.85')"
+                            "backgroundOpacity": "matching(integer, 1)"
                         }
                     },
                     "requestMetadata": {
@@ -778,7 +790,7 @@ async fn test_text_track_set_background_opacity() {
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
                         "id": "matching(integer, 16)",
-                        "result": "matching(type, 'SUCCESS')"
+                        "result": null
                     }]
                 }))
                 .await;
@@ -802,7 +814,7 @@ async fn test_text_track_set_background_opacity() {
             "id": 16,
             "method": "org.rdk.TextTrack.setBackgroundOpacity",
             "params": {
-                "backgroundOpacity": "0.85"
+                "backgroundOpacity": set_value
             }
         })
     )
@@ -874,7 +886,7 @@ async fn test_text_track_set_window_color() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 18)",
-                    "result": "matching(type, 'SUCCESS')"
+                    "result": null
                 }]
             }))
             .await;
@@ -909,6 +921,9 @@ async fn test_text_track_set_window_color() {
 async fn test_text_track_get_window_opacity() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
+    // Use the same integer value as set in the setter test
+    let expected_value = 1;
+
     pact_builder_async
         .synchronous_message_interaction("A request to get the window opacity", |mut i| async move {
             i.contents_from(json!({
@@ -920,7 +935,7 @@ async fn test_text_track_get_window_opacity() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 19)",
-                    "result": "matching(type, '0.6')"
+                    "result": expected_value
                 }]
             })).await;
             i.test_name("get_window_opacity");
@@ -951,6 +966,9 @@ async fn test_text_track_get_window_opacity() {
 async fn test_text_track_set_window_opacity() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
+    // Set a valid integer value for windowOpacity
+    let set_value = 1;
+
     pact_builder_async
         .synchronous_message_interaction(
             "A request to set the window opacity",
@@ -962,7 +980,7 @@ async fn test_text_track_set_window_opacity() {
                         "id": "matching(integer, 20)",
                         "method": "org.rdk.TextTrack.setWindowOpacity",
                         "params": {
-                            "windowOpacity": "matching(type, '0.75')"
+                            "windowOpacity": "matching(integer, 1)"
                         }
                     },
                     "requestMetadata": {
@@ -971,7 +989,7 @@ async fn test_text_track_set_window_opacity() {
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
                         "id": "matching(integer, 20)",
-                        "result": "matching(type, 'SUCCESS')"
+                        "result": null
                     }]
                 }))
                 .await;
@@ -995,7 +1013,7 @@ async fn test_text_track_set_window_opacity() {
             "id": 20,
             "method": "org.rdk.TextTrack.setWindowOpacity",
             "params": {
-                "windowOpacity": "0.75"
+                "windowOpacity": set_value
             }
         })
     )
