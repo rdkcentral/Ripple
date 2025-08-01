@@ -165,7 +165,12 @@ impl LifecycleImpl {
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
 
-        AppEvents::add_listener(&self.platform_state, event_name.to_string(), ctx, request);
+        AppEvents::add_listener(
+            self.platform_state.clone(),
+            event_name.to_string(),
+            ctx,
+            request,
+        );
         Ok(ListenerResponse {
             listening: listen,
             event: event_name.into(),
@@ -178,7 +183,7 @@ impl LifecycleServer for LifecycleImpl {
     async fn ready(&self, ctx: CallContext) -> RpcResult<()> {
         if ctx.is_rpc_v2() {
             if BrokerUtils::process_for_app_main_request(
-                &self.platform_state,
+                self.platform_state.clone(),
                 "lifecycle2.ready",
                 None,
                 ctx.app_id.as_str(),

@@ -62,12 +62,12 @@ struct CCEventDecorator {}
 impl AppEventDecorator for CCEventDecorator {
     async fn decorate(
         &self,
-        ps: &PlatformState,
+        ps: PlatformState,
         _ctx: &CallContext,
         _event_name: &str,
         _val_in: &Value,
     ) -> Result<Value, AppEventDecorationError> {
-        let settings = ClosedcaptionsImpl::get_cc_settings(ps).await?;
+        let settings = ClosedcaptionsImpl::get_cc_settings(ps.clone()).await?;
         Ok(serde_json::to_value(settings).unwrap_or_default())
     }
 
@@ -282,27 +282,30 @@ pub struct ClosedcaptionsImpl {
 }
 
 impl ClosedcaptionsImpl {
-    pub async fn get_cc_settings(ps: &PlatformState) -> RpcResult<ClosedCaptionsSettings> {
+    pub async fn get_cc_settings(ps: PlatformState) -> RpcResult<ClosedCaptionsSettings> {
         use ClosedcaptionsImpl as CI;
         use SP::*;
-        let enabled = ClosedcaptionsImpl::cc_enabled(ps).await?;
+        let enabled = ClosedcaptionsImpl::cc_enabled(ps.clone()).await?;
         let styles: ClosedCaptionStyle = ClosedCaptionStyle {
-            font_family: CI::get_string(ps, ClosedCaptionsFontFamily).await?,
-            font_size: CI::get_number_as_f32(ps, ClosedCaptionsFontSize).await?,
-            font_color: CI::get_string(ps, ClosedCaptionsFontColor).await?,
-            font_edge: CI::get_string(ps, ClosedCaptionsFontEdge).await?,
-            font_edge_color: CI::get_string(ps, ClosedCaptionsFontEdgeColor).await?,
-            font_opacity: CI::get_number_as_u32(ps, ClosedCaptionsFontOpacity).await?,
-            background_color: CI::get_string(ps, ClosedCaptionsBackgroundColor).await?,
-            background_opacity: CI::get_number_as_u32(ps, ClosedCaptionsBackgroundOpacity).await?,
-            window_color: CI::get_string(ps, ClosedCaptionsWindowColor).await?,
-            window_opacity: CI::get_number_as_u32(ps, ClosedCaptionsWindowOpacity).await?,
-            text_align: CI::get_string(ps, ClosedCaptionsTextAlign).await?,
-            text_align_vertical: CI::get_string(ps, ClosedCaptionsTextAlignVertical).await?,
+            font_family: CI::get_string(ps.clone(), ClosedCaptionsFontFamily).await?,
+            font_size: CI::get_number_as_f32(ps.clone(), ClosedCaptionsFontSize).await?,
+            font_color: CI::get_string(ps.clone(), ClosedCaptionsFontColor).await?,
+            font_edge: CI::get_string(ps.clone(), ClosedCaptionsFontEdge).await?,
+            font_edge_color: CI::get_string(ps.clone(), ClosedCaptionsFontEdgeColor).await?,
+            font_opacity: CI::get_number_as_u32(ps.clone(), ClosedCaptionsFontOpacity).await?,
+            background_color: CI::get_string(ps.clone(), ClosedCaptionsBackgroundColor).await?,
+            background_opacity: CI::get_number_as_u32(ps.clone(), ClosedCaptionsBackgroundOpacity)
+                .await?,
+            window_color: CI::get_string(ps.clone(), ClosedCaptionsWindowColor).await?,
+            window_opacity: CI::get_number_as_u32(ps.clone(), ClosedCaptionsWindowOpacity).await?,
+            text_align: CI::get_string(ps.clone(), ClosedCaptionsTextAlign).await?,
+            text_align_vertical: CI::get_string(ps.clone(), ClosedCaptionsTextAlignVertical)
+                .await?,
         };
-        let preferred_languages = StorageManager::get_vec_string(ps, SP::CCPreferredLanguages)
-            .await
-            .unwrap_or(Vec::new());
+        let preferred_languages =
+            StorageManager::get_vec_string(ps.clone(), SP::CCPreferredLanguages)
+                .await
+                .unwrap_or(Vec::new());
         Ok(ClosedCaptionsSettings {
             enabled,
             styles,
@@ -310,8 +313,8 @@ impl ClosedcaptionsImpl {
         })
     }
 
-    pub async fn get_string(ps: &PlatformState, property: SP) -> RpcResult<Option<String>> {
-        match StorageManager::get_string(ps, property).await {
+    pub async fn get_string(ps: PlatformState, property: SP) -> RpcResult<Option<String>> {
+        match StorageManager::get_string(ps.clone(), property).await {
             Ok(val) => Ok(Some(val)),
             Err(_err) => {
                 //err=Call(Custom { code: -50300, message: "ClosedCaptions.fontFamily is not available", data: None })
@@ -322,55 +325,55 @@ impl ClosedcaptionsImpl {
         }
     }
 
-    pub async fn get_number_as_u32(ps: &PlatformState, property: SP) -> RpcResult<Option<u32>> {
-        match StorageManager::get_number_as_u32(ps, property).await {
+    pub async fn get_number_as_u32(ps: PlatformState, property: SP) -> RpcResult<Option<u32>> {
+        match StorageManager::get_number_as_u32(ps.clone(), property).await {
             Ok(val) => Ok(Some(val)),
             _ => Ok(None),
         }
     }
 
-    pub async fn get_number_as_f32(ps: &PlatformState, property: SP) -> RpcResult<Option<f32>> {
-        match StorageManager::get_number_as_f32(ps, property).await {
+    pub async fn get_number_as_f32(ps: PlatformState, property: SP) -> RpcResult<Option<f32>> {
+        match StorageManager::get_number_as_f32(ps.clone(), property).await {
             Ok(val) => Ok(Some(val)),
             _ => Ok(None),
         }
     }
 
     pub async fn set_string(
-        ps: &PlatformState,
+        ps: PlatformState,
         property: SP,
         value: SetPropertyOpt<String>,
     ) -> RpcResult<()> {
         match value.value {
-            Some(val) => StorageManager::set_string(ps, property, val, None).await,
+            Some(val) => StorageManager::set_string(ps.clone(), property, val, None).await,
             None => StorageManager::delete_key(ps, property).await,
         }
     }
 
     pub async fn set_f32(
-        ps: &PlatformState,
+        ps: PlatformState,
         property: SP,
         request: SetPropertyOpt<f32>,
     ) -> RpcResult<()> {
         match request.value {
-            Some(val) => StorageManager::set_number_as_f32(ps, property, val, None).await,
-            None => StorageManager::delete_key(ps, property).await,
+            Some(val) => StorageManager::set_number_as_f32(ps.clone(), property, val, None).await,
+            None => StorageManager::delete_key(ps.clone(), property).await,
         }
     }
 
     pub async fn set_u32(
-        ps: &PlatformState,
+        ps: PlatformState,
         property: SP,
         request: SetPropertyOpt<u32>,
     ) -> RpcResult<()> {
         match request.value {
-            Some(val) => StorageManager::set_number_as_u32(ps, property, val, None).await,
-            None => StorageManager::delete_key(ps, property).await,
+            Some(val) => StorageManager::set_number_as_u32(ps.clone(), property, val, None).await,
+            None => StorageManager::delete_key(ps.clone(), property).await,
         }
     }
 
     pub async fn set_opacity(
-        ps: &PlatformState,
+        ps: PlatformState,
         property: SP,
         request: SetPropertyOpt<u32>,
     ) -> RpcResult<()> {
@@ -382,7 +385,7 @@ impl ClosedcaptionsImpl {
             }
         }
 
-        ClosedcaptionsImpl::set_u32(ps, property, request).await
+        ClosedcaptionsImpl::set_u32(ps.clone(), property, request).await
     }
 
     fn is_font_family_supported(value: Option<String>) -> bool {
@@ -399,9 +402,9 @@ impl ClosedcaptionsImpl {
         }
     }
 
-    pub async fn cc_enabled(state: &PlatformState) -> RpcResult<bool> {
+    pub async fn cc_enabled(state: PlatformState) -> RpcResult<bool> {
         match BrokerUtils::process_internal_main_request(
-            &state.clone(),
+            state.clone(),
             "closedcaptions.enabled",
             None,
         )
@@ -432,7 +435,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         rpc_add_event_listener_with_decorator(
-            &self.state,
+            self.state.clone(),
             ctx,
             request,
             EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED,
@@ -442,7 +445,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
     }
 
     async fn font_family(&self, _ctx: CallContext) -> RpcResult<Option<String>> {
-        ClosedcaptionsImpl::get_string(&self.state, SP::ClosedCaptionsFontFamily).await
+        ClosedcaptionsImpl::get_string(self.state.clone(), SP::ClosedCaptionsFontFamily).await
     }
 
     async fn font_family_set(
@@ -454,7 +457,12 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
          * Not implemented as a custom serde because this is not a custom datatype.
          */
         if ClosedcaptionsImpl::is_font_family_supported(request.value.clone()) {
-            ClosedcaptionsImpl::set_string(&self.state, SP::ClosedCaptionsFontFamily, request).await
+            ClosedcaptionsImpl::set_string(
+                self.state.clone(),
+                SP::ClosedCaptionsFontFamily,
+                request,
+            )
+            .await
         } else {
             Err(jsonrpsee::core::Error::Custom(
                 "Font family not supported".to_owned(),
@@ -467,11 +475,17 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(&self.state, ctx, request, EVENT_CLOSED_CAPTIONS_FONT_FAMILY).await
+        rpc_add_event_listener(
+            self.state.clone(),
+            ctx,
+            request,
+            EVENT_CLOSED_CAPTIONS_FONT_FAMILY,
+        )
+        .await
     }
 
     async fn font_size(&self, _ctx: CallContext) -> RpcResult<Option<f32>> {
-        ClosedcaptionsImpl::get_number_as_f32(&self.state, SP::ClosedCaptionsFontSize).await
+        ClosedcaptionsImpl::get_number_as_f32(self.state.clone(), SP::ClosedCaptionsFontSize).await
     }
 
     async fn font_size_set(
@@ -487,7 +501,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
             }
         }
 
-        ClosedcaptionsImpl::set_f32(&self.state, SP::ClosedCaptionsFontSize, request).await
+        ClosedcaptionsImpl::set_f32(self.state.clone(), SP::ClosedCaptionsFontSize, request).await
     }
 
     async fn font_size_changed(
@@ -495,11 +509,17 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(&self.state, ctx, request, EVENT_CLOSED_CAPTIONS_FONT_SIZE).await
+        rpc_add_event_listener(
+            self.state.clone(),
+            ctx,
+            request,
+            EVENT_CLOSED_CAPTIONS_FONT_SIZE,
+        )
+        .await
     }
 
     async fn font_color(&self, _ctx: CallContext) -> RpcResult<Option<String>> {
-        ClosedcaptionsImpl::get_string(&self.state, SP::ClosedCaptionsFontColor).await
+        ClosedcaptionsImpl::get_string(self.state.clone(), SP::ClosedCaptionsFontColor).await
     }
 
     async fn font_color_set(
@@ -507,7 +527,8 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         _ctx: CallContext,
         request: SetPropertyOpt<String>,
     ) -> RpcResult<()> {
-        ClosedcaptionsImpl::set_string(&self.state, SP::ClosedCaptionsFontColor, request).await
+        ClosedcaptionsImpl::set_string(self.state.clone(), SP::ClosedCaptionsFontColor, request)
+            .await
     }
 
     async fn font_color_changed(
@@ -515,11 +536,17 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(&self.state, ctx, request, EVENT_CLOSED_CAPTIONS_FONT_COLOR).await
+        rpc_add_event_listener(
+            self.state.clone(),
+            ctx,
+            request,
+            EVENT_CLOSED_CAPTIONS_FONT_COLOR,
+        )
+        .await
     }
 
     async fn font_edge(&self, _ctx: CallContext) -> RpcResult<Option<String>> {
-        ClosedcaptionsImpl::get_string(&self.state, SP::ClosedCaptionsFontEdge).await
+        ClosedcaptionsImpl::get_string(self.state.clone(), SP::ClosedCaptionsFontEdge).await
     }
 
     async fn font_edge_set(
@@ -528,7 +555,8 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         request: SetPropertyOpt<String>,
     ) -> RpcResult<()> {
         if ClosedcaptionsImpl::is_font_edge_supported(request.value.clone()) {
-            ClosedcaptionsImpl::set_string(&self.state, SP::ClosedCaptionsFontEdge, request).await
+            ClosedcaptionsImpl::set_string(self.state.clone(), SP::ClosedCaptionsFontEdge, request)
+                .await
         } else {
             Err(jsonrpsee::core::Error::Custom(
                 "Font edge not supported".to_owned(),
@@ -541,11 +569,17 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(&self.state, ctx, request, EVENT_CLOSED_CAPTIONS_FONT_EDGE).await
+        rpc_add_event_listener(
+            self.state.clone(),
+            ctx,
+            request,
+            EVENT_CLOSED_CAPTIONS_FONT_EDGE,
+        )
+        .await
     }
 
     async fn font_edge_color(&self, _ctx: CallContext) -> RpcResult<Option<String>> {
-        ClosedcaptionsImpl::get_string(&self.state, SP::ClosedCaptionsFontEdgeColor).await
+        ClosedcaptionsImpl::get_string(self.state.clone(), SP::ClosedCaptionsFontEdgeColor).await
     }
 
     async fn font_edge_color_set(
@@ -553,7 +587,8 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         _ctx: CallContext,
         request: SetPropertyOpt<String>,
     ) -> RpcResult<()> {
-        ClosedcaptionsImpl::set_string(&self.state, SP::ClosedCaptionsFontEdgeColor, request).await
+        ClosedcaptionsImpl::set_string(self.state.clone(), SP::ClosedCaptionsFontEdgeColor, request)
+            .await
     }
 
     async fn font_edge_color_changed(
@@ -562,7 +597,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         rpc_add_event_listener(
-            &self.state,
+            self.state.clone(),
             ctx,
             request,
             EVENT_CLOSED_CAPTIONS_FONT_EDGE_COLOR,
@@ -571,7 +606,8 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
     }
 
     async fn font_opacity(&self, _ctx: CallContext) -> RpcResult<Option<u32>> {
-        ClosedcaptionsImpl::get_number_as_u32(&self.state, SP::ClosedCaptionsFontOpacity).await
+        ClosedcaptionsImpl::get_number_as_u32(self.state.clone(), SP::ClosedCaptionsFontOpacity)
+            .await
     }
 
     async fn font_opacity_set(
@@ -579,7 +615,8 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         _ctx: CallContext,
         request: SetPropertyOpt<u32>,
     ) -> RpcResult<()> {
-        ClosedcaptionsImpl::set_opacity(&self.state, SP::ClosedCaptionsFontOpacity, request).await
+        ClosedcaptionsImpl::set_opacity(self.state.clone(), SP::ClosedCaptionsFontOpacity, request)
+            .await
     }
 
     async fn font_opacity_changed(
@@ -588,7 +625,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         rpc_add_event_listener(
-            &self.state,
+            self.state.clone(),
             ctx,
             request,
             EVENT_CLOSED_CAPTIONS_FONT_OPACITY,
@@ -597,7 +634,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
     }
 
     async fn background_color(&self, _ctx: CallContext) -> RpcResult<Option<String>> {
-        ClosedcaptionsImpl::get_string(&self.state, SP::ClosedCaptionsBackgroundColor).await
+        ClosedcaptionsImpl::get_string(self.state.clone(), SP::ClosedCaptionsBackgroundColor).await
     }
 
     async fn background_color_set(
@@ -605,8 +642,12 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         _ctx: CallContext,
         request: SetPropertyOpt<String>,
     ) -> RpcResult<()> {
-        ClosedcaptionsImpl::set_string(&self.state, SP::ClosedCaptionsBackgroundColor, request)
-            .await
+        ClosedcaptionsImpl::set_string(
+            self.state.clone(),
+            SP::ClosedCaptionsBackgroundColor,
+            request,
+        )
+        .await
     }
 
     async fn background_color_changed(
@@ -615,7 +656,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         rpc_add_event_listener(
-            &self.state,
+            self.state.clone(),
             ctx,
             request,
             EVENT_CLOSED_CAPTIONS_BACKGROUND_COLOR,
@@ -624,8 +665,11 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
     }
 
     async fn background_opacity(&self, _ctx: CallContext) -> RpcResult<Option<u32>> {
-        ClosedcaptionsImpl::get_number_as_u32(&self.state, SP::ClosedCaptionsBackgroundOpacity)
-            .await
+        ClosedcaptionsImpl::get_number_as_u32(
+            self.state.clone(),
+            SP::ClosedCaptionsBackgroundOpacity,
+        )
+        .await
     }
 
     async fn background_opacity_set(
@@ -633,8 +677,12 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         _ctx: CallContext,
         request: SetPropertyOpt<u32>,
     ) -> RpcResult<()> {
-        ClosedcaptionsImpl::set_opacity(&self.state, SP::ClosedCaptionsBackgroundOpacity, request)
-            .await
+        ClosedcaptionsImpl::set_opacity(
+            self.state.clone(),
+            SP::ClosedCaptionsBackgroundOpacity,
+            request,
+        )
+        .await
     }
 
     async fn background_opacity_changed(
@@ -643,7 +691,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         rpc_add_event_listener(
-            &self.state,
+            self.state.clone(),
             ctx,
             request,
             EVENT_CLOSED_CAPTIONS_BACKGROUND_OPACITY,
@@ -652,7 +700,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
     }
 
     async fn window_color(&self, _ctx: CallContext) -> RpcResult<Option<String>> {
-        ClosedcaptionsImpl::get_string(&self.state, SP::ClosedCaptionsWindowColor).await
+        ClosedcaptionsImpl::get_string(self.state.clone(), SP::ClosedCaptionsWindowColor).await
     }
 
     async fn window_color_set(
@@ -660,7 +708,8 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         _ctx: CallContext,
         request: SetPropertyOpt<String>,
     ) -> RpcResult<()> {
-        ClosedcaptionsImpl::set_string(&self.state, SP::ClosedCaptionsWindowColor, request).await
+        ClosedcaptionsImpl::set_string(self.state.clone(), SP::ClosedCaptionsWindowColor, request)
+            .await
     }
 
     async fn window_color_changed(
@@ -669,7 +718,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         rpc_add_event_listener(
-            &self.state,
+            self.state.clone(),
             ctx,
             request,
             EVENT_CLOSED_CAPTIONS_WINDOW_COLOR,
@@ -678,7 +727,8 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
     }
 
     async fn window_opacity(&self, _ctx: CallContext) -> RpcResult<Option<u32>> {
-        ClosedcaptionsImpl::get_number_as_u32(&self.state, SP::ClosedCaptionsWindowOpacity).await
+        ClosedcaptionsImpl::get_number_as_u32(self.state.clone(), SP::ClosedCaptionsWindowOpacity)
+            .await
     }
 
     async fn window_opacity_set(
@@ -686,7 +736,12 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         _ctx: CallContext,
         request: SetPropertyOpt<u32>,
     ) -> RpcResult<()> {
-        ClosedcaptionsImpl::set_opacity(&self.state, SP::ClosedCaptionsWindowOpacity, request).await
+        ClosedcaptionsImpl::set_opacity(
+            self.state.clone(),
+            SP::ClosedCaptionsWindowOpacity,
+            request,
+        )
+        .await
     }
 
     async fn window_opacity_changed(
@@ -695,7 +750,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         rpc_add_event_listener(
-            &self.state,
+            self.state.clone(),
             ctx,
             request,
             EVENT_CLOSED_CAPTIONS_WINDOW_OPACITY,
@@ -704,7 +759,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
     }
 
     async fn text_align(&self, _ctx: CallContext) -> RpcResult<Option<String>> {
-        ClosedcaptionsImpl::get_string(&self.state, SP::ClosedCaptionsTextAlign).await
+        ClosedcaptionsImpl::get_string(self.state.clone(), SP::ClosedCaptionsTextAlign).await
     }
 
     async fn text_align_set(
@@ -712,7 +767,8 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         _ctx: CallContext,
         request: SetPropertyOpt<String>,
     ) -> RpcResult<()> {
-        ClosedcaptionsImpl::set_string(&self.state, SP::ClosedCaptionsTextAlign, request).await
+        ClosedcaptionsImpl::set_string(self.state.clone(), SP::ClosedCaptionsTextAlign, request)
+            .await
     }
 
     async fn text_align_changed(
@@ -720,11 +776,18 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(&self.state, ctx, request, EVENT_CLOSED_CAPTIONS_TEXT_ALIGN).await
+        rpc_add_event_listener(
+            self.state.clone(),
+            ctx,
+            request,
+            EVENT_CLOSED_CAPTIONS_TEXT_ALIGN,
+        )
+        .await
     }
 
     async fn text_align_vertical(&self, _ctx: CallContext) -> RpcResult<Option<String>> {
-        ClosedcaptionsImpl::get_string(&self.state, SP::ClosedCaptionsTextAlignVertical).await
+        ClosedcaptionsImpl::get_string(self.state.clone(), SP::ClosedCaptionsTextAlignVertical)
+            .await
     }
 
     async fn text_align_vertical_set(
@@ -732,8 +795,12 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         _ctx: CallContext,
         request: SetPropertyOpt<String>,
     ) -> RpcResult<()> {
-        ClosedcaptionsImpl::set_string(&self.state, SP::ClosedCaptionsTextAlignVertical, request)
-            .await
+        ClosedcaptionsImpl::set_string(
+            self.state.clone(),
+            SP::ClosedCaptionsTextAlignVertical,
+            request,
+        )
+        .await
     }
 
     async fn text_align_vertical_changed(
@@ -742,7 +809,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         rpc_add_event_listener(
-            &self.state,
+            self.state.clone(),
             ctx,
             request,
             EVENT_CLOSED_CAPTIONS_TEXT_ALIGN_VERTICAL,
@@ -752,7 +819,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
 
     async fn cc_preferred_languages(&self, _ctx: CallContext) -> RpcResult<Vec<String>> {
         Ok(
-            StorageManager::get_vec_string(&self.state, SP::CCPreferredLanguages)
+            StorageManager::get_vec_string(self.state.clone(), SP::CCPreferredLanguages)
                 .await
                 .unwrap_or(Vec::new()),
         )
@@ -764,7 +831,7 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         set_request: SetPreferredAudioLanguage,
     ) -> RpcResult<()> {
         StorageManager::set_vec_string(
-            &self.state,
+            self.state.clone(),
             SP::CCPreferredLanguages,
             set_request.get_string(),
             None,
@@ -777,7 +844,13 @@ impl ClosedcaptionsServer for ClosedcaptionsImpl {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
-        rpc_add_event_listener(&self.state, ctx, request, EVENT_CC_PREFERRED_LANGUAGES).await
+        rpc_add_event_listener(
+            self.state.clone(),
+            ctx,
+            request,
+            EVENT_CC_PREFERRED_LANGUAGES,
+        )
+        .await
     }
 }
 

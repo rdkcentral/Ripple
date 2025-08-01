@@ -90,8 +90,8 @@ impl EventManagementUtility {
         };
 
         platform_state
-            .metrics
-            .add_api_stats(&ctx.request_id, "advertising.policy");
+            .add_api_stats(&ctx.request_id, "advertising.policy")
+            .await;
 
         let resp = platform_state
             .get_client()

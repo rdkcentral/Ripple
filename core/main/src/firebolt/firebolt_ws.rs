@@ -42,7 +42,7 @@ use ripple_sdk::{
         tungstenite::{self, Message},
         WebSocketStream,
     },
-    utils::error::RippleError,
+    utils::{error::RippleError, test_utils::log_memory_usage},
 };
 use ripple_sdk::{
     api::{
@@ -74,8 +74,8 @@ pub struct ClientIdentity {
 
 struct ConnectionCallbackConfig {
     pub next: oneshot::Sender<ClientIdentity>,
-    pub app_state: AppManagerState,
-    pub app_state2_0: AppManagerState2_0,
+    pub app_state: Arc<AppManagerState>,
+    pub app_state2_0: Arc<AppManagerState2_0>,
     pub app_lifecycle_2_enabled: bool,
     pub secure: bool,
     pub internal_app_id: Option<String>,
@@ -370,7 +370,7 @@ impl FireboltWs {
                 return;
             }
             if !gateway_secure
-                && PermissionHandler::fetch_and_store(&state, &app_id, false)
+                && PermissionHandler::fetch_and_store(state.clone(), &app_id, false)
                     .await
                     .is_err()
             {
@@ -384,7 +384,7 @@ impl FireboltWs {
 
         let rpc_context: Arc<RwLock<Vec<String>>> = Arc::new(RwLock::new(context));
         let (mut sender, mut receiver) = ws_stream.split();
-        let mut platform_state = state.clone();
+        let platform_state = state.clone();
         let context_clone = ctx.clone();
 
         tokio::spawn(async move {
@@ -398,9 +398,10 @@ impl FireboltWs {
                             trace!("Sent Service response {}", api_message.jsonrpc_msg);
                             continue;
                         }
+
                         platform_state
-                            .metrics
-                            .update_api_stage(&api_message.request_id, "response");
+                            .update_api_stage(&api_message.request_id, "response")
+                            .await;
 
                         LogSignal::new(
                             "sent_firebolt_response".to_string(),
@@ -410,23 +411,28 @@ impl FireboltWs {
                         .with_diagnostic_context_item("cid", &connection_id_c.clone())
                         .with_diagnostic_context_item("result", &api_message.jsonrpc_msg.clone())
                         .emit_debug();
-                        if let Some(stats) = platform_state
-                            .metrics
-                            .get_api_stats(&api_message.request_id)
+                        if let Some(stats) =
+                            platform_state.get_api_stats(&api_message.request_id).await
                         {
                             info!(
                                 "Sending Firebolt response: {:?},{}",
                                 stats.stats_ref,
                                 stats.stats.get_total_time()
                             );
+
+                            ripple_sdk::utils::test_utils::log_memory_usage(
+                                "sent_firebolt_response",
+                            );
+
                             debug!(
                                 "Full Firebolt Split: {:?},{}",
                                 stats.stats_ref,
                                 stats.stats.get_stage_durations()
                             );
+
                             platform_state
-                                .metrics
-                                .remove_api_stats(&api_message.request_id);
+                                .remove_api_stats(&api_message.request_id)
+                                .await;
                         }
 
                         info!(
@@ -479,9 +485,17 @@ impl FireboltWs {
                             context,
                         ) {
                             info!("Received Firebolt request {}", request.params_json);
+                            log_memory_usage(&format!(
+                                " Received firebolt request {}",
+                                request.params_json
+                            ));
                             let msg = FireboltGatewayCommand::HandleRpc { request };
-                            if let Err(e) = client.clone().send_gateway_command(msg) {
-                                error!("failed to send request {:?}", e);
+                            {
+                                let guard = client.clone();
+                                if let Err(e) = guard.send_gateway_command(msg) {
+                                    error!("failed to send request {:?}", e);
+                                }
+                                drop(guard);
                             }
                         } else if let Some(response) = JsonRpcApiResponse::get_response(&req_text) {
                             let msg = FireboltGatewayCommand::HandleResponse { response };

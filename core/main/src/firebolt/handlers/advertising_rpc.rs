@@ -76,10 +76,10 @@ pub trait Advertising {
     async fn policy(&self, ctx: CallContext) -> RpcResult<AdvertisingPolicy>;
 }
 const NONE: &str = "none";
-async fn get_advertisting_policy(platform_state: &PlatformState) -> AdvertisingPolicy {
+async fn get_advertisting_policy(platform_state: PlatformState) -> AdvertisingPolicy {
     AdvertisingPolicy {
         skip_restriction: StorageManager::get_string(
-            platform_state,
+            platform_state.clone(),
             StorageProperty::SkipRestriction,
         )
         .await
@@ -100,12 +100,14 @@ struct AdvertisingPolicyEventDecorator;
 impl AppEventDecorator for AdvertisingPolicyEventDecorator {
     async fn decorate(
         &self,
-        ps: &PlatformState,
+        ps: PlatformState,
         _ctx: &CallContext,
         _event_name: &str,
         _val_in: &Value,
     ) -> Result<Value, AppEventDecorationError> {
-        Ok(serde_json::to_value(get_advertisting_policy(ps).await)?)
+        Ok(serde_json::to_value(
+            get_advertisting_policy(ps.clone()).await,
+        )?)
     }
     fn dec_clone(&self) -> Box<dyn AppEventDecorator + Send + Sync> {
         Box::new(self.clone())
@@ -119,7 +121,7 @@ pub struct AdvertisingImpl {
 #[async_trait]
 impl AdvertisingServer for AdvertisingImpl {
     async fn policy(&self, _ctx: CallContext) -> RpcResult<AdvertisingPolicy> {
-        Ok(get_advertisting_policy(&self.state).await)
+        Ok(get_advertisting_policy(self.state.clone()).await)
     }
 }
 
@@ -131,8 +133,13 @@ impl RippleRPCProvider<AdvertisingImpl> for AdvertisingRPCProvider {
 }
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
-    use crate::firebolt::handlers::advertising_rpc::AdvertisingImpl;
+    use crate::{
+        firebolt::handlers::advertising_rpc::AdvertisingImpl,
+        state::platform_state::PlatformStateContainer,
+    };
     use ripple_sdk::{api::gateway::rpc_gateway_api::JsonRpcApiRequest, tokio};
     use ripple_tdk::utils::test_utils::Mockable;
     use serde::{Deserialize, Serialize};
@@ -179,7 +186,7 @@ mod tests {
     #[tokio::test]
     pub async fn test_app_bundle_id() {
         let ad_module = (AdvertisingImpl {
-            state: PlatformState::mock(),
+            state: Arc::new(PlatformStateContainer::mock()),
         })
         .into_rpc();
 

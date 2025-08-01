@@ -40,7 +40,8 @@ pub trait Internal {
     async fn send_telemetry(&self, ctx: CallContext, payload: TelemetryPayload) -> RpcResult<()>;
 
     #[method(name = "ripple.setTelemetrySessionId")]
-    fn set_telemetry_session_id(&self, ctx: CallContext, session_id: String) -> RpcResult<()>;
+    async fn set_telemetry_session_id(&self, ctx: CallContext, session_id: String)
+        -> RpcResult<()>;
 
     #[method(name = "ripple.sendAppEvent")]
     async fn send_app_event(&self, ctx: CallContext, event: AppEvent) -> RpcResult<()>;
@@ -64,19 +65,28 @@ pub struct InternalImpl {
 #[async_trait]
 impl InternalServer for InternalImpl {
     async fn send_telemetry(&self, _ctx: CallContext, payload: TelemetryPayload) -> RpcResult<()> {
-        let _ = TelemetryBuilder::send_telemetry(&self.state, payload);
+        let _ = TelemetryBuilder::send_telemetry(self.state.clone(), payload).await;
         Ok(())
     }
 
-    fn set_telemetry_session_id(&self, _ctx: CallContext, session_id: String) -> RpcResult<()> {
-        self.state.metrics.update_session_id(Some(session_id));
+    async fn set_telemetry_session_id(
+        &self,
+        _ctx: CallContext,
+        session_id: String,
+    ) -> RpcResult<()> {
+        self.state.update_session_id(Some(session_id)).await;
         Ok(())
     }
 
     async fn send_app_event(&self, _ctx: CallContext, event: AppEvent) -> RpcResult<()> {
         debug!("Sending App event {:?}", &event);
-        AppEvents::emit_with_context(&self.state, &event.event_name, &event.result, event.context)
-            .await;
+        AppEvents::emit_with_context(
+            self.state.clone(),
+            &event.event_name,
+            &event.result,
+            event.context,
+        )
+        .await;
         Ok(())
     }
 
@@ -87,7 +97,12 @@ impl InternalServer for InternalImpl {
     ) -> RpcResult<()> {
         debug!("registering App event {:?}", &request);
         let event = request.event.clone();
-        AppEvents::add_listener(&self.state, event, request.context.clone(), request.request);
+        AppEvents::add_listener(
+            self.state.clone(),
+            event,
+            request.context.clone(),
+            request.request,
+        );
         Ok(())
     }
 

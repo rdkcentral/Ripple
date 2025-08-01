@@ -82,7 +82,7 @@ impl Default for RouterState {
 }
 
 async fn resolve_route(
-    platform_state: &mut PlatformState,
+    platform_state: PlatformState,
     methods: Methods,
     resources: Resources,
     req: RpcRequest,
@@ -183,15 +183,16 @@ async fn resolve_route(
             1
         };
 
-        capture_stage(&platform_state.metrics, &req, "routing");
-
-        platform_state.metrics.update_api_stats_ref(
-            &request_id,
-            add_telemetry_status_code(&rpc_header, status_code.to_string().as_str()),
-        );
+        capture_stage(platform_state.clone(), &req, "routing").await;
+        platform_state
+            .update_api_stats_ref(
+                &request_id,
+                add_telemetry_status_code(&rpc_header, status_code.to_string().as_str()),
+            )
+            .await;
 
         let mut msg = ApiMessage::new(protocol, r, request_id.clone());
-        if let Some(api_stats) = platform_state.metrics.get_api_stats(&request_id) {
+        if let Some(api_stats) = platform_state.get_api_stats(&request_id).await {
             msg.stats = Some(api_stats);
         }
 
@@ -202,7 +203,7 @@ async fn resolve_route(
 }
 
 impl RpcRouter {
-    pub async fn route(mut state: PlatformState, mut req: RpcRequest, session: Session) {
+    pub async fn route(state: PlatformState, mut req: RpcRequest, session: Session) {
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
 
@@ -212,11 +213,18 @@ impl RpcRouter {
         LogSignal::new("rpc_router".to_string(), "routing".into(), req.clone());
         tokio::spawn(async move {
             let start = Utc::now().timestamp_millis();
-            let resp = resolve_route(&mut state, methods, resources, req.clone()).await;
+            let resp = resolve_route(state.clone(), methods, resources, req.clone()).await;
             if let Ok(msg) = resp {
                 let now = Utc::now().timestamp_millis();
                 let success = !msg.is_error();
-                TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success, &msg);
+                TelemetryBuilder::send_fb_tt(
+                    state.clone(),
+                    req.clone(),
+                    now - start,
+                    success,
+                    &msg,
+                )
+                .await;
                 let _ = session.send_json_rpc(msg).await;
             }
         });
@@ -230,17 +238,21 @@ impl RpcRouter {
         let methods = state.router_state.get_methods();
         let resources = state.router_state.resources.clone();
 
-        let mut platform_state = state.clone();
         LogSignal::new(
-            "rpc_router".to_string(),
+            "rpc_router".into(),
             "route_extn_protocol".into(),
             req.clone(),
         )
         .emit_debug();
+        let platform_state = state.clone();
         tokio::spawn(async move {
-            let client = platform_state.get_client().get_extn_client();
-            if let Ok(msg) = resolve_route(&mut platform_state, methods, resources, req).await {
+            if let Ok(msg) =
+                resolve_route(platform_state.clone(), methods, resources, req.clone()).await
+            {
+                let client = platform_state.clone().get_client().get_extn_client();
                 return_extn_response(msg, extn_msg, client);
+            } else {
+                LogSignal::new("rpc_router".into(), "resolve_route failed".into(), req);
             }
         });
     }

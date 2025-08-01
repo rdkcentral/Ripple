@@ -50,21 +50,25 @@ impl From<HandleBrokerageError> for SubBrokerErr {
 //TODO: decide fate of this function
 #[allow(dead_code)]
 async fn subbroker_call(
+    platform_state: PlatformState,
     endpoint_broker: EndpointBrokerState,
     rpc_request: RpcRequest,
     source: JsonDataSource,
 ) -> Result<serde_json::Value, SubBrokerErr> {
     let (brokered_tx, mut brokered_rx) = mpsc::channel::<BrokerOutput>(BROKER_CHANNEL_BUFFER_SIZE);
-    endpoint_broker.handle_brokerage(
-        rpc_request,
-        None,
-        Some(BrokerCallback {
-            sender: brokered_tx,
-        }),
-        Vec::new(),
-        None,
-        vec![],
-    );
+    endpoint_broker
+        .handle_brokerage(
+            platform_state.clone(),
+            rpc_request,
+            None,
+            Some(BrokerCallback {
+                sender: brokered_tx,
+            }),
+            Vec::new(),
+            None,
+            vec![],
+        )
+        .await;
 
     match brokered_rx.recv().await {
         Some(msg) => {
@@ -92,6 +96,7 @@ async fn subbroker_call(
 
 impl WorkflowBroker {
     pub fn create_the_futures(
+        platform_state: PlatformState,
         sources: Vec<JsonDataSource>,
         rpc_request: RpcRequest,
         endpoint_broker: EndpointBrokerState,
@@ -150,17 +155,25 @@ impl WorkflowBroker {
 
             // Serialize the merged parameters back into params_json
             rpc_request.params_json = serde_json::to_string(&existing_params).unwrap();
-            let t = subbroker_call(endpoint_broker.clone(), rpc_request, source).boxed(); // source is still usable here
+            let t = subbroker_call(
+                platform_state.clone(),
+                endpoint_broker.clone(),
+                rpc_request,
+                source,
+            )
+            .boxed(); // source is still usable here
             futures.push(t);
         }
         futures
     }
 
     pub async fn run_workflow(
+        platform_state: PlatformState,
         broker_request: &BrokerRequest,
         endpoint_broker: EndpointBrokerState,
     ) -> SubBrokerResult {
         let mut futures = Self::create_the_futures(
+            platform_state.clone(),
             broker_request.rule.sources.clone().unwrap_or_default(),
             broker_request.rpc.clone(),
             endpoint_broker.clone(),
@@ -203,11 +216,16 @@ impl WorkflowBroker {
         Ok(composed)
     }
 
-    pub fn start(callback: BrokerCallback, endpoint_broker: EndpointBrokerState) -> BrokerSender {
+    pub fn start(
+        platform_state: PlatformState,
+        callback: BrokerCallback,
+        endpoint_broker: EndpointBrokerState,
+    ) -> BrokerSender {
         let (tx, mut rx) = mpsc::channel::<BrokerRequest>(BROKER_CHANNEL_BUFFER_SIZE);
         /*
         This is a "meta rule": a rule that composes other rules.
         */
+        let ps_c = platform_state.clone();
         tokio::spawn(async move {
             loop {
                 match rx.recv().await {
@@ -218,7 +236,13 @@ impl WorkflowBroker {
                             broker_request.rpc.ctx.clone(),
                         )
                         .emit_debug();
-                        match Self::run_workflow(&broker_request, endpoint_broker.clone()).await {
+                        match Self::run_workflow(
+                            ps_c.clone(),
+                            &broker_request,
+                            endpoint_broker.clone(),
+                        )
+                        .await
+                        {
                             Ok(yay) => {
                                 LogSignal::new(
                                     "workflow_broker".to_string(),
@@ -282,13 +306,13 @@ impl WorkflowBroker {
 
 impl EndpointBroker for WorkflowBroker {
     fn get_broker(
-        _ps: Option<PlatformState>,
+        ps: Option<PlatformState>,
         _request: BrokerConnectRequest,
         callback: BrokerCallback,
         broker_state: &mut EndpointBrokerState,
     ) -> Self {
         Self {
-            sender: Self::start(callback, broker_state.clone()),
+            sender: Self::start(ps.unwrap_or_default(), callback, broker_state.clone()),
         }
     }
 
@@ -312,9 +336,12 @@ pub mod tests {
     use ripple_sdk::{api::gateway::rpc_gateway_api::RpcRequest, tokio, Mockable};
     use serde_json::json;
 
-    use crate::broker::{
-        endpoint_broker::{BrokerCallback, BrokerRequest, EndpointBrokerState},
-        rules::rules_engine::{JsonDataSource, Rule, RuleEngine},
+    use crate::{
+        broker::{
+            endpoint_broker::{BrokerCallback, BrokerRequest, EndpointBrokerState},
+            rules::rules_engine::{JsonDataSource, Rule, RuleEngine},
+        },
+        state::platform_state::PlatformStateContainer,
     };
     pub fn broker_request(callback: BrokerCallback) -> BrokerRequest {
         let mut rule = Rule {
@@ -383,7 +410,11 @@ pub mod tests {
         let request = broker_request(callback);
         let broker = endppoint_broker_state();
 
-        let foo = WorkflowBroker::run_workflow(&request, broker);
+        let foo = WorkflowBroker::run_workflow(
+            Arc::new(PlatformStateContainer::default()),
+            &request,
+            broker,
+        );
         let foo = foo.await;
         assert!(foo.is_ok());
     }
@@ -476,7 +507,13 @@ pub mod tests {
             }
         });
 
-        let result = subbroker_call(endpoint_broker, rpc_request, source).await;
+        let result = subbroker_call(
+            Arc::new(PlatformStateContainer::default()),
+            endpoint_broker,
+            rpc_request,
+            source,
+        )
+        .await;
 
         assert!(result.is_err());
         if let Err(SubBrokerErr::RpcError(err)) = result {
@@ -493,7 +530,11 @@ pub mod tests {
         let callback = BrokerCallback { sender: tx };
 
         let endpoint_broker = endppoint_broker_state();
-        let broker_sender = WorkflowBroker::start(callback.clone(), endpoint_broker.clone());
+        let broker_sender = WorkflowBroker::start(
+            Arc::new(PlatformStateContainer::default()),
+            callback.clone(),
+            endpoint_broker.clone(),
+        );
 
         let mut rpc_request = RpcRequest::mock();
         rpc_request.method = "test.method".to_string();
@@ -528,7 +569,11 @@ pub mod tests {
         let callback = BrokerCallback { sender: tx };
 
         let endpoint_broker = endppoint_broker_state();
-        let broker_sender = WorkflowBroker::start(callback.clone(), endpoint_broker.clone());
+        let broker_sender = WorkflowBroker::start(
+            Arc::new(PlatformStateContainer::default()),
+            callback.clone(),
+            endpoint_broker.clone(),
+        );
 
         let mut rpc_request = RpcRequest::mock();
         rpc_request.method = "test.method".to_string();

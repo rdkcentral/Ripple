@@ -72,7 +72,7 @@ impl SecondScreenServer for SecondScreenImpl {
     async fn friendly_name(&self, _ctx: CallContext) -> RpcResult<String> {
         let s = self.state.clone();
         rpc_value_result_to_string_result(
-            BrokerUtils::process_internal_main_request(&s, "device.name", None).await,
+            BrokerUtils::process_internal_main_request(s, "device.name", None).await,
             None,
         )
     }
@@ -89,7 +89,7 @@ impl SecondScreenServer for SecondScreenImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         rpc_add_event_listener(
-            &self.state,
+            self.state.clone(),
             ctx,
             request,
             SECOND_SCREEN_EVENT_ON_LAUNCH_REQUEST,
@@ -103,7 +103,7 @@ impl SecondScreenServer for SecondScreenImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         rpc_add_event_listener(
-            &self.state,
+            self.state.clone(),
             ctx,
             request,
             EVENT_SECOND_SCREEN_ON_CLOSE_REQUEST,
@@ -117,7 +117,7 @@ impl SecondScreenServer for SecondScreenImpl {
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse> {
         rpc_add_event_listener(
-            &self.state,
+            self.state.clone(),
             ctx,
             request,
             EVENT_SECOND_SCREEN_ON_FRIENDLY_NAME_CHANGED,
