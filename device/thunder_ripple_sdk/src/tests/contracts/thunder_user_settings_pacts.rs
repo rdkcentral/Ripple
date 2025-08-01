@@ -304,6 +304,9 @@ async fn test_device_set_voice_guidance() {
 async fn test_device_get_voice_guidance_rate() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
+    // Use the same value as set in the setter
+    let rate_value = 0.1;
+
     pact_builder_async
         .synchronous_message_interaction(
             "A request to get the voice guidance rate",
@@ -321,7 +324,7 @@ async fn test_device_get_voice_guidance_rate() {
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
                         "id": "matching(integer, 42)",
-                        "result": "matching(type, 0.1)"
+                        "result": rate_value
                     }]
                 }))
                 .await;
@@ -354,6 +357,9 @@ async fn test_device_get_voice_guidance_rate() {
 async fn test_device_set_voice_guidance_rate() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
+    // Set a valid value for rate
+    let rate_value = 0.1;
+
     pact_builder_async
         .synchronous_message_interaction(
             "A request to set the voice guidance rate",
@@ -365,7 +371,7 @@ async fn test_device_set_voice_guidance_rate() {
                         "id": "matching(integer, 42)",
                         "method": "org.rdk.UserSettings.setVoiceGuidanceRate",
                         "params": {
-                            "rate": "matching(type, 0.1)"
+                            "rate": rate_value
                         }
                     },
                     "requestMetadata": {
@@ -398,7 +404,7 @@ async fn test_device_set_voice_guidance_rate() {
             "id": 42,
             "method": "org.rdk.UserSettings.setVoiceGuidanceRate",
             "params": {
-                "rate": 0.1
+                "rate": rate_value
             }
         })
     )
@@ -777,6 +783,9 @@ async fn test_device_set_preferred_captions_languages() {
 async fn test_device_get_voice_guidance_hints() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
+    // Use the same value as set in the setter
+    let hints_value = "enabled";
+
     pact_builder_async
         .synchronous_message_interaction(
             "A request to get the voice guidance hints",
@@ -794,7 +803,7 @@ async fn test_device_get_voice_guidance_hints() {
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
                         "id": "matching(integer, 42)",
-                        "result": "matching(type, true)"
+                        "result": hints_value
                     }]
                 }))
                 .await;
@@ -827,6 +836,9 @@ async fn test_device_get_voice_guidance_hints() {
 async fn test_device_set_voice_guidance_hints() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
+    // Set a valid value for hints
+    let hints_value = "enabled";
+
     pact_builder_async
         .synchronous_message_interaction(
             "A request to set the voice guidance hints",
@@ -838,7 +850,7 @@ async fn test_device_set_voice_guidance_hints() {
                         "id": "matching(integer, 42)",
                         "method": "org.rdk.UserSettings.setVoiceGuidanceHints",
                         "params": {
-                            "hints": "matching(type, 'enabled')"
+                            "hints": hints_value
                         }
                     },
                     "requestMetadata": {
@@ -871,7 +883,7 @@ async fn test_device_set_voice_guidance_hints() {
             "id": 42,
             "method": "org.rdk.UserSettings.setVoiceGuidanceHints",
             "params": {
-                "hints": "enabled"
+                "hints": hints_value
             }
         })
     )

@@ -523,6 +523,9 @@ async fn test_text_track_set_font_edge_color() {
 async fn test_text_track_get_font_opacity() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
+    // Use the same integer value as set in the setter test
+    let expected_value = 90;
+
     pact_builder_async
         .synchronous_message_interaction("A request to get the font opacity", |mut i| async move {
             i.contents_from(json!({
@@ -534,7 +537,7 @@ async fn test_text_track_get_font_opacity() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 11)",
-                    "result": "matching(integer, -1)"
+                    "result": expected_value
                 }]
             })).await;
             i.test_name("get_font_opacity");
@@ -565,6 +568,9 @@ async fn test_text_track_get_font_opacity() {
 async fn test_text_track_set_font_opacity() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
+    // Set a valid integer value for fontOpacity
+    let set_value = 90;
+
     pact_builder_async
         .synchronous_message_interaction("A request to set the font opacity", |mut i| async move {
             i.contents_from(json!({
@@ -574,7 +580,7 @@ async fn test_text_track_set_font_opacity() {
                     "id": "matching(integer, 12)",
                     "method": "org.rdk.TextTrack.setFontOpacity",
                     "params": {
-                        "fontOpacity": "matching(integer, 1)"
+                        "fontOpacity": "matching(integer, 90)"
                     }
                 },
                 "requestMetadata": {
@@ -606,7 +612,7 @@ async fn test_text_track_set_font_opacity() {
             "id": 12,
             "method": "org.rdk.TextTrack.setFontOpacity",
             "params": {
-                "fontOpacity": 1
+                "fontOpacity": set_value
             }
         })
     )
@@ -716,6 +722,9 @@ async fn test_text_track_set_background_color() {
 async fn test_text_track_get_background_opacity() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
+    // Use the same integer value as set in the setter test
+    let expected_value = 1;
+
     pact_builder_async
         .synchronous_message_interaction("A request to get the background opacity", |mut i| async move {
             i.contents_from(json!({
@@ -727,7 +736,7 @@ async fn test_text_track_get_background_opacity() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 15)",
-                    "result": "matching(integer, -1)"
+                    "result": expected_value
                 }]
             })).await;
             i.test_name("get_background_opacity");
@@ -757,6 +766,9 @@ async fn test_text_track_get_background_opacity() {
 #[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_text_track_set_background_opacity() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
+
+    // Set a valid integer value for backgroundOpacity
+    let set_value = 1;
 
     pact_builder_async
         .synchronous_message_interaction(
@@ -802,7 +814,7 @@ async fn test_text_track_set_background_opacity() {
             "id": 16,
             "method": "org.rdk.TextTrack.setBackgroundOpacity",
             "params": {
-                "backgroundOpacity": 1
+                "backgroundOpacity": set_value
             }
         })
     )
@@ -909,6 +921,9 @@ async fn test_text_track_set_window_color() {
 async fn test_text_track_get_window_opacity() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
+    // Use the same integer value as set in the setter test
+    let expected_value = 1;
+
     pact_builder_async
         .synchronous_message_interaction("A request to get the window opacity", |mut i| async move {
             i.contents_from(json!({
@@ -920,7 +935,7 @@ async fn test_text_track_get_window_opacity() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 19)",
-                    "result": "matching(integer, -1)"
+                    "result": expected_value
                 }]
             })).await;
             i.test_name("get_window_opacity");
@@ -950,6 +965,9 @@ async fn test_text_track_get_window_opacity() {
 #[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_text_track_set_window_opacity() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
+
+    // Set a valid integer value for windowOpacity
+    let set_value = 1;
 
     pact_builder_async
         .synchronous_message_interaction(
@@ -995,7 +1013,7 @@ async fn test_text_track_set_window_opacity() {
             "id": 20,
             "method": "org.rdk.TextTrack.setWindowOpacity",
             "params": {
-                "windowOpacity": 1
+                "windowOpacity": set_value
             }
         })
     )
