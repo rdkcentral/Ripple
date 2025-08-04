@@ -56,7 +56,7 @@ impl GenericCapState {
     pub fn ingest_supported(&self, request: Vec<FireboltPermission>) {
         let mut supported = self.supported.write().unwrap();
         // Store FireboltPermission
-        supported.extend(request.into_iter());
+        supported.extend(request);
     }
 
     pub fn ingest_availability(&self, request: Vec<FireboltCap>, is_available: bool) {
