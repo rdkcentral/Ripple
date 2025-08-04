@@ -146,15 +146,20 @@ impl FireboltGateway {
                     .await;
                     {
                         let platform_state = self.state.platform_state.clone();
-                        let session_id_f = session_id.clone();
+                        let cid_f = cid.clone();
 
                         platform_state
                             .endpoint_state(
-                                |es| async move { es.cleanup_for_app(&session_id_f).await },
+                                /*
+                                TODO, cleanup for app required appid, which is not in scope, so need to source it and pass here
+                                */
+                                |es| async move { es.cleanup_for_app(&cid_f.clone()).await },
                             )
                             .await;
 
-                        platform_state.session_state.clear_session(&cid);
+                        platform_state
+                            .session_state
+                            .clear_session(&session_id.clone());
                     }
                 }
                 HandleRpc { request } => self.handle(request, None).await,
