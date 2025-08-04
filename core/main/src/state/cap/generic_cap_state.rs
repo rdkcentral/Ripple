@@ -34,7 +34,7 @@ use crate::state::platform_state::PlatformState;
 
 #[derive(Clone, Debug, Default)]
 pub struct GenericCapState {
-    supported: Arc<RwLock<HashSet<String>>>,
+    supported: Arc<RwLock<HashSet<FireboltPermission>>>,
     // it consumes less memory and operations to store not_available vs available
     not_available: Arc<RwLock<HashSet<String>>>,
 }
@@ -55,12 +55,8 @@ impl GenericCapState {
 
     pub fn ingest_supported(&self, request: Vec<FireboltPermission>) {
         let mut supported = self.supported.write().unwrap();
-        supported.extend(
-            request
-                .iter()
-                .map(|a: &FireboltPermission| serde_json::to_string(a).unwrap())
-                .collect::<HashSet<String>>(),
-        );
+        // Store FireboltPermission
+        supported.extend(request.into_iter());
     }
 
     pub fn ingest_availability(&self, request: Vec<FireboltCap>, is_available: bool) {
@@ -76,15 +72,14 @@ impl GenericCapState {
     }
 
     pub fn check_for_processor(&self, request: Vec<String>) -> HashMap<String, bool> {
-        let supported = self.supported.read().unwrap();
-        let mut result = HashMap::new();
-
-        let supported_cap: Vec<String> = supported
-            .clone()
+        let supported: std::sync::RwLockReadGuard<'_, HashSet<FireboltPermission>> =
+            self.supported.read().unwrap();
+        let supported_cap: HashSet<String> = supported
             .iter()
-            .map(|f| f.trim_matches('"').to_string())
+            .map(|f| f.cap.as_str().to_owned())
             .collect();
 
+        let mut result = HashMap::new();
         for cap in request {
             result.insert(cap.clone(), supported_cap.contains(&cap));
         }
@@ -95,14 +90,9 @@ impl GenericCapState {
         let supported = self.supported.read().unwrap();
         let not_supported: Vec<FireboltCap> = request
             .iter()
-            .filter(|fb_perm| !supported.contains(&serde_json::to_string(fb_perm).unwrap()))
+            .filter(|fb_perm| !supported.contains(fb_perm))
             .map(|fb_perm| fb_perm.cap.clone())
             .collect();
-
-        // debug!(
-        //     "checking supported caps request={:?}, not_supported={:?}, supported: {:?}",
-        //     request, not_supported, supported
-        // );
 
         if !not_supported.is_empty() {
             return Err(DenyReasonWithCap::new(
