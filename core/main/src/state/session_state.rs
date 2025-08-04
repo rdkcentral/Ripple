@@ -26,7 +26,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::{ApiMessage, CallContext},
         session::{AccountSession, ProvisionRequest},
     },
-    log::debug,
+    log::{debug, trace},
     tokio::sync::mpsc::Sender,
     utils::error::RippleError,
 };
@@ -143,7 +143,18 @@ impl SessionState {
 
     pub fn clear_session(&self, id: &str) {
         let mut session_state = self.session_map.write().unwrap();
+        trace!(
+            "session count before delete of {} : {}",
+            session_state.len(),
+            id
+        );
         session_state.remove(id);
+        trace!(
+            "session count after delete of {} : {}",
+            session_state.len(),
+            id
+        );
+
         session_state.shrink_to_fit();
     }
 

@@ -153,7 +153,7 @@ impl FireboltGateway {
                                 /*
                                 TODO, cleanup for app required appid, which is not in scope, so need to source it and pass here
                                 */
-                                |es| async move { es.cleanup_for_app(&cid_f.clone()).await },
+                                |es| async move { es.cleanup_for_app_session(&cid_f.clone()).await },
                             )
                             .await;
 

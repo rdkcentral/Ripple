@@ -81,14 +81,18 @@ pub struct BrokerCleaner {
 }
 
 impl BrokerCleaner {
-    async fn cleanup_session(&self, appid: &str) -> Result<String, RippleError> {
+    async fn cleanup_session(&self, session_id: &str) -> Result<String, RippleError> {
         if let Some(cleaner) = self.cleaner.clone() {
-            if let Err(e) = cleaner.try_send(appid.to_owned()) {
-                error!("Couldnt cleanup {} {:?}", appid, e);
+            if let Err(e) = cleaner.try_send(session_id.to_owned()) {
+                error!(
+                    "Couldnt cleanup  sessiin with id={} , error={:?}",
+                    session_id, e
+                );
                 return Err(RippleError::SendFailure);
             }
-            return Ok(appid.to_owned());
+            return Ok(session_id.to_owned());
         }
+
         Err(RippleError::NotAvailable)
     }
 }
@@ -1084,8 +1088,8 @@ impl EndpointBrokerState {
     }
 
     // Method to cleanup all subscription on App termination
-    pub async fn cleanup_for_app(&self, app_id: &str) {
-        let cleaners = {
+    pub async fn cleanup_for_app_session(&self, session_id: &str) {
+        let cleaners: Vec<BrokerCleaner> = {
             let guard = self.cleaner_list.clone();
             let guard = guard.read().unwrap();
             guard.clone() // Requires Clone on Vec<BrokerCleaner>
@@ -1093,7 +1097,12 @@ impl EndpointBrokerState {
 
         // Step 2: Drop the guard, and then iterate and await safely
         for cleaner in cleaners {
-            let _ = cleaner.cleanup_session(app_id).await;
+            if let Err(mess) = cleaner.cleanup_session(session_id).await {
+                error!(
+                    "cleanup_for_app cleanup error for session_id={}, Err={} ",
+                    session_id, mess
+                );
+            }
         }
     }
 }
