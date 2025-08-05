@@ -26,7 +26,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::{ApiMessage, CallContext},
         session::{AccountSession, ProvisionRequest},
     },
-    log::{debug, trace},
+    log::{debug, trace, warn},
     tokio::sync::mpsc::Sender,
     utils::error::RippleError,
 };
@@ -148,7 +148,9 @@ impl SessionState {
             session_state.len(),
             id
         );
-        session_state.remove(id);
+        if session_state.remove(id).is_none() {
+            warn!("a session delete was request for id={}, but the session was not found in the session_state. session count={} ",id,session_state.len());
+        }
         trace!(
             "session count after delete of {} : {}",
             session_state.len(),
@@ -196,7 +198,9 @@ impl SessionState {
 
     pub fn clear_pending_session(&self, app_id: &String) {
         let mut sessions = self.pending_sessions.write().unwrap();
-        sessions.remove(app_id);
+        if sessions.remove(app_id).is_none() {
+            warn!("session={} was marked for clearing, but it was not found. current session count={}", app_id, sessions.len());
+        }
         sessions.shrink_to_fit();
         drop(sessions);
     }
