@@ -95,10 +95,12 @@ async fn test_device_get_model() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
     let mut result = HashMap::new();
+
     result.insert(
         "stbVersion".into(),
         ContractMatcher::MatchType("AX061AEI_VBN_1911_sprint_20200109040424sdy".into()),
     );
+
     result.insert(
         "receiverVersion".into(),
         ContractMatcher::MatchRegex(
@@ -106,6 +108,7 @@ async fn test_device_get_model() {
             "3.14.0.0".into(),
         ),
     );
+
     result.insert(
         "stbTimestamp".into(),
         ContractMatcher::MatchRegex(
