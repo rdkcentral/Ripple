@@ -72,18 +72,19 @@ impl GenericCapState {
     }
 
     pub fn check_for_processor(&self, request: Vec<String>) -> HashMap<String, bool> {
-        let supported: std::sync::RwLockReadGuard<'_, HashSet<FireboltPermission>> =
-            self.supported.read().unwrap();
+        let supported = self.supported.read().unwrap();
         let supported_cap: HashSet<String> = supported
             .iter()
             .map(|f| f.cap.as_str().to_owned())
             .collect();
 
-        let mut result = HashMap::new();
-        for cap in request {
-            result.insert(cap.clone(), supported_cap.contains(&cap));
-        }
-        result
+        request
+            .into_iter()
+            .map(|cap| {
+                let is_supported = supported_cap.contains(&cap);
+                (cap, is_supported)
+            })
+            .collect()
     }
 
     pub fn check_supported(&self, request: &[FireboltPermission]) -> Result<(), DenyReasonWithCap> {
