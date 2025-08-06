@@ -362,7 +362,7 @@ impl FireboltWs {
                 _client_addr.port()
             );
             let msg = FireboltGatewayCommand::RegisterSession {
-                session_id: session_id_c.clone(),
+                session_id: connection_id.clone(),
                 session,
             };
             if let Err(e) = client.send_gateway_command(msg) {
