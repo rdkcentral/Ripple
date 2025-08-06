@@ -64,18 +64,21 @@ impl ExtnStreamProcessor for StoreUserGrantsProcessor {
 
 impl StoreUserGrantsProcessor {
     async fn process_get_request(
-        state: &PlatformState,
+        state: PlatformState,
         msg: ExtnMessage,
         app_id: String,
         permission: FireboltPermission,
     ) -> bool {
         let result = state
+            .clone()
             .cap_state
+            .clone()
             .grant_state
+            .clone()
             .get_grant_status(&app_id, &permission);
         if let Some(granted) = result {
             Self::respond(
-                state.get_client().get_extn_client(),
+                state.clone().get_client().get_extn_client(),
                 msg,
                 ExtnResponse::Boolean(match granted {
                     GrantStatus::Allowed => true,
@@ -86,7 +89,7 @@ impl StoreUserGrantsProcessor {
             .is_ok()
         } else {
             Self::respond(
-                state.get_client().get_extn_client(),
+                state.clone().get_client().get_extn_client(),
                 msg,
                 ExtnResponse::None(()),
             )
@@ -95,7 +98,7 @@ impl StoreUserGrantsProcessor {
         }
     }
     async fn process_set_request(
-        state: &PlatformState,
+        state: PlatformState,
         msg: ExtnMessage,
         user_grant_info: UserGrantInfo,
     ) -> bool {
@@ -117,11 +120,12 @@ impl StoreUserGrantsProcessor {
             }),
         };
         state
+            .clone()
             .cap_state
             .grant_state
             .update_grant_entry(app_id, grant_entry);
         Self::respond(
-            state.get_client().get_extn_client(),
+            state.clone().get_client().get_extn_client(),
             msg,
             ExtnResponse::None(()),
         )
@@ -129,15 +133,16 @@ impl StoreUserGrantsProcessor {
         .is_ok()
     }
 
-    async fn process_sync_grant_map(state: &PlatformState, msg: ExtnMessage) -> bool {
+    async fn process_sync_grant_map(state: PlatformState, msg: ExtnMessage) -> bool {
         debug!("Processor is handling sync grant map request");
         state
+            .clone()
             .cap_state
             .grant_state
-            .sync_grant_map_with_grant_policy(state)
+            .sync_grant_map_with_grant_policy(state.clone())
             .await;
         Self::respond(
-            state.get_client().get_extn_client(),
+            state.clone().get_client().get_extn_client(),
             msg,
             ExtnResponse::None(()),
         )
@@ -146,17 +151,18 @@ impl StoreUserGrantsProcessor {
     }
 
     async fn process_clear_request(
-        state: &PlatformState,
+        state: PlatformState,
         msg: ExtnMessage,
         persistence_type: PolicyPersistenceType,
     ) -> bool {
         debug!("Processor is handling clear request");
         state
+            .clone()
             .cap_state
             .grant_state
-            .clear_local_entries(state, persistence_type);
+            .clear_local_entries(state.clone(), persistence_type);
         Self::respond(
-            state.get_client().get_extn_client(),
+            state.clone().get_client().get_extn_client(),
             msg,
             ExtnResponse::None(()),
         )
@@ -179,16 +185,16 @@ impl ExtnRequestProcessor for StoreUserGrantsProcessor {
         debug!("process request: Received message: {:?}", extracted_message);
         match extracted_message {
             UserGrantsStoreRequest::GetUserGrants(app_id, permission) => {
-                Self::process_get_request(&state, msg, app_id, permission).await
+                Self::process_get_request(state.clone(), msg, app_id, permission).await
             }
             UserGrantsStoreRequest::SetUserGrants(user_grant_info) => {
-                Self::process_set_request(&state, msg, user_grant_info).await
+                Self::process_set_request(state.clone(), msg, user_grant_info).await
             }
             UserGrantsStoreRequest::SyncGrantMapPerPolicy() => {
-                Self::process_sync_grant_map(&state, msg).await
+                Self::process_sync_grant_map(state.clone(), msg).await
             }
             UserGrantsStoreRequest::ClearUserGrants(persistence_type) => {
-                Self::process_clear_request(&state, msg, persistence_type).await
+                Self::process_clear_request(state.clone(), msg, persistence_type).await
             }
         }
     }

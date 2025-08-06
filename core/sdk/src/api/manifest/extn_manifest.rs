@@ -201,6 +201,7 @@ impl ExtnManifest {
                 }
             })
         });
+        map.shrink_to_fit();
         map
     }
 
@@ -217,6 +218,7 @@ impl ExtnManifest {
         for extn in self.extns.clone() {
             all_extns.extend(extn.symbols);
         }
+        all_extns.shrink_to_fit();
         all_extns
     }
 

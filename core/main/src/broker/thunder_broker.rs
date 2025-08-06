@@ -394,6 +394,7 @@ impl ThunderBroker {
                 for (k, v) in subs.drain().take(1) {
                     let _ = reconnect_request.sub_map.insert(k, v);
                 }
+                drop(subs);
             }
             if request.reconnector.send(reconnect_request).await.is_err() {
                 error!("Error reconnecting to thunder");
@@ -680,7 +681,10 @@ impl EndpointBroker for ThunderBroker {
             final_result = Ok(BrokerOutput::new(updated_data));
         }
         if let Ok(output) = final_result.clone() {
-            tokio::spawn(async move { callback.sender.send(output).await });
+            tokio::spawn(async move {
+                debug!("sending response {:?}", output);
+                callback.sender.send(output).await
+            });
         } else {
             error!("Bad broker response {}", String::from_utf8_lossy(result));
         }

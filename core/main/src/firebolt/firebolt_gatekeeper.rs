@@ -31,7 +31,7 @@ pub struct FireboltGatekeeper {}
 
 impl FireboltGatekeeper {
     pub fn resolve_dependencies(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         perm_set: &Vec<FireboltPermission>,
     ) -> Vec<FireboltPermission> {
         let mut resolved_perm_set: Vec<FireboltPermission> = Default::default();
@@ -50,7 +50,7 @@ impl FireboltGatekeeper {
         resolved_perm_set
     }
     fn get_resolved_caps_for_method(
-        platform_state: &PlatformState,
+        platform_state: PlatformState,
         method: &str,
         secure: bool,
     ) -> Option<Vec<FireboltPermission>> {
@@ -80,12 +80,15 @@ impl FireboltGatekeeper {
         state: PlatformState,
         request: RpcRequest,
     ) -> Result<Vec<FireboltPermission>, DenyReasonWithCap> {
-        let caps =
-            Self::get_resolved_caps_for_method(&state, &request.method, request.ctx.gateway_secure)
-                .ok_or(DenyReasonWithCap {
-                    reason: DenyReason::NotFound,
-                    caps: Vec::new(),
-                })?;
+        let caps = Self::get_resolved_caps_for_method(
+            state.clone(),
+            &request.method,
+            request.ctx.gateway_secure,
+        )
+        .ok_or(DenyReasonWithCap {
+            reason: DenyReason::NotFound,
+            caps: Vec::new(),
+        })?;
 
         if caps.is_empty() {
             // Couldnt find any capabilities for the method
@@ -133,13 +136,16 @@ impl FireboltGatekeeper {
         filtered_perm_list: Vec<FireboltPermission>,
     ) -> Result<(), DenyReasonWithCap> {
         // permission checks
-        let open_rpc_state = state.clone().open_rpc_state;
+        let open_rpc_state = state.clone().open_rpc_state.clone();
         // check if the app or method is in permission exclusion list
         if open_rpc_state.is_excluded(request.clone().method, request.clone().ctx.app_id) {
             trace!("Method is exluded from permission check {}", request.method);
-        } else if let Err(e) =
-            PermissionHandler::check_permitted(&state, &request.ctx.app_id, &filtered_perm_list)
-                .await
+        } else if let Err(e) = PermissionHandler::check_permitted(
+            state.clone(),
+            &request.ctx.app_id,
+            &filtered_perm_list,
+        )
+        .await
         {
             trace!(
                 "check_permitted for method ({}) failed. Error: {:?}",
@@ -152,7 +158,7 @@ impl FireboltGatekeeper {
         trace!("check_permitted for method ({}) succeded", request.method);
         //usergrants check
         if let Err(e) = GrantState::check_with_roles(
-            &state,
+            state.clone(),
             &request.ctx.clone().into(),
             &request.ctx.clone().into(),
             &filtered_perm_list,

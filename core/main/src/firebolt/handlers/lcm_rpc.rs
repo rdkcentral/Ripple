@@ -110,7 +110,7 @@ impl LifecycleManagementImpl {
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
         ProviderBroker::register_or_unregister_provider(
-            &self.state,
+            self.state.clone(),
             FireboltCap::short("app:lifecycle").as_str(),
             method.into(),
             String::from(event_name),
@@ -136,7 +136,12 @@ impl LifecycleManagementServer for LifecycleManagementImpl {
             app_resp_tx,
         );
 
-        if let Err(e) = self.state.get_client().send_app_request(app_request) {
+        if let Err(e) = self
+            .state
+            .clone()
+            .get_client()
+            .send_app_request(app_request)
+        {
             error!("Send error for set_state {:?}", e);
             return Err(rpc_err("Unable send app request"));
         }
@@ -197,7 +202,12 @@ impl LifecycleManagementServer for LifecycleManagementImpl {
 
         let app_request = AppRequest::new(AppMethod::BrowserSession(req.session), app_resp_tx);
 
-        if let Err(e) = self.state.get_client().send_app_request(app_request) {
+        if let Err(e) = self
+            .state
+            .clone()
+            .get_client()
+            .send_app_request(app_request)
+        {
             error!("Send error for set_state {:?}", e);
             return Err(rpc_err("Unable send app request"));
         }
@@ -232,7 +242,7 @@ impl LifecycleManagementServer for LifecycleManagementImpl {
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
         AppEvents::add_listener(
-            &self.state,
+            self.state.clone(),
             LCM_EVENT_ON_SESSION_TRANSITION_COMPLETED.to_string(),
             ctx,
             request,
@@ -250,7 +260,7 @@ impl LifecycleManagementServer for LifecycleManagementImpl {
     ) -> RpcResult<ListenerResponse> {
         let listen = request.listen;
         AppEvents::add_listener(
-            &self.state,
+            self.state.clone(),
             LCM_EVENT_ON_SESSION_TRANSITION_CANCELED.to_string(),
             ctx,
             request,

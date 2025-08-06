@@ -32,6 +32,7 @@ use ripple_sdk::{
     },
     utils::error::RippleError,
 };
+
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -66,7 +67,7 @@ impl ProviderRelationSet {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct OpenRpcState {
     open_rpc: Arc<FireboltOpenRpc>,
     exclusory: Arc<Option<ExclusoryImpl>>,
@@ -115,7 +116,7 @@ impl OpenRpcState {
         }
     }
 
-    pub fn new(
+    pub fn new_instance(
         exclusory: Option<ExclusoryImpl>,
         extn_sdks: Vec<String>,
         provider_registrations: Vec<String>,
@@ -153,6 +154,17 @@ impl OpenRpcState {
 
         v
     }
+    pub fn new(
+        exclusory: Option<ExclusoryImpl>,
+        extn_sdks: Vec<String>,
+        provider_registrations: Vec<String>,
+    ) -> Arc<OpenRpcState> {
+        Arc::new(Self::new_instance(
+            exclusory,
+            extn_sdks,
+            provider_registrations,
+        ))
+    }
 
     pub fn add_open_rpc(&self, open_rpc: FireboltOpenRpc) {
         self.extend_caps(open_rpc.get_methods_caps());
@@ -160,6 +172,7 @@ impl OpenRpcState {
 
         let mut ext_rpcs = self.extended_rpc.write().unwrap();
         ext_rpcs.push(open_rpc);
+        ext_rpcs.shrink_to_fit();
     }
 
     pub fn is_app_excluded(&self, app_id: &str) -> bool {
@@ -427,11 +440,11 @@ impl OpenRpcState {
                 );
             }
         }
-
-        self.provider_relation_map
-            .write()
-            .unwrap()
-            .extend(provider_relation_sets)
+        {
+            let mut provider_relations = self.provider_relation_map.write().unwrap();
+            provider_relations.extend(provider_relation_sets);
+            provider_relations.shrink_to_fit();
+        }
     }
 
     pub fn add_json_schema_cache(&self, method: String, schema: JSONSchema) {

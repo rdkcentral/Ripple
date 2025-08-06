@@ -26,6 +26,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::{ApiMessage, CallContext},
         session::{AccountSession, ProvisionRequest},
     },
+    log::{debug, trace, warn},
     tokio::sync::mpsc::Sender,
     utils::error::RippleError,
 };
@@ -131,12 +132,40 @@ impl SessionState {
 
     pub fn add_session(&self, id: String, session: Session) {
         let mut session_state = self.session_map.write().unwrap();
+        debug!(
+            "adding_session for app: {}  with id {}. capacity: {}: num sessions: {}",
+            session.data.app_id,
+            id,
+            session_state.capacity(),
+            session_state.len()
+        );
         session_state.insert(id, session);
+        session_state.shrink_to_fit();
     }
 
     pub fn clear_session(&self, id: &str) {
         let mut session_state = self.session_map.write().unwrap();
-        session_state.remove(id);
+        trace!(
+            "session count before delete of {} : {}",
+            session_state.len(),
+            id
+        );
+        if session_state.remove(id).is_none() {
+            warn!("a session delete was requested for session_id={}, but the session was not found in the session_state. session count={} ",id,session_state.len());
+            debug!(
+                "the current list of session ids is {:?}",
+                session_state.keys()
+            );
+        } else {
+            debug!("the session with id={id} was successfully removed");
+        }
+        trace!(
+            "session count after delete of {} : {}",
+            session_state.len(),
+            id
+        );
+
+        session_state.shrink_to_fit();
     }
 
     pub fn update_account_session(&self, provision: ProvisionRequest) {
@@ -172,9 +201,15 @@ impl SessionState {
             return;
         }
         pending_sessions.insert(app_id, info);
+        pending_sessions.shrink_to_fit();
     }
 
     pub fn clear_pending_session(&self, app_id: &String) {
-        self.pending_sessions.write().unwrap().remove(app_id);
+        let mut sessions = self.pending_sessions.write().unwrap();
+        if sessions.remove(app_id).is_none() {
+            warn!("session={} was marked for clearing, but it was not found. current session count={}", app_id, sessions.len());
+        }
+        sessions.shrink_to_fit();
+        drop(sessions);
     }
 }

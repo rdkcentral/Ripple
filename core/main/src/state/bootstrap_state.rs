@@ -22,7 +22,7 @@ use ripple_sdk::{
     framework::bootstrap::TransientChannel,
     log::{error, info, warn},
     tokio::sync::mpsc::{self, Receiver, Sender},
-    utils::error::RippleError,
+    utils::{error::RippleError, test_utils::log_memory_usage},
 };
 
 use crate::{
@@ -30,6 +30,7 @@ use crate::{
     broker::endpoint_broker::{BrokerOutput, BROKER_CHANNEL_BUFFER_SIZE},
     firebolt::firebolt_gateway::FireboltGatewayCommand,
     service::extn::ripple_client::RippleClient,
+    state::platform_state::PlatformStateContainer,
 };
 
 use super::platform_state::PlatformState;
@@ -95,20 +96,26 @@ pub struct BootstrapState {
 
 impl BootstrapState {
     pub fn build() -> Result<BootstrapState, RippleError> {
+        log_memory_usage("BootstrapState: start");
         let channels_state = ChannelsState::new();
+
         let client = RippleClient::new(channels_state.clone());
+        log_memory_usage("BootstrapState: RippleClient created");
         let Ok((extn_manifest, device_manifest)) = RippleManifestLoader::initialize() else {
             error!("Error initializing manifests");
             return Err(RippleError::BootstrapError);
         };
-        let app_manifest_result = LoadAppLibraryStep::load_app_library();
-        let platform_state = PlatformState::new(
+        log_memory_usage("BootstrapState: manifests loaded ");
+        let mut app_manifest_result = LoadAppLibraryStep::load_app_library();
+        app_manifest_result.shrink_to_fit();
+        let platform_state = PlatformStateContainer::new(
             extn_manifest,
             device_manifest,
             client,
             app_manifest_result,
             ripple_version_from_etc(),
         );
+        log_memory_usage("BootstrapState: platformstate loaded ");
 
         fn ripple_version_from_etc() -> Option<String> {
             static RIPPLE_VER_FILE_DEFAULT: &str = "/etc/rippleversion.txt";

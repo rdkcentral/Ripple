@@ -227,7 +227,7 @@ impl ProviderRegistrar {
         let listen = request.listen;
 
         AppEvents::add_listener(
-            &context.platform_state,
+            context.platform_state.clone(),
             context.method.clone(),
             call_context,
             request,
@@ -266,7 +266,7 @@ impl ProviderRegistrar {
             let listening = request.listen;
 
             ProviderBroker::register_or_unregister_provider(
-                &context.platform_state,
+                context.platform_state.clone(),
                 capability.clone(),
                 context.method.clone(),
                 context.method.clone(),
@@ -350,7 +350,7 @@ impl ProviderRegistrar {
             if let Some(app_event) = is_app_event {
                 let app_id = SerdeClearString::as_clear_string(&app_event);
                 AppEvents::emit_to_app(
-                    &context.platform_state,
+                    context.platform_state.clone(),
                     app_id,
                     &FireboltOpenRpcMethod::name_with_lowercase_module(event),
                     &result_value,
@@ -358,7 +358,7 @@ impl ProviderRegistrar {
                 .await;
             } else {
                 AppEvents::emit(
-                    &context.platform_state,
+                    context.platform_state.clone(),
                     &FireboltOpenRpcMethod::name_with_lowercase_module(event),
                     &result_value,
                 )
@@ -385,13 +385,18 @@ impl ProviderRegistrar {
                 attributes.error_payload_type.clone(),
                 params_sequence,
             ) {
-                ProviderBroker::provider_response(&context.platform_state, provider_response).await;
+                ProviderBroker::provider_response(
+                    context.platform_state.clone(),
+                    provider_response,
+                )
+                .await;
             }
         } else if let Some(provider_response) = ProviderRegistrar::get_provider_response(
             ProviderResponsePayloadType::GenericError,
             params_sequence,
         ) {
-            ProviderBroker::provider_response(&context.platform_state, provider_response).await;
+            ProviderBroker::provider_response(context.platform_state.clone(), provider_response)
+                .await;
         } else {
             error!(
                 "callback_error: NO Valid ATTRIBUTES: context.method={}",
@@ -490,7 +495,8 @@ impl ProviderRegistrar {
         };
 
         let provider_app_id =
-            ProviderBroker::invoke_method(&context.platform_state, provider_broker_request).await;
+            ProviderBroker::invoke_method(context.platform_state.clone(), provider_broker_request)
+                .await;
 
         let result = match timeout(
             Duration::from_millis(DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS),
@@ -633,7 +639,7 @@ impl ProviderRegistrar {
             };
 
             ProviderBroker::focus(
-                &context.platform_state,
+                context.platform_state.clone(),
                 call_context,
                 capability.clone(),
                 request,
@@ -662,7 +668,8 @@ impl ProviderRegistrar {
         if let Some(provider_response) =
             ProviderRegistrar::get_provider_response(response_payload_type, params_sequence)
         {
-            ProviderBroker::provider_response(&context.platform_state, provider_response).await;
+            ProviderBroker::provider_response(context.platform_state.clone(), provider_response)
+                .await;
         } else {
             error!(
                 "callback_response: Could not resolve response payload type: context.method={}",
@@ -762,7 +769,10 @@ impl ProviderRegistrar {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::{state::openrpc_state::OpenRpcState, utils::test_utils};
+    use crate::{
+        state::{openrpc_state::OpenRpcState, platform_state::PlatformStateContainerBuilder},
+        utils::test_utils,
+    };
 
     use super::*;
     use jsonrpsee::core::server::rpc_module::Methods;
@@ -771,8 +781,11 @@ mod tests {
     #[tokio::test]
     async fn test_register_methods() {
         let mut methods = Methods::new();
-        let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new(), Vec::new());
+        let runtime = test_utils::MockRuntime::new(
+            PlatformStateContainerBuilder::new()
+                .open_rpc_state(Arc::new(OpenRpcState::default()))
+                .build(),
+        );
 
         let mut provider_relation_map: HashMap<String, ProviderRelationSet> = HashMap::new();
         provider_relation_map.insert("some.method".to_string(), ProviderRelationSet::new());
@@ -791,8 +804,11 @@ mod tests {
     #[tokio::test]
     async fn test_register_method_event_provided_by() {
         let mut methods = Methods::new();
-        let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new(), Vec::new());
+        let runtime = test_utils::MockRuntime::new(
+            PlatformStateContainerBuilder::new()
+                .open_rpc_state(Arc::new(OpenRpcState::default()))
+                .build(),
+        );
 
         let provider_relation_set = ProviderRelationSet {
             event: true,
@@ -817,8 +833,7 @@ mod tests {
     #[tokio::test]
     async fn test_register_method_event_provides() {
         let mut methods = Methods::new();
-        let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new(), Vec::new());
+        let runtime = test_utils::MockRuntime::new(PlatformStateContainerBuilder::new().build());
 
         let provider_relation_set = ProviderRelationSet {
             event: true,
@@ -843,8 +858,7 @@ mod tests {
     #[tokio::test]
     async fn test_register_method_event_provides_to() {
         let mut methods = Methods::new();
-        let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new(), Vec::new());
+        let runtime = test_utils::MockRuntime::new(PlatformStateContainerBuilder::new().build());
 
         let provider_relation_set = ProviderRelationSet {
             event: true,
@@ -869,8 +883,7 @@ mod tests {
     #[tokio::test]
     async fn test_register_method_provides_to() {
         let mut methods = Methods::new();
-        let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new(), Vec::new());
+        let runtime = test_utils::MockRuntime::new(PlatformStateContainerBuilder::new().build());
 
         let provider_relation_set = ProviderRelationSet {
             event: true,
@@ -895,8 +908,7 @@ mod tests {
     #[tokio::test]
     async fn test_register_method_error_for() {
         let mut methods = Methods::new();
-        let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new(), Vec::new());
+        let runtime = test_utils::MockRuntime::new(PlatformStateContainerBuilder::new().build());
 
         let provider_relation_set = ProviderRelationSet {
             error_for: Some("some.other.method".to_string()),
@@ -920,8 +932,7 @@ mod tests {
     #[tokio::test]
     async fn test_register_method_provided_by() {
         let mut methods = Methods::new();
-        let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new(), Vec::new());
+        let runtime = test_utils::MockRuntime::new(PlatformStateContainerBuilder::new().build());
 
         let provider_relation_set = ProviderRelationSet {
             provided_by: Some("some.other.method".to_string()),
@@ -945,8 +956,7 @@ mod tests {
     #[tokio::test]
     async fn test_register_method_allow_focus_for() {
         let mut methods = Methods::new();
-        let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new(), Vec::new());
+        let runtime = test_utils::MockRuntime::new(PlatformStateContainerBuilder::new().build());
 
         let provider_relation_set = ProviderRelationSet {
             allow_focus_for: Some("some.other.method".to_string()),
@@ -970,8 +980,7 @@ mod tests {
     #[tokio::test]
     async fn test_register_method_response_for() {
         let mut methods = Methods::new();
-        let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new(), Vec::new());
+        let runtime = test_utils::MockRuntime::new(PlatformStateContainerBuilder::new().build());
 
         let provider_relation_set = ProviderRelationSet {
             response_for: Some("some.other.method".to_string()),
@@ -995,9 +1004,7 @@ mod tests {
     #[tokio::test]
     async fn test_register_method_duplicate() {
         const METHOD_NAME: &str = "some.method";
-
-        let mut runtime = test_utils::MockRuntime::new();
-        runtime.platform_state.open_rpc_state = OpenRpcState::new(None, Vec::new(), Vec::new());
+        let runtime = test_utils::MockRuntime::new(PlatformStateContainerBuilder::new().build());
 
         let provider_relation_set = ProviderRelationSet {
             response_for: Some("some.other.method".to_string()),

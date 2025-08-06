@@ -28,7 +28,7 @@ use ripple_sdk::{
         extn_id::ExtnId,
     },
     framework::RippleResponse,
-    log::error,
+    log::{debug, error},
     tokio::sync::{mpsc::Sender, oneshot},
     utils::error::RippleError,
 };
@@ -56,16 +56,29 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct RippleClient {
     client: Arc<RwLock<ExtnClient>>,
-    gateway_sender: Sender<FireboltGatewayCommand>,
+    gateway_sender: Arc<Sender<FireboltGatewayCommand>>,
     app_mgr_sender: Sender<AppRequest>, // will be used by LCM RPC
     broker_sender: Sender<BrokerOutput>,
+}
+
+impl Default for RippleClient {
+    fn default() -> Self {
+        use ripple_sdk::{extn::client::extn_client::Mockable, mock_sender};
+
+        Self {
+            client: Arc::new(RwLock::new(ExtnClient::mock())),
+            gateway_sender: mock_sender!(FireboltGatewayCommand).into(),
+            app_mgr_sender: mock_sender!(AppRequest),
+            broker_sender: mock_sender!(BrokerOutput),
+        }
+    }
 }
 
 impl RippleClient {
     pub fn new(state: ChannelsState) -> RippleClient {
         let extn_client = ExtnClient::new_main();
         RippleClient {
-            gateway_sender: state.get_gateway_sender(),
+            gateway_sender: state.get_gateway_sender().into(),
             app_mgr_sender: state.get_app_mgr_sender(),
             client: Arc::new(RwLock::new(extn_client)),
             broker_sender: state.get_broker_sender(),
@@ -77,14 +90,15 @@ impl RippleClient {
         let cs = ChannelsState::new();
         RippleClient {
             client: Arc::new(RwLock::new(extn_client)),
-            gateway_sender: cs.get_gateway_sender(),
+            gateway_sender: cs.get_gateway_sender().into(),
             app_mgr_sender: cs.get_app_mgr_sender(),
             broker_sender: cs.get_broker_sender(),
         }
     }
 
     pub fn send_gateway_command(&self, cmd: FireboltGatewayCommand) -> Result<(), RippleError> {
-        if let Err(e) = self.gateway_sender.try_send(cmd) {
+        debug!("sending fb command {:?}", cmd);
+        if let Err(e) = self.gateway_sender.clone().try_send(cmd) {
             error!("failed to send firebolt gateway message {:?}", e);
             return Err(RippleError::SendFailure);
         }

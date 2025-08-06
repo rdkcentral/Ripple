@@ -47,7 +47,7 @@ pub struct DefaultStorageProperties;
 
 impl DefaultStorageProperties {
     pub fn get_bool(
-        state: &PlatformState,
+        state: PlatformState,
         namespace: &String,
         key: &'static str,
     ) -> Result<bool, DefaultStoragePropertiesError> {
@@ -154,7 +154,7 @@ impl DefaultStorageProperties {
     }
 
     pub fn get_string(
-        state: &PlatformState,
+        state: PlatformState,
         namespace: &String,
         key: &'static str,
     ) -> Result<String, DefaultStoragePropertiesError> {
@@ -249,7 +249,7 @@ impl DefaultStorageProperties {
     }
 
     pub fn get_number_as_u32(
-        state: &PlatformState,
+        state: PlatformState,
         namespace: &String,
         key: &'static str,
     ) -> Result<u32, DefaultStoragePropertiesError> {
@@ -286,7 +286,7 @@ impl DefaultStorageProperties {
     }
 
     pub fn get_number_as_f32(
-        state: &PlatformState,
+        state: PlatformState,
         namespace: &String,
         key: &'static str,
     ) -> Result<f32, DefaultStoragePropertiesError> {

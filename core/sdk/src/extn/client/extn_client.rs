@@ -228,6 +228,7 @@ impl ExtnClient {
                     None => error!("Unknown contract {}", contract),
                 }
             }
+
             let mut contract_map = self.contract_map.write().unwrap();
             contract_map.extend(map);
         }
@@ -1048,6 +1049,35 @@ impl ExtnClient {
     }
 }
 
+pub trait Mockable {
+    fn mock() -> ExtnClient
+    where
+        Self: Sized;
+    fn mock_with_params(
+        id: ExtnId,
+        context: Vec<String>,
+        fulfills: Vec<String>,
+        config: Option<HashMap<String, String>>,
+    ) -> ExtnClient
+    where
+        Self: Sized;
+}
+
+impl Mockable for ExtnClient {
+    fn mock_with_params(
+        _id: ExtnId,
+        _context: Vec<String>,
+        _fulfills: Vec<String>,
+        _config: Option<HashMap<String, String>>,
+    ) -> ExtnClient {
+        ExtnClient::new_main()
+    }
+
+    fn mock() -> ExtnClient {
+        ExtnClient::new_main()
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
@@ -1082,37 +1112,6 @@ pub mod tests {
     use tokio::sync::{mpsc, oneshot};
     use tokio::time::Duration;
     use uuid::Uuid;
-
-    #[cfg(test)]
-    pub trait Mockable {
-        fn mock() -> ExtnClient
-        where
-            Self: Sized;
-        fn mock_with_params(
-            id: ExtnId,
-            context: Vec<String>,
-            fulfills: Vec<String>,
-            config: Option<HashMap<String, String>>,
-        ) -> ExtnClient
-        where
-            Self: Sized;
-    }
-
-    #[cfg(test)]
-    impl Mockable for ExtnClient {
-        fn mock_with_params(
-            _id: ExtnId,
-            _context: Vec<String>,
-            _fulfills: Vec<String>,
-            _config: Option<HashMap<String, String>>,
-        ) -> ExtnClient {
-            ExtnClient::new_main()
-        }
-
-        fn mock() -> ExtnClient {
-            ExtnClient::new_main()
-        }
-    }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_request_with_timeout() {

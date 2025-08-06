@@ -215,7 +215,7 @@ impl UserGrantsServer for UserGrantsImpl {
 
     async fn usergrants_grant(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
         let result = GrantState::update_grant(
-            &self.platform_state,
+            self.platform_state.clone(),
             GrantStateModify::Grant,
             &request.options.and_then(|x| x.app_id),
             request.role,
@@ -228,7 +228,7 @@ impl UserGrantsServer for UserGrantsImpl {
 
     async fn usergrants_deny(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
         let result = GrantState::update_grant(
-            &self.platform_state,
+            self.platform_state.clone(),
             GrantStateModify::Deny,
             &request.options.and_then(|x| x.app_id),
             request.role,
@@ -241,7 +241,7 @@ impl UserGrantsServer for UserGrantsImpl {
 
     async fn usergrants_clear(&self, ctx: CallContext, request: GrantRequest) -> RpcResult<()> {
         let result = GrantState::update_grant(
-            &self.platform_state,
+            self.platform_state.clone(),
             GrantStateModify::Clear,
             &request.options.and_then(|x| x.app_id),
             request.role,
@@ -269,7 +269,7 @@ impl UserGrantsServer for UserGrantsImpl {
             .check_supported(&fb_perms)
             .map_err(|err| Error::Custom(format!("{:?} not supported", err.caps)))?;
         let grant_entries = GrantState::check_with_roles(
-            &self.platform_state,
+            self.platform_state.clone(),
             &ctx.clone().into(),
             &AppIdentification {
                 app_id: request.app_id.clone(),

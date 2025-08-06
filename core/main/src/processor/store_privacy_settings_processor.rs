@@ -72,15 +72,15 @@ impl ExtnStreamProcessor for StorePrivacySettingsProcessor {
 }
 impl StorePrivacySettingsProcessor {
     async fn process_set_request(
-        state: &PlatformState,
+        state: PlatformState,
         msg: ExtnMessage,
         storage_property: StorageProperty,
         value: bool,
     ) -> bool {
-        let result = StorageManager::set_bool(state, storage_property, value, None).await;
+        let result = StorageManager::set_bool(state.clone(), storage_property, value, None).await;
         if result.is_ok() {
             Self::respond(
-                state.get_client().get_extn_client(),
+                state.clone().get_client().get_extn_client(),
                 msg,
                 ExtnResponse::None(()),
             )
@@ -88,7 +88,7 @@ impl StorePrivacySettingsProcessor {
             .is_ok()
         } else {
             Self::handle_error(
-                state.get_client().get_extn_client(),
+                state.clone().get_client().get_extn_client(),
                 msg,
                 RippleError::ProcessorError,
             )
@@ -96,14 +96,14 @@ impl StorePrivacySettingsProcessor {
         }
     }
     async fn process_get_request(
-        state: &PlatformState,
+        state: PlatformState,
         msg: ExtnMessage,
         storage_property: StorageProperty,
     ) -> bool {
-        let result = StorageManager::get_bool(state, storage_property).await;
+        let result = StorageManager::get_bool(state.clone(), storage_property).await;
         match result {
             Ok(val) => Self::respond(
-                state.get_client().get_extn_client(),
+                state.clone().get_client().get_extn_client(),
                 msg,
                 ExtnResponse::Boolean(val),
             )
@@ -120,7 +120,7 @@ impl StorePrivacySettingsProcessor {
         }
     }
     async fn process_set_all_request(
-        state: &PlatformState,
+        state: PlatformState,
         msg: ExtnMessage,
         privacy_settings_data: PrivacySettingsData,
     ) -> bool {
@@ -128,7 +128,7 @@ impl StorePrivacySettingsProcessor {
         macro_rules! set_property {
             ($property:ident, $value:expr) => {
                 if let Some(value) = $value {
-                    let res = StorageManager::set_bool(state, $property, value, None).await;
+                    let res = StorageManager::set_bool(state.clone(), $property, value, None).await;
                     if let Err(e) = res {
                         error!("Unable to set property {:?} error: {:?}", $property, e);
                         err = true;
@@ -192,14 +192,14 @@ impl StorePrivacySettingsProcessor {
 
         if err {
             return Self::handle_error(
-                state.get_client().get_extn_client(),
+                state.clone().get_client().get_extn_client(),
                 msg,
                 RippleError::ProcessorError,
             )
             .await;
         }
         Self::respond(
-            state.get_client().get_extn_client(),
+            state.clone().get_client().get_extn_client(),
             msg,
             ExtnResponse::None(()),
         )
@@ -211,7 +211,7 @@ impl StorePrivacySettingsProcessor {
 #[async_trait]
 impl ExtnRequestProcessor for StorePrivacySettingsProcessor {
     fn get_client(&self) -> ripple_sdk::extn::client::extn_client::ExtnClient {
-        self.state.get_client().get_extn_client()
+        self.state.clone().get_client().get_extn_client()
     }
 
     async fn process_request(
@@ -225,13 +225,13 @@ impl ExtnRequestProcessor for StorePrivacySettingsProcessor {
         );
         match extracted_message {
             PrivacySettingsStoreRequest::GetPrivacySettings(storage_property) => {
-                Self::process_get_request(&state, msg, storage_property).await
+                Self::process_get_request(state, msg, storage_property).await
             }
             PrivacySettingsStoreRequest::SetAllPrivacySettings(privacy_settings_data) => {
-                Self::process_set_all_request(&state, msg, privacy_settings_data).await
+                Self::process_set_all_request(state, msg, privacy_settings_data).await
             }
             PrivacySettingsStoreRequest::SetPrivacySettings(storage_property, value) => {
-                Self::process_set_request(&state, msg, storage_property, value).await
+                Self::process_set_request(state, msg, storage_property, value).await
             }
         }
     }
