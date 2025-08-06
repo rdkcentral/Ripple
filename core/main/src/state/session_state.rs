@@ -151,7 +151,7 @@ impl SessionState {
             id
         );
         if session_state.remove(id).is_none() {
-            warn!("a session delete was requested for id={}, but the session was not found in the session_state. session count={} ",id,session_state.len());
+            warn!("a session delete was requested for session_id={}, but the session was not found in the session_state. session count={} ",id,session_state.len());
             debug!(
                 "the current list of session ids is {:?}",
                 session_state.keys()
