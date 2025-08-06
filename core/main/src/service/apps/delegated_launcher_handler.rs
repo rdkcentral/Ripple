@@ -1362,8 +1362,16 @@ impl DelegatedLauncherHandler {
                 .session_state
                 .clear_pending_session(&String::from(app_id));
             if let Some(app_session) = app {
+                debug!(
+                    "attempting to cleanup session_state={:?} in end_session",
+                    app_session
+                );
                 if let Some(session_id) = app_session.active_session_id {
                     self.platform_state.session_state.clear_session(&session_id);
+                } else {
+                    warn!(
+                        "attempted to end session_state for an an app without an active session id"
+                    );
                 }
             }
         } else {

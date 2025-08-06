@@ -133,7 +133,9 @@ impl SessionState {
     pub fn add_session(&self, id: String, session: Session) {
         let mut session_state = self.session_map.write().unwrap();
         debug!(
-            "add_session capacity: {}: num sessions: {}",
+            "adding_session for app: {}  with id {}. capacity: {}: num sessions: {}",
+            session.data.app_id,
+            id,
             session_state.capacity(),
             session_state.len()
         );
@@ -149,7 +151,13 @@ impl SessionState {
             id
         );
         if session_state.remove(id).is_none() {
-            warn!("a session delete was request for id={}, but the session was not found in the session_state. session count={} ",id,session_state.len());
+            warn!("a session delete was requested for id={}, but the session was not found in the session_state. session count={} ",id,session_state.len());
+            debug!(
+                "the current list of session ids is {:?}",
+                session_state.keys()
+            );
+        } else {
+            debug!("the session with id={id} was successfully removed");
         }
         trace!(
             "session count after delete of {} : {}",

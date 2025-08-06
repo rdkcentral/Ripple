@@ -135,13 +135,17 @@ impl FireboltGateway {
                         .add_session(session_id, session);
                 }
                 UnregisterSession { session_id, cid } => {
+                    debug!(
+                        "session_state: processing UnregisterSession  for session_id={}, callid={}",
+                        session_id, cid
+                    );
                     AppEvents::remove_session(
                         self.state.platform_state.clone(),
                         session_id.clone(),
                     );
                     ProviderBroker::unregister_session(
                         self.state.platform_state.clone(),
-                        cid.clone(),
+                        session_id.clone(),
                     )
                     .await;
                     {

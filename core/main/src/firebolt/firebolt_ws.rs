@@ -362,7 +362,7 @@ impl FireboltWs {
                 _client_addr.port()
             );
             let msg = FireboltGatewayCommand::RegisterSession {
-                session_id: connection_id.clone(),
+                session_id: session_id_c.clone(),
                 session,
             };
             if let Err(e) = client.send_gateway_command(msg) {
@@ -518,14 +518,16 @@ impl FireboltWs {
         if let Some(symbol) = identity.service_info {
             info!(
                 "Unregistering service connection_id={} app_id={} session_id={}",
-                connection_id, app_id_c, session_id_c
+                connection_id,
+                app_id_c,
+                session_id_c.clone()
             );
             client
                 .get_extn_client()
                 .remove_sender(app_id_c.clone(), symbol);
         }
         let msg = FireboltGatewayCommand::UnregisterSession {
-            session_id: identity.session_id.clone(),
+            session_id: session_id_c.clone(),
             cid: connection_id,
         };
         if let Err(e) = client.send_gateway_command(msg) {
