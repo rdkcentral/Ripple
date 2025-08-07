@@ -289,10 +289,10 @@ impl ServiceControllerState {
         tokio::spawn(async move {
             while let Some(msg) = message_rx.recv().await {
                 let mut sender = sender_clone.lock().await;
-                if let Err(err) = sender.send(msg).await {
+                if let Err(err) = sender.send(msg.clone()).await {
                     error!("Failed to send service message: {:?}", err);
                 } else {
-                    trace!("Sent service message");
+                    trace!("Sent service message {:#?}", msg);
                 }
             }
         });

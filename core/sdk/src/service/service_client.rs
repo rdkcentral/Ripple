@@ -39,6 +39,7 @@ use serde_json::Value;
 use tokio::sync::{mpsc, oneshot};
 use tokio::sync::{mpsc::Sender as MSender, oneshot::Sender as OSender};
 use tokio_tungstenite::tungstenite::Message;
+use uuid::Uuid;
 
 use super::service_message::ServiceMessage;
 #[derive(Debug, Clone, Default)]
@@ -358,14 +359,36 @@ impl ServiceClient {
         }
     }
 
+    fn get_default_service_call_context(method: String) -> CallContext {
+        CallContext::new(
+            Uuid::new_v4().to_string(),
+            Uuid::new_v4().to_string(),
+            "internal".into(),
+            1,
+            crate::api::gateway::rpc_gateway_api::ApiProtocol::Service,
+            method.clone(),
+            None,
+            false,
+        )
+    }
     pub fn request_transient(
         &self,
         method: String,
         params: Option<Value>,
-        ctx: &CallContext,
+        ctx: Option<&CallContext>,
         service_id: String,
     ) -> Result<String, RippleError> {
-        let id = uuid::Uuid::new_v4().to_string();
+        // if ctx is None, create a default CallContext using get_default_service_call_context
+        let default_ctx;
+        let ctx = match ctx {
+            Some(c) => c,
+            None => {
+                default_ctx = Self::get_default_service_call_context(method.clone());
+                &default_ctx
+            }
+        };
+
+        let id = Uuid::new_v4().to_string();
         let mut service_request =
             ServiceMessage::new_request(method.to_owned(), params, Id::String(id.clone()));
         let mut context = ctx.clone();
