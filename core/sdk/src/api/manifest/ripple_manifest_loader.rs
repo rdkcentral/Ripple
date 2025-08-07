@@ -371,7 +371,9 @@ impl RippleConfigLoader {
     fn load_cascaded_extn_manifest(&self) -> ExtnManifest {
         info!("Loading cascaded extension manifest");
         let (default_path, paths) = self.get_manifest_paths(true);
-        self.load_and_merge_extn_manifests(&paths, default_path)
+        let mut extn_manifest = self.load_and_merge_extn_manifests(&paths, default_path);
+        sort_paths_by_keywords(&mut extn_manifest.rules_path);
+        extn_manifest
     }
 
     fn load_cascaded_device_manifest(&self) -> DeviceManifest {
@@ -395,6 +397,31 @@ impl RippleConfigLoader {
             panic!("get_device_manifest called in non-cascaded mode after initialization");
         }
     }
+}
+
+pub fn sort_paths_by_keywords(paths: &mut Vec<String>) {
+    paths.sort_by(|a, b| {
+        // A helper function to determine the priority of a given path.
+        // The keywords are checked in a specific order to ensure the correct
+        let get_priority = |path: &str| -> usize {
+            if path.contains("ripple.common") && !path.contains("panel") {
+                0
+            } else if path.contains("ripple.panel.common") {
+                1
+            } else if path.contains("ripple.") && path.contains(".common") {
+                2
+            } else if path.contains("ripple.") && path.contains(".panel") {
+                3
+            } else if path.contains("entos.private") {
+                4
+            } else if path.contains("badger") {
+                5
+            } else {
+                usize::MAX
+            }
+        };
+        get_priority(a).cmp(&get_priority(b))
+    });
 }
 
 #[cfg(test)]
