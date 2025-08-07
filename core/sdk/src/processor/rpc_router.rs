@@ -84,7 +84,7 @@ impl RpcRouter {
         let method_entry = router_state.get_method_entry(method_name.as_str());
         let resources = router_state.resources.clone();
         let (sink_tx, mut sink_rx) = futures_channel::mpsc::unbounded::<String>();
-        let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES, 512 * 1024);
+        let sink = MethodSink::new_with_limit(sink_tx, 1024 * 1024, 100 * 1024);
         let sink_size = 1024 * 1024;
         tokio::spawn(async move {
             let params_json = request_c.params_json.as_ref();
