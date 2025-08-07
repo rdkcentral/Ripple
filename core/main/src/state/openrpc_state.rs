@@ -123,16 +123,12 @@ impl OpenRpcState {
         let open_rpc_path = load_firebolt_open_rpc_path().expect("Need valid open-rpc file");
         let version_manifest: FireboltVersionManifest = serde_json::from_str(&open_rpc_path)
             .expect("Failed parsing FireboltVersionManifest from open RPC file");
-        let mut firebolt_open_rpc: FireboltOpenRpc = version_manifest.clone().to_owned().into();
-        firebolt_open_rpc.methods.shrink_to_fit();
-        firebolt_open_rpc.capabilities.shrink_to_fit();
+        let firebolt_open_rpc: FireboltOpenRpc = version_manifest.clone().into();
         let ripple_open_rpc: FireboltOpenRpc = FireboltOpenRpc::default();
-        let mut openrpc_validator: FireboltOpenRpcValidator = serde_json::from_str(&open_rpc_path)
+        let openrpc_validator: FireboltOpenRpcValidator = serde_json::from_str(&open_rpc_path)
             .expect("Failed parsing FireboltOpenRpcValidator from open RPC file");
-        openrpc_validator.apis.shrink_to_fit();
         let mut rpc_method_validator = RpcMethodValidator::new();
         rpc_method_validator.add_schema(openrpc_validator);
-        rpc_method_validator.validators.shrink_to_fit();
         let v = OpenRpcState {
             firebolt_cap_map: Arc::new(RwLock::new(firebolt_open_rpc.get_methods_caps())),
             ripple_cap_map: Arc::new(RwLock::new(ripple_open_rpc.get_methods_caps())),

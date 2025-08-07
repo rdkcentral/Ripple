@@ -17,13 +17,10 @@
 
 use futures::StreamExt;
 use jsonrpsee::{
-    core::{
-        server::{
-            helpers::MethodSink,
-            resource_limiting::Resources,
-            rpc_module::{MethodCallback, MethodKind, Methods},
-        },
-        TEN_MB_SIZE_BYTES,
+    core::server::{
+        helpers::MethodSink,
+        resource_limiting::Resources,
+        rpc_module::{MethodCallback, MethodKind, Methods},
     },
     types::{error::ErrorCode, Id, Params},
 };
