@@ -146,7 +146,7 @@ impl DeviceServer for DeviceImpl {
 
     async fn version(&self, ctx: CallContext) -> RpcResult<DeviceVersionResponse> {
         let firmware_info = self.firmware_info(ctx).await?;
-        let open_rpc_state = self.state.clone().open_rpc_state;
+        let open_rpc_state = &self.state.clone().open_rpc_state;
         let api = open_rpc_state.get_open_rpc().info;
 
         // os is deprecated, for now senidng firmware ver in os as well
