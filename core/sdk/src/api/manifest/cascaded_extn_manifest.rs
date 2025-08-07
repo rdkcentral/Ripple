@@ -74,7 +74,6 @@ impl MergeConfig<CascadedExtnManifest> for ExtnManifest {
         }
         if let Some(cas_rules_path) = cascaded.rules_path {
             self.rules_path.extend(cas_rules_path);
-            self.rules_path.sort();
         }
         if let Some(cas_extn_sdks) = cascaded.extn_sdks {
             self.extn_sdks.extend(cas_extn_sdks);
