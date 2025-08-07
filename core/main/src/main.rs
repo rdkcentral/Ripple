@@ -15,11 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use mimalloc::MiMalloc;
-
-#[global_allocator]
-static GLOBAL: MiMalloc = MiMalloc;
-
 use crate::bootstrap::boot::boot;
 use ripple_sdk::{
     log::{error, info},

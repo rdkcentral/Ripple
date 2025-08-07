@@ -71,7 +71,6 @@ strum_macros = "0.24"
 
 openrpc_validator = { path = "../../openrpc_validator" }
 proc-macro2.workspace = true
-mimalloc = "0.1.47"
 
 [build-dependencies]
 vergen = "1"
