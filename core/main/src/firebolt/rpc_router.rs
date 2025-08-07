@@ -96,7 +96,7 @@ async fn resolve_route(
     let request_c = req.clone();
     let sink_size = 1024 * 1024;
     let (sink_tx, mut sink_rx) = futures_channel::mpsc::unbounded::<String>();
-    let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES, 512 * 1024);
+    let sink = MethodSink::new_with_limit(sink_tx, 1024 * 1024, 100 * 1024);
     let method_name = request_c.method.clone();
 
     tokio::spawn(async move {

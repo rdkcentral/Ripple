@@ -163,7 +163,6 @@ impl OpenRpcState {
         self.extend_policies(open_rpc.get_capability_policy());
 
         let mut ext_rpcs = self.extended_rpc.write().unwrap();
-        ext_rpcs.shrink_to_fit();
         ext_rpcs.push(open_rpc);
     }
 
@@ -433,11 +432,10 @@ impl OpenRpcState {
             }
         }
 
-        {
-            let mut provider_relations = self.provider_relation_map.write().unwrap();
-            provider_relations.extend(provider_relation_sets);
-            provider_relations.shrink_to_fit();
-        }
+        self.provider_relation_map
+            .write()
+            .unwrap()
+            .extend(provider_relation_sets)
     }
 
     pub fn add_json_schema_cache(&self, method: String, schema: JSONSchema) {

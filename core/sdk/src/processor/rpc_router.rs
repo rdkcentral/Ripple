@@ -97,7 +97,10 @@ impl RpcRouter {
                         "resolve_route".into(),
                         request_c.clone(),
                     )
-                    .with_diagnostic_context_item("error", &format!("Method not found: {}", method_name))
+                    .with_diagnostic_context_item(
+                        "error",
+                        &format!("Method not found: {}", method_name),
+                    )
                     .emit_error();
                     sink.send_error(id, ErrorCode::MethodNotFound.into());
                 }
