@@ -565,9 +565,6 @@ async fn test_text_track_get_font_opacity() {
 async fn test_text_track_set_font_opacity() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
-    // Set a valid integer value for fontOpacity
-    let set_value = 90;
-
     pact_builder_async
         .synchronous_message_interaction("A request to set the font opacity", |mut i| async move {
             i.contents_from(json!({
