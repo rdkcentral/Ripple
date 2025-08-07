@@ -57,7 +57,7 @@ async fn test_device_get_presentation_language() {
             "response": [{
                 "jsonrpc": "matching(type, '2.0')",
                 "id": "matching(integer, 0)",
-                "result": "matching(type, 'en-US')"
+                "result": "matching(regex, '^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-[a-zA-Z]{2}|[0-9]{3})?(-[a-zA-Z0-9]+)*$', 'en-Latn-US')"
             }]
         })).await;
         i.test_name("get_presentation_language");
@@ -98,7 +98,7 @@ async fn test_device_set_presentation_language() {
                         "id": "matching(integer, 42)",
                         "method": "org.rdk.UserSettings.setPresentationLanguage",
                         "params": {
-                            "presentationLanguage": "matching(type, 'en-US')"
+                            "presentationLanguage": "matching(regex, '^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-[a-zA-Z]{2}|[0-9]{3})?(-[a-zA-Z0-9]+)*$', 'en-Latn-US')"
                         }
                     },
                     "requestMetadata": {
@@ -159,7 +159,7 @@ async fn test_device_get_preferred_audio_languages() {
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
                         "id": "matching(integer, 0)",
-                        "result": "matching(type, 'eng')"
+                        "result": "matching(regex, '^[a-z]{3}(,[a-z]{3})*$', 'eng,spa,fre')"
                     }]
                 }))
                 .await;
@@ -203,7 +203,7 @@ async fn test_device_set_preferred_audio_languages() {
                         "id": "matching(integer, 42)",
                         "method": "org.rdk.UserSettings.setPreferredAudioLanguages",
                         "params": {
-                            "languages": "matching(type, 'eng')"
+                            "preferredLanguages": "matching(regex, '^[a-z]{3}(,[a-z]{3})*$', 'eng,spa,fre')"
                         }
                     },
                     "requestMetadata": {
@@ -236,7 +236,7 @@ async fn test_device_set_preferred_audio_languages() {
             "id": 42,
             "method": "org.rdk.UserSettings.setPreferredAudioLanguages",
             "params": {
-                "languages": "eng"
+                "preferredLanguages": "eng"
             }
         })
     )
@@ -259,7 +259,7 @@ async fn test_device_set_voice_guidance() {
                         "id": "matching(integer, 42)",
                         "method": "org.rdk.UserSettings.setVoiceGuidance",
                         "params": {
-                            "enabled": "matching(type, true)"
+                            "enabled": "matching(boolean, true)"
                         }
                     },
                     "requestMetadata": {
@@ -304,9 +304,6 @@ async fn test_device_set_voice_guidance() {
 async fn test_device_get_voice_guidance_rate() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
-    // Use the same value as set in the setter
-    let rate_value = 0.1;
-
     pact_builder_async
         .synchronous_message_interaction(
             "A request to get the voice guidance rate",
@@ -324,7 +321,7 @@ async fn test_device_get_voice_guidance_rate() {
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
                         "id": "matching(integer, 42)",
-                        "result": rate_value
+                        "result": "matching(type, 0.1)"
                     }]
                 }))
                 .await;
@@ -357,9 +354,6 @@ async fn test_device_get_voice_guidance_rate() {
 async fn test_device_set_voice_guidance_rate() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
-    // Set a valid value for rate
-    let rate_value = 0.1;
-
     pact_builder_async
         .synchronous_message_interaction(
             "A request to set the voice guidance rate",
@@ -371,7 +365,7 @@ async fn test_device_set_voice_guidance_rate() {
                         "id": "matching(integer, 42)",
                         "method": "org.rdk.UserSettings.setVoiceGuidanceRate",
                         "params": {
-                            "rate": rate_value
+                            "rate": "matching(type, 0.1)"
                         }
                     },
                     "requestMetadata": {
@@ -404,7 +398,7 @@ async fn test_device_set_voice_guidance_rate() {
             "id": 42,
             "method": "org.rdk.UserSettings.setVoiceGuidanceRate",
             "params": {
-                "rate": rate_value
+                "rate": 0.1
             }
         })
     )
@@ -433,7 +427,7 @@ async fn test_device_get_audio_description() {
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
                         "id": "matching(integer, 0)",
-                        "result": "matching(type, true)"
+                        "result": "matching(boolean, true)"
                     }]
                 }))
                 .await;
@@ -477,7 +471,7 @@ async fn test_device_set_audio_description() {
                         "id": "matching(integer, 42)",
                         "method": "org.rdk.UserSettings.setAudioDescription",
                         "params": {
-                            "enabled": "matching(type, true)"
+                            "enabled": "matching(boolean, true)"
                         }
                     },
                     "requestMetadata": {
@@ -588,7 +582,7 @@ async fn test_device_get_captions() {
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
                         "id": "matching(integer, 0)",
-                        "result": "matching(type, true)"
+                        "result": "matching(boolean, true)"
                     }]
                 }))
                 .await;
@@ -632,7 +626,7 @@ async fn test_device_set_captions() {
                         "id": "matching(integer, 42)",
                         "method": "org.rdk.UserSettings.setCaptions",
                         "params": {
-                            "enabled": "matching(type, true)"
+                            "enabled": "matching(boolean, true)"
                         }
                     },
                     "requestMetadata": {
@@ -694,7 +688,7 @@ async fn test_device_get_preferred_captions_languages() {
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
                         "id": "matching(integer, 0)",
-                        "result": "matching(type, 'eng')"
+                        "result": "matching(regex, '^[a-z]{3}(,[a-z]{3})*$', 'eng,spa,fre')"
                     }]
                 }))
                 .await;
@@ -738,7 +732,7 @@ async fn test_device_set_preferred_captions_languages() {
                         "id": "matching(integer, 42)",
                         "method": "org.rdk.UserSettings.setPreferredCaptionsLanguages",
                         "params": {
-                            "languages": "matching(type, 'eng')"
+                            "preferredLanguages": "matching(regex, '^[a-z]{3}(,[a-z]{3})*$', 'eng,spa,fre')"
                         }
                     },
                     "requestMetadata": {
@@ -771,7 +765,7 @@ async fn test_device_set_preferred_captions_languages() {
             "id": 42,
             "method": "org.rdk.UserSettings.setPreferredCaptionsLanguages",
             "params": {
-                "languages": "eng"
+                "preferredLanguages": "eng"
             }
         })
     )
@@ -782,9 +776,6 @@ async fn test_device_set_preferred_captions_languages() {
 #[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_voice_guidance_hints() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
-
-    // Use the same value as set in the setter
-    let hints_value = "enabled";
 
     pact_builder_async
         .synchronous_message_interaction(
@@ -803,7 +794,7 @@ async fn test_device_get_voice_guidance_hints() {
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
                         "id": "matching(integer, 42)",
-                        "result": hints_value
+                        "result": "matching(boolean, true)"
                     }]
                 }))
                 .await;
@@ -836,9 +827,6 @@ async fn test_device_get_voice_guidance_hints() {
 async fn test_device_set_voice_guidance_hints() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
-    // Set a valid value for hints
-    let hints_value = "enabled";
-
     pact_builder_async
         .synchronous_message_interaction(
             "A request to set the voice guidance hints",
@@ -850,7 +838,7 @@ async fn test_device_set_voice_guidance_hints() {
                         "id": "matching(integer, 42)",
                         "method": "org.rdk.UserSettings.setVoiceGuidanceHints",
                         "params": {
-                            "hints": hints_value
+                            "hints": "matching(boolean, true)"
                         }
                     },
                     "requestMetadata": {
@@ -883,7 +871,7 @@ async fn test_device_set_voice_guidance_hints() {
             "id": 42,
             "method": "org.rdk.UserSettings.setVoiceGuidanceHints",
             "params": {
-                "hints": hints_value
+                "hints": true
             }
         })
     )
@@ -912,7 +900,7 @@ async fn test_device_get_voice_guidance() {
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
                         "id": "matching(integer, 0)",
-                        "result": "matching(type, true)"
+                        "result": "matching(boolean, true)"
                     }]
                 }))
                 .await;
