@@ -98,21 +98,21 @@ async fn test_device_get_model() {
 
     result.insert(
         "stbVersion".into(),
-        ContractMatcher::MatchType("AX061AEI_VBN_1911_sprint_20200109040424sdy".into()),
+        ContractMatcher::MatchRegex(
+            r"^[A-Z0-9]+_VBN_[A-Za-z0-9]+_sprint_\d{14}sdy(_[A-Z0-9_]+)*$".into(),
+            "AX061AEI_VBN_1911_sprint_20200109040424sdy".into(),
+        ),
     );
 
     result.insert(
         "receiverVersion".into(),
-        ContractMatcher::MatchRegex(
-            r"^[0-9]\d*.[0-9]\d*.[0-9]\d*.[0-9]\d*$".into(),
-            "3.14.0.0".into(),
-        ),
+        ContractMatcher::MatchRegex(r"^\d+\.\d+\.\d+\.\d+$".into(), "3.14.0.0".into()),
     );
 
     result.insert(
         "stbTimestamp".into(),
         ContractMatcher::MatchRegex(
-            "^\\w{3} \\d{1,2} \\w{3} (?:\\d{2})?\\d{2} \\d{2}:\\d{2}:\\d{2} [A-Z ]*UTC$".into(),
+            r"^\w{3} \d{2} \w{3} \d{4} \d{2}:\d{2}:\d{2} [A-Z ]*UTC$".into(),
             "Thu 09 Jan 2020 04:04:24 AP UTC".into(),
         ),
     );
