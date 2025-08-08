@@ -14,7 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-//
 
 use openrpc_validator::jsonschema::JSONSchema;
 use ripple_sdk::log::{debug, error, info};
