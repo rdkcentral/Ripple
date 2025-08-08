@@ -96,7 +96,7 @@ async fn test_text_track_set_font_family() {
                     "id": "matching(integer, 2)",
                     "method": "org.rdk.TextTrack.setFontFamily",
                     "params": {
-                        "fontFamily": "matching(type, 'Verdana')"
+                        "fontFamily": "matching(regex, '^(MONOSPACED_SERIF|PROPORTIONAL_SERIF|MONOSPACE_SANS_SERIF|PROPORTIONAL_SANS_SERIF|CASUAL|CURSIVE|SMALL_CAPITAL|CONTENT_DEFAULT)$', 'MONOSPACED_SERIF')"
                     }
                 },
                 "requestMetadata": {
@@ -105,7 +105,7 @@ async fn test_text_track_set_font_family() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 2)",
-                    "result": "matching(type, 'SUCCESS')"
+                    "result": null
                 }]
             }))
             .await;
@@ -128,7 +128,7 @@ async fn test_text_track_set_font_family() {
             "id": 2,
             "method": "org.rdk.TextTrack.setFontFamily",
             "params": {
-                "fontFamily": "Verdana"
+                "fontFamily": "MONOSPACED_SERIF"
             }
         })
     )
@@ -191,7 +191,7 @@ async fn test_text_track_set_font_size() {
                     "id": "matching(integer, 4)",
                     "method": "org.rdk.TextTrack.setFontSize",
                     "params": {
-                        "fontSize": "matching(type, '18px')"
+                        "fontSize": "matching(regex, '^(-1|0|1|2|3)$', '1')"
                     }
                 },
                 "requestMetadata": {
@@ -200,7 +200,7 @@ async fn test_text_track_set_font_size() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 4)",
-                    "result": "matching(type, 'SUCCESS')"
+                    "result": null
                 }]
             }))
             .await;
@@ -223,7 +223,7 @@ async fn test_text_track_set_font_size() {
             "id": 4,
             "method": "org.rdk.TextTrack.setFontSize",
             "params": {
-                "fontSize": "18px"
+                "fontSize": 1
             }
         })
     )
@@ -286,7 +286,7 @@ async fn test_text_track_set_font_color() {
                     "id": "matching(integer, 6)",
                     "method": "org.rdk.TextTrack.setFontColor",
                     "params": {
-                        "fontColor": "matching(type, '#FF0000')"
+                        "fontColor": "matching(regex, '^$|^#[0-9A-Fa-f]{6}$', '\"#FF0000\"')"
                     }
                 },
                 "requestMetadata": {
@@ -295,7 +295,7 @@ async fn test_text_track_set_font_color() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 6)",
-                    "result": "matching(type, 'SUCCESS')"
+                    "result": null
                 }]
             }))
             .await;
@@ -381,7 +381,7 @@ async fn test_text_track_set_font_edge() {
                     "id": "matching(integer, 8)",
                     "method": "org.rdk.TextTrack.setFontEdge",
                     "params": {
-                        "fontEdge": "matching(type, 'raised')"
+                        "fontEdge": "matching(regex, '^(none|raised|depressed|uniform|drop_shadow_left|drop_shadow_right|content_default)$', 'raised')"
                     }
                 },
                 "requestMetadata": {
@@ -390,7 +390,7 @@ async fn test_text_track_set_font_edge() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 8)",
-                    "result": "matching(type, 'SUCCESS')"
+                    "result": null
                 }]
             }))
             .await;
@@ -478,7 +478,7 @@ async fn test_text_track_set_font_edge_color() {
                         "id": "matching(integer, 10)",
                         "method": "org.rdk.TextTrack.setFontEdgeColor",
                         "params": {
-                            "fontEdgeColor": "matching(type, '#FF00FF')"
+                            "fontEdgeColor": "matching(regex, '^$|^#[0-9A-Fa-f]{6}$', '\"#FFFFFF\"')"
                         }
                     },
                     "requestMetadata": {
@@ -487,7 +487,7 @@ async fn test_text_track_set_font_edge_color() {
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
                         "id": "matching(integer, 10)",
-                        "result": "matching(type, 'SUCCESS')"
+                        "result": null
                     }]
                 }))
                 .await;
@@ -511,7 +511,7 @@ async fn test_text_track_set_font_edge_color() {
             "id": 10,
             "method": "org.rdk.TextTrack.setFontEdgeColor",
             "params": {
-                "fontEdgeColor": "#FF00FF"
+                "fontEdgeColor": "#FFFFFF"
             }
         })
     )
@@ -534,7 +534,7 @@ async fn test_text_track_get_font_opacity() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 11)",
-                    "result": "matching(type, '0.8')"
+                    "result": "matching(regex, '^(-1|[0-9]{1,2}|100)$', '90')"
                 }]
             })).await;
             i.test_name("get_font_opacity");
@@ -574,7 +574,7 @@ async fn test_text_track_set_font_opacity() {
                     "id": "matching(integer, 12)",
                     "method": "org.rdk.TextTrack.setFontOpacity",
                     "params": {
-                        "fontOpacity": "matching(type, '0.9')"
+                        "fontOpacity": "matching(regex, '^(-1|[0-9]{1,2}|100)$', '1')"
                     }
                 },
                 "requestMetadata": {
@@ -583,7 +583,7 @@ async fn test_text_track_set_font_opacity() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 12)",
-                    "result": "matching(type, 'SUCCESS')"
+                    "result": null
                 }]
             }))
             .await;
@@ -606,7 +606,7 @@ async fn test_text_track_set_font_opacity() {
             "id": 12,
             "method": "org.rdk.TextTrack.setFontOpacity",
             "params": {
-                "fontOpacity": "0.9"
+                "fontOpacity": 1
             }
         })
     )
@@ -629,7 +629,7 @@ async fn test_text_track_get_background_color() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 13)",
-                    "result": "matching(type, '#000000')"
+                    "result": "matching(regex, '\"^$|^#[0-9A-Fa-f]{6}$\"', '\"#FFFFFF\"')"
                 }]
             })).await;
             i.test_name("get_background_color");
@@ -671,7 +671,7 @@ async fn test_text_track_set_background_color() {
                         "id": "matching(integer, 14)",
                         "method": "org.rdk.TextTrack.setBackgroundColor",
                         "params": {
-                            "backgroundColor": "matching(type, '#FFFFFF')"
+                            "backgroundColor": "matching(regex, '^$|^#[0-9A-Fa-f]{6}$', '\"#FFFFFF\"')"
                         }
                     },
                     "requestMetadata": {
@@ -680,7 +680,7 @@ async fn test_text_track_set_background_color() {
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
                         "id": "matching(integer, 14)",
-                        "result": "matching(type, 'SUCCESS')"
+                        "result": null
                     }]
                 }))
                 .await;
@@ -727,7 +727,7 @@ async fn test_text_track_get_background_opacity() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 15)",
-                    "result": "matching(type, '0.7')"
+                    "result": "matching(regex, '^(-1|[0-9]{1,2}|100)$', '1')"
                 }]
             })).await;
             i.test_name("get_background_opacity");
@@ -769,7 +769,7 @@ async fn test_text_track_set_background_opacity() {
                         "id": "matching(integer, 16)",
                         "method": "org.rdk.TextTrack.setBackgroundOpacity",
                         "params": {
-                            "backgroundOpacity": "matching(type, '0.85')"
+                            "backgroundOpacity": "matching(regex, '^(-1|[0-9]{1,2}|100)$', '1')"
                         }
                     },
                     "requestMetadata": {
@@ -778,7 +778,7 @@ async fn test_text_track_set_background_opacity() {
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
                         "id": "matching(integer, 16)",
-                        "result": "matching(type, 'SUCCESS')"
+                        "result": null
                     }]
                 }))
                 .await;
@@ -802,7 +802,7 @@ async fn test_text_track_set_background_opacity() {
             "id": 16,
             "method": "org.rdk.TextTrack.setBackgroundOpacity",
             "params": {
-                "backgroundOpacity": "0.85"
+                "backgroundOpacity": 1
             }
         })
     )
@@ -825,7 +825,7 @@ async fn test_text_track_get_window_color() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 17)",
-                    "result": "matching(type, '#CCCCCC')"
+                    "result": "matching(regex, '^$|^#[0-9A-Fa-f]{6}$', '\"#FFFFFF\"')"
                 }]
             })).await;
             i.test_name("get_window_color");
@@ -874,7 +874,7 @@ async fn test_text_track_set_window_color() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 18)",
-                    "result": "matching(type, 'SUCCESS')"
+                    "result": null
                 }]
             }))
             .await;
@@ -920,7 +920,7 @@ async fn test_text_track_get_window_opacity() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 19)",
-                    "result": "matching(type, '0.6')"
+                    "result": "matching(regex, '^(-1|[0-9]{1,2}|100)$', '1')"
                 }]
             })).await;
             i.test_name("get_window_opacity");
@@ -962,7 +962,7 @@ async fn test_text_track_set_window_opacity() {
                         "id": "matching(integer, 20)",
                         "method": "org.rdk.TextTrack.setWindowOpacity",
                         "params": {
-                            "windowOpacity": "matching(type, '0.75')"
+                            "windowOpacity": "matching(regex, '^(-1|[0-9]{1,2}|100)$', '1')"
                         }
                     },
                     "requestMetadata": {
@@ -971,7 +971,7 @@ async fn test_text_track_set_window_opacity() {
                     "response": [{
                         "jsonrpc": "matching(type, '2.0')",
                         "id": "matching(integer, 20)",
-                        "result": "matching(type, 'SUCCESS')"
+                        "result": null
                     }]
                 }))
                 .await;
@@ -995,7 +995,7 @@ async fn test_text_track_set_window_opacity() {
             "id": 20,
             "method": "org.rdk.TextTrack.setWindowOpacity",
             "params": {
-                "windowOpacity": "0.75"
+                "windowOpacity": 1
             }
         })
     )
