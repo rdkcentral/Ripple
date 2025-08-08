@@ -399,7 +399,7 @@ impl RippleConfigLoader {
     }
 }
 
-pub fn sort_rules_paths_by_keywords(paths: &mut Vec<String>) {
+pub fn sort_rules_paths_by_keywords(paths: &mut [String]) {
     paths.sort_by(|a, b| {
         // A helper function to determine the priority of a given path.
         // The keywords are checked in a specific order to ensure the correct
