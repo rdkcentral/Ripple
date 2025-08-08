@@ -191,7 +191,7 @@ async fn test_text_track_set_font_size() {
                     "id": "matching(integer, 4)",
                     "method": "org.rdk.TextTrack.setFontSize",
                     "params": {
-                        "fontSize": "matching(regex, '^(-1|0|1|2|3)$', 1)"
+                        "fontSize": "matching(regex, '^(-1|0|1|2|3)$', '1')"
                     }
                 },
                 "requestMetadata": {
@@ -286,7 +286,7 @@ async fn test_text_track_set_font_color() {
                     "id": "matching(integer, 6)",
                     "method": "org.rdk.TextTrack.setFontColor",
                     "params": {
-                        "fontColor": "matching(regex, \"^$|^#[0-9A-Fa-f]{6}$\", \"#FF0000\")"
+                        "fontColor": "matching(regex, '^$|^#[0-9A-Fa-f]{6}$', '\"#FF0000\"')"
                     }
                 },
                 "requestMetadata": {
@@ -478,7 +478,7 @@ async fn test_text_track_set_font_edge_color() {
                         "id": "matching(integer, 10)",
                         "method": "org.rdk.TextTrack.setFontEdgeColor",
                         "params": {
-                            "fontEdgeColor": "matching(regex, \"^$|^#[0-9A-Fa-f]{6}$\", \"#FFFFFF\")"
+                            "fontEdgeColor": "matching(regex, '^$|^#[0-9A-Fa-f]{6}$', '\"#FFFFFF\"')"
                         }
                     },
                     "requestMetadata": {
@@ -534,7 +534,7 @@ async fn test_text_track_get_font_opacity() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 11)",
-                    "result": "matching(regex, '^(-1|[0-9]{1,2}|100)$', 90)"
+                    "result": "matching(regex, '^(-1|[0-9]{1,2}|100)$', '90')"
                 }]
             })).await;
             i.test_name("get_font_opacity");
@@ -574,7 +574,7 @@ async fn test_text_track_set_font_opacity() {
                     "id": "matching(integer, 12)",
                     "method": "org.rdk.TextTrack.setFontOpacity",
                     "params": {
-                        "fontOpacity": "matching(regex, '^(-1|[0-9]{1,2}|100)$', 1)"
+                        "fontOpacity": "matching(regex, '^(-1|[0-9]{1,2}|100)$', '1')"
                     }
                 },
                 "requestMetadata": {
@@ -629,7 +629,7 @@ async fn test_text_track_get_background_color() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 13)",
-                    "result": "matching(regex, \"^$|^#[0-9A-Fa-f]{6}$\", \"#FFFFFF\")"
+                    "result": "matching(regex, '\"^$|^#[0-9A-Fa-f]{6}$\"', '\"#FFFFFF\"')"
                 }]
             })).await;
             i.test_name("get_background_color");
@@ -671,7 +671,7 @@ async fn test_text_track_set_background_color() {
                         "id": "matching(integer, 14)",
                         "method": "org.rdk.TextTrack.setBackgroundColor",
                         "params": {
-                            "backgroundColor": "matching(regex, \"^$|^#[0-9A-Fa-f]{6}$\", \"#FFFFFF\")"
+                            "backgroundColor": "matching(regex, '^$|^#[0-9A-Fa-f]{6}$', '\"#FFFFFF\"')"
                         }
                     },
                     "requestMetadata": {
@@ -727,7 +727,7 @@ async fn test_text_track_get_background_opacity() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 15)",
-                    "result": "matching(regex, '^(-1|[0-9]{1,2}|100)$', 1)"
+                    "result": "matching(regex, '^(-1|[0-9]{1,2}|100)$', '1')"
                 }]
             })).await;
             i.test_name("get_background_opacity");
@@ -769,7 +769,7 @@ async fn test_text_track_set_background_opacity() {
                         "id": "matching(integer, 16)",
                         "method": "org.rdk.TextTrack.setBackgroundOpacity",
                         "params": {
-                            "backgroundOpacity": "matching(regex, '^(-1|[0-9]{1,2}|100)$', 1)"
+                            "backgroundOpacity": "matching(regex, '^(-1|[0-9]{1,2}|100)$', '1')"
                         }
                     },
                     "requestMetadata": {
@@ -825,7 +825,7 @@ async fn test_text_track_get_window_color() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 17)",
-                    "result": "matching(regex, \"^$|^#[0-9A-Fa-f]{6}$\", \"#FFFFFF\")"
+                    "result": "matching(regex, '^$|^#[0-9A-Fa-f]{6}$', '\"#FFFFFF\"')"
                 }]
             })).await;
             i.test_name("get_window_color");
@@ -920,7 +920,7 @@ async fn test_text_track_get_window_opacity() {
                 "response": [{
                     "jsonrpc": "matching(type, '2.0')",
                     "id": "matching(integer, 19)",
-                    "result": "matching(regex, '^(-1|[0-9]{1,2}|100)$', 1)"
+                    "result": "matching(regex, '^(-1|[0-9]{1,2}|100)$', '1')"
                 }]
             })).await;
             i.test_name("get_window_opacity");
@@ -962,7 +962,7 @@ async fn test_text_track_set_window_opacity() {
                         "id": "matching(integer, 20)",
                         "method": "org.rdk.TextTrack.setWindowOpacity",
                         "params": {
-                            "windowOpacity": "matching(regex, '^(-1|[0-9]{1,2}|100)$', 1)"
+                            "windowOpacity": "matching(regex, '^(-1|[0-9]{1,2}|100)$', '1')"
                         }
                     },
                     "requestMetadata": {
