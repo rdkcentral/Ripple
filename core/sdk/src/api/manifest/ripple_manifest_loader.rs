@@ -237,6 +237,8 @@ impl RippleConfigLoader {
             }
         }
 
+        sort_rules_paths_by_keywords(&mut merged_manifest.rules_path);
+
         if let Ok(json_string) = serde_json::to_string_pretty(&merged_manifest) {
             info!("Merged Extension Manifest:\n{}", json_string);
         } else {
@@ -371,9 +373,7 @@ impl RippleConfigLoader {
     fn load_cascaded_extn_manifest(&self) -> ExtnManifest {
         info!("Loading cascaded extension manifest");
         let (default_path, paths) = self.get_manifest_paths(true);
-        let mut extn_manifest = self.load_and_merge_extn_manifests(&paths, default_path);
-        sort_paths_by_keywords(&mut extn_manifest.rules_path);
-        extn_manifest
+        self.load_and_merge_extn_manifests(&paths, default_path)
     }
 
     fn load_cascaded_device_manifest(&self) -> DeviceManifest {
@@ -399,7 +399,7 @@ impl RippleConfigLoader {
     }
 }
 
-pub fn sort_paths_by_keywords(paths: &mut Vec<String>) {
+pub fn sort_rules_paths_by_keywords(paths: &mut Vec<String>) {
     paths.sort_by(|a, b| {
         // A helper function to determine the priority of a given path.
         // The keywords are checked in a specific order to ensure the correct
@@ -414,8 +414,6 @@ pub fn sort_paths_by_keywords(paths: &mut Vec<String>) {
                 3
             } else if path.contains("entos.private") {
                 4
-            } else if path.contains("badger") {
-                5
             } else {
                 usize::MAX
             }
