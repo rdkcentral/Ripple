@@ -25,8 +25,7 @@ use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
 
 use super::error::RippleError;
 
-const DEFAULT_RETRY_INTERVAL: u64 = 100;
-const LOG_RETRY_INTERVAL: i32 = 10;
+const DEFAULT_RETRY_INTERVAL: u64 = 10000;
 
 pub struct WebSocketConfig {
     pub alias: Option<String>,
@@ -220,13 +219,6 @@ impl WebSocketUtils {
                     }
                 }
             }
-
-            if (index % LOG_RETRY_INTERVAL).eq(&0) {
-                error!(
-                    "Websocket TCP Connection with {} failed with retry for last {} secs in {}",
-                    url_path, index, tcp_port
-                );
-            }
             if let Some(fail) = &config.fail_after {
                 if fail.eq(&index) {
                     break Err(RippleError::NotAvailable);
@@ -234,6 +226,13 @@ impl WebSocketUtils {
             }
             index += 1;
             tokio::time::sleep(Duration::from_millis(retry_every)).await;
+            let duration = Duration::from_millis(retry_every);
+            error!(
+                "Websocket TCP Connection with {} failed with retry for last {} secs in {}",
+                url_path,
+                duration.as_secs(),
+                tcp_port
+            );
         }
     }
 }
