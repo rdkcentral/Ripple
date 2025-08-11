@@ -268,7 +268,7 @@ impl RpcRouter {
         .emit_debug();
         tokio::spawn(async move {
             if let Ok(msg) =
-                resolve_route(&mut platform_state, methods, resources, req.clone()).await
+                resolve_route(&mut platform_state, method_entry, resources, req.clone()).await
             {
                 let context = req.ctx.clone().context;
                 if context.len() < 2 {
