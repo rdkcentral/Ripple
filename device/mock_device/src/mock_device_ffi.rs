@@ -18,9 +18,7 @@
 use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::service::service_client::ServiceClient;
 use ripple_sdk::{
-    api::{
-        manifest::ripple_manifest_loader::RippleManifestLoader,
-    },
+    api::manifest::ripple_manifest_loader::RippleManifestLoader,
     export_extn_channel,
     extn::{
         extn_id::{ExtnClassId, ExtnId},
@@ -71,9 +69,7 @@ pub async fn start_service() {
     init(service_client.clone()).await;
 }
 
-async fn init(
-    client: ServiceClient
-) {
+async fn init(client: ServiceClient) {
     if let Some(mut extn_client) = client.get_extn_client() {
         let client_c_for_init = client.clone();
         tokio::spawn(async move {
@@ -94,9 +90,7 @@ async fn init(
             };
         });
 
-        client_c_for_init
-            .initialize()
-            .await;
+        client_c_for_init.initialize().await;
     } else {
         error!("Service client does not hold an extn client. Cannot start eos extension.");
     }

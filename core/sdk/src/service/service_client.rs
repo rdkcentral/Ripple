@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use super::service_message::ServiceMessage;
 use crate::api::gateway::rpc_gateway_api::CallContext;
 use crate::api::{
     gateway::rpc_gateway_api::{ApiMessage, ApiProtocol},
@@ -39,7 +40,6 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::sync::{mpsc::Sender as MSender, oneshot::Sender as OSender};
 use tokio_tungstenite::tungstenite::Message;
 use uuid::Uuid;
-use super::service_message::ServiceMessage;
 
 #[derive(Debug, Clone, Default)]
 pub struct ServiceClient {
