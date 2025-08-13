@@ -24,6 +24,7 @@ use ripple_sdk::{
 };
 
 use crate::state::bootstrap_state::BootstrapState;
+use ripple_sdk::utils::test_utils::log_memory_usage;
 
 use super::{
     extn::{load_extn_step::LoadExtensionsStep, load_session_step::LoadDistributorValuesStep},
@@ -55,12 +56,16 @@ use super::{
 
 ///
 pub async fn boot(state: BootstrapState) -> RippleResponse {
+    log_memory_usage("boot-Begining");
     let bootstrap = Bootstrap::new(state);
     execute_step(LoggingBootstrapStep, &bootstrap).await?;
+    log_memory_usage("After-LoggingBootstrapStep");
     execute_step(StartWsStep, &bootstrap).await?;
+    log_memory_usage("After-StartWsStep");
     execute_step(StartCommunicationBroker, &bootstrap).await?;
+    log_memory_usage("After-StartCommunicationBroker");
     execute_step(SetupExtnClientStep, &bootstrap).await?;
-
+    log_memory_usage("After-SetupExtnClientStep");
     let load_extensions = std::env::var("RIPPLE_RPC_EXTENSIONS")
         .ok()
         .and_then(|s| s.parse::<bool>().ok())
@@ -71,10 +76,15 @@ pub async fn boot(state: BootstrapState) -> RippleResponse {
         debug!("Starting Ripple Service with extension clients");
         execute_step(LoadExtensionsStep, &bootstrap).await?;
     }
+    log_memory_usage("After-LoadExtensionsStep");
     execute_step(StartAppManagerStep, &bootstrap).await?;
+    log_memory_usage("After-StartAppManagerStep");
     execute_step(StartOtherBrokers, &bootstrap).await?;
+    log_memory_usage("After-StartOtherBrokers");
     execute_step(LoadDistributorValuesStep, &bootstrap).await?;
+    log_memory_usage("After-LoadDistributorValuesStep");
     execute_step(FireboltGatewayStep, &bootstrap).await?;
+    log_memory_usage("After-FireboltGatewayStep");
     Ok(())
 }
 
