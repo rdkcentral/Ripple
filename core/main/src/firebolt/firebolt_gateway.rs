@@ -146,7 +146,7 @@ impl FireboltGateway {
                     self.state
                         .platform_state
                         .endpoint_state
-                        .cleanup_for_app(&cid)
+                        .cleanup_for_app(&session_id)
                         .await;
                     self.state.platform_state.session_state.clear_session(&cid);
                 }
