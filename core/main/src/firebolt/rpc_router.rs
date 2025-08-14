@@ -17,13 +17,10 @@
 
 use futures::StreamExt;
 use jsonrpsee::{
-    core::{
-        server::{
-            helpers::MethodSink,
-            resource_limiting::Resources,
-            rpc_module::{MethodKind, Methods},
-        },
-        TEN_MB_SIZE_BYTES,
+    core::server::{
+        helpers::MethodSink,
+        resource_limiting::Resources,
+        rpc_module::{MethodCallback, MethodKind, Methods},
     },
     types::{error::ErrorCode, Id, Params},
 };
@@ -75,8 +72,12 @@ impl RouterState {
         let _ = methods_state.merge(methods.initialize_resources(&self.resources).unwrap());
     }
 
-    fn get_methods(&self) -> Methods {
-        self.methods.read().unwrap().clone()
+    pub fn get_method_entry(&self, method_name: &str) -> Option<(String, MethodCallback)> {
+        // Acquire a read lock without cloning the entire Methods registry
+        let methods_guard = self.methods.read().ok()?;
+        methods_guard
+            .method_with_name(method_name)
+            .map(|(name, method)| (name.to_owned(), method.clone()))
     }
 }
 
@@ -88,7 +89,7 @@ impl Default for RouterState {
 
 async fn resolve_route(
     platform_state: &mut PlatformState,
-    methods: Methods,
+    method_entry: Option<(String, MethodCallback)>,
     resources: Resources,
     req: RpcRequest,
 ) -> Result<ApiMessage, RippleError> {
@@ -97,26 +98,29 @@ async fn resolve_route(
     let request_c = req.clone();
     let sink_size = 1024 * 1024;
     let (sink_tx, mut sink_rx) = futures_channel::mpsc::unbounded::<String>();
-    let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES, 512 * 1024);
-    let method = request_c.method.clone();
+    let sink = MethodSink::new_with_limit(sink_tx, 1024 * 1024, 100 * 1024);
+    let method_name = request_c.method.clone();
 
     tokio::spawn(async move {
         let params_json = request_c.params_json.as_ref();
         let params = Params::new(Some(params_json));
 
-        match methods.method_with_name(&method) {
+        match method_entry {
             None => {
                 LogSignal::new(
                     "rpc_router".to_string(),
                     "resolve_route".into(),
                     request_c.clone(),
                 )
-                .with_diagnostic_context_item("error", &format!("Method not found: {}", method))
+                .with_diagnostic_context_item(
+                    "error",
+                    &format!("Method not found: {}", method_name),
+                )
                 .emit_error();
                 sink.send_error(id, ErrorCode::MethodNotFound.into());
             }
             Some((name, method)) => match &method.inner() {
-                MethodKind::Sync(callback) => match method.claim(name, &resources) {
+                MethodKind::Sync(callback) => match method.claim(&name, &resources) {
                     Ok(_guard) => {
                         if let Err(e) =
                             sink.send_raw((callback)(id.clone(), params, 512 * 1024).result)
@@ -138,7 +142,7 @@ async fn resolve_route(
                         sink.send_error(id, ErrorCode::MethodNotFound.into());
                     }
                 },
-                MethodKind::Async(callback) => match method.claim(name, &resources) {
+                MethodKind::Async(callback) => match method.claim(&name, &resources) {
                     Ok(guard) => {
                         let id = id.into_owned();
                         let params = params.into_owned();
@@ -208,7 +212,7 @@ async fn resolve_route(
 
 impl RpcRouter {
     pub async fn route(mut state: PlatformState, mut req: RpcRequest, session: Session) {
-        let methods = state.router_state.get_methods();
+        let method_entry = state.router_state.get_method_entry(&req.method);
         let resources = state.router_state.resources.clone();
 
         if let Some(overridden_method) = state.get_manifest().has_rpc_override_method(&req.method) {
@@ -217,7 +221,7 @@ impl RpcRouter {
         LogSignal::new("rpc_router".to_string(), "routing".into(), req.clone());
         tokio::spawn(async move {
             let start = Utc::now().timestamp_millis();
-            let resp = resolve_route(&mut state, methods, resources, req.clone()).await;
+            let resp = resolve_route(&mut state, method_entry, resources, req.clone()).await;
             if let Ok(msg) = resp {
                 let now = Utc::now().timestamp_millis();
                 let success = !msg.is_error();
@@ -232,7 +236,7 @@ impl RpcRouter {
         req: RpcRequest,
         extn_msg: ExtnMessage,
     ) {
-        let methods = state.router_state.get_methods();
+        let method_entry = state.router_state.get_method_entry(&req.method);
         let resources = state.router_state.resources.clone();
 
         let mut platform_state = state.clone();
@@ -244,14 +248,15 @@ impl RpcRouter {
         .emit_debug();
         tokio::spawn(async move {
             let client = platform_state.get_client().get_extn_client();
-            if let Ok(msg) = resolve_route(&mut platform_state, methods, resources, req).await {
+            if let Ok(msg) = resolve_route(&mut platform_state, method_entry, resources, req).await
+            {
                 return_extn_response(msg, extn_msg, client);
             }
         });
     }
 
     pub async fn route_service_protocol(state: &PlatformState, req: RpcRequest) {
-        let methods = state.router_state.get_methods();
+        let method_entry = state.router_state.get_method_entry(&req.method);
         let resources = state.router_state.resources.clone();
 
         let mut platform_state = state.clone();
@@ -263,7 +268,7 @@ impl RpcRouter {
         .emit_debug();
         tokio::spawn(async move {
             if let Ok(msg) =
-                resolve_route(&mut platform_state, methods, resources, req.clone()).await
+                resolve_route(&mut platform_state, method_entry, resources, req.clone()).await
             {
                 let context = req.ctx.clone().context;
                 if context.len() < 2 {

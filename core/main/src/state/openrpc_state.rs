@@ -68,15 +68,15 @@ impl ProviderRelationSet {
 
 #[derive(Debug, Clone)]
 pub struct OpenRpcState {
-    open_rpc: FireboltOpenRpc,
-    exclusory: Option<ExclusoryImpl>,
+    open_rpc: Arc<FireboltOpenRpc>,
+    exclusory: Arc<Option<ExclusoryImpl>>,
     firebolt_cap_map: Arc<RwLock<HashMap<String, CapabilitySet>>>,
     ripple_cap_map: Arc<RwLock<HashMap<String, CapabilitySet>>>,
     cap_policies: Arc<RwLock<HashMap<String, CapabilityPolicy>>>,
     extended_rpc: Arc<RwLock<Vec<FireboltOpenRpc>>>,
     provider_relation_map: Arc<RwLock<HashMap<String, ProviderRelationSet>>>,
     openrpc_validator: Arc<RwLock<RpcMethodValidator>>,
-    provider_registrations: Vec<String>,
+    provider_registrations: Arc<Vec<String>>,
     json_schema_cache: Arc<RwLock<HashMap<String, JSONSchema>>>,
 }
 
@@ -132,13 +132,13 @@ impl OpenRpcState {
         let v = OpenRpcState {
             firebolt_cap_map: Arc::new(RwLock::new(firebolt_open_rpc.get_methods_caps())),
             ripple_cap_map: Arc::new(RwLock::new(ripple_open_rpc.get_methods_caps())),
-            exclusory,
+            exclusory: Arc::new(exclusory),
             cap_policies: Arc::new(RwLock::new(version_manifest.capabilities)),
-            open_rpc: firebolt_open_rpc.clone(),
+            open_rpc: Arc::new(firebolt_open_rpc.clone()),
             extended_rpc: Arc::new(RwLock::new(Vec::new())),
             provider_relation_map: Arc::new(RwLock::new(HashMap::new())),
             openrpc_validator: Arc::new(RwLock::new(rpc_method_validator)),
-            provider_registrations,
+            provider_registrations: Arc::new(provider_registrations),
             json_schema_cache: Arc::new(RwLock::new(HashMap::new())),
         };
         v.build_provider_relation_sets(&firebolt_open_rpc.methods);
@@ -163,7 +163,7 @@ impl OpenRpcState {
     }
 
     pub fn is_app_excluded(&self, app_id: &str) -> bool {
-        if let Some(e) = &self.exclusory {
+        if let Some(e) = &*self.exclusory {
             return e.is_app_all_excluded(app_id);
         }
 
@@ -190,7 +190,7 @@ impl OpenRpcState {
     }
 
     pub fn is_excluded(&self, method: String, app_id: String) -> bool {
-        if let Some(e) = &self.exclusory {
+        if let Some(e) = &*self.exclusory {
             if e.is_excluded(app_id, method.clone()) {
                 return true;
             }
@@ -315,7 +315,7 @@ impl OpenRpcState {
         None
     }
 
-    pub fn get_open_rpc(&self) -> FireboltOpenRpc {
+    pub fn get_open_rpc(&self) -> Arc<FireboltOpenRpc> {
         self.open_rpc.clone()
     }
 
