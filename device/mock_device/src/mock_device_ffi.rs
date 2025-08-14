@@ -18,10 +18,7 @@
 use jsonrpsee::core::server::rpc_module::Methods;
 use ripple_sdk::service::service_client::ServiceClient;
 use ripple_sdk::{
-    api::{
-        gateway::rpc_gateway_api::ApiMessage,
-        manifest::ripple_manifest_loader::RippleManifestLoader,
-    },
+    api::manifest::ripple_manifest_loader::RippleManifestLoader,
     export_extn_channel,
     extn::{
         extn_id::{ExtnClassId, ExtnId},
@@ -29,7 +26,6 @@ use ripple_sdk::{
     },
     log::{error, info},
     processor::rpc_request_processor::RPCRequestProcessor,
-    service::service_message::ServiceMessage,
     tokio::{self, runtime::Runtime},
     utils::logger::init_and_configure_logger,
 };
@@ -39,7 +35,6 @@ use crate::{
     mock_device_controller::{MockDeviceController, MockDeviceControllerServer},
     utils::boot_ws_server,
 };
-use tokio::sync::mpsc;
 
 pub const EXTN_NAME: &str = "mock_device";
 
@@ -65,20 +60,16 @@ pub async fn start_service() {
         error!("Error getting symbol");
         return;
     }
-    let (service_client, ext_tr_opt, service_tr_opt) = if let Some(symbol) = symbol {
+    let service_client = if let Some(symbol) = symbol {
         ServiceClient::builder().with_extension(symbol).build()
     } else {
         ServiceClient::builder().build()
     };
 
-    init(service_client.clone(), ext_tr_opt, service_tr_opt).await;
+    init(service_client.clone()).await;
 }
 
-async fn init(
-    client: ServiceClient,
-    ext_tr_opt: Option<mpsc::Receiver<ApiMessage>>,
-    service_tr_opt: Option<mpsc::Receiver<ServiceMessage>>,
-) {
+async fn init(client: ServiceClient) {
     if let Some(mut extn_client) = client.get_extn_client() {
         let client_c_for_init = client.clone();
         tokio::spawn(async move {
@@ -99,9 +90,7 @@ async fn init(
             };
         });
 
-        client_c_for_init
-            .initialize(ext_tr_opt, service_tr_opt)
-            .await;
+        client_c_for_init.initialize().await;
     } else {
         error!("Service client does not hold an extn client. Cannot start eos extension.");
     }
@@ -126,14 +115,14 @@ fn start() {
         error!("Error getting symbol");
         return;
     }
-    let (service_client, ext_tr_opt, service_tr_opt) = if let Some(symbol) = symbol {
+    let service_client = if let Some(symbol) = symbol {
         ServiceClient::builder().with_extension(symbol).build()
     } else {
         ServiceClient::builder().build()
     };
 
     runtime.block_on(async move {
-        init(service_client.clone(), ext_tr_opt, service_tr_opt).await;
+        init(service_client.clone()).await;
     });
 }
 
