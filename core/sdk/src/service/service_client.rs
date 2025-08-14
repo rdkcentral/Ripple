@@ -480,6 +480,7 @@ pub mod tests {
         fn mock() -> ServiceClient {
             let service_router = Arc::new(RwLock::new(RouterState::new()));
             let (service_sender, service_tr) = mpsc::channel::<ServiceMessage>(32);
+            let (_extn_sender, extn_tr) = mpsc::channel::<ApiMessage>(32);
             ServiceClient {
                 service_sender: Some(service_sender),
                 service_router,
@@ -488,7 +489,7 @@ pub mod tests {
                     ExtnId::try_from("ripple:channel:gateway:service1".to_string()).unwrap(),
                 ),
                 response_processors: Arc::new(RwLock::new(HashMap::new())),
-                outbound_extn_rx: Arc::new(RwLock::new(None)),
+                outbound_extn_rx: Arc::new(RwLock::new(Some(extn_tr))),
                 outbound_service_rx: Arc::new(RwLock::new(Some(service_tr))),
             }
         }
@@ -539,6 +540,13 @@ pub mod tests {
     async fn test_get_outbound_service_rx() {
         let client = ServiceClient::mock();
         let rx = client.get_outbound_service_rx();
+        assert!(rx.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_get_outbound_extn_rx() {
+        let client = ServiceClient::mock();
+        let rx = client.get_outbound_extn_rx();
         assert!(rx.is_ok());
     }
 }
