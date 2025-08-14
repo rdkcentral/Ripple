@@ -479,7 +479,7 @@ pub mod tests {
     impl Mockable for ServiceClient {
         fn mock() -> ServiceClient {
             let service_router = Arc::new(RwLock::new(RouterState::new()));
-            let (service_sender, _service_tr) = mpsc::channel::<ServiceMessage>(32);
+            let (service_sender, service_tr) = mpsc::channel::<ServiceMessage>(32);
             ServiceClient {
                 service_sender: Some(service_sender),
                 service_router,
@@ -489,7 +489,7 @@ pub mod tests {
                 ),
                 response_processors: Arc::new(RwLock::new(HashMap::new())),
                 outbound_extn_rx: Arc::new(RwLock::new(None)),
-                outbound_service_rx: Arc::new(RwLock::new(None)),
+                outbound_service_rx: Arc::new(RwLock::new(Some(service_tr))),
             }
         }
 
@@ -533,5 +533,12 @@ pub mod tests {
             .await;
         println!("result: {:?}", result);
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_get_outbound_service_rx() {
+        let client = ServiceClient::mock();
+        let rx = client.get_outbound_service_rx();
+        assert!(rx.is_ok());
     }
 }
