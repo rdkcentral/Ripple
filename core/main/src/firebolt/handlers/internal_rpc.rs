@@ -19,6 +19,7 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
 use ripple_sdk::{
     api::{
         apps::{AppEvent, AppManagerResponse, AppMethod, AppRequest, AppResponse},
+        caps::CapsRequest,
         firebolt::{fb_general::ListenRequestWithEvent, fb_telemetry::TelemetryPayload},
         gateway::rpc_gateway_api::CallContext,
     },
@@ -26,6 +27,7 @@ use ripple_sdk::{
     log::{debug, error},
     tokio::sync::oneshot,
 };
+use std::collections::HashMap;
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
@@ -54,6 +56,13 @@ pub trait Internal {
 
     #[method(name = "ripple.getAppCatalogId")]
     async fn get_app_catalog_id(&self, ctx: CallContext, app_id: String) -> RpcResult<String>;
+
+    #[method(name = "ripple.checkCapsRequest")]
+    async fn check_caps_request(
+        &self,
+        ctx: CallContext,
+        caps_request: CapsRequest,
+    ) -> RpcResult<HashMap<String, bool>>;
 }
 
 #[derive(Debug)]
@@ -106,6 +115,27 @@ impl InternalServer for InternalImpl {
         }
 
         Ok(app_id)
+    }
+
+    async fn check_caps_request(
+        &self,
+        _ctx: CallContext,
+        caps_request: CapsRequest,
+    ) -> RpcResult<HashMap<String, bool>> {
+        match caps_request {
+            CapsRequest::Supported(request) => {
+                let result = self.state.cap_state.generic.check_for_processor(request);
+                Ok(result)
+            }
+            CapsRequest::Permitted(app_id, request) => {
+                let result = self
+                    .state
+                    .cap_state
+                    .permitted_state
+                    .check_multiple(&app_id, request);
+                Ok(result)
+            }
+        }
     }
 }
 

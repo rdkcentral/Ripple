@@ -22,6 +22,8 @@ use crate::extn::extn_client_message::{
 use crate::extn::extn_id::ExtnId;
 use crate::framework::ripple_contract::RippleContract;
 #[cfg(any(test, feature = "mock"))]
+use crate::service::service_message::ServiceMessage;
+#[cfg(any(test, feature = "mock"))]
 use crate::utils::error::RippleError;
 use chrono::Utc;
 #[cfg(any(test, feature = "mock"))]
@@ -40,11 +42,23 @@ use std::{
 type MockResponseQueue = Arc<RwLock<HashMap<String, VecDeque<Result<ExtnMessage, RippleError>>>>>;
 
 #[cfg(any(test, feature = "mock"))]
+type MockServiceResponseQueue =
+    Arc<RwLock<HashMap<String, VecDeque<Result<ServiceMessage, RippleError>>>>>;
+
+#[cfg(any(test, feature = "mock"))]
 static MOCK_RESPONSE_QUEUE: OnceLock<MockResponseQueue> = OnceLock::new();
+
+#[cfg(any(test, feature = "mock"))]
+static MOCK_SERVICE_RESPONSE_QUEUE: OnceLock<MockServiceResponseQueue> = OnceLock::new();
 
 #[cfg(any(test, feature = "mock"))]
 fn get_mock_queue() -> &'static MockResponseQueue {
     MOCK_RESPONSE_QUEUE.get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
+}
+
+#[cfg(any(test, feature = "mock"))]
+fn get_mock_service_queue() -> &'static MockServiceResponseQueue {
+    MOCK_SERVICE_RESPONSE_QUEUE.get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
 }
 
 /// Adds a mock response to the queue for the specified test context
@@ -65,6 +79,52 @@ pub fn queue_mock_response(test_context: &str, response: Result<ExtnMessage, Rip
     );
 }
 
+/// Adds a mock service response to the queue for the specified test context
+#[cfg(any(test, feature = "mock"))]
+pub fn queue_mock_service_response(
+    test_context: &str,
+    response: Result<ServiceMessage, RippleError>,
+) {
+    let mock_queue = get_mock_service_queue();
+    let mut mock_queues = mock_queue.write().unwrap();
+    let queue = mock_queues.entry(test_context.to_string()).or_default();
+    // Print the size for debugging
+    println!("**** Queued mock response for context '{:?}'", response);
+    queue.push_back(response);
+
+    // Print the size for debugging
+    println!(
+        "**** Queued mock response for context '{}'. Queue size: {}",
+        test_context,
+        queue.len()
+    );
+}
+
+/// Adds a mock response to the queue for the specified test context
+#[cfg(any(test, feature = "mock"))]
+pub fn get_next_mock_service_response(
+    test_context: String,
+) -> Option<Result<ServiceMessage, RippleError>> {
+    let mock_queue = get_mock_service_queue();
+    let mut mock_queues = mock_queue.write().unwrap();
+    if let Some(queue) = mock_queues.get_mut(&test_context) {
+        queue.pop_front()
+        /*
+        let response = queue.pop_front();
+                // Print the remaining size for debugging
+                println!(
+                    "Retrieved mock response for context '{}'. Remaining queue size: {}",
+                    test_context,
+                    queue.len()
+                );
+        response
+        */
+    } else {
+        //println!("No mock queue found for context '{}'", test_context);
+        None
+    }
+}
+
 /// Retrieves and removes the next mock response for the specified test context
 #[cfg(any(test, feature = "mock"))]
 pub fn get_next_mock_response(test_context: &str) -> Option<Result<ExtnMessage, RippleError>> {
@@ -72,18 +132,19 @@ pub fn get_next_mock_response(test_context: &str) -> Option<Result<ExtnMessage, 
     let mut mock_queues = mock_queue.write().unwrap();
 
     if let Some(queue) = mock_queues.get_mut(test_context) {
+        queue.pop_front()
+        /*
         let response = queue.pop_front();
-
-        // Print the remaining size for debugging
-        println!(
-            "Retrieved mock response for context '{}'. Remaining queue size: {}",
-            test_context,
-            queue.len()
-        );
-
+                // Print the remaining size for debugging
+                println!(
+                    "Retrieved mock response for context '{}'. Remaining queue size: {}",
+                    test_context,
+                    queue.len()
+                );
         response
+        */
     } else {
-        println!("No mock queue found for context '{}'", test_context);
+        //println!("No mock queue found for context '{}'", test_context);
         None
     }
 }
