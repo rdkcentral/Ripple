@@ -193,6 +193,7 @@ impl PlatformState {
     ) -> PlatformState {
         let exclusory = ExclusoryImpl::get(&manifest);
         let broker_sender = client.get_broker_sender();
+        let rule_engine = RuleEngine::build(&extn_manifest);
         let extn_sdks = extn_manifest.extn_sdks.clone();
         let provider_registations = extn_manifest.provider_registrations.clone();
         let metrics_state = OpMetricState::default();

@@ -4,6 +4,7 @@ use super::endpoint_broker::{
 };
 
 use crate::broker::endpoint_broker::{BrokerOutput, EndpointBrokerState};
+use crate::broker::rules::rules_engine::{compose_json_values, make_name_json_safe};
 use crate::state::platform_state::PlatformState;
 use futures::future::{join_all, BoxFuture};
 use futures::FutureExt;
