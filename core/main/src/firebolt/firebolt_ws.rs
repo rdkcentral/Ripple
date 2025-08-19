@@ -38,7 +38,6 @@ use ripple_sdk::{
         extn_id::ExtnId,
     },
     framework::ripple_contract::RippleContract,
-    log::trace,
     tokio_tungstenite::{
         tungstenite::{self, Message},
         WebSocketStream,
@@ -506,7 +505,10 @@ impl FireboltWs {
                 match send_result {
                     Ok(_) => {
                         if is_service {
-                            trace!("Sent Service response {}", api_message.jsonrpc_msg);
+                            ripple_sdk::log::trace!(
+                                "Sent Service response {}",
+                                api_message.jsonrpc_msg
+                            );
                             continue;
                         }
                         platform_state
