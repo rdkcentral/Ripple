@@ -376,10 +376,7 @@ impl FireboltWs {
             .handle_brokerage(rpc_request, None, None, vec![], None, vec![])
             .await;
     }
-    #[cfg(not(feature = "ssda"))]
-    async fn send_t2_event(_state: &PlatformState, payload: String) {
-        debug!("{}", payload);
-    }
+
     #[cfg(not(feature = "ssda"))]
     async fn handle_connection(
         _client_addr: SocketAddr,
@@ -798,7 +795,7 @@ impl FireboltWs {
         }
     }
 }
-
+#[cfg(feature = "ssda")]
 async fn return_invalid_service_error_message(
     state: &PlatformState,
     connection_id: &str,
