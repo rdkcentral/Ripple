@@ -249,7 +249,6 @@ impl ServiceClient {
                             }
                             Err(e) => {
                                 error!("Service Websocket error on read {:?}", e);
-                                outbound_service_rx.close();
                                 break;
                             }
                         }
