@@ -40,7 +40,7 @@ type AppLibraryLoader = Vec<fn() -> Result<(String, Vec<AppLibraryEntry>), Rippl
 
 fn try_app_library_files() -> Result<Vec<AppLibraryEntry>, RippleError> {
     let al_arr: AppLibraryLoader = if cfg!(feature = "local_dev") {
-        vec![load_from_env, load_from_home]
+        vec![load_from_env, load_from_home, load_from_etc]
     } else if cfg!(test) {
         vec![load_from_env]
     } else {
