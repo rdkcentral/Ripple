@@ -18,8 +18,8 @@
 use std::time::Duration;
 
 use crate::{
-    firebolt::handlers::privacy_rpc::PrivacyImpl,
-    firebolt::rpc::RippleRPCProvider,
+    broker::broker_utils::BrokerUtils,
+    firebolt::{handlers::privacy_rpc::PrivacyImpl, rpc::RippleRPCProvider},
     service::apps::{
         app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
         provider_broker::{self, ProviderBroker},
@@ -263,9 +263,15 @@ impl DiscoveryServer for DiscoveryImpl {
 
         let req_updated_source = update_intent_source(ctx.app_id.clone(), request.clone());
 
+        println!("request:  {:?}", request);
+
         if let Some(reserved_app_id) =
             app_defaults_configuration.get_reserved_application_id(&request.app_id)
         {
+            println!(
+                "Reserved app id found: {}, app_defaults_configuration {:?}",
+                reserved_app_id, app_defaults_configuration
+            );
             if reserved_app_id.is_empty() {
                 return Err(rpc_navigate_reserved_app_err(
                     format!(
@@ -276,32 +282,67 @@ impl DiscoveryServer for DiscoveryImpl {
                 ));
             }
 
-            // Not validating the intent, pass-through to app as is.
-            if !AppEvents::is_app_registered_for_event(
-                &self.state,
-                reserved_app_id.to_string(),
-                DISCOVERY_EVENT_ON_NAVIGATE_TO,
-            ) {
-                return Err(rpc_navigate_reserved_app_err(
+            if let Some(NavigationIntent::NavigationIntentStrict(
+                NavigationIntentStrict::Section(section_request_intent),
+            )) = req_updated_source.intent.clone()
+            {
+                if section_request_intent
+                    .data
+                    .section_name
+                    .contains("subscribe")
+                {
+                    // If it does, perform the validation check on its source.
+                    match BrokerUtils::process_internal_main_request(
+                        &self.state.clone(),
+                        "discovery.launch.subscription.internal",
+                        Some(
+                            serde_json::to_value(req_updated_source.clone()).map_err(|e| {
+                                error!("Serialization error: {:?}", e);
+                                rpc_err("Failed to serialize SectionIntent")
+                            })?,
+                        ),
+                    )
+                    .await
+                    {
+                        Ok(val) => {
+                            info!("Internal subscription launch successful");
+                            return Ok(val.as_bool().unwrap_or(false));
+                        }
+                        Err(e) => {
+                            error!("Internal subscription launch failed: {:?}", e);
+                            return Err(rpc_err("Internal subscription launch failed"));
+                        }
+                    }
+                }
+            } else {
+                // Not validating the intent, pass-through to app as is.
+                if !AppEvents::is_app_registered_for_event(
+                    &self.state,
+                    reserved_app_id.to_string(),
+                    DISCOVERY_EVENT_ON_NAVIGATE_TO,
+                ) {
+                    return Err(rpc_navigate_reserved_app_err(
                     format!("Discovery.launch: reserved app id {} is not registered for discovery.onNavigateTo event",
                     reserved_app_id).as_str(),
                 ));
+                }
+                // emit EVENT_ON_NAVIGATE_TO to the reserved app.
+                AppEvents::emit_to_app(
+                    &self.state,
+                    reserved_app_id.to_string(),
+                    DISCOVERY_EVENT_ON_NAVIGATE_TO,
+                    &serde_json::to_value(req_updated_source.intent).unwrap(),
+                )
+                .await;
+                info!(
+                    "emit_to_app called for app {} event {}",
+                    reserved_app_id.to_string(),
+                    DISCOVERY_EVENT_ON_NAVIGATE_TO
+                );
+                return Ok(true);
             }
-            // emit EVENT_ON_NAVIGATE_TO to the reserved app.
-            AppEvents::emit_to_app(
-                &self.state,
-                reserved_app_id.to_string(),
-                DISCOVERY_EVENT_ON_NAVIGATE_TO,
-                &serde_json::to_value(req_updated_source.intent).unwrap(),
-            )
-            .await;
-            info!(
-                "emit_to_app called for app {} event {}",
-                reserved_app_id.to_string(),
-                DISCOVERY_EVENT_ON_NAVIGATE_TO
-            );
-            return Ok(true);
         }
+
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
 
         let app_request =
