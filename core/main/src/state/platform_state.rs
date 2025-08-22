@@ -34,7 +34,7 @@ use ripple_sdk::{
     utils::error::RippleError,
     uuid::Uuid,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     broker::{endpoint_broker::EndpointBrokerState, rules_engine::RuleEngine},
@@ -92,8 +92,8 @@ impl From<String> for DeviceSessionIdentifier {
 
 #[derive(Debug, Clone)]
 pub struct PlatformState {
-    extn_manifest: ExtnManifest,
-    device_manifest: DeviceManifest,
+    extn_manifest: Arc<ExtnManifest>,
+    device_manifest: Arc<DeviceManifest>,
     pub ripple_client: RippleClient,
     pub app_library_state: AppLibraryState,
     pub session_state: SessionState,
@@ -126,10 +126,10 @@ impl PlatformState {
         let provider_registations = extn_manifest.provider_registrations.clone();
         let metrics_state = MetricsState::default();
         Self {
-            extn_manifest,
+            extn_manifest: Arc::new(extn_manifest),
             cap_state: CapState::new(manifest.clone()),
             session_state: SessionState::default(),
-            device_manifest: manifest.clone(),
+            device_manifest: Arc::new(manifest.clone()),
             ripple_client: client.clone(),
             app_library_state: AppLibraryState::new(app_library),
             app_events_state: AppEventsState::default(),
@@ -164,15 +164,15 @@ impl PlatformState {
     }
 
     pub fn get_manifest(&self) -> ExtnManifest {
-        self.extn_manifest.clone()
+        (*self.extn_manifest).clone()
     }
 
     pub fn get_rpc_aliases(&self) -> HashMap<String, Vec<String>> {
-        self.extn_manifest.clone().rpc_aliases
+        self.extn_manifest.rpc_aliases.clone()
     }
 
     pub fn get_device_manifest(&self) -> DeviceManifest {
-        self.device_manifest.clone()
+        (*self.device_manifest).clone()
     }
 
     pub fn get_client(&self) -> RippleClient {
