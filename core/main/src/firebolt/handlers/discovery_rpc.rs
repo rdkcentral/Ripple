@@ -18,8 +18,8 @@
 use std::time::Duration;
 
 use crate::{
-    firebolt::handlers::privacy_rpc::PrivacyImpl,
-    firebolt::rpc::RippleRPCProvider,
+    broker::broker_utils::BrokerUtils,
+    firebolt::{handlers::privacy_rpc::PrivacyImpl, rpc::RippleRPCProvider},
     service::apps::{
         app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
         provider_broker::{self, ProviderBroker},
@@ -34,7 +34,13 @@ use jsonrpsee::{
 
 use ripple_sdk::{
     api::{
-        apps::{AppError, AppManagerResponse, AppMethod, AppRequest, AppResponse},
+        apps::{
+            AppError,
+            AppManagerResponse,
+            AppMethod,
+            AppRequest,
+            //            AppResponse
+        },
         firebolt::{
             fb_capabilities::FireboltCap,
             fb_discovery::{
@@ -45,7 +51,7 @@ use ripple_sdk::{
             provider::{ProviderRequestPayload, ProviderResponse, ProviderResponsePayload},
         },
     },
-    log::{error, info},
+    log::{debug, error, info},
     tokio::{sync::oneshot, time::timeout},
 };
 use ripple_sdk::{
@@ -261,7 +267,7 @@ impl DiscoveryServer for DiscoveryImpl {
             .intent_validation;
         validate_navigation_intent(intent_validation_config, request.intent.clone()).await?;
 
-        let req_updated_source = update_intent_source(ctx.app_id.clone(), request.clone());
+        let _req_updated_source = update_intent_source(ctx.app_id.clone(), request.clone());
 
         if let Some(reserved_app_id) =
             app_defaults_configuration.get_reserved_application_id(&request.app_id)
@@ -276,46 +282,66 @@ impl DiscoveryServer for DiscoveryImpl {
                 ));
             }
 
-            // Not validating the intent, pass-through to app as is.
-            if !AppEvents::is_app_registered_for_event(
-                &self.state,
-                reserved_app_id.to_string(),
-                DISCOVERY_EVENT_ON_NAVIGATE_TO,
-            ) {
-                return Err(rpc_navigate_reserved_app_err(
-                    format!("Discovery.launch: reserved app id {} is not registered for discovery.onNavigateTo event",
-                    reserved_app_id).as_str(),
-                ));
-            }
-            // emit EVENT_ON_NAVIGATE_TO to the reserved app.
-            AppEvents::emit_to_app(
-                &self.state,
-                reserved_app_id.to_string(),
-                DISCOVERY_EVENT_ON_NAVIGATE_TO,
-                &serde_json::to_value(req_updated_source.intent).unwrap(),
+            match BrokerUtils::process_internal_main_request(
+                &self.state.clone(),
+                "discovery.launch.internal",
+                Some(serde_json::to_value(request).map_err(|e| {
+                    error!("Serialization error: {:?}", e);
+                    rpc_err("Failed to serialize SectionIntent")
+                })?),
             )
-            .await;
-            info!(
-                "emit_to_app called for app {} event {}",
-                reserved_app_id.to_string(),
-                DISCOVERY_EVENT_ON_NAVIGATE_TO
-            );
-            return Ok(true);
-        }
-        let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
+            .await
+            {
+                Ok(val) => {
+                    debug!("Internal subscription launch successful");
+                    return Ok(val.as_bool().unwrap_or(false));
+                }
+                Err(e) => {
+                    error!("Internal subscription launch failed: {:?}", e);
+                    return Err(rpc_err("Internal subscription launch failed"));
+                }
+            }
 
-        let app_request =
-            AppRequest::new(AppMethod::Launch(req_updated_source.clone()), app_resp_tx);
-
-        if self
-            .state
-            .get_client()
-            .send_app_request(app_request)
-            .is_ok()
-            && app_resp_rx.await.is_ok()
-        {
-            return Ok(true);
+            // Not validating the intent, pass-through to app as is.
+            // if !AppEvents::is_app_registered_for_event(
+            //     &self.state,
+            //     reserved_app_id.to_string(),
+            //     DISCOVERY_EVENT_ON_NAVIGATE_TO,
+            // ) {
+            //     return Err(rpc_navigate_reserved_app_err(
+            //         format!("Discovery.launch: reserved app id {} is not registered for discovery.onNavigateTo event",
+            //         reserved_app_id).as_str(),
+            //     ));
+            // }
+            // emit EVENT_ON_NAVIGATE_TO to the reserved app.
+            // AppEvents::emit_to_app(
+            //     &self.state,
+            //     reserved_app_id.to_string(),
+            //     DISCOVERY_EVENT_ON_NAVIGATE_TO,
+            //     &serde_json::to_value(req_updated_source.intent).unwrap(),
+            // )
+            // .await;
+            // info!(
+            //     "emit_to_app called for app {} event {}",
+            //     reserved_app_id.to_string(),
+            //     DISCOVERY_EVENT_ON_NAVIGATE_TO
+            // );
+            // return Ok(true);
         }
+        // let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
+
+        // let app_request =
+        //     AppRequest::new(AppMethod::Launch(req_updated_source.clone()), app_resp_tx);
+
+        // if self
+        //     .state
+        //     .get_client()
+        //     .send_app_request(app_request)
+        //     .is_ok()
+        //     && app_resp_rx.await.is_ok()
+        // {
+        //     return Ok(true);
+        // }
 
         Err(jsonrpsee::core::Error::Custom(String::from(
             "Discovery.launch: some failure",
