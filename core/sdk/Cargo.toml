@@ -21,6 +21,7 @@ edition = "2021"
 repository = "https://github.com/rdkcentral/Ripple"
 
 [features]
+local_dev = ["sysinfo"]
 default = []
 rpc = ["jsonrpsee"]
 tdk = []
@@ -46,6 +47,7 @@ tokio = { workspace = true, features = [
 ] }
 futures.workspace = true
 jsonrpsee = { workspace = true, features=["server"], optional = true }
+sysinfo = {version = "0.30", optional = true }
 
 regex.workspace = true
 uuid = { workspace = true, features = ["serde", "v5", "v4"] }

@@ -371,7 +371,7 @@ pub struct EndpointBrokerState {
     callback: BrokerCallback,
     request_map: Arc<RwLock<HashMap<u64, BrokerRequest>>>,
     extension_request_map: Arc<RwLock<HashMap<u64, ExtnMessage>>>,
-    rule_engine: RuleEngine,
+    rule_engine: Arc<RwLock<RuleEngine>>,
     cleaner_list: Arc<RwLock<Vec<BrokerCleaner>>>,
     reconnect_tx: Sender<BrokerConnectRequest>,
     provider_broker_state: ProvideBrokerState,
@@ -384,7 +384,7 @@ impl Default for EndpointBrokerState {
             callback: BrokerCallback::default(),
             request_map: Arc::new(RwLock::new(HashMap::new())),
             extension_request_map: Arc::new(RwLock::new(HashMap::new())),
-            rule_engine: RuleEngine::default(),
+            rule_engine: Arc::new(RwLock::new(RuleEngine::default())),
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx: mpsc::channel(2).0,
             provider_broker_state: ProvideBrokerState::default(),
@@ -406,7 +406,7 @@ impl EndpointBrokerState {
             callback: BrokerCallback { sender: tx },
             request_map: Arc::new(RwLock::new(HashMap::new())),
             extension_request_map: Arc::new(RwLock::new(HashMap::new())),
-            rule_engine,
+            rule_engine: Arc::new(RwLock::new(rule_engine)),
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx,
             provider_broker_state: ProvideBrokerState::default(),
@@ -416,7 +416,7 @@ impl EndpointBrokerState {
         state
     }
     pub fn with_rules_engine(mut self, rule_engine: RuleEngine) -> Self {
-        self.rule_engine = rule_engine;
+        self.rule_engine = Arc::new(RwLock::new(rule_engine));
         self
     }
 
@@ -523,7 +523,16 @@ impl EndpointBrokerState {
         )
     }
     pub fn build_thunder_endpoint(&mut self) {
-        if let Some(endpoint) = self.rule_engine.rules.endpoints.get("thunder").cloned() {
+        let endpoint = {
+            self.rule_engine
+                .write()
+                .unwrap()
+                .rules
+                .endpoints
+                .get("thunder")
+                .cloned()
+        };
+        if let Some(endpoint) = endpoint {
             let request = BrokerConnectRequest::new(
                 "thunder".to_owned(),
                 endpoint.clone(),
@@ -534,7 +543,8 @@ impl EndpointBrokerState {
     }
 
     pub fn build_other_endpoints(&mut self, ps: PlatformState, session: Option<AccountSession>) {
-        for (key, endpoint) in self.rule_engine.rules.endpoints.clone() {
+        let endpoints = self.rule_engine.read().unwrap().rules.endpoints.clone();
+        for (key, endpoint) in endpoints {
             // skip thunder endpoint as it is already built using build_thunder_endpoint
             if let RuleEndpointProtocol::Thunder = endpoint.protocol {
                 continue;
@@ -719,7 +729,7 @@ impl EndpointBrokerState {
             rpc_request.ctx.clone(),
         )
         .emit_debug();
-        if let Some(rule) = self.rule_engine.get_rule(&rpc_request) {
+        if let Some(rule) = self.rule_engine.read().unwrap().get_rule(&rpc_request) {
             found_rule = Some(rule.clone());
 
             if let Some(endpoint) = rule.endpoint {
@@ -847,7 +857,7 @@ impl EndpointBrokerState {
     }
 
     pub fn get_rule(&self, rpc_request: &RpcRequest) -> Option<Rule> {
-        self.rule_engine.get_rule(rpc_request)
+        self.rule_engine.read().unwrap().get_rule(rpc_request)
     }
 
     // Method to cleanup all subscription on App termination

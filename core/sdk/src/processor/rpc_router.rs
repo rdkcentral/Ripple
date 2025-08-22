@@ -22,13 +22,10 @@ use crate::{
 };
 use futures::StreamExt;
 use jsonrpsee::{
-    core::{
-        server::{
-            helpers::MethodSink,
-            resource_limiting::Resources,
-            rpc_module::{MethodKind, Methods},
-        },
-        TEN_MB_SIZE_BYTES,
+    core::server::{
+        helpers::MethodSink,
+        resource_limiting::Resources,
+        rpc_module::{MethodCallback, MethodKind, Methods},
     },
     types::{error::ErrorCode, Id, Params},
 };
@@ -57,9 +54,12 @@ impl RouterState {
             error!("Failed to merge methods: {:?}", e);
         }
     }
-
-    fn get_methods(&self) -> Methods {
-        self.methods.read().unwrap().clone()
+    pub fn get_method_entry(&self, method_name: &str) -> Option<(String, MethodCallback)> {
+        // Acquire a read lock without cloning the entire Methods registry
+        let methods_guard = self.methods.read().ok()?;
+        methods_guard
+            .method_with_name(method_name)
+            .map(|(name, method)| (name.to_owned(), method.clone()))
     }
 }
 
@@ -76,30 +76,33 @@ impl RpcRouter {
     ) -> Result<String, RippleError> {
         trace!("SDK: Resolving route for {:?}", req);
         let id = Id::Number(req.ctx.call_id);
-        let methods = router_state.get_methods();
+        let request_c = req.clone();
+        let method_name = request_c.method.clone();
+        let method_entry = router_state.get_method_entry(method_name.as_str());
         let resources = router_state.resources.clone();
         let (sink_tx, mut sink_rx) = futures_channel::mpsc::unbounded::<String>();
-        let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES, 512 * 1024);
-        let request_c = req.clone();
-        let method = request_c.method.clone();
+        let sink = MethodSink::new_with_limit(sink_tx, 1024 * 1024, 100 * 1024);
         let sink_size = 1024 * 1024;
         tokio::spawn(async move {
             let params_json = request_c.params_json.as_ref();
             let params = Params::new(Some(params_json));
 
-            match methods.method_with_name(&method) {
+            match method_entry {
                 None => {
                     LogSignal::new(
                         "rpc_router".to_string(),
                         "resolve_route".into(),
                         request_c.clone(),
                     )
-                    .with_diagnostic_context_item("error", &format!("Method not found: {}", method))
+                    .with_diagnostic_context_item(
+                        "error",
+                        &format!("Method not found: {}", method_name),
+                    )
                     .emit_error();
                     sink.send_error(id, ErrorCode::MethodNotFound.into());
                 }
                 Some((name, method)) => match &method.inner() {
-                    MethodKind::Sync(callback) => match method.claim(name, &resources) {
+                    MethodKind::Sync(callback) => match method.claim(&name, &resources) {
                         Ok(_guard) => {
                             if let Err(e) =
                                 sink.send_raw((callback)(id.clone(), params, 512 * 1024).result)
@@ -121,7 +124,7 @@ impl RpcRouter {
                             sink.send_error(id, ErrorCode::MethodNotFound.into());
                         }
                     },
-                    MethodKind::Async(callback) => match method.claim(name, &resources) {
+                    MethodKind::Async(callback) => match method.claim(&name, &resources) {
                         Ok(guard) => {
                             let id = id.into_owned();
                             let params = params.into_owned();

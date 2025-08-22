@@ -21,6 +21,7 @@ use ripple_sdk::{
         RippleResponse,
     },
     log::error,
+    utils::test_utils::log_memory_usage,
 };
 
 use crate::state::bootstrap_state::BootstrapState;
@@ -61,18 +62,31 @@ use super::{
 
 ///
 pub async fn boot(state: BootstrapState) -> RippleResponse {
+    log_memory_usage("boot-Begining");
     let bootstrap = Bootstrap::new(state);
+    log_memory_usage("After-LoggingBootstrapStep");
     execute_step(StartCommunicationBroker, &bootstrap).await?;
+    log_memory_usage("After-StartCommunicationBroker");
     execute_step(SetupExtnClientStep, &bootstrap).await?;
+    log_memory_usage("After-SetupExtnClientStep");
     execute_step(LoadExtensionMetadataStep, &bootstrap).await?;
+    log_memory_usage("After-LoadExtensionMetadataStep");
     execute_step(LoadExtensionsStep, &bootstrap).await?;
+    log_memory_usage("After-LoadExtensionsStep");
     execute_step(StartExtnChannelsStep, &bootstrap).await?;
+    log_memory_usage("After-StartExtnChannelsStep");
     execute_step(StartAppManagerStep, &bootstrap).await?;
+    log_memory_usage("After-StartAppManagerStep");
     execute_step(StartOtherBrokers, &bootstrap).await?;
+    log_memory_usage("After-StartOtherBrokers");
     execute_step(LoadDistributorValuesStep, &bootstrap).await?;
+    log_memory_usage("After-LoadDistributorValuesStep");
     execute_step(CheckLauncherStep, &bootstrap).await?;
+    log_memory_usage("After-CheckLauncherStep");
     execute_step(StartWsStep, &bootstrap).await?;
+    log_memory_usage("After-StartWsStep");
     execute_step(FireboltGatewayStep, &bootstrap).await?;
+    log_memory_usage("After-FireboltGatewayStep");
     Ok(())
 }
 

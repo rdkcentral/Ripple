@@ -27,7 +27,11 @@ use ripple_sdk::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::{Mutex, MutexGuard, Once};
 use std::{fs, path::Path};
+
+static BASE_PARSE_CTX_INIT: Once = Once::new();
+static mut BASE_PARSE_CTX_PTR: Option<Mutex<ParseCtx>> = None;
 
 #[derive(Debug, Deserialize, Default, Clone)]
 pub struct RuleSet {
@@ -314,6 +318,24 @@ impl RuleEngine {
 /// let result = jq_compile(input, filter, String::new());
 /// assert_eq!(result.unwrap(), json!("SCXI11BEI_VBN_24Q2_sprint_20240620140024sdy_FG_GRT"));
 /// ```
+// Initializes the base ParseCtx with core and std filters, only once.
+fn get_parse_ctx() -> MutexGuard<'static, ParseCtx> {
+    BASE_PARSE_CTX_INIT.call_once(|| {
+        let mut ctx = ParseCtx::new(Vec::new());
+        ctx.insert_natives(jaq_core::core());
+        ctx.insert_defs(jaq_std::std());
+        unsafe {
+            BASE_PARSE_CTX_PTR = Some(Mutex::new(ctx));
+        }
+    });
+    unsafe {
+        BASE_PARSE_CTX_PTR
+            .as_ref()
+            .expect("BASE_PARSE_CTX_PTR not initialized")
+            .lock()
+            .expect("Failed to lock BASE_PARSE_CTX_PTR")
+    }
+}
 pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value, RippleError> {
     info!(
         "Jq rule {}  input {:?}, reference {}",
@@ -324,22 +346,22 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
     // which do not include filters in the standard library
     // such as `map`, `select` etc.
 
-    let mut defs = ParseCtx::new(Vec::new());
-    defs.insert_natives(jaq_core::core());
-    defs.insert_defs(jaq_std::std());
     // parse the filter
     let (f, errs) = jaq_parse::parse(filter, jaq_parse::main());
     if !errs.is_empty() {
-        error!("Error in rule {:?}", errs);
+        error!("Error in rule {:?}: {:?}", reference, errs);
         return Err(RippleError::RuleError);
     }
+    // Lock and use the shared ParseCtx
+    let mut defs = get_parse_ctx();
     // compile the filter in the context of the given definitions
     let f = defs.compile(f.unwrap());
     if !defs.errs.is_empty() {
         error!("Error in rule {}", reference);
-        for (err, _) in defs.errs {
+        for (err, _) in &defs.errs {
             error!("reference={} {}", reference, err);
         }
+        defs.errs.clear(); // Clear errors before returning
         return Err(RippleError::RuleError);
     }
 
