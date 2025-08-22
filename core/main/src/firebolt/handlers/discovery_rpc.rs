@@ -51,7 +51,7 @@ use ripple_sdk::{
             provider::{ProviderRequestPayload, ProviderResponse, ProviderResponsePayload},
         },
     },
-    log::{error, info},
+    log::{debug, error, info},
     tokio::{sync::oneshot, time::timeout},
 };
 use ripple_sdk::{
@@ -293,7 +293,7 @@ impl DiscoveryServer for DiscoveryImpl {
             .await
             {
                 Ok(val) => {
-                    info!("Internal subscription launch successful");
+                    debug!("Internal subscription launch successful");
                     return Ok(val.as_bool().unwrap_or(false));
                 }
                 Err(e) => {
