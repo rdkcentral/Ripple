@@ -15,15 +15,13 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use crate::tokio::sync::mpsc::Sender;
 use futures::StreamExt;
 use jsonrpsee::{
-    core::{
-        server::{
-            helpers::MethodSink,
-            resource_limiting::Resources,
-            rpc_module::{MethodKind, Methods},
-        },
-        TEN_MB_SIZE_BYTES,
+    core::server::{
+        helpers::MethodSink,
+        resource_limiting::Resources,
+        rpc_module::{MethodCallback, MethodKind, Methods},
     },
     types::{error::ErrorCode, Id, Params},
 };
@@ -36,8 +34,9 @@ use ripple_sdk::{
     extn::extn_client_message::ExtnMessage,
     log::{debug, error, info},
     service::service_message::{
-        Id as ServiceMessageId, JsonRpcMessage as ServiceJsonRpcMessage,
-        JsonRpcSuccess as ServiceJsonRpcSuccess, ServiceMessage,
+        Id as ServiceMessageId, JsonRpcError, JsonRpcErrorDetails,
+        JsonRpcMessage as ServiceJsonRpcMessage, JsonRpcSuccess as ServiceJsonRpcSuccess,
+        ServiceMessage,
     },
     tokio,
     tokio_tungstenite::tungstenite::Message,
@@ -75,8 +74,12 @@ impl RouterState {
         let _ = methods_state.merge(methods.initialize_resources(&self.resources).unwrap());
     }
 
-    fn get_methods(&self) -> Methods {
-        self.methods.read().unwrap().clone()
+    pub fn get_method_entry(&self, method_name: &str) -> Option<(String, MethodCallback)> {
+        // Acquire a read lock without cloning the entire Methods registry
+        let methods_guard = self.methods.read().ok()?;
+        methods_guard
+            .method_with_name(method_name)
+            .map(|(name, method)| (name.to_owned(), method.clone()))
     }
 }
 
@@ -88,7 +91,7 @@ impl Default for RouterState {
 
 async fn resolve_route(
     platform_state: &mut PlatformState,
-    methods: Methods,
+    method_entry: Option<(String, MethodCallback)>,
     resources: Resources,
     req: RpcRequest,
 ) -> Result<ApiMessage, RippleError> {
@@ -97,26 +100,29 @@ async fn resolve_route(
     let request_c = req.clone();
     let sink_size = 1024 * 1024;
     let (sink_tx, mut sink_rx) = futures_channel::mpsc::unbounded::<String>();
-    let sink = MethodSink::new_with_limit(sink_tx, TEN_MB_SIZE_BYTES, 512 * 1024);
-    let method = request_c.method.clone();
+    let sink = MethodSink::new_with_limit(sink_tx, 1024 * 1024, 100 * 1024);
+    let method_name = request_c.method.clone();
 
     tokio::spawn(async move {
         let params_json = request_c.params_json.as_ref();
         let params = Params::new(Some(params_json));
 
-        match methods.method_with_name(&method) {
+        match method_entry {
             None => {
                 LogSignal::new(
                     "rpc_router".to_string(),
                     "resolve_route".into(),
                     request_c.clone(),
                 )
-                .with_diagnostic_context_item("error", &format!("Method not found: {}", method))
+                .with_diagnostic_context_item(
+                    "error",
+                    &format!("Method not found: {}", method_name),
+                )
                 .emit_error();
                 sink.send_error(id, ErrorCode::MethodNotFound.into());
             }
             Some((name, method)) => match &method.inner() {
-                MethodKind::Sync(callback) => match method.claim(name, &resources) {
+                MethodKind::Sync(callback) => match method.claim(&name, &resources) {
                     Ok(_guard) => {
                         if let Err(e) =
                             sink.send_raw((callback)(id.clone(), params, 512 * 1024).result)
@@ -138,7 +144,7 @@ async fn resolve_route(
                         sink.send_error(id, ErrorCode::MethodNotFound.into());
                     }
                 },
-                MethodKind::Async(callback) => match method.claim(name, &resources) {
+                MethodKind::Async(callback) => match method.claim(&name, &resources) {
                     Ok(guard) => {
                         let id = id.into_owned();
                         let params = params.into_owned();
@@ -199,7 +205,6 @@ async fn resolve_route(
         if let Some(api_stats) = platform_state.metrics.get_api_stats(&request_id) {
             msg.stats = Some(api_stats);
         }
-
         return Ok(msg);
     }
     error!("Invalid output from method sink");
@@ -208,7 +213,7 @@ async fn resolve_route(
 
 impl RpcRouter {
     pub async fn route(mut state: PlatformState, mut req: RpcRequest, session: Session) {
-        let methods = state.router_state.get_methods();
+        let method_entry = state.router_state.get_method_entry(&req.method);
         let resources = state.router_state.resources.clone();
 
         if let Some(overridden_method) = state.get_manifest().has_rpc_override_method(&req.method) {
@@ -217,7 +222,7 @@ impl RpcRouter {
         LogSignal::new("rpc_router".to_string(), "routing".into(), req.clone());
         tokio::spawn(async move {
             let start = Utc::now().timestamp_millis();
-            let resp = resolve_route(&mut state, methods, resources, req.clone()).await;
+            let resp = resolve_route(&mut state, method_entry, resources, req.clone()).await;
             if let Ok(msg) = resp {
                 let now = Utc::now().timestamp_millis();
                 let success = !msg.is_error();
@@ -232,7 +237,7 @@ impl RpcRouter {
         req: RpcRequest,
         extn_msg: ExtnMessage,
     ) {
-        let methods = state.router_state.get_methods();
+        let method_entry = state.router_state.get_method_entry(&req.method);
         let resources = state.router_state.resources.clone();
 
         let mut platform_state = state.clone();
@@ -244,14 +249,15 @@ impl RpcRouter {
         .emit_debug();
         tokio::spawn(async move {
             let client = platform_state.get_client().get_extn_client();
-            if let Ok(msg) = resolve_route(&mut platform_state, methods, resources, req).await {
+            if let Ok(msg) = resolve_route(&mut platform_state, method_entry, resources, req).await
+            {
                 return_extn_response(msg, extn_msg, client);
             }
         });
     }
 
     pub async fn route_service_protocol(state: &PlatformState, req: RpcRequest) {
-        let methods = state.router_state.get_methods();
+        let method_entry = state.router_state.get_method_entry(&req.method);
         let resources = state.router_state.resources.clone();
 
         let mut platform_state = state.clone();
@@ -263,7 +269,7 @@ impl RpcRouter {
         .emit_debug();
         tokio::spawn(async move {
             if let Ok(msg) =
-                resolve_route(&mut platform_state, methods, resources, req.clone()).await
+                resolve_route(&mut platform_state, method_entry, resources, req.clone()).await
             {
                 let context = req.ctx.clone().context;
                 if context.len() < 2 {
@@ -281,33 +287,62 @@ impl RpcRouter {
                             .unwrap();
 
                     let result = json_rpc_response.get("result").cloned().unwrap_or_default();
-                    let jsonrpc = serde_json::to_string(
-                        &json_rpc_response
-                            .get("jsonrpc")
-                            .cloned()
-                            .unwrap_or_default(),
-                    )
-                    .unwrap();
-                    let id = ServiceMessageId::String(msg.request_id.clone());
+                    if !result.is_null() {
+                        let jsonrpc = serde_json::to_string(
+                            &json_rpc_response
+                                .get("jsonrpc")
+                                .cloned()
+                                .unwrap_or_default(),
+                        )
+                        .unwrap();
+                        let id = ServiceMessageId::String(msg.request_id.clone());
 
-                    let service_message = ServiceMessage {
-                        message: ServiceJsonRpcMessage::Success(ServiceJsonRpcSuccess {
-                            result,
-                            jsonrpc,
-                            id,
-                        }),
-                        context: Some(serde_json::to_value(req.ctx.clone()).unwrap_or_default()),
-                    };
-                    let msg_str = serde_json::to_string(&service_message).unwrap();
-                    let message = Message::Text(msg_str.clone());
-                    debug!("Sending response to service {}: {:?}", service_id, message);
-                    if let Err(err) = sender.try_send(message) {
-                        error!(
-                            "Failed to send request to service {}: {:?}",
-                            service_id, err
-                        );
+                        let service_message = ServiceMessage {
+                            message: ServiceJsonRpcMessage::Success(ServiceJsonRpcSuccess {
+                                result,
+                                jsonrpc,
+                                id,
+                            }),
+                            context: Some(
+                                serde_json::to_value(req.ctx.clone()).unwrap_or_default(),
+                            ),
+                        };
+                        send_response(&service_id, &sender, &service_message);
                     } else {
-                        debug!("Successfully sent request to service: {}", service_id);
+                        let error = json_rpc_response.get("error").cloned().unwrap_or_default();
+                        if !error.is_null() {
+                            let jsonrpc = serde_json::to_string(
+                                &json_rpc_response
+                                    .get("jsonrpc")
+                                    .cloned()
+                                    .unwrap_or_default(),
+                            )
+                            .unwrap();
+                            let id = ServiceMessageId::String(msg.request_id.clone());
+                            let details = JsonRpcErrorDetails {
+                                code: -32600,
+                                message: "Ripple Main does not support this request from Service"
+                                    .to_string(),
+                                data: Some(error),
+                            };
+
+                            let service_message = ServiceMessage {
+                                message: ServiceJsonRpcMessage::Error(JsonRpcError {
+                                    error: details,
+                                    jsonrpc,
+                                    id,
+                                }),
+                                context: Some(
+                                    serde_json::to_value(req.ctx.clone()).unwrap_or_default(),
+                                ),
+                            };
+                            send_response(&service_id, &sender, &service_message);
+                        } else {
+                            error!(
+                                "Received unexpected response from service {:?}",
+                                json_rpc_response
+                            );
+                        }
                     }
                 } else {
                     error!(
@@ -326,5 +361,19 @@ impl RpcRouter {
                 error!("Error response: {:?}", error_msg);
             }
         });
+    }
+}
+
+fn send_response(service_id: &str, sender: &Sender<Message>, service_message: &ServiceMessage) {
+    let msg_str = serde_json::to_string(&service_message).unwrap();
+    let message = Message::Text(msg_str.clone());
+    debug!("Sending response to service {}: {:?}", service_id, message);
+    if let Err(err) = sender.try_send(message) {
+        error!(
+            "Failed to send request to service {}: {:?}",
+            service_id, err
+        );
+    } else {
+        debug!("Successfully sent request to service: {}", service_id);
     }
 }
