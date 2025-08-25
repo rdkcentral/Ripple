@@ -151,7 +151,7 @@ impl PlatformState {
                 client,
             ),
             lifecycle2_app_state: AppManagerState2_0::new(),
-            service_controller_state: ServiceControllerState::default(),
+            service_controller_state: ServiceControllerState::new(),
         }
     }
 

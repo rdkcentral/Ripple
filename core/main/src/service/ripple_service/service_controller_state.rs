@@ -14,7 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-use ripple_sdk::api::context::{ActivationStatus, FeatureUpdate, RippleContext};
 use ripple_sdk::api::context::{RippleContextUpdateRequest, RippleContextUpdateType};
 use ripple_sdk::api::device::device_request::{
     AccountToken, InternetConnectionStatus, PowerState, TimeZone,
@@ -23,7 +22,7 @@ use ripple_sdk::service::service_message::JsonRpcNotification;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use futures::{stream::SplitStream, SinkExt, StreamExt};
-use ripple_sdk::api::gateway::rpc_gateway_api::{CallContext, JsonRpcApiResponse};
+use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
 use ripple_sdk::{
     api::{gateway::rpc_gateway_api::ApiMessage, manifest::extn_manifest::ExtnSymbol},
     extn::{
@@ -34,7 +33,7 @@ use ripple_sdk::{
     log::{debug, error, info, trace},
     service::{
         service_event_state::ServiceEventState,
-        service_message::{Id, JsonRpcMessage, JsonRpcSuccess, ServiceMessage},
+        service_message::{Id, JsonRpcMessage, ServiceMessage},
     },
     tokio::{
         self,
@@ -46,7 +45,6 @@ use ripple_sdk::{
     uuid::Uuid,
 };
 
-use crate::service::ripple_service::service_controller_state;
 use crate::{
     broker::endpoint_broker::{BrokerCallback, BrokerOutput},
     firebolt::{firebolt_gateway::FireboltGatewayCommand, firebolt_ws::ClientIdentity},
@@ -518,6 +516,7 @@ impl ServiceControllerState {
         }
         final_result
     }
+
     pub async fn add_service_info(
         &self,
         service_id: String,
@@ -581,7 +580,7 @@ impl ServiceControllerState {
                                 serde_json::from_value::<AccountToken>(params.clone())
                             {
                                 let request = RippleContextUpdateRequest::Token(token);
-                                Self::context_update(update_type, request, platform_state, sm);
+                                Self::context_update(update_type, request, platform_state);
                             } else {
                                 error!("Failed to parse token parameters: {:?}", params);
                             }
@@ -645,7 +644,6 @@ impl ServiceControllerState {
         update_type: &str,
         request: RippleContextUpdateRequest,
         platform_state: &PlatformState,
-        sm: ServiceMessage,
     ) {
         let propagate = {
             let mut ripple_context = platform_state
@@ -697,7 +695,6 @@ impl ServiceControllerState {
 
                         let service_controller_state =
                             platform_state.service_controller_state.clone();
-                        let context = sm.context.clone();
 
                         let new_ripple_context =
                             serde_json::to_string(&new_ripple_context).unwrap();
@@ -720,6 +717,29 @@ impl ServiceControllerState {
                                 let send_res = sender.try_send(mes);
                                 trace!("Send to processor result: {:?}", send_res);
                             }
+                        });
+                    }
+
+                    let main_processors = platform_state
+                        .service_controller_state
+                        .service_event_state
+                        .get_event_main_processors(Some(update_type.clone()));
+
+                    for processor in main_processors {
+                        let sender = processor.clone();
+                        let new_ripple_context =
+                            serde_json::to_string(&new_ripple_context).unwrap();
+                        tokio::spawn(async move {
+                            let service_message = ServiceMessage {
+                                message: JsonRpcMessage::Notification(JsonRpcNotification {
+                                    jsonrpc: "2.0".to_string(),
+                                    method: "service.eventNotification".to_string(),
+                                    params: Some(new_ripple_context.into()),
+                                }),
+                                context: None,
+                            };
+                            let send_res = sender.try_send(service_message);
+                            trace!("Send to main processor result: {:?}", send_res);
                         });
                     }
                 }
