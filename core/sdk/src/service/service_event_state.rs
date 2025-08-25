@@ -1,9 +1,8 @@
 use crate::api::context::RippleContext;
-use crate::api::context::RippleContextUpdateRequest;
 use crate::api::context::RippleContextUpdateType;
 use crate::api::gateway::rpc_gateway_api::CallContext;
-use crate::log::{debug, error, info};
-use crate::service::service_message::ServiceMessage;
+use crate::log::{debug, error};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
@@ -39,7 +38,7 @@ impl ServiceEventState {
         let read_lock = event_subscribers.read().unwrap();
         match context_update_type {
             Some(update_type) => read_lock.get(&update_type).cloned().unwrap_or_default(),
-            None => read_lock.values().cloned().flatten().collect(),
+            None => Vec::new(),
         }
     }
 
@@ -51,19 +50,19 @@ impl ServiceEventState {
             .push(processor);
     }
 
-    pub fn process_event_notification(&self, update_type: &str, sm: ServiceMessage) {
+    pub fn subscribe_context_event(&self, update_type: &str, context: Option<Value>) {
         let update_type = format!("\"{}\"", update_type);
         let update_type = serde_json::from_str::<RippleContextUpdateType>(&update_type);
         match update_type {
             Ok(update_type) => {
-                let ctx = &sm.context.as_ref().map_or_else(CallContext::default, |v| {
+                let ctx = &context.as_ref().map_or_else(CallContext::default, |v| {
                     serde_json::from_value(v.clone()).unwrap_or_default()
                 });
 
-                debug!("process_event_notification context: {:?}", ctx);
+                debug!("subscribe_context_event context: {:?}", ctx);
 
                 //Add context[sender_id, service_id, request_type] in event processors as string split by "&"
-                let sender_tx = ctx.context.get(0);
+                let sender_tx = ctx.context.first();
                 let subscriber = ctx.context.get(1);
                 let request_type = ctx.context.get(2);
                 let new_event_processor = format!(
@@ -72,7 +71,7 @@ impl ServiceEventState {
                     subscriber.unwrap_or(&"".to_string()),
                     request_type.unwrap_or(&"".to_string())
                 );
-                if let Some(s) = subscriber {
+                if let Some(_s) = subscriber {
                     self.add_event_processor(update_type, new_event_processor);
                 } else {
                     error!("Subscriber not found in context");

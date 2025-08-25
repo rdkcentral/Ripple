@@ -15,9 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::api::context::ActivationStatus;
-use crate::api::context::RippleContext;
-use crate::api::context::RippleContextUpdateType;
 use serde_json::json;
 use std::collections::HashMap;
 
@@ -47,7 +44,7 @@ use tokio_tungstenite::tungstenite::Message;
 use uuid::Uuid;
 
 use super::service_message::{
-    JsonRpcNotification, JsonRpcRequest, JsonRpcSuccess, ServiceMessage, ServiceRequestType,
+    JsonRpcNotification, JsonRpcSuccess, ServiceMessage, ServiceRequestType,
 };
 #[derive(Debug, Clone, Default)]
 pub struct ServiceClient {
@@ -94,7 +91,7 @@ impl ServiceClientBuilder {
                 extn_client: Some(extn_client),
                 service_id: Some(ExtnId::try_from(symbol.id.clone()).unwrap()),
                 response_processors: Arc::new(RwLock::new(HashMap::new())),
-                    event_processors: Arc::new(RwLock::new(HashMap::new())),
+                event_processors: Arc::new(RwLock::new(HashMap::new())),
                 outbound_extn_rx: Arc::new(RwLock::new(Some(ext_tr))),
                 outbound_service_rx: Arc::new(RwLock::new(Some(service_tr))),
             }
@@ -105,7 +102,7 @@ impl ServiceClientBuilder {
                 extn_client: None,
                 service_id: None,
                 response_processors: Arc::new(RwLock::new(HashMap::new())),
-                    event_processors: Arc::new(RwLock::new(HashMap::new())),
+                event_processors: Arc::new(RwLock::new(HashMap::new())),
                 outbound_extn_rx: Arc::new(RwLock::new(None)),
                 outbound_service_rx: Arc::new(RwLock::new(None)),
             }
@@ -218,8 +215,6 @@ impl ServiceClient {
                                     sm.context.clone().unwrap()
                                 );
 
-                                //TODO construct a new ServiceMessage with the caller context
-                                //context: sm.context.clone(),
                                 let new_context = json!({"context": sm.context.clone()});
 
                                 let new_sm = ServiceMessage {
@@ -346,13 +341,11 @@ impl ServiceClient {
                         }
                         ServiceRequestType::Transient => debug!("Transient request type"),
                     }
-                } else {
-                    if request_type != ServiceRequestType::Transient {
-                        warn!(
-                            "Service ID not found in context for service message: {:?}",
-                            sm
-                        );
-                    }
+                } else if request_type != ServiceRequestType::Transient {
+                    warn!(
+                        "Service ID not found in context for service message: {:?}",
+                        sm
+                    );
                 }
             } else {
                 warn!(
@@ -376,6 +369,7 @@ impl ServiceClient {
         self.extn_client.as_ref().and_then(|ec| ec.get_stack_size())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn call_and_parse_ripple_event_rpc(
         &mut self,
         method: &str,
@@ -383,7 +377,7 @@ impl ServiceClient {
         ctx: Option<&CallContext>,
         timeout: u64,
         service_id: &str,
-        error_msg: &str,
+        _error_msg: &str,
         event_sender: MSender<ServiceMessage>,
     ) -> RpcResult<bool> {
         let res = self
@@ -396,12 +390,15 @@ impl ServiceClient {
                 Some(event_sender),
                 ServiceRequestType::Event,
             )
-            .await
-            .map_err(|_| jsonrpsee::core::Error::Custom(error_msg.to_string()))?;
+            .await;
 
-        match res.message {
-            JsonRpcMessage::Success(_) => Ok(true),
-            _ => Ok(false),
+        if let Ok(r) = res {
+            match r.message {
+                JsonRpcMessage::Success(_) => Ok(true),
+                _ => Ok(false),
+            }
+        } else {
+            Ok(false)
         }
     }
 
@@ -439,6 +436,7 @@ impl ServiceClient {
     }
 
     #[allow(unused_variables)]
+    #[allow(clippy::too_many_arguments)]
     pub async fn request_with_timeout_main(
         &mut self,
         method: String,
@@ -550,7 +548,7 @@ impl ServiceClient {
                             }),
                             context: None,
                         };
-                        return Ok(service_message);
+                        Ok(service_message)
                     }
                     Err(e) => {
                         error!("Error sending service request: {:?}", e);
