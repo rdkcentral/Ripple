@@ -2,7 +2,7 @@
 
 If you would like to contribute code to this project you can do so through GitHub by forking the repository and sending a pull request. Before RDK accepts your code into the project you must sign the RDK Contributor License Agreement (CLA).
 
-# Introduction
+# Intorduction
 
 This guide serves to define the framework of governance used to manage the Ripple code base.
 
@@ -27,9 +27,9 @@ The Ripple guild is the group of engineers responsible for the implementation an
 The current members of the Ripple Guild are:
 
 - Sathishkumar Deena Kirupakaran [@satlead](https://github.com/satlead)
-- Vinod Sathyaseelan [@Vinodsathyaseelan](https://github.com/Vinodsathyaseelan)
+- Kevin Pearson [@kpears201](https://github.com/kpears201)
 - Kevin Shah [@kevinshahfws](https://github.com/kevinshahfws)
-- Josekutty Kuriakose [@joseinweb](https://github.com/joseinweb)
+- Josekutty Kuiakose [@joseinweb](https://github.com/joseinweb)
 - Adam Cox [@adamdama](https://github.com/adamdama)
 
 The Ripple's Guilds main responsibilities are:
