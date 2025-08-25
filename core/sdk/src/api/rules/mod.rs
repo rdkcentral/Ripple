@@ -15,5 +15,4 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-pub mod rules_engine;
 pub mod rules_functions;

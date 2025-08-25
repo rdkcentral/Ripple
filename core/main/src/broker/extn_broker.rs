@@ -171,15 +171,19 @@ impl EndpointBroker for ExtnBroker {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
     use crate::broker::endpoint_broker::BrokerOutput;
-    use crate::broker::rules::rules_engine::Rule;
+
     use crate::service::extn::ripple_client::RippleClient;
     use crate::state::bootstrap_state::ChannelsState;
     use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
     use ripple_sdk::api::manifest::device_manifest::DeviceManifest;
     use ripple_sdk::api::manifest::extn_manifest::ExtnManifest;
+    use ripple_sdk::api::rules_engine::{Rule, RuleEngine, RuleEngineProvider};
     use ripple_sdk::Mockable;
+    use ssda_types::gateway::ApiGatewayServer;
 
     #[tokio::test]
     pub async fn test_log_error_and_send_broker_failure_response() {
@@ -286,6 +290,13 @@ mod tests {
             workflow_callback: Some(callback.clone()),
             telemetry_response_listeners: vec![],
         };
+        let rules_engine: Arc<tokio::sync::RwLock<Box<dyn RuleEngineProvider + Send + Sync>>> =
+            Arc::new(tokio::sync::RwLock::new(Box::new(RuleEngine::default())));
+
+        let api_gateway_state: Arc<tokio::sync::Mutex<Box<dyn ApiGatewayServer + Send + Sync>>> =
+            Arc::new(tokio::sync::Mutex::new(Box::new(
+                ssda_service::ApiGateway::new(rules_engine.clone()),
+            )));
 
         let platform_state = PlatformState::new(
             ExtnManifest::default(),
@@ -293,6 +304,8 @@ mod tests {
             RippleClient::new(ChannelsState::default()),
             Vec::new(),
             None,
+            api_gateway_state.clone(),
+            rules_engine.clone(),
         );
         let sender = ExtnBroker::start(
             Some(platform_state),

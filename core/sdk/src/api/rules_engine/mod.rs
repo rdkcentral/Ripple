@@ -1,3 +1,14 @@
+use std::collections::HashMap;
+
+use chrono::Utc;
+use log::{debug, error, info, trace, warn};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+use crate::utils::error::RippleError;
+
+use super::{gateway::rpc_gateway_api::RpcRequest, manifest::extn_manifest::ExtnManifest};
+
 // Copyright 2023 Comcast Cable Communications Management, LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,23 +26,23 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 use jaq_interpret::{Ctx, FilterT, ParseCtx, RcIter, Val};
-use ripple_sdk::api::{
-    gateway::rpc_gateway_api::RpcRequest, manifest::extn_manifest::ExtnManifest,
-};
+// use ripple_sdk::api::{
+//     gateway::rpc_gateway_api::RpcRequest, manifest::extn_manifest::ExtnManifest,
+// };
 
-use ripple_sdk::{
-    chrono::Utc,
-    log::{debug, error, info, trace, warn},
-    serde_json::Value,
-    utils::error::RippleError,
-};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+// use ripple_sdk::{
+//     chrono::Utc,
+//     log::{debug, error, info, trace, warn},
+//     serde_json::Value,
+//     utils::error::RippleError,
+// };
+// use serde::{Deserialize, Serialize};
+// use std::collections::HashMap;
 
 use std::sync::{Mutex, MutexGuard, Once};
 use std::{fs, path::Path};
 
-use super::rules_functions::{apply_functions, RulesFunction, RulesImport};
+use crate::api::rules::rules_functions::{apply_functions, RulesFunction, RulesImport};
 
 static BASE_PARSE_CTX_INIT: Once = Once::new();
 static mut BASE_PARSE_CTX_PTR: Option<Mutex<ParseCtx>> = None;
@@ -104,7 +115,7 @@ pub enum RuleEndpointProtocol {
     Extn,
     Service,
 }
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, Eq, PartialEq, PartialOrd, Ord)]
 pub struct JsonDataSource {
     // configurable namespace to "stuff" an in individual result payload into
     pub namespace: Option<String>,
@@ -112,14 +123,14 @@ pub struct JsonDataSource {
     pub params: Option<String>,
 }
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct EventHandler {
     pub method: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub params: Option<String>,
 }
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Rule {
     pub alias: String,
     // Not every rule needs transform
@@ -193,7 +204,7 @@ impl Rule {
     }
 }
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RuleTransform {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request: Option<String>,
@@ -223,7 +234,6 @@ impl RuleTransform {
 
         output
     }
-
     pub fn apply_functions(&mut self, imports: &HashMap<String, RulesFunction>) {
         if let Some(transform) = self.request.take() {
             if let Ok(transformed) = apply_functions(&transform, imports) {
@@ -237,7 +247,6 @@ impl RuleTransform {
             }
         }
     }
-
     pub fn apply_variables(&mut self, rpc_request: &RpcRequest) -> &mut Self {
         if let Some(value) = self.request.take() {
             let _ = self
@@ -248,6 +257,27 @@ impl RuleTransform {
         if let Some(value) = self.response.take() {
             let _ = self
                 .response
+                .insert(self.check_and_replace(&value, rpc_request));
+        }
+
+        if let Some(value) = self.event.take() {
+            let _ = self
+                .event
+                .insert(self.check_and_replace(&value, rpc_request));
+        }
+
+        if let Some(value) = self.rpcv2_event.take() {
+            let _ = self
+                .rpcv2_event
+                .insert(self.check_and_replace(&value, rpc_request));
+        }
+        self
+    }
+
+    pub fn apply_context(&mut self, rpc_request: &RpcRequest) -> &mut Self {
+        if let Some(value) = self.request.take() {
+            let _ = self
+                .request
                 .insert(self.check_and_replace(&value, rpc_request));
         }
 
@@ -410,8 +440,13 @@ impl RuleEngine {
 
         match filtered_rules.len() {
             1 => Ok(RuleRetrieved::WildcardMatch(filtered_rules[0].clone())),
-            0 => Err(RuleRetrievalError::RuleNotFoundAsWildcard),
-            _ => Err(RuleRetrievalError::TooManyWildcardMatches),
+            0 => Err(RuleRetrievalError::RuleNotFoundAsWildcard(
+                method.to_string(),
+            )),
+            _ => Err(RuleRetrievalError::TooManyWildcardMatches(format!(
+                "too many matches for method={}. Rules that match={:?}",
+                method, filtered_rules
+            ))),
         }
     }
 
@@ -423,9 +458,11 @@ impl RuleEngine {
         rule.transform.apply_variables(rpc_request);
     }
 
-    pub fn get_rule(&self, rpc_request: &RpcRequest) -> Result<RuleRetrieved, RuleRetrievalError> {
+    pub fn retrieve_rule(
+        &self,
+        rpc_request: &RpcRequest,
+    ) -> Result<RuleRetrieved, RuleRetrievalError> {
         let method = rpc_request.method.to_lowercase();
-
         /*
         match directly from method name
          */
@@ -442,7 +479,7 @@ impl RuleEngine {
         }
     }
 
-    pub fn get_rule_by_method(&self, method: &str) -> Option<Rule> {
+    pub fn retrieve_rule_by_method(&self, method: &str) -> Option<Rule> {
         self.rules.rules.get(&method.to_lowercase()).cloned()
     }
 }
@@ -463,8 +500,8 @@ impl From<RuleRetrieved> for Rule {
 #[derive(Debug)]
 pub enum RuleRetrievalError {
     RuleNotFound(String),
-    RuleNotFoundAsWildcard,
-    TooManyWildcardMatches,
+    RuleNotFoundAsWildcard(String),
+    TooManyWildcardMatches(String),
 }
 
 /// Compiles and executes a JQ filter on a given JSON input value.
@@ -492,7 +529,7 @@ pub enum RuleRetrievalError {
 /// ```
 /// use serde_json::json;
 /// use ripple_sdk::utils::error::RippleError;
-/// use crate::jq_compile;
+/// use ripple_sdk::api::rules_engine::jq_compile;
 ///
 /// let filter = "if .success then .stbVersion else { code: -32100, message: \"couldn't get version\" } end";
 /// let input = json!({
@@ -586,11 +623,83 @@ pub fn compose_json_values(values: Vec<Value>) -> Value {
 pub fn make_name_json_safe(name: &str) -> String {
     name.replace([' ', '.', ','], "_")
 }
+use mockall::automock;
+#[automock]
+#[async_trait::async_trait]
+pub trait RuleEngineProvider: Send + Sync {
+    fn add_rules(&mut self, rules: RuleSet);
+    fn add_rule(&mut self, rule: Rule);
+    fn remove_rule(&mut self, alias: &str);
+    fn has_rule(&self, request: &str) -> bool;
+    fn wildcard_match(&self, rule_name: &str, method: &str) -> bool;
+    fn find_wildcard_rule(
+        &self,
+        rules: &HashMap<String, Rule>,
+        method: &str,
+    ) -> Result<RuleRetrieved, RuleRetrievalError>;
+    fn get_rule(&self, rpc_request: &RpcRequest) -> Result<RuleRetrieved, RuleRetrievalError>;
+    fn get_rule_by_method(&self, method: &str) -> Option<Rule>;
+    fn get_rules(&self) -> RuleSet;
+}
+
+#[async_trait::async_trait]
+impl RuleEngineProvider for RuleEngine {
+    fn add_rules(&mut self, rules: RuleSet) {
+        self.rules.append(rules);
+    }
+    fn add_rule(&mut self, rule: Rule) {
+        debug!("Adding rule: {:?}", rule);
+        self.rules.rules.insert(rule.alias.clone(), rule);
+    }
+    fn remove_rule(&mut self, alias: &str) {
+        debug!("Removing rule: {}", alias);
+        self.rules.rules.remove(alias);
+    }
+    fn has_rule(&self, request: &str) -> bool {
+        self.rules.rules.contains_key(&request.to_lowercase())
+    }
+    fn wildcard_match(&self, rule_name: &str, method: &str) -> bool {
+        rule_name.ends_with(".*") && method.starts_with(&rule_name[..rule_name.len() - 2])
+    }
+    fn find_wildcard_rule(
+        &self,
+        rules: &HashMap<String, Rule>,
+        method: &str,
+    ) -> Result<RuleRetrieved, RuleRetrievalError> {
+        let filtered_rules: Vec<&Rule> = rules
+            .iter()
+            .filter(|(rule_name, _)| Self::wildcard_match(rule_name, method))
+            .map(|(_, rule)| rule)
+            .collect();
+
+        match filtered_rules.len() {
+            1 => Ok(RuleRetrieved::WildcardMatch(filtered_rules[0].clone())),
+            0 => Err(RuleRetrievalError::RuleNotFoundAsWildcard(
+                method.to_string(),
+            )),
+            _ => Err(RuleRetrievalError::TooManyWildcardMatches(
+                method.to_string(),
+            )),
+        }
+    }
+    fn get_rule(&self, rpc_request: &RpcRequest) -> Result<RuleRetrieved, RuleRetrievalError> {
+        self.retrieve_rule(rpc_request)
+    }
+    fn get_rule_by_method(&self, method: &str) -> Option<Rule> {
+        self.retrieve_rule_by_method(method)
+    }
+    fn get_rules(&self) -> RuleSet {
+        self.rules.clone()
+    }
+}
 
 #[cfg(test)]
 mod tests {
+
+    use crate::api::gateway::rpc_gateway_api::CallContext;
+
     use super::*;
-    use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
+
     use ripple_sdk::serde_json::json;
 
     #[test]
@@ -694,7 +803,6 @@ mod tests {
         .unwrap()
         .contains("nested"));
     }
-    use ripple_sdk::api::gateway::rpc_gateway_api::CallContext;
 
     #[test]
     fn test_get_rule_exact_match() {
@@ -766,11 +874,7 @@ mod tests {
 
     #[test]
     fn test_get_rule_no_match() {
-        let rule_set = RuleSet::default();
-        let rule_engine = RuleEngine {
-            rules: rule_set,
-            functions: HashMap::default(),
-        };
+        let rule_engine = RuleEngine::default();
 
         let rpc_request = RpcRequest {
             method: "nonexistent.method".to_string(),
@@ -783,9 +887,39 @@ mod tests {
         };
 
         let result = rule_engine.get_rule(&rpc_request);
+        println!("Result: {:?}", result);
+        assert!(
+            matches!(result, Err(RuleRetrievalError::RuleNotFoundAsWildcard(method)) if method == "nonexistent.method")
+        );
+    }
+
+    #[test]
+    fn test_get_rule_multiple_wildcard_matches() {
+        let mut rule_set = RuleSet::default();
+        rule_set
+            .rules
+            .insert("api.v1.*".to_string(), Rule::default());
+        rule_set.rules.insert("api.*".to_string(), Rule::default());
+
+        let rule_engine = RuleEngine {
+            rules: rule_set,
+            functions: HashMap::default(),
+        };
+
+        let rpc_request = RpcRequest {
+            method: "api.v1.get".to_string(),
+            ctx: CallContext {
+                app_id: "test_app".to_string(),
+                method: "api.v1.get".to_string(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let result = rule_engine.get_rule(&rpc_request);
         assert!(matches!(
             result,
-            Err(RuleRetrievalError::RuleNotFoundAsWildcard)
+            Err(RuleRetrievalError::TooManyWildcardMatches(_))
         ));
     }
 }
