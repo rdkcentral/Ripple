@@ -95,22 +95,25 @@ async fn test_device_get_model() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
     let mut result = HashMap::new();
+
     result.insert(
         "stbVersion".into(),
-        ContractMatcher::MatchType("AX061AEI_VBN_1911_sprint_20200109040424sdy".into()),
-    );
-    result.insert(
-        "receiverVersion".into(),
         ContractMatcher::MatchRegex(
-            r"^[0-9]\d*.[0-9]\d*.[0-9]\d*.[0-9]\d*$".into(),
-            "3.14.0.0".into(),
+            r"^[A-Z0-9]+_VBN_[A-Za-z0-9]+_sprint_\d{14}sdy(_[A-Z0-9_]+)*$".into(),
+            "AX061AEI_VBN_1911_sprint_20200109040424sdy".into(),
         ),
     );
+
+    result.insert(
+        "receiverVersion".into(),
+        ContractMatcher::MatchRegex(r"^\d+\.\d+\.\d+\.\d+$".into(), "3.14.0.0".into()),
+    );
+
     result.insert(
         "stbTimestamp".into(),
         ContractMatcher::MatchRegex(
-            "^\\w{3} \\d{1,2} \\w{3} (?:\\d{2})?\\d{2} \\d{2}:\\d{2}:\\d{2} UTC$".into(),
-            "Wed 01 Jan 2024 02:45:28 UTC".into(),
+            r"^\w{3} \d{2} \w{3} \d{4} \d{2}:\d{2}:\d{2} [A-Z ]*UTC$".into(),
+            "Thu 09 Jan 2020 04:04:24 AP UTC".into(),
         ),
     );
     result.insert("success".into(), ContractMatcher::MatchBool(true));
@@ -137,7 +140,7 @@ async fn test_device_get_model() {
             .to_string(),
         json!({
             "jsonrpc": "2.0",
-            "id": 0,
+            "id": 42,
             "method": "org.rdk.System.1.getSystemVersions"
         })
     )
