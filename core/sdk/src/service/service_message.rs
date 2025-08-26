@@ -306,23 +306,27 @@ impl ServiceMessage {
 
     pub fn parse_rpc_notification<T: DeserializeOwned>(&self) -> RpcResult<T> {
         if let JsonRpcMessage::Notification(notification) = &self.message {
-            let params = notification.params.clone().unwrap_or_default();
-            let params = serde_json::from_value::<String>(params);
-            let params = params.unwrap();
-            let params = params.clone();
-            let a = params.as_bytes();
-            let msg = std::str::from_utf8(a).unwrap();
-            //let ripple_context = serde_json::from_str::<T>(msg);
-            match serde_json::from_str::<T>(msg) {
-                Ok(value) => Ok(value),
-                Err(_) => Err(jsonrpsee::core::Error::Custom(format!(
-                    "Failed to get Success response"
-                ))),
+            if let Some(p) = &notification.params {
+                let params = serde_json::from_value::<String>(p.clone());
+                let params = params.unwrap();
+                let params = params.clone();
+                let a = params.as_bytes();
+                let msg = std::str::from_utf8(a).unwrap();
+                match serde_json::from_str::<T>(msg) {
+                    Ok(value) => Ok(value),
+                    Err(_) => Err(jsonrpsee::core::Error::Custom(
+                        "Failed to get Success response".to_string(),
+                    )),
+                }
+            } else {
+                Err(jsonrpsee::core::Error::Custom(
+                    "Failed to get params".to_string(),
+                ))
             }
         } else {
-            Err(jsonrpsee::core::Error::Custom(format!(
-                "Failed to get Success response"
-            )))
+            Err(jsonrpsee::core::Error::Custom(
+                "Failed to get Success response".to_string(),
+            ))
         }
     }
 }
