@@ -15,14 +15,19 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use crate::firebolt::handlers::internal_rpc::PolicyState;
 use ripple_sdk::{
     api::{
-        config::FEATURE_DISTRIBUTOR_SESSION, firebolt::fb_discovery::AgePolicy, gateway::rpc_gateway_api::RpcRequest, manifest::{
+        config::FEATURE_DISTRIBUTOR_SESSION,
+        firebolt::fb_discovery::AgePolicy,
+        gateway::rpc_gateway_api::RpcRequest,
+        manifest::{
             app_library::AppLibraryState,
             device_manifest::{AppLibraryEntry, DeviceManifest},
             exclusory::ExclusoryImpl,
             extn_manifest::ExtnManifest,
-        }, session::SessionAdjective
+        },
+        session::SessionAdjective,
     },
     extn::{
         extn_client_message::{ExtnMessage, ExtnPayloadProvider},
@@ -32,8 +37,10 @@ use ripple_sdk::{
     utils::error::RippleError,
     uuid::Uuid,
 };
-use std::{collections::HashMap, sync::{Arc, RwLock}};
-use crate::firebolt::handlers::internal_rpc::PolicyState;
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 use crate::{
     broker::{endpoint_broker::EndpointBrokerState, rules::rules_engine::RuleEngine},
@@ -156,7 +163,11 @@ impl PlatformState {
     }
 
     pub fn get_policy_identifier_alias(&self) -> Vec<AgePolicy> {
-        self.policy_state.policy_identifiers_alias.read().unwrap().clone()
+        self.policy_state
+            .policy_identifiers_alias
+            .read()
+            .unwrap()
+            .clone()
     }
 
     pub fn has_internal_launcher(&self) -> bool {

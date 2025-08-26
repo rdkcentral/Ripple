@@ -271,7 +271,6 @@ mod tests {
                 intent: Some(NavigationIntent::NavigationIntentStrict(
                     NavigationIntentStrict::Home(HomeIntent {
                         context: DiscoveryContext::new("voice", None),
-                        
                     }),
                 )),
             }

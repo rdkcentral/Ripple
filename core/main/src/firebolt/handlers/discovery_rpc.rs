@@ -15,11 +15,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::time::Duration;
-use crate::broker::broker_utils::BrokerUtils;
 use crate::{
-    firebolt::handlers::privacy_rpc::PrivacyImpl,
-    firebolt::rpc::RippleRPCProvider,
+    broker::broker_utils::BrokerUtils,
+    firebolt::{handlers::privacy_rpc::PrivacyImpl, rpc::RippleRPCProvider},
     service::apps::{
         app_events::{AppEventDecorationError, AppEventDecorator, AppEvents},
         provider_broker::{self, ProviderBroker},
@@ -31,19 +29,28 @@ use jsonrpsee::{
     proc_macros::rpc,
     RpcModule,
 };
+use std::time::Duration;
 
 use ripple_sdk::{
     api::{
-        apps::{AppError, AppManagerResponse, AppMethod, AppRequest, AppResponse},
+        apps::{
+            AppError,
+            AppManagerResponse,
+            AppMethod,
+            AppRequest,
+            //            AppResponse
+        },
         firebolt::{
             fb_capabilities::FireboltCap,
             fb_discovery::{
-                AgePolicy, LaunchRequest, DISCOVERY_EVENT_ON_NAVIGATE_TO, ENTITY_INFO_CAPABILITY, ENTITY_INFO_EVENT, EVENT_DISCOVERY_POLICY_CHANGED, PURCHASED_CONTENT_CAPABILITY, PURCHASED_CONTENT_EVENT
+                AgePolicy, LaunchRequest, DISCOVERY_EVENT_ON_NAVIGATE_TO, ENTITY_INFO_CAPABILITY,
+                ENTITY_INFO_EVENT, EVENT_DISCOVERY_POLICY_CHANGED, PURCHASED_CONTENT_CAPABILITY,
+                PURCHASED_CONTENT_EVENT,
             },
             provider::{ProviderRequestPayload, ProviderResponse, ProviderResponsePayload},
         },
     },
-    log::{error, info, debug},
+    log::{debug, error, info},
     tokio::{sync::oneshot, time::timeout},
 };
 use ripple_sdk::{
@@ -258,9 +265,18 @@ impl DiscoveryServer for DiscoveryImpl {
             .get_features()
             .intent_validation;
         validate_navigation_intent(intent_validation_config, request.intent.clone()).await?;
-        let policy_ids = self.state.policy_state.policy_identifiers_alias.read().unwrap().clone();
+        let policy_ids = self
+            .state
+            .policy_state
+            .policy_identifiers_alias
+            .read()
+            .unwrap()
+            .clone();
         let req_updated_source = update_intent(ctx.app_id.clone(), policy_ids, request.clone());
-        info!("Discovery.launch: req_updated_source: {:?}", &req_updated_source);
+        info!(
+            "Discovery.launch: req_updated_source: {:?}",
+            &req_updated_source
+        );
         // let _req_updated_source = update_intent_source(ctx.app_id.clone(), request.clone());
 
         if let Some(reserved_app_id) =
@@ -586,61 +602,73 @@ impl DiscoveryServer for DiscoveryImpl {
         Ok(true)
     }
 }
-fn update_intent(source_app_id: String, policy_ids: Vec<AgePolicy>, request: LaunchRequest) -> LaunchRequest {
+fn update_intent(
+    source_app_id: String,
+    policy_ids: Vec<AgePolicy>,
+    request: LaunchRequest,
+) -> LaunchRequest {
     let source = format!("xrn:firebolt:application:{}", source_app_id);
-    let age_policy = policy_ids.into_iter().map(|p| p.as_string().to_string()).collect::<Vec<String>>();
+    let age_policy = policy_ids
+        .into_iter()
+        .map(|p| p.as_string().to_string())
+        .collect::<Vec<String>>();
+    let new_age_policy: Option<Vec<String>> = if age_policy.is_empty() {
+        None
+    } else {
+        Some(age_policy)
+    };
 
     match request.intent.clone() {
         Some(NavigationIntent::NavigationIntentStrict(navigation_intent)) => {
             let updated_navigation_intent = match navigation_intent {
                 NavigationIntentStrict::Home(mut home_intent) => {
                     home_intent.context.source = source;
-                    home_intent.context.age_policy = Some(age_policy);
+                    home_intent.context.age_policy = new_age_policy;
                     NavigationIntentStrict::Home(home_intent)
                 }
                 NavigationIntentStrict::Launch(mut launch_intent) => {
                     launch_intent.context.source = source;
-                    launch_intent.context.age_policy = Some(age_policy);
+                    launch_intent.context.age_policy = new_age_policy;
                     NavigationIntentStrict::Launch(launch_intent)
                 }
                 NavigationIntentStrict::Entity(mut entity_intent) => {
                     entity_intent.context.source = source;
-                    entity_intent.context.age_policy = Some(age_policy);
+                    entity_intent.context.age_policy = new_age_policy;
                     NavigationIntentStrict::Entity(entity_intent)
                 }
                 NavigationIntentStrict::Playback(mut playback_intent) => {
                     playback_intent.context.source = source;
-                    playback_intent.context.age_policy = Some(age_policy);
+                    playback_intent.context.age_policy = new_age_policy;
                     NavigationIntentStrict::Playback(playback_intent)
                 }
                 NavigationIntentStrict::Search(mut search_intent) => {
                     search_intent.context.source = source;
-                    search_intent.context.age_policy = Some(age_policy);
+                    search_intent.context.age_policy = new_age_policy;
                     NavigationIntentStrict::Search(search_intent)
                 }
                 NavigationIntentStrict::Section(mut section_intent) => {
                     section_intent.context.source = source;
-                    section_intent.context.age_policy = Some(age_policy);
+                    section_intent.context.age_policy = new_age_policy;
                     NavigationIntentStrict::Section(section_intent)
                 }
                 NavigationIntentStrict::Tune(mut tune_intent) => {
                     tune_intent.context.source = source;
-                    tune_intent.context.age_policy = Some(age_policy);
+                    tune_intent.context.age_policy = new_age_policy;
                     NavigationIntentStrict::Tune(tune_intent)
                 }
                 NavigationIntentStrict::ProviderRequest(mut provider_request_intent) => {
                     provider_request_intent.context.source = source;
-                    provider_request_intent.context.age_policy = Some(age_policy);
+                    provider_request_intent.context.age_policy = new_age_policy;
                     NavigationIntentStrict::ProviderRequest(provider_request_intent)
                 }
                 NavigationIntentStrict::PlayEntity(mut p) => {
                     p.context.source = source;
-                    p.context.age_policy = Some(age_policy);
+                    p.context.age_policy = new_age_policy;
                     NavigationIntentStrict::PlayEntity(p)
                 }
                 NavigationIntentStrict::PlayQuery(mut p) => {
                     p.context.source = source;
-                    p.context.age_policy = Some(age_policy);
+                    p.context.age_policy = new_age_policy;
                     NavigationIntentStrict::PlayQuery(p)
                 }
             };
@@ -654,7 +682,7 @@ fn update_intent(source_app_id: String, policy_ids: Vec<AgePolicy>, request: Lau
         }
         Some(NavigationIntent::NavigationIntentLoose(mut loose_intent)) => {
             loose_intent.context.source = source;
-            loose_intent.context.age_policy = Some(age_policy);
+            loose_intent.context.age_policy = new_age_policy;
             LaunchRequest {
                 app_id: request.app_id,
                 intent: Some(NavigationIntent::NavigationIntentLoose(loose_intent)),

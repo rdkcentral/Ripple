@@ -17,7 +17,6 @@
 
 use std::collections::{HashMap, HashSet};
 
-use serde::{Deserialize, Serialize, Deserializer, Serializer};
 use crate::utils::error::RippleError;
 use crate::{
     api::{
@@ -27,6 +26,7 @@ use crate::{
     utils::serde_utils::{optional_date_time_str_serde, progress_value_deserialize},
 };
 use async_trait::async_trait;
+use serde::{Deserialize, Deserializer, Serialize};
 
 pub const DISCOVERY_EVENT_ON_NAVIGATE_TO: &str = "discovery.onNavigateTo";
 
@@ -34,6 +34,7 @@ pub const DISCOVERY_EVENT_ON_NAVIGATE_TO: &str = "discovery.onNavigateTo";
 pub struct DiscoveryContext {
     pub source: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "agePolicy")]
     pub age_policy: Option<Vec<String>>,
 }
 
@@ -49,11 +50,11 @@ impl DiscoveryContext {
 pub enum AgePolicy {
     Child,
     Teen,
-    Adult
+    Adult,
 }
 
 impl<'de> Deserialize<'de> for AgePolicy {
-    fn deserialize<D>(deserializer: D) ->  Result<AgePolicy, <D as serde::Deserializer<'de>>::Error>
+    fn deserialize<D>(deserializer: D) -> Result<AgePolicy, <D as serde::Deserializer<'de>>::Error>
     where
         D: Deserializer<'de>,
     {
@@ -62,7 +63,10 @@ impl<'de> Deserialize<'de> for AgePolicy {
             "app:child" => Ok(AgePolicy::Child),
             "app:teen" => Ok(AgePolicy::Teen),
             "app:adult" => Ok(AgePolicy::Adult),
-            _ => Err(serde::de::Error::custom(format!("Unknown age policy: {}", policy))),
+            _ => Err(serde::de::Error::custom(format!(
+                "Unknown age policy: {}",
+                policy
+            ))),
         }
     }
 }
@@ -450,9 +454,9 @@ mod tests {
 
     #[test]
     fn test_new_discovery_context() {
-        let context = DiscoveryContext::new("test_source", Some(AgePolicy::Adult));
+        let context = DiscoveryContext::new("test_source", None);
         assert_eq!(context.source, "test_source");
-        assert_eq!(context.age_policy, Some(AgePolicy::Adult));
+        assert_eq!(context.age_policy, None);
     }
 
     #[test]
@@ -460,7 +464,7 @@ mod tests {
         let home_intent = HomeIntent {
             context: DiscoveryContext {
                 source: "test_source".to_string(),
-                age_policy: todo!(),
+                age_policy: None,
             },
         };
 
@@ -475,7 +479,10 @@ mod tests {
         assert_eq!(
             intent,
             NavigationIntent::NavigationIntentStrict(NavigationIntentStrict::Home(HomeIntent {
-                context: DiscoveryContext {source:"test_source".to_string(), age_policy: todo!() }
+                context: DiscoveryContext {
+                    source: "test_source".to_string(),
+                    age_policy: None
+                }
             }))
         );
     }

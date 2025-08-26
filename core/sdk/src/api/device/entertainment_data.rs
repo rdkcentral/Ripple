@@ -1103,7 +1103,7 @@ mod tests {
             })),
             context: DiscoveryContext {
                 source: "xrn:firebolt:application:refui".to_owned(),
-                age_policy: AgePolicy::Teen,
+                age_policy: None,
             },
         });
         let value = serde_json::to_string(&intent).unwrap();
