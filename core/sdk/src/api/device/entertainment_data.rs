@@ -542,6 +542,7 @@ impl Default for HomeIntent {
         HomeIntent {
             context: DiscoveryContext {
                 source: "device".to_string(),
+                age_policy: None,
             },
         }
     }
@@ -1050,6 +1051,7 @@ impl Default for ProviderRequestIntent {
         ProviderRequestIntent {
             context: DiscoveryContext {
                 source: "device".to_string(),
+                age_policy: None,
             },
         }
     }
@@ -1101,6 +1103,7 @@ mod tests {
             })),
             context: DiscoveryContext {
                 source: "xrn:firebolt:application:refui".to_owned(),
+                age_policy: AgePolicy::Teen,
             },
         });
         let value = serde_json::to_string(&intent).unwrap();

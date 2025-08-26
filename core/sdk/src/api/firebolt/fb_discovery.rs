@@ -17,8 +17,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use serde::{Deserialize, Serialize};
-
+use serde::{Deserialize, Serialize, Deserializer, Serializer};
 use crate::utils::error::RippleError;
 use crate::{
     api::{
@@ -34,15 +33,62 @@ pub const DISCOVERY_EVENT_ON_NAVIGATE_TO: &str = "discovery.onNavigateTo";
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct DiscoveryContext {
     pub source: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub age_policy: Option<Vec<String>>,
 }
 
 impl DiscoveryContext {
-    pub fn new(source: &str) -> DiscoveryContext {
+    pub fn new(source: &str, age_policy: Option<Vec<String>>) -> DiscoveryContext {
         DiscoveryContext {
             source: source.to_string(),
+            age_policy,
         }
     }
 }
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+pub enum AgePolicy {
+    Child,
+    Teen,
+    Adult
+}
+
+impl<'de> Deserialize<'de> for AgePolicy {
+    fn deserialize<D>(deserializer: D) ->  Result<AgePolicy, <D as serde::Deserializer<'de>>::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let policy = String::deserialize(deserializer)?;
+        match policy.as_str() {
+            "app:child" => Ok(AgePolicy::Child),
+            "app:teen" => Ok(AgePolicy::Teen),
+            "app:adult" => Ok(AgePolicy::Adult),
+            _ => Err(serde::de::Error::custom(format!("Unknown age policy: {}", policy))),
+        }
+    }
+}
+impl AgePolicy {
+    pub fn as_string(&self) -> &'static str {
+        match self {
+            AgePolicy::Child => "app:child",
+            AgePolicy::Teen => "app:teen",
+            AgePolicy::Adult => "app:adult",
+        }
+    }
+}
+
+// impl Serialize for AgePolicy {
+//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: Serializer,
+//     {
+//         let policy = match self {
+//             AgePolicy::Child => "app::child",
+//             AgePolicy::Teen => "app::teen",
+//             AgePolicy::Adult => "app::adult",
+//         };
+//         serializer.serialize_str(&format!("{}", policy))
+//     }
+// }
 
 #[derive(Deserialize, PartialEq, Serialize, Clone, Debug)]
 pub struct LaunchRequest {
@@ -404,8 +450,9 @@ mod tests {
 
     #[test]
     fn test_new_discovery_context() {
-        let context = DiscoveryContext::new("test_source");
+        let context = DiscoveryContext::new("test_source", Some(AgePolicy::Adult));
         assert_eq!(context.source, "test_source");
+        assert_eq!(context.age_policy, Some(AgePolicy::Adult));
     }
 
     #[test]
@@ -413,6 +460,7 @@ mod tests {
         let home_intent = HomeIntent {
             context: DiscoveryContext {
                 source: "test_source".to_string(),
+                age_policy: todo!(),
             },
         };
 
@@ -427,9 +475,7 @@ mod tests {
         assert_eq!(
             intent,
             NavigationIntent::NavigationIntentStrict(NavigationIntentStrict::Home(HomeIntent {
-                context: DiscoveryContext {
-                    source: "test_source".to_string()
-                }
+                context: DiscoveryContext {source:"test_source".to_string(), age_policy: todo!() }
             }))
         );
     }

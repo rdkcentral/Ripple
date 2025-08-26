@@ -16,7 +16,7 @@
 //
 
 use std::time::Duration;
-
+use crate::broker::broker_utils::BrokerUtils;
 use crate::{
     firebolt::handlers::privacy_rpc::PrivacyImpl,
     firebolt::rpc::RippleRPCProvider,
@@ -38,14 +38,12 @@ use ripple_sdk::{
         firebolt::{
             fb_capabilities::FireboltCap,
             fb_discovery::{
-                LaunchRequest, DISCOVERY_EVENT_ON_NAVIGATE_TO, ENTITY_INFO_CAPABILITY,
-                ENTITY_INFO_EVENT, EVENT_DISCOVERY_POLICY_CHANGED, PURCHASED_CONTENT_CAPABILITY,
-                PURCHASED_CONTENT_EVENT,
+                AgePolicy, LaunchRequest, DISCOVERY_EVENT_ON_NAVIGATE_TO, ENTITY_INFO_CAPABILITY, ENTITY_INFO_EVENT, EVENT_DISCOVERY_POLICY_CHANGED, PURCHASED_CONTENT_CAPABILITY, PURCHASED_CONTENT_EVENT
             },
             provider::{ProviderRequestPayload, ProviderResponse, ProviderResponsePayload},
         },
     },
-    log::{error, info},
+    log::{error, info, debug},
     tokio::{sync::oneshot, time::timeout},
 };
 use ripple_sdk::{
@@ -260,8 +258,10 @@ impl DiscoveryServer for DiscoveryImpl {
             .get_features()
             .intent_validation;
         validate_navigation_intent(intent_validation_config, request.intent.clone()).await?;
-
-        let req_updated_source = update_intent_source(ctx.app_id.clone(), request.clone());
+        let policy_ids = self.state.policy_state.policy_identifiers_alias.read().unwrap().clone();
+        let req_updated_source = update_intent(ctx.app_id.clone(), policy_ids, request.clone());
+        info!("Discovery.launch: req_updated_source: {:?}", &req_updated_source);
+        // let _req_updated_source = update_intent_source(ctx.app_id.clone(), request.clone());
 
         if let Some(reserved_app_id) =
             app_defaults_configuration.get_reserved_application_id(&request.app_id)
@@ -276,51 +276,144 @@ impl DiscoveryServer for DiscoveryImpl {
                 ));
             }
 
-            // Not validating the intent, pass-through to app as is.
-            if !AppEvents::is_app_registered_for_event(
-                &self.state,
-                reserved_app_id.to_string(),
-                DISCOVERY_EVENT_ON_NAVIGATE_TO,
-            ) {
-                return Err(rpc_navigate_reserved_app_err(
-                    format!("Discovery.launch: reserved app id {} is not registered for discovery.onNavigateTo event",
-                    reserved_app_id).as_str(),
-                ));
-            }
-            // emit EVENT_ON_NAVIGATE_TO to the reserved app.
-            AppEvents::emit_to_app(
-                &self.state,
-                reserved_app_id.to_string(),
-                DISCOVERY_EVENT_ON_NAVIGATE_TO,
-                &serde_json::to_value(req_updated_source.intent).unwrap(),
+            match BrokerUtils::process_internal_main_request(
+                &self.state.clone(),
+                "discovery.launch.internal",
+                Some(serde_json::to_value(req_updated_source).map_err(|e| {
+                    error!("Serialization error: {:?}", e);
+                    rpc_err("Failed to serialize SectionIntent")
+                })?),
             )
-            .await;
-            info!(
-                "emit_to_app called for app {} event {}",
-                reserved_app_id.to_string(),
-                DISCOVERY_EVENT_ON_NAVIGATE_TO
-            );
-            return Ok(true);
-        }
-        let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
+            .await
+            {
+                Ok(val) => {
+                    debug!("Internal subscription launch successful");
+                    return Ok(val.as_bool().unwrap_or(false));
+                }
+                Err(e) => {
+                    error!("Internal subscription launch failed: {:?}", e);
+                    return Err(rpc_err("Internal subscription launch failed"));
+                }
+            }
 
-        let app_request =
-            AppRequest::new(AppMethod::Launch(req_updated_source.clone()), app_resp_tx);
-
-        if self
-            .state
-            .get_client()
-            .send_app_request(app_request)
-            .is_ok()
-            && app_resp_rx.await.is_ok()
-        {
-            return Ok(true);
+            // Not validating the intent, pass-through to app as is.
+            // if !AppEvents::is_app_registered_for_event(
+            //     &self.state,
+            //     reserved_app_id.to_string(),
+            //     DISCOVERY_EVENT_ON_NAVIGATE_TO,
+            // ) {
+            //     return Err(rpc_navigate_reserved_app_err(
+            //         format!("Discovery.launch: reserved app id {} is not registered for discovery.onNavigateTo event",
+            //         reserved_app_id).as_str(),
+            //     ));
+            // }
+            // emit EVENT_ON_NAVIGATE_TO to the reserved app.
+            // AppEvents::emit_to_app(
+            //     &self.state,
+            //     reserved_app_id.to_string(),
+            //     DISCOVERY_EVENT_ON_NAVIGATE_TO,
+            //     &serde_json::to_value(req_updated_source.intent).unwrap(),
+            // )
+            // .await;
+            // info!(
+            //     "emit_to_app called for app {} event {}",
+            //     reserved_app_id.to_string(),
+            //     DISCOVERY_EVENT_ON_NAVIGATE_TO
+            // );
+            // return Ok(true);
         }
+        // let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
+
+        // let app_request =
+        //     AppRequest::new(AppMethod::Launch(req_updated_source.clone()), app_resp_tx);
+
+        // if self
+        //     .state
+        //     .get_client()
+        //     .send_app_request(app_request)
+        //     .is_ok()
+        //     && app_resp_rx.await.is_ok()
+        // {
+        //     return Ok(true);
+        // }
 
         Err(jsonrpsee::core::Error::Custom(String::from(
             "Discovery.launch: some failure",
         )))
     }
+
+    // async fn launch(&self, ctx: CallContext, request: LaunchRequest) -> RpcResult<bool> {
+    //     let app_defaults_configuration = self.state.get_device_manifest().applications.defaults;
+
+    //     let intent_validation_config = self
+    //         .state
+    //         .get_device_manifest()
+    //         .get_features()
+    //         .intent_validation;
+    //     validate_navigation_intent(intent_validation_config, request.intent.clone()).await?;
+    //     let policy_ids = self.state.policy_state.policy_identifiers_alias.read().unwrap().clone();
+
+    //     let req_updated_source = update_intent(ctx.app_id.clone(), policy_ids, request.clone());
+    //     info!("Discovery.launch: req_updated_source: {:?}", &req_updated_source);
+
+    //     if let Some(reserved_app_id) =
+    //         app_defaults_configuration.get_reserved_application_id(&request.app_id)
+    //     {
+    //         if reserved_app_id.is_empty() {
+    //             return Err(rpc_navigate_reserved_app_err(
+    //                 format!(
+    //                     "Discovery.launch: Cannot find a valid reserved app id for {}",
+    //                     request.app_id
+    //                 )
+    //                 .as_str(),
+    //             ));
+    //         }
+
+    //         // Not validating the intent, pass-through to app as is.
+    //         if !AppEvents::is_app_registered_for_event(
+    //             &self.state,
+    //             reserved_app_id.to_string(),
+    //             DISCOVERY_EVENT_ON_NAVIGATE_TO,
+    //         ) {
+    //             return Err(rpc_navigate_reserved_app_err(
+    //                 format!("Discovery.launch: reserved app id {} is not registered for discovery.onNavigateTo event",
+    //                 reserved_app_id).as_str(),
+    //             ));
+    //         }
+    //         // emit EVENT_ON_NAVIGATE_TO to the reserved app.
+    //         AppEvents::emit_to_app(
+    //             &self.state,
+    //             reserved_app_id.to_string(),
+    //             DISCOVERY_EVENT_ON_NAVIGATE_TO,
+    //             &serde_json::to_value(req_updated_source.intent).unwrap(),
+    //         )
+    //         .await;
+    //         info!(
+    //             "emit_to_app called for app {} event {}",
+    //             reserved_app_id.to_string(),
+    //             DISCOVERY_EVENT_ON_NAVIGATE_TO
+    //         );
+    //         return Ok(true);
+    //     }
+    //     let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
+
+    //     let app_request =
+    //         AppRequest::new(AppMethod::Launch(req_updated_source.clone()), app_resp_tx);
+
+    //     if self
+    //         .state
+    //         .get_client()
+    //         .send_app_request(app_request)
+    //         .is_ok()
+    //         && app_resp_rx.await.is_ok()
+    //     {
+    //         return Ok(true);
+    //     }
+
+    //     Err(jsonrpsee::core::Error::Custom(String::from(
+    //         "Discovery.launch: some failure",
+    //     )))
+    // }
 
     async fn on_navigate_to(
         &self,
@@ -493,49 +586,61 @@ impl DiscoveryServer for DiscoveryImpl {
         Ok(true)
     }
 }
-fn update_intent_source(source_app_id: String, request: LaunchRequest) -> LaunchRequest {
+fn update_intent(source_app_id: String, policy_ids: Vec<AgePolicy>, request: LaunchRequest) -> LaunchRequest {
     let source = format!("xrn:firebolt:application:{}", source_app_id);
+    let age_policy = policy_ids.into_iter().map(|p| p.as_string().to_string()).collect::<Vec<String>>();
+
     match request.intent.clone() {
         Some(NavigationIntent::NavigationIntentStrict(navigation_intent)) => {
             let updated_navigation_intent = match navigation_intent {
                 NavigationIntentStrict::Home(mut home_intent) => {
                     home_intent.context.source = source;
+                    home_intent.context.age_policy = Some(age_policy);
                     NavigationIntentStrict::Home(home_intent)
                 }
                 NavigationIntentStrict::Launch(mut launch_intent) => {
                     launch_intent.context.source = source;
+                    launch_intent.context.age_policy = Some(age_policy);
                     NavigationIntentStrict::Launch(launch_intent)
                 }
                 NavigationIntentStrict::Entity(mut entity_intent) => {
                     entity_intent.context.source = source;
+                    entity_intent.context.age_policy = Some(age_policy);
                     NavigationIntentStrict::Entity(entity_intent)
                 }
                 NavigationIntentStrict::Playback(mut playback_intent) => {
                     playback_intent.context.source = source;
+                    playback_intent.context.age_policy = Some(age_policy);
                     NavigationIntentStrict::Playback(playback_intent)
                 }
                 NavigationIntentStrict::Search(mut search_intent) => {
                     search_intent.context.source = source;
+                    search_intent.context.age_policy = Some(age_policy);
                     NavigationIntentStrict::Search(search_intent)
                 }
                 NavigationIntentStrict::Section(mut section_intent) => {
                     section_intent.context.source = source;
+                    section_intent.context.age_policy = Some(age_policy);
                     NavigationIntentStrict::Section(section_intent)
                 }
                 NavigationIntentStrict::Tune(mut tune_intent) => {
                     tune_intent.context.source = source;
+                    tune_intent.context.age_policy = Some(age_policy);
                     NavigationIntentStrict::Tune(tune_intent)
                 }
                 NavigationIntentStrict::ProviderRequest(mut provider_request_intent) => {
                     provider_request_intent.context.source = source;
+                    provider_request_intent.context.age_policy = Some(age_policy);
                     NavigationIntentStrict::ProviderRequest(provider_request_intent)
                 }
                 NavigationIntentStrict::PlayEntity(mut p) => {
                     p.context.source = source;
+                    p.context.age_policy = Some(age_policy);
                     NavigationIntentStrict::PlayEntity(p)
                 }
                 NavigationIntentStrict::PlayQuery(mut p) => {
                     p.context.source = source;
+                    p.context.age_policy = Some(age_policy);
                     NavigationIntentStrict::PlayQuery(p)
                 }
             };
@@ -549,6 +654,7 @@ fn update_intent_source(source_app_id: String, request: LaunchRequest) -> Launch
         }
         Some(NavigationIntent::NavigationIntentLoose(mut loose_intent)) => {
             loose_intent.context.source = source;
+            loose_intent.context.age_policy = Some(age_policy);
             LaunchRequest {
                 app_id: request.app_id,
                 intent: Some(NavigationIntent::NavigationIntentLoose(loose_intent)),
