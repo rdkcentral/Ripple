@@ -74,10 +74,6 @@ impl ServiceEventState {
         update_type: RippleContextUpdateType,
         processor: Sender<ServiceMessage>,
     ) {
-        println!(
-            "^^^ Adding main event processor for update type: {:?}",
-            update_type
-        );
         let mut event_main_subscribers = self.event_main_subscribers.write().unwrap();
         event_main_subscribers
             .entry(update_type)
