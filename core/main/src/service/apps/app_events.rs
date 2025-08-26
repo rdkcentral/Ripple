@@ -402,14 +402,12 @@ impl AppEvents {
         for i in listeners_vec {
             let decorated_res = i.decorate(state, event_name, result).await;
             if let Ok(res) = decorated_res {
-                println!("^^^^^ sending event to app result: {}", &res);
                 AppEvents::send_event(&i, &res).await;
             } else {
                 error!("could not generate event for '{}'", event_name);
             }
         }
 
-        println!("^^^^^ send_fb_event: {}", result.clone());
         TelemetryBuilder::send_fb_event(state, event_name, result.clone());
     }
 
