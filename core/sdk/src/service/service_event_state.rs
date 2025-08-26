@@ -2,14 +2,18 @@ use crate::api::context::RippleContext;
 use crate::api::context::RippleContextUpdateType;
 use crate::api::gateway::rpc_gateway_api::CallContext;
 use crate::log::{debug, error};
+use crate::service::service_message::ServiceMessage;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use tokio::sync::mpsc::Sender;
 
 #[derive(Debug, Clone, Default)]
 pub struct ServiceEventState {
     pub ripple_context: Arc<RwLock<RippleContext>>,
     pub event_subscribers: Arc<RwLock<HashMap<RippleContextUpdateType, Vec<String>>>>,
+    pub event_main_subscribers:
+        Arc<RwLock<HashMap<RippleContextUpdateType, Sender<ServiceMessage>>>>,
 }
 
 impl ServiceEventState {
@@ -17,6 +21,7 @@ impl ServiceEventState {
         ServiceEventState {
             ripple_context: Arc::new(RwLock::new(RippleContext::default())),
             event_subscribers: Arc::new(RwLock::new(HashMap::new())),
+            event_main_subscribers: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -42,12 +47,37 @@ impl ServiceEventState {
         }
     }
 
+    pub fn get_event_main_processors(
+        &self,
+        context_update_type: Option<RippleContextUpdateType>,
+    ) -> Option<Sender<ServiceMessage>> {
+        let event_main_subscribers: Arc<
+            RwLock<HashMap<RippleContextUpdateType, Sender<ServiceMessage>>>,
+        > = Arc::clone(&self.event_main_subscribers);
+        let read_lock = event_main_subscribers.read().unwrap();
+        match context_update_type {
+            Some(update_type) => read_lock.get(&update_type).cloned(),
+            None => None,
+        }
+    }
+
     pub fn add_event_processor(&self, update_type: RippleContextUpdateType, processor: String) {
         let mut event_subscribers = self.event_subscribers.write().unwrap();
         event_subscribers
             .entry(update_type)
             .or_default()
             .push(processor);
+    }
+
+    pub fn add_event_main_processor(
+        &self,
+        update_type: RippleContextUpdateType,
+        processor: Sender<ServiceMessage>,
+    ) {
+        let mut event_main_subscribers = self.event_main_subscribers.write().unwrap();
+        event_main_subscribers
+            .entry(update_type)
+            .or_insert(processor);
     }
 
     pub fn subscribe_context_event(&self, update_type: &str, context: Option<Value>) {

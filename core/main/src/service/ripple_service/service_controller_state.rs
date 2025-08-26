@@ -14,8 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
-
 use futures::{stream::SplitStream, SinkExt, StreamExt};
 use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
 use ripple_sdk::{
@@ -39,6 +37,7 @@ use ripple_sdk::{
     utils::error::RippleError,
     uuid::Uuid,
 };
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use crate::service::ripple_service::service_notification_processor::ServiceNotificationProcessor;
 use crate::{
@@ -486,6 +485,7 @@ impl ServiceControllerState {
         }
         final_result
     }
+
     pub async fn add_service_info(
         &self,
         service_id: String,

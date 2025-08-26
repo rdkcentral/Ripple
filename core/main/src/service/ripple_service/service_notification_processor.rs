@@ -198,6 +198,7 @@ impl ServiceNotificationProcessor {
                 serde_json::from_str::<RippleContextUpdateType>(&update_type_str);
             match ripple_context_update_type {
                 Ok(context_update_type) => {
+                    let update_type = update_type.to_string().clone();
                     let processors = platform_state
                         .service_controller_state
                         .service_event_state
@@ -224,17 +225,18 @@ impl ServiceNotificationProcessor {
 
                         let new_ripple_context =
                             serde_json::to_string(&new_ripple_context).unwrap();
-
+                        let update_type = update_type.clone();
                         tokio::spawn(async move {
                             if let Some(sender) =
                                 service_controller_state.get_sender(&service_id).await
                             {
                                 //let context = vec![sender_id, Some(&service_id), Some(&request_type)];
                                 let context = vec![sender_id, service_id, request_type];
+                                let method = format!("service.{}ChangedEvent", update_type);
                                 let service_message = ServiceMessage {
                                     message: JsonRpcMessage::Notification(JsonRpcNotification {
                                         jsonrpc: "2.0".to_string(),
-                                        method: "service.eventNotification".to_string(),
+                                        method,
                                         params: Some(new_ripple_context.into()),
                                     }),
                                     context: Some(context.into()),
@@ -245,6 +247,40 @@ impl ServiceNotificationProcessor {
                                 trace!("Send to processor result: {:?}", send_res);
                             }
                         });
+                    }
+
+                    let processors = platform_state
+                        .service_controller_state
+                        .service_event_state
+                        .get_event_main_processors(Some(context_update_type.clone()));
+
+                    if let Some(processor) = processors {
+                        debug!(
+                            "Main Subscriber found for update type: {:?} subscriber: {:?}",
+                            update_type, processor
+                        );
+
+                        let processor = processor.clone();
+                        let new_ripple_context =
+                            serde_json::to_string(&new_ripple_context).unwrap();
+
+                        tokio::spawn(async move {
+                            let method = format!("service.{}ChangedEvent", update_type.clone());
+                            let service_message = ServiceMessage {
+                                message: JsonRpcMessage::Notification(JsonRpcNotification {
+                                    jsonrpc: "2.0".to_string(),
+                                    method,
+                                    params: Some(new_ripple_context.into()),
+                                }),
+                                context: None,
+                            };
+                            let _ = processor.send(service_message).await;
+                        });
+                    } else {
+                        debug!(
+                            "No main subscriber found for update type: {:?}",
+                            update_type.clone()
+                        );
                     }
                 }
                 Err(e) => {
