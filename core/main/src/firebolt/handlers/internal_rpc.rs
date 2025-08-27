@@ -21,7 +21,8 @@ use ripple_sdk::{
         apps::{AppEvent, AppManagerResponse, AppMethod, AppRequest, AppResponse},
         caps::CapsRequest,
         firebolt::{
-            fb_discovery::App, fb_general::ListenRequestWithEvent, fb_telemetry::TelemetryPayload,
+            fb_discovery::AgePolicy, fb_general::ListenRequestWithEvent,
+            fb_telemetry::TelemetryPayload,
         },
         gateway::rpc_gateway_api::CallContext,
     },
@@ -80,14 +81,13 @@ pub trait Internal {
 
 #[derive(Debug, Clone, Default)]
 pub struct PolicyState {
-    pub policy_identifiers_alias: Arc<RwLock<Vec<App>>>,
+    pub policy_identifiers_alias: Arc<RwLock<Vec<AgePolicy>>>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
 pub struct PolicyIdentifierAlias {
     #[serde(rename = "policyIdentifierAlias")]
-    pub policy_identifier_alias: Vec<App>,
+    pub policy_identifier_alias: Vec<AgePolicy>,
 }
 #[derive(Debug)]
 pub struct InternalImpl {

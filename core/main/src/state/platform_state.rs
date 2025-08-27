@@ -19,7 +19,7 @@ use crate::firebolt::handlers::internal_rpc::{PolicyIdentifierAlias, PolicyState
 use ripple_sdk::{
     api::{
         config::FEATURE_DISTRIBUTOR_SESSION,
-        firebolt::fb_discovery::App,
+        firebolt::fb_discovery::AgePolicy,
         gateway::rpc_gateway_api::RpcRequest,
         manifest::{
             app_library::AppLibraryState,
@@ -160,7 +160,7 @@ impl PlatformState {
         }
     }
 
-    pub fn get_policy_identifier_alias(&self) -> Vec<App> {
+    pub fn get_policy_identifier_alias(&self) -> Vec<AgePolicy> {
         self.policy_state
             .policy_identifiers_alias
             .read()

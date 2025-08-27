@@ -43,7 +43,7 @@ use ripple_sdk::{
         firebolt::{
             fb_capabilities::FireboltCap,
             fb_discovery::{
-                App, LaunchRequest, DISCOVERY_EVENT_ON_NAVIGATE_TO, ENTITY_INFO_CAPABILITY,
+                AgePolicy, LaunchRequest, DISCOVERY_EVENT_ON_NAVIGATE_TO, ENTITY_INFO_CAPABILITY,
                 ENTITY_INFO_EVENT, EVENT_DISCOVERY_POLICY_CHANGED, PURCHASED_CONTENT_CAPABILITY,
                 PURCHASED_CONTENT_EVENT,
             },
@@ -528,7 +528,11 @@ impl DiscoveryServer for DiscoveryImpl {
         Ok(true)
     }
 }
-fn update_intent(source: String, policy_ids: Vec<App>, request: LaunchRequest) -> LaunchRequest {
+fn update_intent(
+    source: String,
+    policy_ids: Vec<AgePolicy>,
+    request: LaunchRequest,
+) -> LaunchRequest {
     let age_policy = policy_ids
         .into_iter()
         .map(|p| p.as_string().to_string())
