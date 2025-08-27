@@ -21,8 +21,7 @@ use ripple_sdk::{
         apps::{AppEvent, AppManagerResponse, AppMethod, AppRequest, AppResponse},
         caps::CapsRequest,
         firebolt::{
-            fb_discovery::AgePolicy, fb_general::ListenRequestWithEvent,
-            fb_telemetry::TelemetryPayload,
+            fb_discovery::App, fb_general::ListenRequestWithEvent, fb_telemetry::TelemetryPayload,
         },
         gateway::rpc_gateway_api::CallContext,
     },
@@ -30,7 +29,7 @@ use ripple_sdk::{
     log::{debug, error},
     tokio::sync::oneshot,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
@@ -81,14 +80,14 @@ pub trait Internal {
 
 #[derive(Debug, Clone, Default)]
 pub struct PolicyState {
-    pub policy_identifiers_alias: Arc<RwLock<Vec<AgePolicy>>>,
+    pub policy_identifiers_alias: Arc<RwLock<Vec<App>>>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct PolicyIdentifierAlias {
     #[serde(rename = "policyIdentifierAlias")]
-    pub policy_identifier_alias: Vec<AgePolicy>,
+    pub policy_identifier_alias: Vec<App>,
 }
 #[derive(Debug)]
 pub struct InternalImpl {
@@ -168,10 +167,8 @@ impl InternalServer for InternalImpl {
         _ctx: CallContext,
         policy_identifier_alias: PolicyIdentifierAlias,
     ) -> RpcResult<()> {
-        let mut policy_state = self.state.policy_state.clone();
-        let _result = policy_state
-            .add_policy_identifier_alias(policy_identifier_alias)
-            .await;
+        self.state
+            .add_policy_identifier_alias(policy_identifier_alias);
         Ok(())
     }
 }
@@ -180,24 +177,5 @@ pub struct InternalProvider;
 impl RippleRPCProvider<InternalImpl> for InternalProvider {
     fn provide(state: PlatformState) -> RpcModule<InternalImpl> {
         (InternalImpl { state }).into_rpc()
-    }
-}
-
-impl PolicyState {
-    pub async fn add_policy_identifier_alias(&mut self, policy: PolicyIdentifierAlias) {
-        let mut policy_identifiers_alias = self.policy_identifiers_alias.write().unwrap();
-        if policy.policy_identifier_alias.is_empty() {
-            policy_identifiers_alias.clear();
-            return;
-        }
-        for identifier in policy.policy_identifier_alias {
-            if !policy_identifiers_alias.contains(&identifier) {
-                policy_identifiers_alias.push(identifier);
-            }
-        }
-        debug!(
-            "Updated policy identifiers alias: {:?}",
-            &policy_identifiers_alias
-        );
     }
 }

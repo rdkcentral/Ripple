@@ -15,11 +15,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::firebolt::handlers::internal_rpc::PolicyState;
+use crate::firebolt::handlers::internal_rpc::{PolicyIdentifierAlias, PolicyState};
 use ripple_sdk::{
     api::{
         config::FEATURE_DISTRIBUTOR_SESSION,
-        firebolt::fb_discovery::AgePolicy,
+        firebolt::fb_discovery::App,
         gateway::rpc_gateway_api::RpcRequest,
         manifest::{
             app_library::AppLibraryState,
@@ -34,6 +34,7 @@ use ripple_sdk::{
         extn_id::ExtnId,
     },
     framework::ripple_contract::RippleContract,
+    log::debug,
     utils::error::RippleError,
     uuid::Uuid,
 };
@@ -159,12 +160,21 @@ impl PlatformState {
         }
     }
 
-    pub fn get_policy_identifier_alias(&self) -> Vec<AgePolicy> {
+    pub fn get_policy_identifier_alias(&self) -> Vec<App> {
         self.policy_state
             .policy_identifiers_alias
             .read()
             .unwrap()
             .clone()
+    }
+
+    pub fn add_policy_identifier_alias(&self, policy: PolicyIdentifierAlias) {
+        let mut write_lock = self.policy_state.policy_identifiers_alias.write().unwrap();
+        write_lock.clear();
+        for identifier in policy.policy_identifier_alias {
+            write_lock.push(identifier);
+        }
+        debug!("Updated policy identifiers alias: {:?}", &write_lock);
     }
 
     pub fn has_internal_launcher(&self) -> bool {

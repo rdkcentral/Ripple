@@ -15,8 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::{HashMap, HashSet};
-
 use crate::utils::error::RippleError;
 use crate::{
     api::{
@@ -27,6 +25,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use serde::{Deserialize, Deserializer, Serialize};
+use std::collections::{HashMap, HashSet};
 
 pub const DISCOVERY_EVENT_ON_NAVIGATE_TO: &str = "discovery.onNavigateTo";
 
@@ -46,23 +45,23 @@ impl DiscoveryContext {
         }
     }
 }
-#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
-pub enum AgePolicy {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum App {
     Child,
     Teen,
     Adult,
 }
 
-impl<'de> Deserialize<'de> for AgePolicy {
-    fn deserialize<D>(deserializer: D) -> Result<AgePolicy, <D as serde::Deserializer<'de>>::Error>
+impl<'de> Deserialize<'de> for App {
+    fn deserialize<D>(deserializer: D) -> Result<App, <D as serde::Deserializer<'de>>::Error>
     where
         D: Deserializer<'de>,
     {
         let policy = String::deserialize(deserializer)?;
         match policy.as_str() {
-            "app:child" => Ok(AgePolicy::Child),
-            "app:teen" => Ok(AgePolicy::Teen),
-            "app:adult" => Ok(AgePolicy::Adult),
+            "app:child" => Ok(App::Child),
+            "app:teen" => Ok(App::Teen),
+            "app:adult" => Ok(App::Adult),
             _ => Err(serde::de::Error::custom(format!(
                 "Unknown age policy: {}",
                 policy
@@ -70,29 +69,15 @@ impl<'de> Deserialize<'de> for AgePolicy {
         }
     }
 }
-impl AgePolicy {
+impl App {
     pub fn as_string(&self) -> &'static str {
         match self {
-            AgePolicy::Child => "app:child",
-            AgePolicy::Teen => "app:teen",
-            AgePolicy::Adult => "app:adult",
+            App::Child => "app:child",
+            App::Teen => "app:teen",
+            App::Adult => "app:adult",
         }
     }
 }
-
-// impl Serialize for AgePolicy {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: Serializer,
-//     {
-//         let policy = match self {
-//             AgePolicy::Child => "app::child",
-//             AgePolicy::Teen => "app::teen",
-//             AgePolicy::Adult => "app::adult",
-//         };
-//         serializer.serialize_str(&format!("{}", policy))
-//     }
-// }
 
 #[derive(Deserialize, PartialEq, Serialize, Clone, Debug)]
 pub struct LaunchRequest {
