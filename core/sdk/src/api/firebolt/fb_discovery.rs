@@ -24,6 +24,7 @@ use crate::{
     utils::serde_utils::{optional_date_time_str_serde, progress_value_deserialize},
 };
 use async_trait::async_trait;
+use serde::Serializer;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -76,6 +77,20 @@ impl App {
             App::Teen => "app:teen",
             App::Adult => "app:adult",
         }
+    }
+}
+
+impl Serialize for App {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let policy = match self {
+            App::Child => "app:child",
+            App::Teen => "app:teen",
+            App::Adult => "app:adult",
+        };
+        serializer.serialize_str(policy)
     }
 }
 

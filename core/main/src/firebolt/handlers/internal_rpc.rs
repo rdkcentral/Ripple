@@ -29,7 +29,7 @@ use ripple_sdk::{
     log::{debug, error},
     tokio::sync::oneshot,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
@@ -83,7 +83,7 @@ pub struct PolicyState {
     pub policy_identifiers_alias: Arc<RwLock<Vec<App>>>,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct PolicyIdentifierAlias {
     #[serde(rename = "policyIdentifierAlias")]
