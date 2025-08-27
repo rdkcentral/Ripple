@@ -37,10 +37,7 @@ use ripple_sdk::{
     utils::error::RippleError,
     uuid::Uuid,
 };
-use std::{
-    collections::HashMap,
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     broker::{endpoint_broker::EndpointBrokerState, rules::rules_engine::RuleEngine},
