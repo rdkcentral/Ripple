@@ -25,8 +25,11 @@ members = [
     "device/mock_device",
     "distributor/general",
     "examples/rpc_extn",
-    "examples/tm_extn",
-    "openrpc_validator"]
+    "examples/tm_extn"]
+
+# openrpc_validator is excluded from the default workspace build
+# It will only be included when the openrpc_validation feature is enabled
+exclude = ["openrpc_validator"]
 
 [workspace.package]
 version = "1.1.0"
