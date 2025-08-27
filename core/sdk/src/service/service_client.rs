@@ -15,9 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-
+use super::service_message::ServiceMessage;
 use crate::api::gateway::rpc_gateway_api::CallContext;
 use crate::api::{
     gateway::rpc_gateway_api::{ApiMessage, ApiProtocol},
@@ -36,11 +34,13 @@ use futures_util::{SinkExt, StreamExt};
 use jsonrpsee::core::server::rpc_module::Methods;
 use log::{debug, error, info, trace, warn};
 use serde_json::Value;
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc, oneshot};
 use tokio::sync::{mpsc::Sender as MSender, oneshot::Sender as OSender};
 use tokio_tungstenite::tungstenite::Message;
+use uuid::Uuid;
 
-use super::service_message::ServiceMessage;
 #[derive(Debug, Clone, Default)]
 pub struct ServiceClient {
     pub service_sender: Option<MSender<ServiceMessage>>,
@@ -49,6 +49,8 @@ pub struct ServiceClient {
     pub extn_client: Option<ExtnClient>,
     // TBD: Remove this field after implementing service.register API call.
     pub service_id: Option<ExtnId>,
+    pub outbound_extn_rx: Arc<RwLock<Option<mpsc::Receiver<ApiMessage>>>>,
+    pub outbound_service_rx: Arc<RwLock<Option<mpsc::Receiver<ServiceMessage>>>>,
 }
 
 pub struct ServiceClientBuilder {
@@ -71,41 +73,31 @@ impl ServiceClientBuilder {
         self
     }
 
-    pub fn build(
-        self,
-    ) -> (
-        ServiceClient,
-        Option<mpsc::Receiver<ApiMessage>>,
-        Option<mpsc::Receiver<ServiceMessage>>,
-    ) {
+    pub fn build(self) -> ServiceClient {
         let service_router = Arc::new(RwLock::new(RouterState::new()));
         let (service_sender, service_tr) = mpsc::channel::<ServiceMessage>(32);
 
         if let Some(symbol) = self.extn_symbol {
             let (extn_client, ext_tr) = ExtnClient::new_extn(symbol.clone());
-            (
-                ServiceClient {
-                    service_sender: Some(service_sender),
-                    service_router,
-                    extn_client: Some(extn_client),
-                    service_id: Some(ExtnId::try_from(symbol.id.clone()).unwrap()),
-                    response_processors: Arc::new(RwLock::new(HashMap::new())),
-                },
-                Some(ext_tr),
-                Some(service_tr),
-            )
+            ServiceClient {
+                service_sender: Some(service_sender),
+                service_router,
+                extn_client: Some(extn_client),
+                service_id: Some(ExtnId::try_from(symbol.id.clone()).unwrap()),
+                response_processors: Arc::new(RwLock::new(HashMap::new())),
+                outbound_extn_rx: Arc::new(RwLock::new(Some(ext_tr))),
+                outbound_service_rx: Arc::new(RwLock::new(Some(service_tr))),
+            }
         } else {
-            (
-                ServiceClient {
-                    service_sender: Some(service_sender),
-                    service_router,
-                    extn_client: None,
-                    service_id: None,
-                    response_processors: Arc::new(RwLock::new(HashMap::new())),
-                },
-                None,
-                Some(service_tr),
-            )
+            ServiceClient {
+                service_sender: Some(service_sender),
+                service_router,
+                extn_client: None,
+                service_id: None,
+                response_processors: Arc::new(RwLock::new(HashMap::new())),
+                outbound_extn_rx: Arc::new(RwLock::new(None)),
+                outbound_service_rx: Arc::new(RwLock::new(None)),
+            }
         }
     }
 }
@@ -121,16 +113,30 @@ impl ServiceClient {
         Ok(())
     }
 
+    fn get_outbound_extn_rx(&self) -> Result<mpsc::Receiver<ApiMessage>, RippleError> {
+        let mut outbound_extn_rx = self.outbound_extn_rx.write().unwrap();
+        if let Some(t) = outbound_extn_rx.take() {
+            Ok(t)
+        } else {
+            Err(RippleError::ClientMissing)
+        }
+    }
+
+    fn get_outbound_service_rx(&self) -> Result<mpsc::Receiver<ServiceMessage>, RippleError> {
+        let mut outbound_service_rx = self.outbound_service_rx.write().unwrap();
+        if let Some(t) = outbound_service_rx.take() {
+            Ok(t)
+        } else {
+            Err(RippleError::ClientMissing)
+        }
+    }
+
     pub fn get_service_router_state(&self) -> RouterState {
         self.service_router.read().unwrap().clone()
     }
 
     /// Initializes the service client, handling both extension and service messages.
-    pub async fn initialize(
-        &self,
-        mut outbound_extn_rx: Option<mpsc::Receiver<ApiMessage>>,
-        outbound_service_rx: Option<mpsc::Receiver<ServiceMessage>>,
-    ) {
+    pub async fn initialize(&self) {
         debug!("Starting Service Client initialize");
         let service_id = self.service_id.clone().unwrap();
         let base_path = std::env::var("RIPPLE_SERVICE_HANDSHAKE_PATH")
@@ -143,15 +149,37 @@ impl ServiceClient {
             .unwrap()
             .to_string();
 
+        let outbound_service_rx = self.get_outbound_service_rx();
         let mut outbound_service_rx = match outbound_service_rx {
-            Some(rx) => rx,
-            None => {
-                error!("No service receiver provided to ServiceClient::initialize");
+            Ok(rx) => rx,
+            Err(e) => {
+                error!("Failed to get outbound service receiver: {:?}", e);
                 return;
             }
         };
+        let outbound_extn_rx = self.get_outbound_extn_rx();
+        let mut outbound_extn_rx = match outbound_extn_rx {
+            Ok(rx) => Some(rx),
+            Err(e) => {
+                error!("Failed to get outbound extension receiver: {:?}", e);
+                return;
+            }
+        };
+        loop {
+            debug!("Connecting to WebSocket at {}", path);
+            Self::connect_websocket(self, &path, &mut outbound_service_rx, &mut outbound_extn_rx)
+                .await;
+            debug!("Initialize Ended Abruptly");
+        }
+    }
 
-        if let Ok((mut ws_tx, mut ws_rx)) = WebSocketUtils::get_ws_stream(&path, None).await {
+    async fn connect_websocket(
+        &self,
+        path: &str,
+        outbound_service_rx: &mut mpsc::Receiver<ServiceMessage>,
+        outbound_extn_rx: &mut Option<mpsc::Receiver<ApiMessage>>,
+    ) {
+        if let Ok((mut ws_tx, mut ws_rx)) = WebSocketUtils::get_ws_stream(path, None).await {
             let handle_ws_message = |msg: Message| {
                 if let Message::Text(message) = msg.clone() {
                     // Service message
@@ -215,6 +243,7 @@ impl ServiceClient {
                         match value {
                             Ok(msg) => {
                                 if !handle_ws_message(msg) {
+                                     error!("handle_ws_message failed");
                                      break;
                                 }
                             }
@@ -242,7 +271,6 @@ impl ServiceClient {
                 }
             }
         }
-        debug!("Initialize Ended Abruptly");
     }
 
     fn send_service_response(&self, sm: ServiceMessage) {
@@ -358,14 +386,36 @@ impl ServiceClient {
         }
     }
 
+    fn get_default_service_call_context(method: String) -> CallContext {
+        CallContext::new(
+            Uuid::new_v4().to_string(),
+            Uuid::new_v4().to_string(),
+            "internal".into(),
+            1,
+            crate::api::gateway::rpc_gateway_api::ApiProtocol::Service,
+            method.clone(),
+            None,
+            false,
+        )
+    }
     pub fn request_transient(
         &self,
         method: String,
         params: Option<Value>,
-        ctx: &CallContext,
+        ctx: Option<&CallContext>,
         service_id: String,
     ) -> Result<String, RippleError> {
-        let id = uuid::Uuid::new_v4().to_string();
+        // if ctx is None, create a default CallContext using get_default_service_call_context
+        let default_ctx;
+        let ctx = match ctx {
+            Some(c) => c,
+            None => {
+                default_ctx = Self::get_default_service_call_context(method.clone());
+                &default_ctx
+            }
+        };
+
+        let id = Uuid::new_v4().to_string();
         let mut service_request =
             ServiceMessage::new_request(method.to_owned(), params, Id::String(id.clone()));
         let mut context = ctx.clone();
@@ -428,7 +478,8 @@ pub mod tests {
     impl Mockable for ServiceClient {
         fn mock() -> ServiceClient {
             let service_router = Arc::new(RwLock::new(RouterState::new()));
-            let (service_sender, _service_tr) = mpsc::channel::<ServiceMessage>(32);
+            let (service_sender, service_tr) = mpsc::channel::<ServiceMessage>(32);
+            let (_extn_sender, extn_tr) = mpsc::channel::<ApiMessage>(32);
             ServiceClient {
                 service_sender: Some(service_sender),
                 service_router,
@@ -437,6 +488,8 @@ pub mod tests {
                     ExtnId::try_from("ripple:channel:gateway:service1".to_string()).unwrap(),
                 ),
                 response_processors: Arc::new(RwLock::new(HashMap::new())),
+                outbound_extn_rx: Arc::new(RwLock::new(Some(extn_tr))),
+                outbound_service_rx: Arc::new(RwLock::new(Some(service_tr))),
             }
         }
 
@@ -480,5 +533,19 @@ pub mod tests {
             .await;
         println!("result: {:?}", result);
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_get_outbound_service_rx() {
+        let client = ServiceClient::mock();
+        let rx = client.get_outbound_service_rx();
+        assert!(rx.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_get_outbound_extn_rx() {
+        let client = ServiceClient::mock();
+        let rx = client.get_outbound_extn_rx();
+        assert!(rx.is_ok());
     }
 }
