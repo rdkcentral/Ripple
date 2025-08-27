@@ -373,6 +373,7 @@ pub struct ErrorParams {
     pub description: String,
     pub visible: bool,
     pub parameters: Option<HashMap<String, FlatMapValue>>,
+    pub age_policy: Option<String>,
 }
 
 impl From<ErrorParams> for ErrorType {

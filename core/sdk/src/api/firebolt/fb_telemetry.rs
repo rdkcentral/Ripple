@@ -283,6 +283,7 @@ mod tests {
         let error_params = ErrorParams {
             error_type: ErrorType::network,
             code: String::from("123"),
+            age_policy: None,
             description: String::from("Network error"),
             visible: true,
             parameters: get_params(Some(vec![
