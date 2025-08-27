@@ -20,14 +20,21 @@ use ripple_sdk::{
     api::{
         apps::{AppEvent, AppManagerResponse, AppMethod, AppRequest, AppResponse},
         caps::CapsRequest,
-        firebolt::{fb_general::ListenRequestWithEvent, fb_telemetry::TelemetryPayload},
+        firebolt::{
+            fb_discovery::AgePolicy, fb_general::ListenRequestWithEvent,
+            fb_telemetry::TelemetryPayload,
+        },
         gateway::rpc_gateway_api::CallContext,
     },
     async_trait::async_trait,
     log::{debug, error},
     tokio::sync::oneshot,
 };
-use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
@@ -63,8 +70,25 @@ pub trait Internal {
         ctx: CallContext,
         caps_request: CapsRequest,
     ) -> RpcResult<HashMap<String, bool>>;
+
+    #[method(name = "account.policyIdentifierAlias")]
+    async fn set_policy_identifier_alias(
+        &self,
+        ctx: CallContext,
+        request: PolicyIdentifierAlias,
+    ) -> RpcResult<()>;
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct PolicyState {
+    pub policy_identifiers_alias: Arc<RwLock<Vec<AgePolicy>>>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct PolicyIdentifierAlias {
+    #[serde(rename = "policyIdentifierAlias")]
+    pub policy_identifier_alias: Vec<AgePolicy>,
+}
 #[derive(Debug)]
 pub struct InternalImpl {
     pub state: PlatformState,
@@ -136,6 +160,16 @@ impl InternalServer for InternalImpl {
                 Ok(result)
             }
         }
+    }
+
+    async fn set_policy_identifier_alias(
+        &self,
+        _ctx: CallContext,
+        policy_identifier_alias: PolicyIdentifierAlias,
+    ) -> RpcResult<()> {
+        self.state
+            .add_policy_identifier_alias(policy_identifier_alias);
+        Ok(())
     }
 }
 
