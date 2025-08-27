@@ -147,6 +147,7 @@ impl ThunderStorageRequestProcessor {
                 params,
             })
             .await;
+
         if response.message.get("success").is_none()
             || !response.message["success"].as_bool().unwrap_or_default()
         {
@@ -203,7 +204,6 @@ impl ThunderStorageRequestProcessor {
                 params,
             })
             .await;
-        info!("{}", response.message);
 
         if let Some(status) = response.message["success"].as_bool() {
             if status {
@@ -270,8 +270,13 @@ impl ThunderStorageRequestProcessor {
                 params,
             })
             .await;
-        info!("{}", response.message);
 
+        if let Some(error) = response.message.get("error") {
+            error!("setValue call FAILED response of error:{:?}", error);
+            return Err(RippleError::InvalidOutput);
+        }
+
+        info!("setValue call response msg: {}", response.message);
         match response.message["success"].as_bool() {
             Some(v) => Ok(v),
             None => Err(RippleError::InvalidOutput),
