@@ -20,9 +20,10 @@ pub mod event_management_utility;
 pub mod extn_broker;
 pub mod http_broker;
 pub mod provider_broker_state;
-pub mod rules;
+#[cfg(not(feature = "ssda"))]
 pub mod service_broker;
-#[cfg(test)]
+#[cfg(feature = "ssda")]
+pub mod ssda_service_broker;
 pub mod test;
 pub mod thunder;
 pub mod thunder_broker;

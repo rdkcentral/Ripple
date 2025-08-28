@@ -85,13 +85,9 @@ impl BrokerUtils {
         if let Some(app_id) = app_id {
             rpc_request.ctx.app_id = app_id.to_owned();
         }
-        state.endpoint_state.handle_brokerage(
-            rpc_request,
-            None,
-            callback,
-            Vec::new(),
-            None,
-            Vec::new(),
-        )
+        state
+            .endpoint_state
+            .handle_brokerage(rpc_request, None, callback, Vec::new(), None, Vec::new())
+            .await
     }
 }

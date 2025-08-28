@@ -24,6 +24,7 @@ use std::{
 };
 
 use ripple_sdk::{
+    api::rules_engine::{jq_compile, Rule, RuleTransformType},
     api::{device::device_peristence::StorageData, gateway::rpc_gateway_api::JsonRpcApiResponse},
     log::{debug, error, info},
     tokio::{
@@ -40,7 +41,6 @@ use serde_json::{json, Value};
 
 use crate::broker::{
     endpoint_broker::{self, BrokerCallback, BrokerOutput, BrokerRequest, EndpointBrokerState},
-    rules::rules_engine::{Rule, RuleTransformType},
     thunder_broker::ThunderBroker,
 };
 
@@ -472,11 +472,7 @@ impl UserDataMigrator {
             .transform
             .get_transform_data(RuleTransformType::Request)
         {
-            return crate::broker::rules::rules_engine::jq_compile(
-                data,
-                &filter,
-                format!("{}_request", method),
-            );
+            return jq_compile(data, &filter, format!("{}_request", method));
         }
         serde_json::to_value(&data).map_err(|e| {
             error!(
@@ -863,7 +859,7 @@ impl UserDataMigrator {
 
         response.data.result = Some(legacy_value.clone());
         if let Some(conversion_rule) = &config_entry.legacy_to_plugin_value_conversion {
-            let data = crate::broker::rules::rules_engine::jq_compile(
+            let data = jq_compile(
                 json!({ "value": legacy_value }),
                 &conversion_rule.conversion_rule,
                 "legacy_to_plugin_value_conversion".to_string(),

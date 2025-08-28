@@ -19,7 +19,11 @@ use std::vec;
 
 use hyper::{client::HttpConnector, Body, Client, Method, Request, Response, Uri};
 use ripple_sdk::{
-    api::{gateway::rpc_gateway_api::JsonRpcApiError, observability::log_signal::LogSignal},
+    api::{
+        gateway::rpc_gateway_api::JsonRpcApiError,
+        observability::log_signal::LogSignal,
+        rules_engine::{jq_compile, RuleTransformType},
+    },
     log::{debug, error},
     tokio::{self, sync::mpsc},
     utils::error::RippleError,
@@ -31,10 +35,7 @@ use super::endpoint_broker::{
     BrokerSender, EndpointBroker, EndpointBrokerState, BROKER_CHANNEL_BUFFER_SIZE,
 };
 
-use crate::{
-    broker::rules::rules_engine::{jq_compile, RuleTransformType},
-    state::platform_state::PlatformState,
-};
+use crate::state::platform_state::PlatformState;
 
 use ripple_sdk::tokio_tungstenite::tungstenite::http::uri::InvalidUri;
 
@@ -225,15 +226,15 @@ mod tests {
     use serde_json::{json, Value};
     use std::time::Duration;
 
-    use crate::broker::{
-        endpoint_broker::BrokerOutput,
-        rules::rules_engine::{Rule, RuleEndpoint, RuleEndpointProtocol},
-    };
+    use crate::broker::endpoint_broker::BrokerOutput;
 
     use super::*;
 
     use ripple_sdk::{
-        api::gateway::rpc_gateway_api::{JsonRpcApiResponse, RpcRequest},
+        api::{
+            gateway::rpc_gateway_api::{JsonRpcApiResponse, RpcRequest},
+            rules_engine::{Rule, RuleEndpoint, RuleEndpointProtocol},
+        },
         tokio::{runtime::Runtime, task::JoinHandle, time::timeout},
         Mockable,
     };

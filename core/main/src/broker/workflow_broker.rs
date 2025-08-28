@@ -2,12 +2,13 @@ use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerRequest, BrokerSender,
     EndpointBroker, HandleBrokerageError, BROKER_CHANNEL_BUFFER_SIZE,
 };
-use super::rules::rules_engine::JsonDataSource;
+
 use crate::broker::endpoint_broker::{BrokerOutput, EndpointBrokerState};
-use crate::broker::rules::rules_engine::{compose_json_values, make_name_json_safe};
+
 use crate::state::platform_state::PlatformState;
 use futures::future::{join_all, BoxFuture};
 use futures::FutureExt;
+use ripple_sdk::api::rules_engine::{compose_json_values, make_name_json_safe, JsonDataSource};
 use serde_json::json;
 
 use ripple_sdk::api::gateway::rpc_gateway_api::{JsonRpcApiError, JsonRpcApiResponse, RpcRequest};
@@ -55,16 +56,18 @@ async fn subbroker_call(
     source: JsonDataSource,
 ) -> Result<serde_json::Value, SubBrokerErr> {
     let (brokered_tx, mut brokered_rx) = mpsc::channel::<BrokerOutput>(BROKER_CHANNEL_BUFFER_SIZE);
-    endpoint_broker.handle_brokerage(
-        rpc_request,
-        None,
-        Some(BrokerCallback {
-            sender: brokered_tx,
-        }),
-        Vec::new(),
-        None,
-        vec![],
-    );
+    let _ = endpoint_broker
+        .handle_brokerage(
+            rpc_request,
+            None,
+            Some(BrokerCallback {
+                sender: brokered_tx,
+            }),
+            Vec::new(),
+            None,
+            vec![],
+        )
+        .await;
 
     match brokered_rx.recv().await {
         Some(msg) => {
@@ -307,15 +310,16 @@ write exhaustive tests for the WorkflowBroker
 #[cfg(test)]
 pub mod tests {
 
-    use std::sync::{Arc, RwLock};
-
-    use ripple_sdk::{api::gateway::rpc_gateway_api::RpcRequest, tokio, Mockable};
+    use ripple_sdk::{
+        api::{
+            gateway::rpc_gateway_api::RpcRequest,
+            rules_engine::{JsonDataSource, Rule, RuleEngine, RuleEngineProvider},
+        },
+        tokio, Mockable,
+    };
     use serde_json::json;
 
-    use crate::broker::{
-        endpoint_broker::{BrokerCallback, BrokerRequest, EndpointBrokerState},
-        rules::rules_engine::{JsonDataSource, Rule, RuleEngine},
-    };
+    use crate::broker::endpoint_broker::{BrokerCallback, BrokerRequest, EndpointBrokerState};
     pub fn broker_request(callback: BrokerCallback) -> BrokerRequest {
         let mut rule = Rule {
             alias: "module.method".to_string(),
@@ -368,7 +372,15 @@ pub mod tests {
         engine.unwrap()
     }
     pub fn endppoint_broker_state() -> EndpointBrokerState {
-        EndpointBrokerState::default().with_rules_engine(Arc::new(RwLock::new(rule_engine())))
+        use ripple_sdk::tokio::sync::RwLock as TokioRwLock;
+        use std::sync::Arc;
+
+        let rule_engine = rule_engine();
+        let boxed: Box<dyn RuleEngineProvider + Send + Sync> = Box::new(rule_engine);
+        let rw_locked = TokioRwLock::new(boxed);
+        let arc = Arc::new(rw_locked);
+
+        EndpointBrokerState::default().with_rules_engine(arc)
     }
 
     #[tokio::test]

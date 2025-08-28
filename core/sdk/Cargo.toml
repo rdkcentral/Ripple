@@ -24,12 +24,14 @@ repository = "https://github.com/rdkcentral/Ripple"
 local_dev = ["jsonrpsee", "sysinfo"]
 default = []
 rpc = ["jsonrpsee"]
+jsonrpsee-server = ["jsonrpsee"]
 tdk = []
 full = ["rpc"]
 sysd = []
 test = ["jsonrpsee", "mock"]
 mock_service = ["mock_app_gw/mock_service"]
 mock = []
+sdk = ["jsonrpsee-server"]
 http_contract_tests = [
 ]
 
@@ -44,8 +46,7 @@ contract_tests = [
 
 #dependencies inherited from workspace
 futures-channel.workspace = true
-serde.workspace = true
-serde_json.workspace = true
+
 chrono.workspace = true
 tokio = { workspace = true, features = [
     "macros",
@@ -55,7 +56,7 @@ tokio = { workspace = true, features = [
     "time",
 ] }
 futures.workspace = true
-jsonrpsee = { workspace = true, features=["server"], optional = true }
+
 
 regex.workspace = true
 uuid = { workspace = true, features = ["serde", "v5", "v4"] }
@@ -73,6 +74,14 @@ tokio-tungstenite = { workspace = true, features = ["handshake", "connect"]}
 url.workspace = true
 futures-util = { version = "0.3.28", features = ["sink", "std"], default-features = false}
 mock_app_gw = { path = "src/service/mock_app_gw", optional = true}
+jaq-interpret = { version = "1.5.0", default-features = false }
+jaq-parse = { version = "1.0.2", default-features = false }
+jaq-core = "1.5.0"
+jaq-std = { version = "1.5.1", default-features = false }
+mockall = "0.13.1"
+jsonrpsee = { workspace = true, features=["server"], optional = true }
+serde_json = { version = "1.0", default-features = false}
+serde = { version = "1.0", features = ["derive"], default-features =  false  }
 sysinfo = {version = "0.30", optional = true }
 
 [dev-dependencies]

@@ -1,0 +1,29 @@
+[package]
+name = "example-service"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-trait = "0.1.88"
+serde_json = "1.0.140"
+ssda_types = {path="../ssda_types"}
+ssda_client = {path = "../ssda_client"}
+tokio = "1.44.2"
+mockall = "0.13.1"
+tokio-websockets = "0.11.4"
+log = "0.4.27"
+ripple_sdk = { git = "https://github.com/rdkcentral/Ripple.git", branch = "ssda", subdir = "core/sdk" }
+#jsonrpsee-server = "0.24.9"
+#jsonrpsee-types = "0.24.9"
+#jsonrpsee-proc-macros = "0.24.9"
+#jsonrpsee-core = "0.24.9"
+jsonrpsee =  {version= "0.24.9", features= ["server", "macros"] }
+pprof = { version = "0.15", features = ["flamegraph"] }
+#jsonrpsee = { version = "0.16.3", features = ["server", "macros"] }
+
+[profile.release]
+strip=true
+opt-level="z"
+codegen-units=1
+lto=true
+panic="abort"

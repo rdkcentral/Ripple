@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use ripple_sdk::api::rules_engine::EventHandler;
+use ripple_sdk::tokio::sync::RwLock as TokioRwLock;
 use ripple_sdk::{
     api::{
         firebolt::fb_capabilities::{
@@ -25,28 +27,28 @@ use ripple_sdk::{
             RpcRequest, RPC_V2,
         },
         observability::log_signal::LogSignal,
+        rules_engine::{
+            jq_compile, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine, RuleEngineProvider,
+            RuleRetrievalError, RuleRetrieved, RuleTransformType, RuleType,
+        },
         session::AccountSession,
     },
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
     log::{debug, error, info, trace},
-    service::service_message::{
-        Id as ServiceMessageId, JsonRpcMessage as ServiceJsonRpcMessage,
-        JsonRpcSuccess as ServiceJsonRpcSuccess, ServiceMessage,
-    },
     tokio::{
         self,
         sync::mpsc::{self, Receiver, Sender},
     },
-    tokio_tungstenite::tungstenite::Message,
     utils::error::RippleError,
 };
 use serde_json::{json, Value};
+use std::sync::RwLock;
 use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicU64, Ordering},
-        Arc, RwLock,
+        Arc,
     },
 };
 
@@ -67,11 +69,6 @@ use super::{
     extn_broker::ExtnBroker,
     http_broker::HttpBroker,
     provider_broker_state::{ProvideBrokerState, ProviderResult},
-    rules::rules_engine::{
-        jq_compile, EventHandler, Rule, RuleEndpoint, RuleEndpointProtocol, RuleEngine,
-        RuleRetrievalError, RuleRetrieved, RuleType,
-    },
-    service_broker::ServiceBroker,
     thunder_broker::ThunderBroker,
     websocket_broker::WebsocketBroker,
     workflow_broker::WorkflowBroker,
@@ -369,17 +366,22 @@ impl BrokerSender {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct EndpointBrokerState {
     endpoint_map: Arc<RwLock<HashMap<String, BrokerSender>>>,
     callback: BrokerCallback,
     request_map: Arc<RwLock<HashMap<u64, BrokerRequest>>>,
     extension_request_map: Arc<RwLock<HashMap<u64, ExtnMessage>>>,
-    rule_engine: Arc<RwLock<RuleEngine>>,
+    rule_engine: Arc<TokioRwLock<Box<dyn RuleEngineProvider + Send + Sync>>>,
     cleaner_list: Arc<RwLock<Vec<BrokerCleaner>>>,
     reconnect_tx: Sender<BrokerConnectRequest>,
     provider_broker_state: ProvideBrokerState,
     metrics_state: OpMetricState,
+}
+impl std::fmt::Debug for EndpointBrokerState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "EndpointBrokerState {{}}")
+    }
 }
 
 #[derive(Debug)]
@@ -393,11 +395,17 @@ impl From<RuleRetrievalError> for HandleBrokerageError {
     fn from(value: RuleRetrievalError) -> Self {
         match value {
             RuleRetrievalError::RuleNotFound(e) => HandleBrokerageError::RuleNotFound(e),
-            RuleRetrievalError::RuleNotFoundAsWildcard => {
-                HandleBrokerageError::RuleNotFound("Rule Not found as wildcard".to_string())
+            RuleRetrievalError::RuleNotFoundAsWildcard(method) => {
+                HandleBrokerageError::RuleNotFound(format!(
+                    "Rule Not found as wildcard for method {}",
+                    method
+                ))
             }
-            RuleRetrievalError::TooManyWildcardMatches => {
-                HandleBrokerageError::RuleNotFound("Too many wildcard matches".to_string())
+            RuleRetrievalError::TooManyWildcardMatches(method) => {
+                HandleBrokerageError::RuleNotFound(format!(
+                    "Too many wildcard matches for method {}",
+                    method
+                ))
             }
         }
     }
@@ -466,7 +474,7 @@ impl Default for EndpointBrokerState {
             callback: BrokerCallback::default(),
             request_map: Arc::new(RwLock::new(HashMap::new())),
             extension_request_map: Arc::new(RwLock::new(HashMap::new())),
-            rule_engine: Arc::new(RwLock::new(RuleEngine::default())),
+            rule_engine: Arc::new(TokioRwLock::new(Box::new(RuleEngine::default()))),
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx: mpsc::channel(2).0,
             provider_broker_state: ProvideBrokerState::default(),
@@ -479,7 +487,7 @@ impl EndpointBrokerState {
     pub fn new(
         metrics_state: OpMetricState,
         tx: Sender<BrokerOutput>,
-        rule_engine: RuleEngine,
+        rule_engine: Arc<TokioRwLock<Box<dyn RuleEngineProvider + Send + Sync>>>,
         _ripple_client: RippleClient,
     ) -> Self {
         let (reconnect_tx, _rec_tr) = mpsc::channel(2);
@@ -488,7 +496,7 @@ impl EndpointBrokerState {
             callback: BrokerCallback { sender: tx },
             request_map: Arc::new(RwLock::new(HashMap::new())),
             extension_request_map: Arc::new(RwLock::new(HashMap::new())),
-            rule_engine: Arc::new(RwLock::new(rule_engine)),
+            rule_engine,
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx,
             provider_broker_state: ProvideBrokerState::default(),
@@ -499,16 +507,20 @@ impl EndpointBrokerState {
         state.reconnect_thread(_rec_tr, _ripple_client);
         state
     }
-    pub fn with_rules_engine(mut self, rule_engine: Arc<RwLock<RuleEngine>>) -> Self {
+    pub fn with_rules_engine(
+        mut self,
+        rule_engine: Arc<TokioRwLock<Box<dyn RuleEngineProvider + Send + Sync>>>,
+    ) -> Self {
         self.rule_engine = rule_engine;
         self
     }
-    pub fn add_rule(self, rule: Rule) -> Self {
-        self.rule_engine.write().unwrap().add_rule(rule);
+    pub async fn add_rule(self, rule: Rule) -> Self {
+        let rule_engine = self.rule_engine.clone();
+        rule_engine.write().await.add_rule(rule);
         self
     }
-    pub fn has_rule(&self, rule: &str) -> bool {
-        self.rule_engine.read().unwrap().has_rule(rule)
+    pub async fn has_rule(&self, rule: &str) -> bool {
+        self.rule_engine.read().await.has_rule(rule)
     }
     #[cfg(not(test))]
     fn reconnect_thread(&self, mut rx: Receiver<BrokerConnectRequest>, client: RippleClient) {
@@ -583,12 +595,16 @@ impl EndpointBrokerState {
     #[allow(dead_code)]
     fn apply_request_rule(rpc_request: &BrokerRequest) -> Result<Value, RippleError> {
         if let Ok(mut params) = serde_json::from_str::<Vec<Value>>(&rpc_request.rpc.params_json) {
-            let last = params.pop().unwrap_or(Value::Null);
+            let last = if params.len() > 1 {
+                params.pop().unwrap()
+            } else {
+                Value::Null
+            };
 
             if let Some(filter) = rpc_request
                 .rule
                 .transform
-                .get_transform_data(super::rules::rules_engine::RuleTransformType::Request)
+                .get_transform_data(RuleTransformType::Request)
             {
                 let transformed_request_res = jq_compile(
                     last,
@@ -624,6 +640,49 @@ impl EndpointBrokerState {
         )
         .emit_error();
         Err(RippleError::ParseError)
+    }
+    /// Adds BrokerContext to a given request used by the Broker Implementations
+    /// just before sending the data through the protocol
+    ///
+    fn _update_request(
+        &self,
+        rpc_request: &RpcRequest,
+        rule: Rule,
+        extn_message: Option<ExtnMessage>,
+        workflow_callback: Option<BrokerCallback>,
+        telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
+    ) -> (u64, BrokerRequest) {
+        let id = Self::get_next_id();
+        let mut rpc_request_c = rpc_request.clone();
+        {
+            let mut request_map = self.request_map.write().unwrap();
+            let _ = request_map.insert(
+                id,
+                BrokerRequest {
+                    rpc: rpc_request.clone(),
+                    rule: rule.clone(),
+                    subscription_processed: None,
+                    workflow_callback: workflow_callback.clone(),
+                    telemetry_response_listeners: telemetry_response_listeners.clone(),
+                },
+            );
+        }
+
+        if extn_message.is_some() {
+            let mut extn_map = self.extension_request_map.write().unwrap();
+            let _ = extn_map.insert(id, extn_message.unwrap());
+        }
+
+        rpc_request_c.ctx.call_id = id;
+        (
+            id,
+            BrokerRequest::new(
+                &rpc_request_c,
+                rule,
+                workflow_callback,
+                telemetry_response_listeners,
+            ),
+        )
     }
 
     pub fn update_request(
@@ -664,29 +723,25 @@ impl EndpointBrokerState {
             telemetry_response_listeners,
         )
     }
-    pub fn build_thunder_endpoint(&mut self, ps: Option<PlatformState>) {
-        let endpoint = {
-            self.rule_engine
-                .write()
-                .unwrap()
-                .rules
-                .endpoints
-                .get("thunder")
-                .cloned()
-        };
-        if let Some(endpoint) = endpoint {
+    pub async fn build_thunder_endpoint(&mut self) {
+        let rules = self.rule_engine.read().await.get_rules().clone();
+        if let Some(endpoint) = rules.endpoints.get("thunder").cloned() {
             let request = BrokerConnectRequest::new(
                 "thunder".to_owned(),
                 endpoint.clone(),
                 self.reconnect_tx.clone(),
             );
-            self.build_endpoint(ps, request);
+            self.build_endpoint(None, request);
         }
     }
 
-    pub fn build_other_endpoints(&mut self, ps: PlatformState, session: Option<AccountSession>) {
-        let endpoints = self.rule_engine.read().unwrap().rules.endpoints.clone();
-        for (key, endpoint) in endpoints {
+    pub async fn build_other_endpoints(
+        &mut self,
+        ps: PlatformState,
+        session: Option<AccountSession>,
+    ) {
+        let rules = self.rule_engine.read().await.get_rules().endpoints.clone();
+        for (key, endpoint) in rules {
             // skip thunder endpoint as it is already built using build_thunder_endpoint
             if let RuleEndpointProtocol::Thunder = endpoint.protocol {
                 continue;
@@ -715,6 +770,7 @@ impl EndpointBrokerState {
     fn build_endpoint(&mut self, ps: Option<PlatformState>, request: BrokerConnectRequest) {
         let endpoint = request.endpoint.clone();
         let key = request.key.clone();
+        info!("Building endpoint {:?} using key {}", endpoint, key);
         let (broker, cleaner) = match endpoint.protocol {
             RuleEndpointProtocol::Http => (
                 HttpBroker::get_broker(None, request, self.callback.clone(), self).get_sender(),
@@ -727,7 +783,7 @@ impl EndpointBrokerState {
             }
             RuleEndpointProtocol::Thunder => {
                 let thunder_broker =
-                    ThunderBroker::get_broker(ps, request, self.callback.clone(), self);
+                    ThunderBroker::get_broker(None, request, self.callback.clone(), self);
                 (
                     thunder_broker.get_sender(),
                     Some(thunder_broker.get_cleaner()),
@@ -741,10 +797,16 @@ impl EndpointBrokerState {
                 ExtnBroker::get_broker(ps, request, self.callback.clone(), self).get_sender(),
                 None,
             ),
-            RuleEndpointProtocol::Service => (
-                ServiceBroker::get_broker(ps, request, self.callback.clone(), self).get_sender(),
-                None,
-            ),
+            RuleEndpointProtocol::Service => {
+                self.get_service_broker(ps, request)
+
+                // let service_broker =
+                //     SsdaServiceBroker::get_broker(ps, request, self.callback.clone(), self);
+                // (
+                //     service_broker.get_sender(),
+                //     Some(service_broker.get_cleaner()),
+                // )
+            }
         };
         self.add_endpoint(key, broker);
 
@@ -752,6 +814,34 @@ impl EndpointBrokerState {
             let mut cleaner_list = self.cleaner_list.write().unwrap();
             cleaner_list.push(cleaner);
         }
+    }
+    #[cfg(not(feature = "ssda"))]
+    fn get_service_broker(
+        &mut self,
+        ps: Option<PlatformState>,
+        request: BrokerConnectRequest,
+    ) -> (BrokerSender, Option<BrokerCleaner>) {
+        use crate::broker::service_broker::ServiceBroker;
+        let service_broker = ServiceBroker::get_broker(ps, request, self.callback.clone(), self);
+        (
+            service_broker.get_sender(),
+            Some(service_broker.get_cleaner()),
+        )
+    }
+
+    #[cfg(feature = "ssda")]
+    fn get_service_broker(
+        &mut self,
+        ps: Option<PlatformState>,
+        request: BrokerConnectRequest,
+    ) -> (BrokerSender, Option<BrokerCleaner>) {
+        use super::ssda_service_broker::SsdaServiceBroker;
+        let service_broker =
+            SsdaServiceBroker::get_broker(ps, request, self.callback.clone(), self);
+        (
+            service_broker.get_sender(),
+            Some(service_broker.get_cleaner()),
+        )
     }
 
     fn handle_static_request(&self, rpc_request: RpcRequest) -> JsonRpcApiResponse {
@@ -823,19 +913,19 @@ impl EndpointBrokerState {
     fn get_sender(&self, hash: &str) -> Option<BrokerSender> {
         self.endpoint_map.read().unwrap().get(hash).cloned()
     }
-    fn get_broker_rule(
+    async fn get_broker_rule(
         &self,
         rpc_request: &RpcRequest,
     ) -> Result<RuleRetrieved, RuleRetrievalError> {
-        self.rule_engine.read().unwrap().get_rule(rpc_request)
+        self.rule_engine.read().await.get_rule(rpc_request)
     }
-    /// Main handler method which checks for brokerage and then sends the request for
+    /// Main handler method whcih checks for brokerage and then sends the request for
     /// asynchronous processing
-    pub fn handle_brokerage(
+    pub async fn handle_brokerage(
         &self,
         rpc_request: RpcRequest,
         extn_message: Option<ExtnMessage>,
-        custom_callback: Option<BrokerCallback>,
+        workflow_callback: Option<BrokerCallback>,
         permissions: Vec<FireboltPermission>,
         session: Option<Session>,
         telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
@@ -845,30 +935,25 @@ impl EndpointBrokerState {
             "starting brokerage".to_string(),
             rpc_request.ctx.clone(),
         )
-        .with_diagnostic_context_item("workflow", &custom_callback.is_some().to_string())
+        .with_diagnostic_context_item("workflow", &workflow_callback.is_some().to_string())
         .emit_debug();
 
-        let resp = self.handle_brokerage_workflow(
-            rpc_request.clone(),
-            extn_message,
-            custom_callback,
-            permissions,
-            session,
-            telemetry_response_listeners,
-        );
-
-        if resp.is_err() {
-            let err = resp.unwrap_err();
-            LogSignal::new(
-                "handle_brokerage".to_string(),
-                "Rule error".to_string(),
-                rpc_request.ctx.clone(),
+        match self
+            .handle_brokerage_workflow(
+                rpc_request,
+                extn_message,
+                workflow_callback,
+                permissions,
+                session,
+                telemetry_response_listeners,
             )
-            .with_diagnostic_context_item("error", &format!("{:?}", err))
-            .emit_error();
-            false
-        } else {
-            true
+            .await
+        {
+            Ok(_yay) => true,
+            Err(e) => {
+                error!("Error in brokerage {:?}", e);
+                false
+            }
         }
     }
 
@@ -923,12 +1008,12 @@ impl EndpointBrokerState {
 
         let rpc_request = broker_request.rpc.clone();
         match rule.rule_type() {
-            super::rules::rules_engine::RuleType::Static => {
+            RuleType::Static => {
                 let response =
                     RenderedRequest::JsonRpc(self.handle_static_request(rpc_request.clone()));
                 Ok(response)
             }
-            super::rules::rules_engine::RuleType::Provider => {
+            RuleType::Provider => {
                 let response = self.handle_provided_request(
                     &rpc_request,
                     rpc_request.ctx.call_id,
@@ -937,7 +1022,7 @@ impl EndpointBrokerState {
                 );
                 Ok(response)
             }
-            super::rules::rules_engine::RuleType::Endpoint => {
+            RuleType::Endpoint => {
                 if rpc_request.is_unlisten() {
                     Ok(RenderedRequest::Unlisten(broker_request.clone()))
                 } else {
@@ -947,7 +1032,7 @@ impl EndpointBrokerState {
         }
     }
 
-    pub fn handle_brokerage_workflow(
+    pub async fn handle_brokerage_workflow(
         &self,
         rpc_request: RpcRequest,
         extn_message: Option<ExtnMessage>,
@@ -957,7 +1042,7 @@ impl EndpointBrokerState {
         telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
     ) -> Result<RenderedRequest, HandleBrokerageError> {
         /*if rule not found, "unhandled https://github.com/rdkcentral/Ripple/blob/ae3fcd78b055cf70022959bf827de9ed569762aa/core/main/src/broker/endpoint_broker.rs#L719" */
-        let rule: Rule = match self.get_broker_rule(&rpc_request)? {
+        let rule: Rule = match self.get_broker_rule(&rpc_request).await? {
             RuleRetrieved::ExactMatch(rule) | RuleRetrieved::WildcardMatch(rule) => rule,
         };
         /*
@@ -972,7 +1057,6 @@ impl EndpointBrokerState {
         )
         .with_diagnostic_context_item("rule", &format!("{}", rule))
         .with_diagnostic_context_item("endpoint", &format!("{}", endpoint))
-        // this is printing non debuggable data
         .with_diagnostic_context_item("workflow", &workflow_callback.is_some().to_string())
         .emit_debug();
         /*
@@ -996,10 +1080,7 @@ impl EndpointBrokerState {
                 RenderedRequest::JsonRpc(data) => {
                     tokio::spawn(async move {
                         if let Err(err) = broker_callback.sender.try_send(BrokerOutput::new(data)) {
-                            error!(
-                                "Error sending RenderedRequest json rpc response to broker {:?}",
-                                err
-                            );
+                            error!("Error sending json rpc response to broker {:?}", err);
                         }
                     });
                     Ok(response)
@@ -1054,7 +1135,7 @@ impl EndpointBrokerState {
                             .sender
                             .try_send(BrokerOutput::new(json_rpc_api_response))
                         {
-                            error!("Error sending RenderedRequest provider json rpc response to broker {:?}", err);
+                            error!("Error sending json rpc response to broker {:?}", err);
                         }
                     });
                     Ok(response)
@@ -1079,6 +1160,13 @@ impl EndpointBrokerState {
         if let Err(e) = self.callback.sender.try_send(BrokerOutput { data }) {
             error!("Cannot forward broker response {:?}", e)
         }
+    }
+
+    pub async fn get_rule(
+        &self,
+        rpc_request: &RpcRequest,
+    ) -> Result<RuleRetrieved, RuleRetrievalError> {
+        self.rule_engine.read().await.get_rule(rpc_request)
     }
 
     // Method to cleanup all subscription on App termination
@@ -1113,40 +1201,42 @@ pub trait EndpointBroker {
 
     /// Adds BrokerContext to a given request used by the Broker Implementations
     /// just before sending the data through the protocol
-    fn update_request(broker_request: &BrokerRequest) -> Result<String, RippleError> {
-        let v = Self::apply_request_rule(broker_request)?;
+    fn update_request(rpc_request: &BrokerRequest) -> Result<String, RippleError> {
+        let v = Self::apply_request_rule(rpc_request)?;
         trace!("transformed request {:?}", v);
-        let id = broker_request.rpc.ctx.call_id;
-        let method = broker_request.rule.alias.clone();
-        let rpc_request_str = if let Value::Null = v {
-            json!({
+        let id = rpc_request.rpc.ctx.call_id;
+        let method = rpc_request.rule.alias.clone();
+        if let Value::Null = v {
+            Ok(json!({
                 "jsonrpc": "2.0",
                 "id": id,
                 "method": method
             })
-            .to_string()
+            .to_string())
         } else {
-            json!({
+            Ok(json!({
                 "jsonrpc": "2.0",
                 "id": id,
                 "method": method,
                 "params": v
             })
-            .to_string()
-        };
-
-        Ok(rpc_request_str)
+            .to_string())
+        }
     }
 
     /// Generic method which takes the given parameters from RPC request and adds rules using rule engine
     fn apply_request_rule(rpc_request: &BrokerRequest) -> Result<Value, RippleError> {
         if let Ok(mut params) = serde_json::from_str::<Vec<Value>>(&rpc_request.rpc.params_json) {
-            let last = params.pop().unwrap_or(Value::Null);
+            let last = if params.len() > 1 {
+                params.pop().unwrap()
+            } else {
+                Value::Null
+            };
 
             if let Some(filter) = rpc_request
                 .rule
                 .transform
-                .get_transform_data(super::rules::rules_engine::RuleTransformType::Request)
+                .get_transform_data(RuleTransformType::Request)
             {
                 let transformed_request_res = jq_compile(
                     last,
@@ -1231,6 +1321,7 @@ impl BrokerOutputForwarder {
                 let output_c = output.clone();
                 let mut response = output.data.clone();
                 let mut is_event = false;
+                // First validate the id check if it could be an event
                 let id = if let Some(e) = output_c.get_event() {
                     is_event = true;
                     Some(e)
@@ -1246,50 +1337,139 @@ impl BrokerOutputForwarder {
                             broker_request.clone(),
                         )
                         .emit_debug();
-
+                        /*
+                        save off rpc method name for rule context telemetry
+                        */
                         let rule_context_name = broker_request.rpc.method.clone();
-                        let workflow_callback = broker_request.workflow_callback.clone();
+
+                        let workflow_callback = broker_request.clone().workflow_callback;
                         let telemetry_response_listeners =
-                            broker_request.telemetry_response_listeners.clone();
+                            broker_request.clone().telemetry_response_listeners;
                         let sub_processed = broker_request.is_subscription_processed();
                         let rpc_request = broker_request.rpc.clone();
+                        let session_id = rpc_request.ctx.get_id();
                         let is_subscription = rpc_request.is_subscription();
+                        let mut apply_response_needed = false;
 
-                        let apply_response_needed = if let Some(result) = response.result.clone() {
+                        // Step 1: Create the data
+                        if let Some(result) = response.result.clone() {
+                            LogSignal::new(
+                                "start_forwarder".to_string(),
+                                "processing event".to_string(),
+                                broker_request.clone(),
+                            )
+                            .emit_debug();
+
                             if is_event {
-                                LogSignal::new(
-                                    "handle_event_output".to_string(),
-                                    "processing event".to_string(),
-                                    broker_request.clone(),
-                                )
-                                .emit_debug();
-                                if Self::handle_event_output(
-                                    &broker_request,
-                                    &rpc_request,
-                                    &mut response,
-                                    &platform_state,
-                                    &event_utility_clone,
-                                    result.clone(),
-                                )
-                                .await
-                                {
+                                if let Some(method) = broker_request.rule.event_handler.clone() {
+                                    let platform_state_c = platform_state.clone();
+                                    let rpc_request_c = rpc_request.clone();
+                                    let response_c = response.clone();
+                                    let broker_request_c = broker_request.clone();
+
+                                    tokio::spawn(Self::handle_event(
+                                        platform_state_c,
+                                        method,
+                                        broker_request_c,
+                                        rpc_request_c,
+                                        response_c,
+                                    ));
+
                                     continue;
                                 }
-                            } else if is_subscription
-                                && Self::handle_subscription_response(
-                                    &broker_request,
-                                    &rpc_request,
-                                    &mut response,
-                                    sub_processed,
-                                    &platform_state,
-                                    id,
-                                )
-                            {
-                                continue;
-                            }
 
-                            !is_event && !is_subscription
+                                if let Some(filter) = broker_request
+                                    .rule
+                                    .transform
+                                    .get_transform_data(RuleTransformType::Event(
+                                        rpc_request.ctx.context.contains(&RPC_V2.into()),
+                                    ))
+                                {
+                                    apply_rule_for_event(
+                                        &broker_request,
+                                        &result,
+                                        &rpc_request,
+                                        &filter,
+                                        &mut response,
+                                    );
+                                }
+
+                                if !apply_filter(&broker_request, &result, &rpc_request) {
+                                    continue;
+                                }
+
+                                // check if the request transform has event_decorator_method
+                                if let Some(decorator_method) =
+                                    broker_request.rule.transform.event_decorator_method.clone()
+                                {
+                                    if let Some(func) =
+                                        event_utility_clone.get_function(&decorator_method)
+                                    {
+                                        // spawn a tokio thread to run the function and continue the main thread.
+                                        LogSignal::new(
+                                            "start_forwarder".to_string(),
+                                            "event decorator method found".to_string(),
+                                            rpc_request.ctx.clone(),
+                                        )
+                                        .emit_debug();
+                                        let session_id = rpc_request.ctx.get_id();
+                                        let request_id = rpc_request.ctx.call_id;
+                                        let protocol = rpc_request.ctx.protocol.clone();
+                                        let platform_state_c = platform_state.clone();
+                                        let ctx = rpc_request.ctx.clone();
+                                        tokio::spawn(async move {
+                                            if let Ok(value) = func(
+                                                platform_state_c.clone(),
+                                                ctx.clone(),
+                                                Some(result.clone()),
+                                            )
+                                            .await
+                                            {
+                                                response.result = Some(value.expect("REASON"));
+                                            }
+                                            response.id = Some(request_id);
+
+                                            let message = ApiMessage::new(
+                                                protocol,
+                                                serde_json::to_string(&response).unwrap(),
+                                                rpc_request.ctx.request_id.clone(),
+                                            );
+
+                                            if let Some(session) = platform_state_c
+                                                .session_state
+                                                .get_session_for_connection_id(&session_id)
+                                            {
+                                                let _ = session.send_json_rpc(message).await;
+                                            }
+                                        });
+                                        continue;
+                                    } else {
+                                        LogSignal::new(
+                                            "start_forwarder".to_string(),
+                                            "event decorator method not found".to_string(),
+                                            rpc_request.ctx.clone(),
+                                        )
+                                        .emit_debug();
+                                        error!(
+                                            "Failed to invoke decorator method {:?}",
+                                            decorator_method
+                                        );
+                                    }
+                                }
+                            } else if is_subscription {
+                                if sub_processed {
+                                    continue;
+                                }
+                                response.result = Some(json!({
+                                    "listening" : rpc_request.is_listening(),
+                                    "event" : rpc_request.ctx.method
+                                }));
+                                platform_state.endpoint_state.update_unsubscribe_request(id);
+                            } else {
+                                apply_response_needed = true;
+                            }
                         } else {
+                            trace!("start_forwarder: no result {:?}", response);
                             LogSignal::new(
                                 "start_forwarder".to_string(),
                                 "no result".to_string(),
@@ -1297,30 +1477,126 @@ impl BrokerOutputForwarder {
                             )
                             .with_diagnostic_context_item("response", response.to_string().as_str())
                             .emit_debug();
-                            true
-                        };
-
-                        if apply_response_needed {
-                            Self::apply_response_transform(
-                                &broker_request,
-                                &output_c,
-                                &mut response,
-                                &rule_context_name,
-                            );
+                            apply_response_needed = true;
                         }
 
-                        response.id = Some(rpc_request.ctx.call_id);
+                        if apply_response_needed {
+                            // Apply response rule using params if there is any; otherwise, apply response rule using main broker request's response rule
+                            let mut apply_response_using_main_req_needed = true;
+                            if let Some(params) = output.data.params {
+                                if let Some(param) = params.as_object() {
+                                    for (key, value) in param {
+                                        if key == "response" {
+                                            if let Some(filter) = value.as_str() {
+                                                apply_response_using_main_req_needed = false;
+                                                apply_response(
+                                                    filter.to_string(),
+                                                    &rpc_request.ctx.method,
+                                                    &mut response,
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if apply_response_using_main_req_needed {
+                                if let Some(filter) = broker_request
+                                    .rule
+                                    .transform
+                                    .get_transform_data(RuleTransformType::Response)
+                                {
+                                    apply_response(filter, &rule_context_name, &mut response);
+                                } else if response.result.is_none() && response.error.is_none() {
+                                    response.result = Some(Value::Null);
+                                }
+                            }
+                        }
 
-                        Self::forward_response(
-                            response,
-                            &rpc_request,
-                            &mut platform_state,
-                            is_event,
-                            id,
-                            workflow_callback,
-                            telemetry_response_listeners,
-                        )
-                        .await;
+                        let request_id = rpc_request.ctx.call_id;
+                        response.id = Some(request_id);
+
+                        if let Some(workflow_callback) = workflow_callback {
+                            debug!("sending to workflow callback {:?}", response);
+                            LogSignal::new(
+                                "start_forwarder".to_string(),
+                                "sending to workflow callback".to_string(),
+                                rpc_request.ctx.clone(),
+                            )
+                            .emit_debug();
+                            let _ = workflow_callback
+                                .sender
+                                .try_send(BrokerOutput::new(response.clone()));
+                        } else {
+                            let tm_str = get_rpc_header(&rpc_request);
+
+                            if is_event {
+                                response.update_event_message(&rpc_request);
+                            }
+
+                            // Step 2: Create the message
+                            let mut message = ApiMessage::new(
+                                rpc_request.ctx.protocol.clone(),
+                                serde_json::to_string(&response).unwrap(),
+                                rpc_request.ctx.request_id.clone(),
+                            );
+                            let mut status_code: i64 = 1;
+                            if let Some(e) = &response.error {
+                                if let Some(Value::Number(n)) = e.get("code") {
+                                    if let Some(v) = n.as_i64() {
+                                        status_code = v;
+                                    }
+                                }
+                            }
+
+                            platform_state.metrics.update_api_stats_ref(
+                                &rpc_request.ctx.request_id,
+                                add_telemetry_status_code(
+                                    &tm_str,
+                                    status_code.to_string().as_str(),
+                                ),
+                            );
+
+                            if let Some(api_stats) = platform_state
+                                .metrics
+                                .get_api_stats(&rpc_request.ctx.request_id)
+                            {
+                                message.stats = Some(api_stats);
+
+                                if rpc_request.ctx.app_id.eq_ignore_ascii_case("internal") {
+                                    platform_state
+                                        .metrics
+                                        .remove_api_stats(&rpc_request.ctx.request_id);
+                                }
+                            }
+
+                            // Step 3: Handle Non Extension
+                            if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
+                                if let Ok(extn_message) =
+                                    platform_state.endpoint_state.get_extn_message(id, is_event)
+                                {
+                                    if is_event {
+                                        forward_extn_event(
+                                            &extn_message,
+                                            response.clone(),
+                                            &platform_state,
+                                        )
+                                        .await;
+                                    } else {
+                                        let client = platform_state.get_client().get_extn_client();
+                                        return_extn_response(message, extn_message, client);
+                                    }
+                                }
+                            } else if let Some(session) = platform_state
+                                .session_state
+                                .get_session_for_connection_id(&session_id)
+                            {
+                                let _ = session.send_json_rpc(message).await;
+                            }
+                        }
+
+                        for listener in telemetry_response_listeners {
+                            let _ = listener.try_send(BrokerOutput::new(response.clone()));
+                        }
                     } else {
                         error!(
                             "start_forwarder:{} request not found for {:?}",
@@ -1336,326 +1612,6 @@ impl BrokerOutputForwarder {
                 }
             }
         });
-    }
-
-    async fn forward_response(
-        response: JsonRpcApiResponse,
-        rpc_request: &RpcRequest,
-        platform_state: &mut PlatformState,
-        is_event: bool,
-        id: u64,
-        workflow_callback: Option<BrokerCallback>,
-        telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
-    ) {
-        LogSignal::new(
-            "forward_response".to_string(),
-            "entered".to_string(),
-            rpc_request.ctx.clone(),
-        )
-        .emit_debug();
-        let session_id = rpc_request.ctx.get_id();
-        if let Some(workflow_callback) = workflow_callback {
-            debug!("sending to workflow callback {:?}", response);
-            LogSignal::new(
-                "forward_response".to_string(),
-                "sending to workflow callback".to_string(),
-                rpc_request.ctx.clone(),
-            )
-            .emit_debug();
-            let _ = workflow_callback
-                .sender
-                .try_send(BrokerOutput::new(response.clone()));
-        } else {
-            let tm_str = get_rpc_header(rpc_request);
-            let mut response = response.clone();
-            if is_event {
-                response.update_event_message(rpc_request);
-            }
-            let mut message = ApiMessage::new(
-                rpc_request.ctx.protocol.clone(),
-                serde_json::to_string(&response).unwrap(),
-                rpc_request.ctx.request_id.clone(),
-            );
-            let mut status_code: i64 = 1;
-            if let Some(e) = &response.error {
-                if let Some(Value::Number(n)) = e.get("code") {
-                    if let Some(v) = n.as_i64() {
-                        status_code = v;
-                    }
-                }
-            }
-            platform_state.metrics.update_api_stats_ref(
-                &rpc_request.ctx.request_id,
-                add_telemetry_status_code(&tm_str, status_code.to_string().as_str()),
-            );
-            if let Some(api_stats) = platform_state
-                .metrics
-                .get_api_stats(&rpc_request.ctx.request_id)
-            {
-                message.stats = Some(api_stats);
-                if rpc_request.ctx.app_id.eq_ignore_ascii_case("internal") {
-                    platform_state
-                        .metrics
-                        .remove_api_stats(&rpc_request.ctx.request_id);
-                }
-            }
-            if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
-                if let Ok(extn_message) =
-                    platform_state.endpoint_state.get_extn_message(id, is_event)
-                {
-                    let client = platform_state.get_client().get_extn_client();
-                    if is_event {
-                        forward_extn_event(&extn_message, response.clone(), platform_state).await;
-                    } else {
-                        return_extn_response(message, extn_message, client)
-                    }
-                }
-            } else if matches!(rpc_request.ctx.protocol, ApiProtocol::Service) {
-                Self::handle_service_message(rpc_request, &message, platform_state).await;
-            } else if let Some(session) = platform_state
-                .session_state
-                .get_session_for_connection_id(&session_id)
-            {
-                let _ = session.send_json_rpc(message).await;
-            }
-        }
-        for listener in telemetry_response_listeners {
-            let _ = listener.try_send(BrokerOutput::new(response.clone()));
-        }
-    }
-
-    async fn handle_event_output(
-        broker_request: &BrokerRequest,
-        rpc_request: &RpcRequest,
-        response: &mut JsonRpcApiResponse,
-        platform_state: &PlatformState,
-        event_utility: &Arc<EventManagementUtility>,
-        result: Value,
-    ) -> bool {
-        if let Some(event_handler) = broker_request.rule.event_handler.clone() {
-            let platform_state_c = platform_state.clone();
-            let rpc_request_c = rpc_request.clone();
-            let response_c = response.clone();
-            let broker_request_c = broker_request.clone();
-
-            LogSignal::new(
-                "handle_event_output".to_string(),
-                "spawning event handler".to_string(),
-                broker_request.clone(),
-            )
-            .emit_debug();
-
-            tokio::spawn(Self::handle_event(
-                platform_state_c,
-                event_handler,
-                broker_request_c,
-                rpc_request_c,
-                response_c,
-            ));
-            return true;
-        }
-
-        if let Some(filter) = broker_request.rule.transform.get_transform_data(
-            super::rules::rules_engine::RuleTransformType::Event(
-                rpc_request.ctx.context.contains(&RPC_V2.into()),
-            ),
-        ) {
-            apply_rule_for_event(broker_request, &result, rpc_request, &filter, response);
-        }
-
-        if !apply_filter(broker_request, &result, rpc_request) {
-            LogSignal::new(
-                "handle_event_output".to_string(),
-                "event filtered out".to_string(),
-                broker_request.clone(),
-            )
-            .emit_debug();
-            return true;
-        }
-
-        if let Some(decorator_method) = broker_request.rule.transform.event_decorator_method.clone()
-        {
-            if let Some(func) = event_utility.get_function(&decorator_method) {
-                LogSignal::new(
-                    "handle_event_output".to_string(),
-                    "event decorator method found".to_string(),
-                    rpc_request.ctx.clone(),
-                )
-                .emit_debug();
-                let session_id = rpc_request.ctx.get_id();
-                let request_id = rpc_request.ctx.call_id;
-                let protocol = rpc_request.ctx.protocol.clone();
-                let platform_state_c = platform_state.clone();
-                let ctx = rpc_request.ctx.clone();
-                let mut response_c = response.clone();
-                tokio::spawn(async move {
-                    if let Ok(value) =
-                        func(platform_state_c.clone(), ctx.clone(), Some(result.clone())).await
-                    {
-                        response_c.result = Some(value.expect("REASON"));
-                    }
-                    response_c.id = Some(request_id);
-                    let message = ApiMessage::new(
-                        protocol,
-                        serde_json::to_string(&response_c).unwrap(),
-                        ctx.request_id.clone(),
-                    );
-                    if let Some(session) = platform_state_c
-                        .session_state
-                        .get_session_for_connection_id(&session_id)
-                    {
-                        let _ = session.send_json_rpc(message).await;
-                    }
-                });
-                return true;
-            } else {
-                LogSignal::new(
-                    "handle_event_output".to_string(),
-                    "event decorator method not found".to_string(),
-                    rpc_request.ctx.clone(),
-                )
-                .emit_debug();
-                error!("Failed to invoke decorator method {:?}", decorator_method);
-            }
-        }
-        false
-    }
-
-    fn handle_subscription_response(
-        broker_request: &BrokerRequest,
-        rpc_request: &RpcRequest,
-        response: &mut JsonRpcApiResponse,
-        sub_processed: bool,
-        platform_state: &PlatformState,
-        id: u64,
-    ) -> bool {
-        LogSignal::new(
-            "handle_subscription_response".to_string(),
-            "entered".to_string(),
-            broker_request.clone(),
-        )
-        .emit_debug();
-
-        if sub_processed {
-            LogSignal::new(
-                "handle_subscription_response".to_string(),
-                "subscription already processed".to_string(),
-                broker_request.clone(),
-            )
-            .emit_debug();
-            return true;
-        }
-        response.result = Some(json!({
-            "listening" : rpc_request.is_listening(),
-            "event" : rpc_request.ctx.method
-        }));
-        platform_state.endpoint_state.update_unsubscribe_request(id);
-
-        LogSignal::new(
-            "handle_subscription_response".to_string(),
-            "subscription response set".to_string(),
-            broker_request.clone(),
-        )
-        .emit_debug();
-        false
-    }
-
-    fn apply_response_transform(
-        broker_request: &BrokerRequest,
-        output: &BrokerOutput,
-        response: &mut JsonRpcApiResponse,
-        rule_context_name: &str,
-    ) {
-        LogSignal::new(
-            "apply_response_transform".to_string(),
-            "entered".to_string(),
-            broker_request.clone(),
-        )
-        .emit_debug();
-
-        let mut apply_response_using_main_req_needed = true;
-        if let Some(params) = output.data.params.clone() {
-            if let Some(param) = params.as_object() {
-                for (key, value) in param {
-                    if key == "response" {
-                        if let Some(filter) = value.as_str() {
-                            apply_response_using_main_req_needed = false;
-                            apply_response(
-                                filter.to_string(),
-                                &broker_request.rpc.ctx.method,
-                                response,
-                            );
-                        }
-                    }
-                }
-            }
-        }
-        if apply_response_using_main_req_needed {
-            if let Some(filter) = broker_request
-                .rule
-                .transform
-                .get_transform_data(super::rules::rules_engine::RuleTransformType::Response)
-            {
-                apply_response(filter, rule_context_name, response);
-            } else if response.result.is_none() && response.error.is_none() {
-                response.result = Some(Value::Null);
-            }
-        }
-    }
-
-    async fn handle_service_message(
-        rpc_request: &RpcRequest,
-        message: &ApiMessage,
-        platform_state: &PlatformState,
-    ) {
-        let context = rpc_request.ctx.clone().context;
-        if context.len() < 2 {
-            error!("Context does not contain a valid service id");
-            return;
-        }
-        let service_id = context[1].to_string();
-        let service_sender = platform_state
-            .service_controller_state
-            .get_sender(&service_id)
-            .await;
-        if let Some(sender) = service_sender {
-            let json_rpc_response =
-                serde_json::from_str::<serde_json::Value>(message.jsonrpc_msg.clone().as_str())
-                    .unwrap();
-
-            let result = json_rpc_response.get("result").cloned().unwrap_or_default();
-            let jsonrpc = serde_json::to_string(
-                &json_rpc_response
-                    .get("jsonrpc")
-                    .cloned()
-                    .unwrap_or_default(),
-            )
-            .unwrap();
-            let id = ServiceMessageId::String(message.request_id.clone());
-
-            let service_message = ServiceMessage {
-                message: ServiceJsonRpcMessage::Success(ServiceJsonRpcSuccess {
-                    result,
-                    jsonrpc,
-                    id,
-                }),
-                context: Some(serde_json::to_value(rpc_request.ctx.clone()).unwrap_or_default()),
-            };
-            let msg_str = serde_json::to_string(&service_message).unwrap();
-            let mes = Message::Text(msg_str.clone());
-            debug!(
-                "Sending response to service {} message: {:?}",
-                service_id, mes
-            );
-            if let Err(err) = sender.try_send(mes) {
-                error!(
-                    "Failed to send request to service {}: {:?}",
-                    service_id, err
-                );
-            } else {
-                debug!("Successfully sent request to service: {}", service_id);
-            }
-        }
     }
 
     async fn handle_event(
@@ -1690,11 +1646,14 @@ impl BrokerOutputForwarder {
             if let Ok(event_handler_response_string) =
                 serde_json::to_string(&event_handler_response)
             {
-                if let Some(mut event_filter) = broker_request.rule.transform.get_transform_data(
-                    super::rules::rules_engine::RuleTransformType::Event(
-                        rpc_request.ctx.context.contains(&RPC_V2.into()),
-                    ),
-                ) {
+                if let Some(mut event_filter) =
+                    broker_request
+                        .rule
+                        .transform
+                        .get_transform_data(RuleTransformType::Event(
+                            rpc_request.ctx.context.contains(&RPC_V2.into()),
+                        ))
+                {
                     event_filter = event_filter
                         .replace("$event_handler_response", &event_handler_response_string);
 
@@ -1730,7 +1689,6 @@ impl BrokerOutputForwarder {
             let _ = session.send_json_rpc(message).await;
         }
     }
-
     pub fn handle_non_jsonrpc_response(
         data: &[u8],
         callback: BrokerCallback,
@@ -1745,19 +1703,17 @@ impl BrokerOutputForwarder {
         } else {
             None
         };
-
-        let result = if !data.is_empty() {
-            match serde_json::from_slice::<Value>(data) {
-                Ok(v) => Some(v),
-                Err(e) => {
-                    error!("handle_non_jsonrpc_response: Error parsing data: e={:?}", e);
-                    return Err(RippleError::ParseError);
-                }
-            }
-        } else {
-            None
-        };
-
+        let parse_result = serde_json::from_slice::<Value>(data);
+        debug!(
+            "parse result {:?} processing: {:?}, which is: {:?}",
+            parse_result,
+            data,
+            String::from_utf8_lossy(data)
+        );
+        if parse_result.is_err() {
+            return Err(RippleError::ParseError);
+        }
+        let result = Some(parse_result.unwrap());
         debug!("result {:?}", result);
         // build JsonRpcApiResponse
         let data = JsonRpcApiResponse {
@@ -1851,7 +1807,7 @@ pub fn apply_response(
                 Err(e) => {
                     response.error = Some(json!(e.to_string()));
                     error!(
-                        "jq compile error: e={:?}, filter={}, response={:?}",
+                        "jq compile error {:?} for rule {} and data {:?}",
                         e, result_response_filter, response
                     );
                 }
@@ -1860,7 +1816,7 @@ pub fn apply_response(
         Err(e) => {
             response.error = Some(json!(e.to_string()));
             error!(
-                "json rpc response error: e={:?}, filter={}, response={:?}",
+                "json rpc response error {:?} for rule {} and data {}",
                 e, result_response_filter, response
             );
         }
@@ -1920,8 +1876,12 @@ fn apply_filter(broker_request: &BrokerRequest, result: &Value, rpc_request: &Rp
 #[cfg(test)]
 mod endpoint_broker_tests {
     use super::*;
-    use crate::broker::rules::rules_engine::RuleTransform;
-    use ripple_sdk::{tokio::sync::mpsc::channel, Mockable};
+
+    use ripple_sdk::{
+        api::rules_engine::{Rule, RuleTransform},
+        tokio::sync::mpsc::channel,
+        Mockable,
+    };
 
     #[tokio::test]
     async fn test_send_error() {
@@ -1979,10 +1939,12 @@ mod endpoint_broker_tests {
     }
 
     mod endpoint_broker_state {
-        use ripple_sdk::{tokio, tokio::sync::mpsc::channel};
+        use ripple_sdk::{
+            api::rules_engine::{RuleEndpoint, RuleEndpointProtocol, RuleEngine},
+            tokio::{self, sync::mpsc::channel},
+        };
 
         use crate::{
-            broker::rules::rules_engine::{RuleEngine, RuleSet},
             service::extn::ripple_client::RippleClient,
             state::{bootstrap_state::ChannelsState, ops_metrics_state::OpMetricState},
         };
@@ -1990,10 +1952,9 @@ mod endpoint_broker_tests {
         use super::EndpointBrokerState;
         use crate::broker::endpoint_broker::BrokerConnectRequest;
         use crate::broker::endpoint_broker::ATOMIC_ID;
-        use crate::broker::rules::rules_engine::RuleEndpoint;
-        use crate::broker::rules::rules_engine::RuleEndpointProtocol;
+
         use ripple_sdk::api::session::AccountSession;
-        use std::{collections::HashMap, sync::atomic::Ordering};
+        use std::sync::atomic::Ordering;
 
         fn reset_counter(value: u64) {
             ATOMIC_ID.store(value, Ordering::SeqCst);
@@ -2121,10 +2082,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                RuleEngine {
-                    rules: RuleSet::default(),
-                    functions: HashMap::default(),
-                },
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
 
@@ -2152,10 +2112,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                RuleEngine {
-                    rules: RuleSet::default(),
-                    functions: HashMap::default(),
-                },
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
 
@@ -2183,10 +2142,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                RuleEngine {
-                    rules: RuleSet::default(),
-                    functions: HashMap::default(),
-                },
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
 
@@ -2214,10 +2172,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                RuleEngine {
-                    rules: RuleSet::default(),
-                    functions: HashMap::default(),
-                },
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
 
@@ -2245,10 +2202,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                RuleEngine {
-                    rules: RuleSet::default(),
-                    functions: HashMap::default(),
-                },
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
 
@@ -2276,10 +2232,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                RuleEngine {
-                    rules: RuleSet::default(),
-                    functions: HashMap::default(),
-                },
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
 
@@ -2307,10 +2262,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                RuleEngine {
-                    rules: RuleSet::default(),
-                    functions: HashMap::default(),
-                },
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
 
@@ -2340,10 +2294,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                RuleEngine {
-                    rules: RuleSet::default(),
-                    functions: HashMap::default(),
-                },
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
 
@@ -2578,23 +2531,21 @@ mod endpoint_broker_tests {
     }
     #[cfg(test)]
     mod static_rules {
-        use std::collections::HashMap;
-
         use crate::broker::endpoint_broker::apply_response;
         use crate::broker::endpoint_broker::BrokerConnectRequest;
         use crate::broker::endpoint_broker::BrokerOutput;
         use crate::broker::endpoint_broker::EndpointBrokerState;
-        use crate::broker::rules::rules_engine::RuleEndpoint;
-        use crate::broker::rules::rules_engine::RuleEndpointProtocol;
-        use crate::broker::rules::rules_engine::RuleEngine;
-        use crate::broker::rules::rules_engine::RuleSet;
-        use crate::broker::rules::rules_engine::{Rule, RuleTransform};
         use crate::service::extn::ripple_client::RippleClient;
         use crate::state::bootstrap_state::ChannelsState;
         use crate::state::ops_metrics_state::OpMetricState;
         use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
         use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
 
+        use ripple_sdk::api::rules_engine::Rule;
+        use ripple_sdk::api::rules_engine::RuleEndpoint;
+        use ripple_sdk::api::rules_engine::RuleEndpointProtocol;
+        use ripple_sdk::api::rules_engine::RuleEngine;
+        use ripple_sdk::api::rules_engine::RuleTransform;
         use ripple_sdk::tokio;
         use ripple_sdk::tokio::sync::mpsc::channel;
         use ripple_sdk::Mockable;
@@ -2611,10 +2562,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                RuleEngine {
-                    rules: RuleSet::default(),
-                    functions: HashMap::default(),
-                },
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
             let endpoint = RuleEndpoint {
@@ -2657,10 +2607,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                RuleEngine {
-                    rules: RuleSet::default(),
-                    functions: HashMap::default(),
-                },
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
             let endpoint = RuleEndpoint {
@@ -2705,10 +2654,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                RuleEngine {
-                    rules: RuleSet::default(),
-                    functions: HashMap::default(),
-                },
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
             let endpoint = RuleEndpoint {
@@ -2752,10 +2700,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                RuleEngine {
-                    rules: RuleSet::default(),
-                    functions: HashMap::default(),
-                },
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
             let endpoint = RuleEndpoint {
@@ -2798,10 +2745,9 @@ mod endpoint_broker_tests {
             let mut state = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                RuleEngine {
-                    rules: RuleSet::default(),
-                    functions: HashMap::default(),
-                },
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
             let endpoint = RuleEndpoint {
@@ -2838,28 +2784,25 @@ mod endpoint_broker_tests {
     #[cfg(test)]
     mod provided_request {
 
-        use std::collections::HashMap;
-
         use crate::{
-            broker::{
-                endpoint_broker::{EndpointBrokerState, RenderedRequest},
-                rules::rules_engine::{Rule, RuleEngine, RuleSet},
-            },
+            broker::endpoint_broker::{EndpointBrokerState, RenderedRequest},
             service::extn::ripple_client::RippleClient,
             state::{bootstrap_state::ChannelsState, ops_metrics_state::OpMetricState},
         };
         use ripple_sdk::{
-            api::gateway::rpc_gateway_api::RpcRequest, tokio::sync::mpsc::channel, Mockable,
+            api::{
+                gateway::rpc_gateway_api::RpcRequest,
+                rules_engine::{Rule, RuleEngine},
+            },
+            tokio::sync::mpsc::channel,
+            Mockable,
         };
         #[test]
         fn test_basic() {
             let (tx, _) = channel(2);
 
             let client = RippleClient::new(ChannelsState::new());
-            let mut engine = RuleEngine {
-                rules: RuleSet::default(),
-                functions: HashMap::default(),
-            };
+            let mut engine = RuleEngine::default();
             let r = Rule {
                 alias: "provided".to_owned(),
                 transform: Default::default(),
@@ -2870,7 +2813,12 @@ mod endpoint_broker_tests {
             };
             engine.add_rule(r);
 
-            let under_test = EndpointBrokerState::new(OpMetricState::default(), tx, engine, client);
+            let under_test = EndpointBrokerState::new(
+                OpMetricState::default(),
+                tx,
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(engine))),
+                client,
+            );
 
             let f = under_test.handle_provided_request(
                 &RpcRequest::mock(),
@@ -2895,10 +2843,9 @@ mod endpoint_broker_tests {
             let mut endpoint_broker = EndpointBrokerState::new(
                 OpMetricState::default(),
                 tx,
-                RuleEngine {
-                    rules: RuleSet::default(),
-                    functions: HashMap::default(),
-                },
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
                 client,
             );
             for endpoint in endpoints {
@@ -2908,20 +2855,21 @@ mod endpoint_broker_tests {
 
             endpoint_broker
         }
-        use std::collections::HashMap;
+        use std::sync::Arc;
 
+        use crate::broker::endpoint_broker::TokioRwLock;
         use crate::{
-            broker::{
-                endpoint_broker::{
-                    BrokerRequest, BrokerSender, EndpointBrokerState, HandleBrokerageError,
-                },
-                rules::rules_engine::{Rule, RuleEngine, RuleSet},
+            broker::endpoint_broker::{
+                BrokerRequest, BrokerSender, EndpointBrokerState, HandleBrokerageError,
             },
             service::extn::ripple_client::RippleClient,
             state::{bootstrap_state::ChannelsState, ops_metrics_state::OpMetricState},
         };
         use ripple_sdk::{
-            api::gateway::rpc_gateway_api::RpcRequest,
+            api::{
+                gateway::rpc_gateway_api::RpcRequest,
+                rules_engine::{Rule, RuleEngine, RuleEngineProvider},
+            },
             extn::extn_client_message::ExtnMessage,
             tokio::{
                 self,
@@ -2938,7 +2886,8 @@ mod endpoint_broker_tests {
                         .with_alias("static".to_string())
                         .with_endpoint("thunder".to_string())
                         .to_owned(),
-                );
+                )
+                .await;
             let broker_request = BrokerRequest::default();
             assert!(
                 under_test
@@ -2959,11 +2908,13 @@ mod endpoint_broker_tests {
         #[tokio::test]
         async fn test_dispatch_brokerage_provided_rule() {
             let (bs, _) = channel(2);
-            let mut under_test = endpoint_broker_state_under_test(vec![]).add_rule(
-                Rule::default()
-                    .with_alias("provided".to_string())
-                    .to_owned(),
-            );
+            let mut under_test = endpoint_broker_state_under_test(vec![])
+                .add_rule(
+                    Rule::default()
+                        .with_alias("provided".to_string())
+                        .to_owned(),
+                )
+                .await;
             let under_test =
                 under_test.add_endpoint("thunder".to_string(), BrokerSender { sender: bs });
             let broker_request = BrokerRequest::default();
@@ -3000,10 +2951,10 @@ mod endpoint_broker_tests {
         async fn test_dispatch_brokerage_endpoint_rule() {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
-            let mut engine = RuleEngine {
-                rules: RuleSet::default(),
-                functions: HashMap::default(),
-            };
+            let engine: Arc<TokioRwLock<Box<dyn RuleEngineProvider + Send + Sync>>> =
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                )));
             let rule = Rule {
                 alias: "endpoint".to_owned(),
                 transform: Default::default(),
@@ -3012,9 +2963,13 @@ mod endpoint_broker_tests {
                 event_handler: None,
                 sources: None,
             };
-            engine.add_rule(rule);
+            {
+                let mut mutant = engine.write().await;
+                mutant.add_rule(rule);
+                drop(mutant);
+            }
             let mut under_test =
-                EndpointBrokerState::new(OpMetricState::default(), tx, engine, client);
+                EndpointBrokerState::new(OpMetricState::default(), tx, engine.clone(), client);
 
             let (tx, _) = mpsc::channel::<BrokerRequest>(10);
             under_test.add_endpoint("thunder".to_string(), BrokerSender { sender: tx });
@@ -3022,8 +2977,9 @@ mod endpoint_broker_tests {
             let mut request = RpcRequest::mock();
             request.method = "endpoint".to_string();
 
-            let result =
-                under_test.handle_brokerage_workflow(request, None, None, vec![], None, vec![]);
+            let result = under_test
+                .handle_brokerage_workflow(request, None, None, vec![], None, vec![])
+                .await;
             assert!(result.is_ok(), "Expected Ok but got: {:?}", result);
         }
 
@@ -3031,17 +2987,21 @@ mod endpoint_broker_tests {
         async fn test_dispatch_brokerage_rule_not_found() {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
-            let engine = RuleEngine {
-                rules: RuleSet::default(),
-                functions: HashMap::default(),
-            };
-            let under_test = EndpointBrokerState::new(OpMetricState::default(), tx, engine, client);
+            let under_test = EndpointBrokerState::new(
+                OpMetricState::default(),
+                tx,
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                ))),
+                client,
+            );
 
             let mut request = RpcRequest::mock();
             request.method = "nonexistent".to_string();
 
-            let result =
-                under_test.handle_brokerage_workflow(request, None, None, vec![], None, vec![]);
+            let result = under_test
+                .handle_brokerage_workflow(request, None, None, vec![], None, vec![])
+                .await;
             assert!(
                 matches!(result, Err(HandleBrokerageError::RuleNotFound(_))),
                 "Expected RuleNotFound error but got: {:?}",
@@ -3053,10 +3013,10 @@ mod endpoint_broker_tests {
         async fn test_dispatch_brokerage_broker_not_found() {
             let (tx, _) = channel(2);
             let client = RippleClient::new(ChannelsState::new());
-            let mut engine = RuleEngine {
-                rules: RuleSet::default(),
-                functions: HashMap::default(),
-            };
+            let engine: Arc<TokioRwLock<Box<dyn RuleEngineProvider + Send + Sync>>> =
+                std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                    RuleEngine::default(),
+                )));
             let rule = Rule {
                 alias: "endpoint".to_owned(),
                 transform: Default::default(),
@@ -3065,14 +3025,20 @@ mod endpoint_broker_tests {
                 event_handler: None,
                 sources: None,
             };
-            engine.add_rule(rule);
-            let under_test = EndpointBrokerState::new(OpMetricState::default(), tx, engine, client);
+            {
+                let mut mutant = engine.write().await;
+                mutant.add_rule(rule);
+                drop(mutant);
+            }
+            let under_test =
+                EndpointBrokerState::new(OpMetricState::default(), tx, engine.clone(), client);
 
             let mut request = RpcRequest::mock();
             request.method = "endpoint".to_string();
 
-            let result =
-                under_test.handle_brokerage_workflow(request, None, None, vec![], None, vec![]);
+            let result = under_test
+                .handle_brokerage_workflow(request, None, None, vec![], None, vec![])
+                .await;
             assert!(
                 matches!(result, Err(HandleBrokerageError::BrokerNotFound(_))),
                 "Expected BrokerNotFound error but got: {:?}",
@@ -3081,14 +3047,13 @@ mod endpoint_broker_tests {
         }
         #[cfg(test)]
         mod update_request {
-            use ripple_sdk::{api::gateway::rpc_gateway_api::RpcRequest, tokio};
+            use ripple_sdk::{
+                api::{gateway::rpc_gateway_api::RpcRequest, rules_engine::RuleTransform},
+                tokio,
+            };
 
             use crate::{
-                broker::{
-                    endpoint_broker::BrokerCallback,
-                    rules::rules_engine::{Rule, RuleSet, RuleTransform},
-                },
-                state::ops_metrics_state::OpMetricState,
+                broker::endpoint_broker::BrokerCallback, state::ops_metrics_state::OpMetricState,
             };
 
             use super::*;
@@ -3101,10 +3066,9 @@ mod endpoint_broker_tests {
                 let state = EndpointBrokerState::new(
                     OpMetricState::default(),
                     tx,
-                    RuleEngine {
-                        rules: RuleSet::default(),
-                        functions: HashMap::default(),
-                    },
+                    std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                        RuleEngine::default(),
+                    ))),
                     client,
                 );
 
@@ -3130,10 +3094,9 @@ mod endpoint_broker_tests {
                 let state = EndpointBrokerState::new(
                     OpMetricState::default(),
                     tx,
-                    RuleEngine {
-                        rules: RuleSet::default(),
-                        functions: HashMap::default(),
-                    },
+                    std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                        RuleEngine::default(),
+                    ))),
                     client,
                 );
 
@@ -3161,10 +3124,9 @@ mod endpoint_broker_tests {
                 let state = EndpointBrokerState::new(
                     OpMetricState::default(),
                     tx,
-                    RuleEngine {
-                        rules: RuleSet::default(),
-                        functions: HashMap::default(),
-                    },
+                    std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                        RuleEngine::default(),
+                    ))),
                     client,
                 );
 
@@ -3198,10 +3160,9 @@ mod endpoint_broker_tests {
                 let state = EndpointBrokerState::new(
                     OpMetricState::default(),
                     tx,
-                    RuleEngine {
-                        rules: RuleSet::default(),
-                        functions: HashMap::default(),
-                    },
+                    std::sync::Arc::new(ripple_sdk::tokio::sync::RwLock::new(Box::new(
+                        RuleEngine::default(),
+                    ))),
                     client,
                 );
 
@@ -3255,30 +3216,5 @@ mod endpoint_broker_tests {
             // Should not panic or send anything
             assert!(cleaner.cleanup_session("test_app").await.is_err());
         }
-    }
-    #[cfg(test)]
-    mod workflow {
-        // fn test_workflow() {
-        //     let (tx, _) = channel(2);
-        //     let client = RippleClient::new(ChannelsState::new());
-        //     let mut state = EndpointBrokerState::new(
-        //         MetricsState::default(),
-        //         tx,
-        //         RuleEngine {
-        //             rules: RuleSet::default(),
-        //         },
-        //         client,
-        //     );
-        //     let endpoint = RuleEndpoint {
-        //         protocol: RuleEndpointProtocol::Http,
-        //         ..Default::default()
-        //     };
-        //     let request = BrokerConnectRequest::new(
-        //         "http_endpoint".to_string(),
-        //         endpoint.clone(),
-        //         state.reconnect_tx.clone(),
-        //     );
-        //     state.build_endpoint(None, request);
-        // }
     }
 }

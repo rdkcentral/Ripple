@@ -829,6 +829,7 @@ impl DelegatedLauncherHandler {
             if platform_state
                 .endpoint_state
                 .has_rule("ripple.reportSessionUpdate")
+                .await
             {
                 if let Ok(AppManagerResponse::Session(a)) = app_manager_response {
                     let params = serde_json::to_value(a).unwrap();
@@ -849,6 +850,7 @@ impl DelegatedLauncherHandler {
         if platform_state
             .endpoint_state
             .has_rule("ripple.reportLifecycleStateChange")
+            .await
         {
             let previous_state = platform_state.app_manager_state.get_internal_state(app_id);
 

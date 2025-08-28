@@ -43,9 +43,12 @@ contract_tests = [
     "websocket_contract_tests",
 ]
 tdk=[]
+ssda=[]
 [dependencies]
 base64.workspace = true
-ripple_sdk = { workspace = true, features = ["full"] }
+ripple_sdk = { path = "../sdk" }
+
+
 jsonrpsee = { workspace = true, features = ["macros"] }
 futures-channel.workspace = true
 futures.workspace = true
@@ -71,6 +74,10 @@ strum_macros = "0.24"
 
 openrpc_validator = { path = "../../openrpc_validator" }
 proc-macro2.workspace = true
+ssda_service = { path="../../ssda/ssda_service" }
+ssda_types= { path = "../../ssda/ssda_types"}
+
+
 
 [build-dependencies]
 vergen = "1"

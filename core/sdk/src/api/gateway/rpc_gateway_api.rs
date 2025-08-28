@@ -17,7 +17,7 @@
 
 use jsonrpsee::types::ErrorObject;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
@@ -259,6 +259,29 @@ impl JsonRpcApiRequest {
         self.id = Some(id);
         self
     }
+    pub fn as_json(&self) -> serde_json::Value {
+        serde_json::to_value(self).unwrap_or_default()
+    }
+}
+impl From<JsonRpcApiRequest> for RpcRequest {
+    fn from(request: JsonRpcApiRequest) -> Self {
+        RpcRequest {
+            ctx: CallContext::default(),
+            method: request.method,
+            params_json: serde_json::to_string(&request.params.unwrap_or_default())
+                .unwrap_or_default(),
+        }
+    }
+}
+impl From<RpcRequest> for JsonRpcApiRequest {
+    fn from(request: RpcRequest) -> Self {
+        JsonRpcApiRequest {
+            jsonrpc: "2.0".to_owned(),
+            id: Some(request.clone().ctx.call_id),
+            method: request.clone().method,
+            params: request.get_params_as_map(),
+        }
+    }
 }
 
 #[derive(Clone, Default, Debug)]
@@ -392,6 +415,9 @@ impl JsonRpcApiResponse {
             params: None,
         }
     }
+    pub fn from_value(value: Value) -> Result<Self, serde_json::Error> {
+        serde_json::from_value::<JsonRpcApiResponse>(value)
+    }
 
     pub fn update_event_message(&mut self, request: &RpcRequest) {
         if request.is_rpc_v2() {
@@ -522,6 +548,14 @@ impl RpcRequest {
     pub fn with_cid(mut self, cid: String) -> Self {
         self.ctx.cid = Some(cid);
         self
+    }
+    pub fn as_json_rpc(&self) -> JsonRpcApiRequest {
+        JsonRpcApiRequest {
+            jsonrpc: "2.0".to_owned(),
+            id: Some(self.ctx.call_id),
+            method: self.method.clone(),
+            params: self.get_params_as_map(),
+        }
     }
 }
 impl ExtnPayloadProvider for RpcRequest {
@@ -654,6 +688,14 @@ impl RpcRequest {
             if v.len() > 1 {
                 return v.pop();
             }
+        }
+        None
+    }
+    pub fn get_params_as_map(&self) -> Option<serde_json::Value> {
+        if let Ok(params) = serde_json::from_str::<Value>(&self.params_json.clone()) {
+            let params_map: Map<String, Value> = params.as_object().unwrap_or(&Map::new()).clone();
+
+            return Some(Value::Object(params_map));
         }
         None
     }
@@ -1054,5 +1096,15 @@ mod tests {
         let new = RpcRequest::mock().get_unsubscribe();
         let request = serde_json::from_str::<ListenRequest>(&new.params_json).unwrap();
         assert!(!request.listen);
+    }
+    #[test]
+    fn test_params_as_map() {
+        let mut rpc_request = RpcRequest::mock();
+        rpc_request.params_json = r#"{"param1": {"key": "value"}}"#.to_string();
+        let params = rpc_request.get_params_as_map().unwrap();
+        assert!(params.is_object());
+        let map = params.as_object().unwrap();
+        assert!(map.contains_key("param1"));
+        assert_eq!(map.get("param1").unwrap(), &json!({"key": "value"}));
     }
 }

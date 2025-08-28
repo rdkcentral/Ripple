@@ -364,14 +364,17 @@ impl FireboltGateway {
                     let requestor_callback_tx =
                         Self::handle_broker_callback(platform_state.clone(), request_c.clone());
 
-                    let handled = platform_state.endpoint_state.handle_brokerage(
-                        request_c.clone(),
-                        extn_msg.clone(),
-                        None,
-                        p,
-                        session.clone(),
-                        vec![requestor_callback_tx],
-                    );
+                    let handled = platform_state
+                        .endpoint_state
+                        .handle_brokerage(
+                            request_c.clone(),
+                            extn_msg.clone(),
+                            None,
+                            p,
+                            session.clone(),
+                            vec![requestor_callback_tx],
+                        )
+                        .await;
                     //.is_ok();
 
                     if !handled {
