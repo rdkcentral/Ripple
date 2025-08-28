@@ -33,8 +33,8 @@ include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
 use mimalloc::MiMalloc;
 use std::time::Duration;
-#[global_allocator]
-static GLOBAL: MiMalloc = MiMalloc;
+// #[global_allocator]
+// static GLOBAL: MiMalloc = MiMalloc;
 
 extern "C" {
     fn malloc_trim(pad: usize) -> i32;
