@@ -31,7 +31,32 @@ pub mod state;
 pub mod utils;
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
-#[tokio::main(worker_threads = 2)]
+use mimalloc::MiMalloc;
+use std::time::Duration;
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
+extern "C" {
+    fn malloc_trim(pad: usize) -> i32;
+}
+
+pub fn trim() {
+    unsafe {
+        let _ = malloc_trim(0);
+    }
+}
+
+async fn start_trim_task() {
+    tokio::spawn(async {
+        let mut t = tokio::time::interval(Duration::from_secs(30));
+        loop {
+            t.tick().await;
+            trim();
+        }
+    });
+}
+
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
     // Init logger
     if let Err(e) = init_and_configure_logger(SEMVER_LIGHTWEIGHT, "gateway".into()) {
@@ -39,6 +64,7 @@ async fn main() {
         return;
     }
     info!("version {}", SEMVER_LIGHTWEIGHT);
+    start_trim_task().await;
     let bootstate = BootstrapState::build().expect("Failure to init state for bootstrap");
 
     // bootstrap
