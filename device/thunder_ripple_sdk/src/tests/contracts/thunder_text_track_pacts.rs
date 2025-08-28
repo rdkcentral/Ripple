@@ -48,6 +48,7 @@ async fn test_text_track_get_font_family() {
 
     pact_builder_async
     .synchronous_message_interaction("A request to get the font family", |mut i| async move {
+        i.given("font family for texttrack is set");
         i.contents_from(json!({
             "pact:content-type": "application/json",
             "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 1)", "method": "org.rdk.TextTrack.getFontFamily"},
@@ -142,6 +143,7 @@ async fn test_text_track_get_font_size() {
 
     pact_builder_async
         .synchronous_message_interaction("A request to get the font size", |mut i| async move {
+                i.given("font size for texttrack is set");
             i.contents_from(json!({
                 "pact:content-type": "application/json",
                 "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 3)", "method": "org.rdk.TextTrack.getFontSize"},
@@ -237,6 +239,7 @@ async fn test_text_track_get_font_color() {
 
     pact_builder_async
         .synchronous_message_interaction("A request to get the font color", |mut i| async move {
+                i.given("font color for texttrack is set");
             i.contents_from(json!({
                 "pact:content-type": "application/json",
                 "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 5)", "method": "org.rdk.TextTrack.getFontColor"},
@@ -332,6 +335,7 @@ async fn test_text_track_get_font_edge() {
 
     pact_builder_async
         .synchronous_message_interaction("A request to get the font edge", |mut i| async move {
+                i.given("font edge for texttrack is set");
             i.contents_from(json!({
                 "pact:content-type": "application/json",
                 "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 7)", "method": "org.rdk.TextTrack.getFontEdge"},
@@ -427,6 +431,7 @@ async fn test_text_track_get_font_edge_color() {
 
     pact_builder_async
         .synchronous_message_interaction("A request to get the font edge color", |mut i| async move {
+                i.given("font edge color for texttrack is set");
             i.contents_from(json!({
                 "pact:content-type": "application/json",
                 "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 9)", "method": "org.rdk.TextTrack.getFontEdgeColor"},
@@ -525,6 +530,7 @@ async fn test_text_track_get_font_opacity() {
 
     pact_builder_async
         .synchronous_message_interaction("A request to get the font opacity", |mut i| async move {
+                i.given("font opacity for texttrack is set");
             i.contents_from(json!({
                 "pact:content-type": "application/json",
                 "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 11)", "method": "org.rdk.TextTrack.getFontOpacity"},
@@ -620,6 +626,7 @@ async fn test_text_track_get_background_color() {
 
     pact_builder_async
         .synchronous_message_interaction("A request to get the background color", |mut i| async move {
+                i.given("background color for texttrack is set");
             i.contents_from(json!({
                 "pact:content-type": "application/json",
                 "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 13)", "method": "org.rdk.TextTrack.getBackgroundColor"},
@@ -718,6 +725,7 @@ async fn test_text_track_get_background_opacity() {
 
     pact_builder_async
         .synchronous_message_interaction("A request to get the background opacity", |mut i| async move {
+                i.given("background opacity for texttrack is set");
             i.contents_from(json!({
                 "pact:content-type": "application/json",
                 "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 15)", "method": "org.rdk.TextTrack.getBackgroundOpacity"},
@@ -816,6 +824,7 @@ async fn test_text_track_get_window_color() {
 
     pact_builder_async
         .synchronous_message_interaction("A request to get the window color", |mut i| async move {
+                i.given("window color for texttrack is set");
             i.contents_from(json!({
                 "pact:content-type": "application/json",
                 "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 17)", "method": "org.rdk.TextTrack.getWindowColor"},
@@ -911,6 +920,7 @@ async fn test_text_track_get_window_opacity() {
 
     pact_builder_async
         .synchronous_message_interaction("A request to get the window opacity", |mut i| async move {
+                i.given("window opacity for texttrack is set");
             i.contents_from(json!({
                 "pact:content-type": "application/json",
                 "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 19)", "method": "org.rdk.TextTrack.getWindowOpacity"},

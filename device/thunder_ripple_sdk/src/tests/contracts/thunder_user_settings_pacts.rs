@@ -414,6 +414,7 @@ async fn test_device_get_audio_description() {
         .synchronous_message_interaction(
             "A request to get the audio description",
             |mut i| async move {
+                i.given("audio description user setting is set");
                 i.contents_from(json!({
                     "pact:content-type": "application/json",
                     "request": {
@@ -520,6 +521,7 @@ async fn test_device_get_high_contrast() {
         .synchronous_message_interaction(
             "A request to get the high contrast setting",
             |mut i| async move {
+                i.given("high contrast user setting is set");
                 i.contents_from(json!({
                     "pact:content-type": "application/json",
                     "request": {
@@ -569,6 +571,7 @@ async fn test_device_get_captions() {
         .synchronous_message_interaction(
             "A request to get the captions setting",
             |mut i| async move {
+                i.given("captions user setting is set");
                 i.contents_from(json!({
                     "pact:content-type": "application/json",
                     "request": {
@@ -781,6 +784,7 @@ async fn test_device_get_voice_guidance_hints() {
         .synchronous_message_interaction(
             "A request to get the voice guidance hints",
             |mut i| async move {
+                i.given("voice guidance hints user setting is set");
                 i.contents_from(json!({
                     "pact:content-type": "application/json",
                     "request": {
@@ -831,6 +835,7 @@ async fn test_device_set_voice_guidance_hints() {
         .synchronous_message_interaction(
             "A request to set the voice guidance hints",
             |mut i| async move {
+                i.given("voice guidance rate user setting is set");
                 i.contents_from(json!({
                     "pact:content-type": "application/json",
                     "request": {
@@ -887,6 +892,7 @@ async fn test_device_get_voice_guidance() {
         .synchronous_message_interaction(
             "A request to get the voice guidance setting",
             |mut i| async move {
+                i.given("voice guidance user setting is set");
                 i.contents_from(json!({
                     "pact:content-type": "application/json",
                     "request": {
