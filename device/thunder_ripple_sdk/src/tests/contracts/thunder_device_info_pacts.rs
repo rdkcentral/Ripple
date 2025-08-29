@@ -120,6 +120,7 @@ async fn test_device_get_model() {
 
     pact_builder_async
         .synchronous_message_interaction("A request to get the device model", |mut i| async move {
+            i.given("System Version info is set");
             i.contents_from(get_pact!(
                 "org.rdk.System.1.getSystemVersions",
                 ContractResult { result }
