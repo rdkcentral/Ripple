@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use crate::api::firebolt::fb_general::AgePolicyIdentifierAlias;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 //https://developer.comcast.com/firebolt/core/sdk/latest/api/metrics
@@ -373,7 +374,7 @@ pub struct ErrorParams {
     pub description: String,
     pub visible: bool,
     pub parameters: Option<HashMap<String, FlatMapValue>>,
-    pub age_policy: Option<String>,
+    pub age_policy: Option<AgePolicyIdentifierAlias>,
 }
 
 impl From<ErrorParams> for ErrorType {

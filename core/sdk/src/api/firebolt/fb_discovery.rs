@@ -19,6 +19,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
+use crate::api::firebolt::fb_general::AgePolicyIdentifierAlias;
 use crate::utils::error::RippleError;
 use crate::{
     api::{
@@ -119,6 +120,7 @@ pub struct WatchedInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub watched_on: Option<String>,
+    pub age_policy: Option<AgePolicyIdentifierAlias>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
