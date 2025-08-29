@@ -288,7 +288,7 @@ impl ProviderBroker {
                 .send(ProviderResponsePayload::GenericError(
                     GenericProviderError {
                         code: 320001,
-                        message: "Provider not found".into(),
+                        message: format!("Provider not found for {}", request.method),
                         data: None,
                     },
                 ))
