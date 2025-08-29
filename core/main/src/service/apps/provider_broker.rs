@@ -287,7 +287,7 @@ impl ProviderBroker {
                 .tx
                 .send(ProviderResponsePayload::GenericError(
                     GenericProviderError {
-                        code: 320001,
+                        code: 32001,
                         message: format!("Provider not found for {}", request.method),
                         data: None,
                     },
