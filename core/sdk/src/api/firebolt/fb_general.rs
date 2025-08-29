@@ -88,3 +88,288 @@ impl std::fmt::Display for AgePolicyIdentifierAlias {
         write!(f, "{}", self.as_str())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Comprehensive JSON serialization/deserialization tests for Firebolt OpenRPC compliance
+
+    #[test]
+    fn test_listen_request_json_serialization() {
+        let request = ListenRequest { listen: true };
+
+        let json = serde_json::to_string(&request).unwrap();
+        let deserialized: ListenRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(request, deserialized);
+    }
+
+    #[test]
+    fn test_listen_request_json_deserialization() {
+        let json = r#"{"listen": false}"#;
+        let deserialized: ListenRequest = serde_json::from_str(json).unwrap();
+        assert!(!deserialized.listen);
+    }
+
+    #[test]
+    fn test_listen_request_true_value() {
+        let json = r#"{"listen": true}"#;
+        let deserialized: ListenRequest = serde_json::from_str(json).unwrap();
+        assert!(deserialized.listen);
+    }
+
+    #[test]
+    fn test_listen_request_invalid_json() {
+        let invalid_json = r#"{"listen": "not_boolean"}"#;
+        let result: Result<ListenRequest, _> = serde_json::from_str(invalid_json);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_listen_request_with_event_json_serialization() {
+        let context = CallContext {
+            session_id: "test_session".to_string(),
+            request_id: "test_request".to_string(),
+            app_id: "test_app".to_string(),
+            call_id: 123,
+            protocol: crate::api::gateway::rpc_gateway_api::ApiProtocol::Bridge,
+            method: "test_method".to_string(),
+            cid: Some("test_cid".to_string()),
+            gateway_secure: false,
+            context: vec!["test_context".to_string()],
+        };
+
+        let request_with_event = ListenRequestWithEvent {
+            event: "test.event".to_string(),
+            request: ListenRequest { listen: true },
+            context,
+        };
+
+        let json = serde_json::to_string(&request_with_event).unwrap();
+        let deserialized: ListenRequestWithEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(request_with_event, deserialized);
+    }
+
+    #[test]
+    fn test_listen_request_with_event_json_deserialization() {
+        let json = r#"{
+            "event": "device.power",
+            "request": {"listen": false},
+            "context": {
+                "session_id": "session123",
+                "request_id": "request456",
+                "app_id": "app789",
+                "call_id": 789,
+                "protocol": "Bridge",
+                "method": "power.status",
+                "cid": "call123",
+                "gateway_secure": true,
+                "context": ["test_context"]
+            }
+        }"#;
+
+        let deserialized: ListenRequestWithEvent = serde_json::from_str(json).unwrap();
+        assert_eq!(deserialized.event, "device.power");
+        assert!(!deserialized.request.listen);
+        assert_eq!(deserialized.context.session_id, "session123");
+        assert_eq!(deserialized.context.call_id, 789);
+    }
+
+    #[test]
+    fn test_listen_request_with_event_invalid_json() {
+        let invalid_json = r#"{"event": "test", "request": "invalid"}"#;
+        let result: Result<ListenRequestWithEvent, _> = serde_json::from_str(invalid_json);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_listener_response_json_serialization() {
+        let response = ListenerResponse {
+            listening: true,
+            event: "device.test".to_string(),
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        let deserialized: ListenerResponse = serde_json::from_str(&json).unwrap();
+        assert_eq!(response.listening, deserialized.listening);
+        assert_eq!(response.event, deserialized.event);
+    }
+
+    #[test]
+    fn test_listener_response_json_deserialization() {
+        let json = r#"{
+            "listening": false,
+            "event": "lifecycle.background"
+        }"#;
+
+        let deserialized: ListenerResponse = serde_json::from_str(json).unwrap();
+        assert!(!deserialized.listening);
+        assert_eq!(deserialized.event, "lifecycle.background");
+    }
+
+    #[test]
+    fn test_listener_response_invalid_json() {
+        let invalid_json = r#"{"listening": 123}"#;
+        let result: Result<ListenerResponse, _> = serde_json::from_str(invalid_json);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_age_policy_identifier_alias_json_serialization() {
+        let child = AgePolicyIdentifierAlias::AppChild;
+        let teen = AgePolicyIdentifierAlias::AppTeen;
+        let adult = AgePolicyIdentifierAlias::AppAdult;
+        let unknown = AgePolicyIdentifierAlias::AppUnknown;
+
+        let child_json = serde_json::to_string(&child).unwrap();
+        let teen_json = serde_json::to_string(&teen).unwrap();
+        let adult_json = serde_json::to_string(&adult).unwrap();
+        let unknown_json = serde_json::to_string(&unknown).unwrap();
+
+        let deserialized_child: AgePolicyIdentifierAlias =
+            serde_json::from_str(&child_json).unwrap();
+        let deserialized_teen: AgePolicyIdentifierAlias = serde_json::from_str(&teen_json).unwrap();
+        let deserialized_adult: AgePolicyIdentifierAlias =
+            serde_json::from_str(&adult_json).unwrap();
+        let deserialized_unknown: AgePolicyIdentifierAlias =
+            serde_json::from_str(&unknown_json).unwrap();
+
+        assert_eq!(child, deserialized_child);
+        assert_eq!(teen, deserialized_teen);
+        assert_eq!(adult, deserialized_adult);
+        assert_eq!(unknown, deserialized_unknown);
+    }
+
+    #[test]
+    fn test_age_policy_identifier_alias_json_deserialization() {
+        let child_json = "\"AppChild\"";
+        let teen_json = "\"AppTeen\"";
+        let adult_json = "\"AppAdult\"";
+        let unknown_json = "\"AppUnknown\"";
+
+        let deserialized_child: AgePolicyIdentifierAlias =
+            serde_json::from_str(child_json).unwrap();
+        let deserialized_teen: AgePolicyIdentifierAlias = serde_json::from_str(teen_json).unwrap();
+        let deserialized_adult: AgePolicyIdentifierAlias =
+            serde_json::from_str(adult_json).unwrap();
+        let deserialized_unknown: AgePolicyIdentifierAlias =
+            serde_json::from_str(unknown_json).unwrap();
+
+        assert_eq!(deserialized_child, AgePolicyIdentifierAlias::AppChild);
+        assert_eq!(deserialized_teen, AgePolicyIdentifierAlias::AppTeen);
+        assert_eq!(deserialized_adult, AgePolicyIdentifierAlias::AppAdult);
+        assert_eq!(deserialized_unknown, AgePolicyIdentifierAlias::AppUnknown);
+    }
+
+    #[test]
+    fn test_age_policy_identifier_alias_default() {
+        let default = AgePolicyIdentifierAlias::default();
+        assert_eq!(default, AgePolicyIdentifierAlias::AppUnknown);
+    }
+
+    #[test]
+    fn test_age_policy_identifier_alias_from_option_string() {
+        let from_child = AgePolicyIdentifierAlias::from(Some("app:child".to_string()));
+        let from_teen = AgePolicyIdentifierAlias::from(Some("app:teen".to_string()));
+        let from_adult = AgePolicyIdentifierAlias::from(Some("app:adult".to_string()));
+        let from_unknown = AgePolicyIdentifierAlias::from(Some("unknown".to_string()));
+        let from_none = AgePolicyIdentifierAlias::from(None);
+
+        assert_eq!(from_child, AgePolicyIdentifierAlias::AppChild);
+        assert_eq!(from_teen, AgePolicyIdentifierAlias::AppTeen);
+        assert_eq!(from_adult, AgePolicyIdentifierAlias::AppAdult);
+        assert_eq!(from_unknown, AgePolicyIdentifierAlias::AppUnknown);
+        assert_eq!(from_none, AgePolicyIdentifierAlias::AppUnknown);
+    }
+
+    #[test]
+    fn test_age_policy_identifier_alias_from_string_method() {
+        let from_child = AgePolicyIdentifierAlias::from_string(Some("app:child".to_string()));
+        let from_teen = AgePolicyIdentifierAlias::from_string(Some("app:teen".to_string()));
+        let from_adult = AgePolicyIdentifierAlias::from_string(Some("app:adult".to_string()));
+        let from_invalid = AgePolicyIdentifierAlias::from_string(Some("invalid".to_string()));
+        let from_none = AgePolicyIdentifierAlias::from_string(None);
+
+        assert_eq!(from_child, Some(AgePolicyIdentifierAlias::AppChild));
+        assert_eq!(from_teen, Some(AgePolicyIdentifierAlias::AppTeen));
+        assert_eq!(from_adult, Some(AgePolicyIdentifierAlias::AppAdult));
+        assert_eq!(from_invalid, Some(AgePolicyIdentifierAlias::AppUnknown));
+        assert_eq!(from_none, None);
+    }
+
+    #[test]
+    fn test_age_policy_identifier_alias_as_str() {
+        assert_eq!(AgePolicyIdentifierAlias::AppChild.as_str(), "app:child");
+        assert_eq!(AgePolicyIdentifierAlias::AppTeen.as_str(), "app:teen");
+        assert_eq!(AgePolicyIdentifierAlias::AppAdult.as_str(), "app:adult");
+        assert_eq!(AgePolicyIdentifierAlias::AppUnknown.as_str(), "app:unknown");
+    }
+
+    #[test]
+    fn test_age_policy_identifier_alias_display() {
+        assert_eq!(
+            format!("{}", AgePolicyIdentifierAlias::AppChild),
+            "app:child"
+        );
+        assert_eq!(format!("{}", AgePolicyIdentifierAlias::AppTeen), "app:teen");
+        assert_eq!(
+            format!("{}", AgePolicyIdentifierAlias::AppAdult),
+            "app:adult"
+        );
+        assert_eq!(
+            format!("{}", AgePolicyIdentifierAlias::AppUnknown),
+            "app:unknown"
+        );
+    }
+
+    #[test]
+    fn test_age_policy_identifier_alias_case_insensitive() {
+        let from_upper = AgePolicyIdentifierAlias::from(Some("APP:CHILD".to_string()));
+        let from_mixed = AgePolicyIdentifierAlias::from(Some("App:Teen".to_string()));
+
+        assert_eq!(from_upper, AgePolicyIdentifierAlias::AppChild);
+        assert_eq!(from_mixed, AgePolicyIdentifierAlias::AppTeen);
+    }
+
+    #[test]
+    fn test_age_policy_identifier_alias_invalid_json() {
+        let invalid_json = "\"InvalidVariant\"";
+        let result: Result<AgePolicyIdentifierAlias, _> = serde_json::from_str(invalid_json);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_complex_listen_request_with_event_roundtrip() {
+        let context = CallContext {
+            session_id: "complex_session_123".to_string(),
+            request_id: "complex_request_456".to_string(),
+            app_id: "com.complex.app".to_string(),
+            call_id: 9999,
+            protocol: crate::api::gateway::rpc_gateway_api::ApiProtocol::Bridge,
+            method: "complex.method.test".to_string(),
+            cid: Some("complex_cid_789".to_string()),
+            gateway_secure: true,
+            context: vec!["complex_context".to_string(), "another_context".to_string()],
+        };
+
+        let complex_request = ListenRequestWithEvent {
+            event: "lifecycle.foreground.background.transition".to_string(),
+            request: ListenRequest { listen: false },
+            context,
+        };
+
+        let json = serde_json::to_string(&complex_request).unwrap();
+        let deserialized: ListenRequestWithEvent = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(complex_request, deserialized);
+        assert_eq!(
+            deserialized.event,
+            "lifecycle.foreground.background.transition"
+        );
+        assert!(!deserialized.request.listen);
+        assert_eq!(deserialized.context.app_id, "com.complex.app");
+        assert_eq!(deserialized.context.call_id, 9999);
+        assert!(deserialized.context.gateway_secure);
+        assert_eq!(deserialized.context.context.len(), 2);
+    }
+}
