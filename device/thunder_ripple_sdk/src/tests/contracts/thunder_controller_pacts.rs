@@ -56,6 +56,42 @@ async fn test_register_state_change_event() {
     .await;
 }
 
+//added to avoid RESPONSE: {"jsonrpc":"2.0","error":{"code":-32600,"message":"Cannot find a matching response for the received request","data":""}}
+#[tokio::test(flavor = "multi_thread")]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
+async fn test_controller_status_no_callsign() {
+    mock_websocket_server!(
+        builder,
+        server,
+        server_url,
+        "controller_status_no_callsign",
+        json!({
+            "pact:content-type": "application/json",
+            "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 3)", "method": "Controller.1.status"},
+            "requestMetadata": {
+                "path": "/jsonrpc"
+            },
+            "response": [{
+                "jsonrpc": "matching(type, '2.0')",
+                "id": "matching(integer, 3)",
+                "result": [{
+                    "state": "activated"
+                }]
+            }]
+        })
+    );
+
+    send_thunder_call_message!(
+        server_url.to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "Controller.1.status"
+        })
+    )
+    .await;
+}
+
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_info_plugin_status() {
