@@ -67,13 +67,13 @@ async fn test_controller_status_no_callsign() {
         "controller_status_no_callsign",
         json!({
             "pact:content-type": "application/json",
-            "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 3)", "method": "Controller.1.status"},
+            "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "Controller.1.status"},
             "requestMetadata": {
                 "path": "/jsonrpc"
             },
             "response": [{
                 "jsonrpc": "matching(type, '2.0')",
-                "id": "matching(integer, 3)",
+                "id": "matching(integer, 0)",
                 "result": [{
                     "state": "activated"
                 }]
@@ -102,13 +102,13 @@ async fn test_device_info_plugin_status() {
         "device_info_plugin_status",
         json!({
             "pact:content-type": "application/json",
-            "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 1)", "method": "Controller.1.status@DeviceInfo"},
+            "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "Controller.1.status@DeviceInfo"},
             "requestMetadata": {
                 "path": "/jsonrpc"
             },
             "response": [{
                 "jsonrpc": "matching(type, '2.0')",
-                "id": "matching(integer, 1)",
+                "id": "matching(integer, 0)",
                 "result": [{
                     "callsign": "matching(type, 'string')",
                     "locator": "matching(type, 'string')",
@@ -185,13 +185,13 @@ async fn test_display_settings_plugin_status() {
         "display_settings_plugin_status",
         json!({
             "pact:content-type": "application/json",
-            "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 3)", "method": "Controller.1.status@org.rdk.DisplaySettings"},
+            "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "Controller.1.status@org.rdk.DisplaySettings"},
             "requestMetadata": {
                 "path": "/jsonrpc"
             },
             "response": [{
                 "jsonrpc": "matching(type, '2.0')",
-                "id": "matching(integer, 3)",
+                "id": "matching(integer, 0)",
                 "result": [{
                     "callsign": "matching(type, 'string')",
                     "locator": "matching(type, 'string')",
@@ -267,13 +267,13 @@ async fn test_status_org_rdk_system() {
         "status_org_rdk_system",
         json!({
             "pact:content-type": "application/json",
-            "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 5)", "method": "Controller.1.status@org.rdk.System"},
+            "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "Controller.1.status@org.rdk.System"},
             "requestMetadata": {
                 "path": "/jsonrpc"
             },
             "response": [{
                 "jsonrpc": "matching(type, '2.0')",
-                "id": "matching(integer, 5)",
+                "id": "matching(integer, 0)",
                 "result": [{
                     "callsign": "matching(type, 'string')",
                     "locator": "matching(type, 'string')",
@@ -349,13 +349,13 @@ async fn test_status_org_rdk_hdcp_profile() {
         "status_org_rdk_hdcp_profile",
         json!({
             "pact:content-type": "application/json",
-            "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 7)", "method": "Controller.1.status@org.rdk.HdcpProfile"},
+            "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "Controller.1.status@org.rdk.HdcpProfile"},
             "requestMetadata": {
                 "path": "/jsonrpc"
             },
             "response": [{
                 "jsonrpc": "matching(type, '2.0')",
-                "id": "matching(integer, 7)",
+                "id": "matching(integer, 0)",
                 "result": [{
                     "callsign": "matching(type, 'string')",
                     "locator": "matching(type, 'string')",
@@ -431,13 +431,13 @@ async fn test_status_org_rdk_telemetry() {
         "status_org_rdk_telemetry",
         json!({
             "pact:content-type": "application/json",
-            "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 9)", "method": "Controller.1.status@org.rdk.Telemetry"},
+            "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "Controller.1.status@org.rdk.Telemetry"},
             "requestMetadata": {
                 "path": "/jsonrpc"
             },
             "response": [{
                 "jsonrpc": "matching(type, '2.0')",
-                "id": "matching(integer, 9)",
+                "id": "matching(integer, 0)",
                 "result": [{
                     "callsign": "matching(type, 'string')",
                     "locator": "matching(type, 'string')",
