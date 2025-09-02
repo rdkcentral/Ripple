@@ -95,7 +95,7 @@ pub struct LifecycleStateChangeEvent {
     pub navigation_intent: Option<String>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CloseRequest {
     pub reason: CloseReason,
 }
