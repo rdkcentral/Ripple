@@ -92,10 +92,12 @@ async fn test_device_get_info_mac_address() {
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_model() {
+    println!("Starting test_device_get_model...");
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
     let mut result = HashMap::new();
 
+    println!("Preparing expected result matchers...");
     result.insert(
         "stbVersion".into(),
         ContractMatcher::MatchRegex(
@@ -118,6 +120,7 @@ async fn test_device_get_model() {
     );
     result.insert("success".into(), ContractMatcher::MatchBool(true));
 
+    println!("Setting up Pact interaction...");
     pact_builder_async
         .synchronous_message_interaction("A request to get the device model", |mut i| async move {
             i.given("System Version info is set");
@@ -131,14 +134,17 @@ async fn test_device_get_model() {
         })
         .await;
 
+    println!("Starting Pact mock server...");
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
 
+    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str())
+        .unwrap()
+        .to_string();
+    println!("Sending Thunder call message to: {}", url);
     send_thunder_call_message!(
-        url::Url::parse(mock_server.path("/jsonrpc").as_str())
-            .unwrap()
-            .to_string(),
+        url,
         json!({
             "jsonrpc": "2.0",
             "id": 42,
@@ -146,6 +152,7 @@ async fn test_device_get_model() {
         })
     )
     .await;
+    println!("test_device_get_model completed.");
 }
 
 #[tokio::test(flavor = "multi_thread")]
