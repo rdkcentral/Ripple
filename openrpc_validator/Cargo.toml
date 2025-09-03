@@ -5,6 +5,6 @@ edition = "2021"
 
 [dependencies]
 jsonschema = { version = "0.17.1", default-features = false }
-serde_json.workspace = true
-serde.workspace = true
-clap = {version = "=4.0", features = ["std"], default-features = false} # std required during ripple start
+serde_json = { version = "1.0", default-features = false }
+serde = { version = "1.0", features = ["derive"], default-features = false }
+clap = { version = "=4.0", features = ["std"], default-features = false }
