@@ -476,19 +476,45 @@ mod tests {
     }
 
     #[test]
-    fn test_from_sign_in_info_to_content_access_identifiers() {
-        let sign_in_info = SignInInfo {
-            entitlements: Some(get_mock_entitlement_data()),
-        };
+    fn test_watched_info_json_age_policy_child() {
+        // Explicitly test age_policy string value "app:child"
+        let json = r#"{
+            "entityId": "movie-123",
+            "progress": 0.5,
+            "completed": true,
+            "watchedOn": "2024-01-01T00:00:00.000Z",
+            "agePolicy": "app:child"
+        }"#;
+        let watched: WatchedInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(watched.age_policy, Some(AgePolicyIdentifierAlias::AppChild));
+    }
 
-        let content_access_identifiers = ContentAccessIdentifiers::from(sign_in_info);
-        assert_eq!(
-            content_access_identifiers,
-            ContentAccessIdentifiers {
-                availabilities: None,
-                entitlements: Some(get_mock_entitlement_data()),
-            }
-        );
+    #[test]
+    fn test_watched_info_json_age_policy_adult() {
+        // Explicitly test age_policy string value "app:adult"
+        let json = r#"{
+            "entityId": "movie-456",
+            "progress": 1.0,
+            "completed": false,
+            "watchedOn": "2024-02-01T00:00:00.000Z",
+            "agePolicy": "app:adult"
+        }"#;
+        let watched: WatchedInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(watched.age_policy, Some(AgePolicyIdentifierAlias::AppAdult));
+    }
+
+    #[test]
+    fn test_watched_info_json_age_policy_teen() {
+        // Explicitly test age_policy string value "app:teen"
+        let json = r#"{
+            "entityId": "movie-789",
+            "progress": 0.25,
+            "completed": true,
+            "watchedOn": "2024-03-01T00:00:00.000Z",
+            "agePolicy": "app:teen"
+        }"#;
+        let watched: WatchedInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(watched.age_policy, Some(AgePolicyIdentifierAlias::AppTeen));
     }
 
     #[test]

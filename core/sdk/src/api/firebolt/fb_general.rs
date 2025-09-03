@@ -37,17 +37,46 @@ pub struct ListenerResponse {
     pub event: String,
 }
 
-#[derive(Clone, Debug, Hash, Eq, PartialEq, Deserialize, Serialize, Default)]
+use serde::de::Deserializer;
+use serde::ser::Serializer;
+
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Default)]
 pub enum AgePolicyIdentifierAlias {
-    //app:child
     AppChild,
-    //app:teen
     AppTeen,
-    //app:adult
     AppAdult,
-    //completeness
     #[default]
     AppUnknown,
+}
+
+impl<'de> serde::Deserialize<'de> for AgePolicyIdentifierAlias {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            "app:child" => Ok(AgePolicyIdentifierAlias::AppChild),
+            "app:teen" => Ok(AgePolicyIdentifierAlias::AppTeen),
+            "app:adult" => Ok(AgePolicyIdentifierAlias::AppAdult),
+            _ => Ok(AgePolicyIdentifierAlias::AppUnknown),
+        }
+    }
+}
+
+impl serde::Serialize for AgePolicyIdentifierAlias {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let s = match self {
+            AgePolicyIdentifierAlias::AppChild => "app:child",
+            AgePolicyIdentifierAlias::AppTeen => "app:teen",
+            AgePolicyIdentifierAlias::AppAdult => "app:adult",
+            AgePolicyIdentifierAlias::AppUnknown => "app:unknown",
+        };
+        serializer.serialize_str(s)
+    }
 }
 
 impl From<Option<String>> for AgePolicyIdentifierAlias {
@@ -242,10 +271,10 @@ mod tests {
 
     #[test]
     fn test_age_policy_identifier_alias_json_deserialization() {
-        let child_json = "\"AppChild\"";
-        let teen_json = "\"AppTeen\"";
-        let adult_json = "\"AppAdult\"";
-        let unknown_json = "\"AppUnknown\"";
+        let child_json = "\"app:child\"";
+        let teen_json = "\"app:teen\"";
+        let adult_json = "\"app:adult\"";
+        let unknown_json = "\"app:badvalue\"";
 
         let deserialized_child: AgePolicyIdentifierAlias =
             serde_json::from_str(child_json).unwrap();
@@ -335,7 +364,8 @@ mod tests {
     fn test_age_policy_identifier_alias_invalid_json() {
         let invalid_json = "\"InvalidVariant\"";
         let result: Result<AgePolicyIdentifierAlias, _> = serde_json::from_str(invalid_json);
-        assert!(result.is_err());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), AgePolicyIdentifierAlias::AppUnknown);
     }
 
     #[test]
