@@ -26,8 +26,8 @@ use ripple_sdk::{
             },
             fb_openrpc::FireboltOpenRpcMethod,
             provider::{
-                FocusRequest, ProviderRequest, ProviderRequestPayload, ProviderResponse,
-                ProviderResponsePayload,
+                FocusRequest, GenericProviderError, ProviderRequest, ProviderRequestPayload,
+                ProviderResponse, ProviderResponsePayload,
             },
         },
         gateway::rpc_gateway_api::{CallContext, CallerSession},
@@ -282,8 +282,17 @@ impl ProviderBroker {
                 provider_app_id = Some(provider_method.provider.app_id);
             }
         } else {
-            debug!("queuing provider request");
-            ProviderBroker::queue_provider_request(pst, request);
+            // If no provider found, send error response
+            request
+                .tx
+                .send(ProviderResponsePayload::GenericError(
+                    GenericProviderError {
+                        code: 32001,
+                        message: format!("Provider not found for {}", request.method),
+                        data: None,
+                    },
+                ))
+                .unwrap();
         }
 
         provider_app_id
@@ -310,18 +319,6 @@ impl ProviderBroker {
             },
         );
         c_id
-    }
-
-    fn queue_provider_request(pst: &PlatformState, request: ProviderBrokerRequest) {
-        // Remove any duplicate requests.
-        ProviderBroker::remove_request(pst, &request.capability);
-
-        let mut request_queue = pst.provider_broker_state.request_queue.write().unwrap();
-        if request_queue.is_full() {
-            warn!("invoke_method: Request queue full, removing oldest request");
-            request_queue.remove(0);
-        }
-        request_queue.push(request);
     }
 
     pub async fn provider_response(pst: &PlatformState, resp: ProviderResponse) {
