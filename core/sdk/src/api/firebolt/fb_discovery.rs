@@ -659,6 +659,7 @@ mod tests {
         // Test standard case
         let context = DiscoveryContext {
             source: "app".to_string(),
+            age_policy: None,
         };
 
         let json = serde_json::to_string(&context).unwrap();
@@ -673,6 +674,7 @@ mod tests {
         // Empty source
         let context = DiscoveryContext {
             source: "".to_string(),
+            age_policy: None,
         };
         let json = serde_json::to_string(&context).unwrap();
         let deserialized: DiscoveryContext = serde_json::from_str(&json).unwrap();
@@ -681,6 +683,7 @@ mod tests {
         // Special characters
         let context = DiscoveryContext {
             source: "voice-control/system".to_string(),
+            age_policy: None,
         };
         let json = serde_json::to_string(&context).unwrap();
         let deserialized: DiscoveryContext = serde_json::from_str(&json).unwrap();
