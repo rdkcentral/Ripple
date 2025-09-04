@@ -17,7 +17,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use serde::{Deserialize,Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::api::firebolt::fb_general::AgePolicyIdentifierAlias;
 use crate::utils::error::RippleError;
@@ -55,7 +55,11 @@ pub enum AgePolicy {
     Teen,
     Adult,
 }
-
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct PolicyIdentifierAlias {
+    #[serde(rename = "policyIdentifierAlias")]
+    pub policy_identifier_alias: Vec<AgePolicy>,
+}
 impl<'de> Deserialize<'de> for AgePolicy {
     fn deserialize<D>(deserializer: D) -> Result<AgePolicy, <D as serde::Deserializer<'de>>::Error>
     where
@@ -458,7 +462,7 @@ mod tests {
 
     #[test]
     fn test_new_discovery_context() {
-        let context = DiscoveryContext::new("test_source",None);
+        let context = DiscoveryContext::new("test_source", None);
         assert_eq!(context.source, "test_source");
         assert_eq!(context.age_policy, None);
     }
@@ -661,7 +665,7 @@ mod tests {
         // Test standard case
         let context = DiscoveryContext {
             source: "app".to_string(),
-            age_policy:  None
+            age_policy: None,
         };
 
         let json = serde_json::to_string(&context).unwrap();

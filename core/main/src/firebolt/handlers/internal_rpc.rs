@@ -21,7 +21,8 @@ use ripple_sdk::{
         apps::{AppEvent, AppManagerResponse, AppMethod, AppRequest, AppResponse},
         caps::CapsRequest,
         firebolt::{
-            fb_discovery::AgePolicy, fb_general::ListenRequestWithEvent,
+            fb_discovery::{AgePolicy, PolicyIdentifierAlias},
+            fb_general::ListenRequestWithEvent,
             fb_telemetry::TelemetryPayload,
         },
         gateway::rpc_gateway_api::CallContext,
@@ -30,7 +31,7 @@ use ripple_sdk::{
     log::{debug, error},
     tokio::sync::oneshot,
 };
-use serde::{Deserialize, Serialize};
+
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
@@ -84,11 +85,6 @@ pub struct PolicyState {
     pub policy_identifiers_alias: Arc<RwLock<Vec<AgePolicy>>>,
 }
 
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-pub struct PolicyIdentifierAlias {
-    #[serde(rename = "policyIdentifierAlias")]
-    pub policy_identifier_alias: Vec<AgePolicy>,
-}
 #[derive(Debug)]
 pub struct InternalImpl {
     pub state: PlatformState,
