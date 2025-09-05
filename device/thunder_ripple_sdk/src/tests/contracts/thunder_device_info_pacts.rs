@@ -43,10 +43,13 @@ use tokio::time::{timeout, Duration};
 #[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_info_mac_address() {
     // Define Pact request and response - Start
+    println!("[TEST] Starting test_device_get_info_mac_address");
     let mut pact_builder_async = get_pact_builder_async_obj().await;
+    println!("[TEST] Pact builder initialized");
 
     pact_builder_async
         .synchronous_message_interaction("A request to get the device info", |mut i| async move {
+        println!("[TEST] Defining synchronous message interaction for device info");
             i.contents_from(json!({
                 "pact:content-type": "application/json",
                 "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "org.rdk.System.1.getDeviceInfo", "params": {"params": ["estb_mac"]}},
@@ -62,16 +65,23 @@ async fn test_device_get_info_mac_address() {
                     }
                 }]
             })).await;
+        println!("[TEST] Interaction contents defined");
             i.test_name("get_device_info_mac_address");
+        println!("[TEST] Test name set: get_device_info_mac_address");
 
             i
     }).await;
     // Define Pact request and response - End
 
     // Initialize mock server
+    println!("[TEST] Starting mock server for device info");
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
+    println!(
+        "[TEST] Mock server started at: {}",
+        mock_server.path("/jsonrpc")
+    );
 
     send_thunder_call_message!(
         url::Url::parse(mock_server.path("/jsonrpc").as_str())
@@ -87,17 +97,19 @@ async fn test_device_get_info_mac_address() {
         })
     )
     .await;
+    println!("[TEST] Thunder call message sent for device info");
 }
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_model() {
-    println!("Starting test_device_get_model...");
+    println!("@@@NNA Starting test_device_get_model");
     let mut pact_builder_async = get_pact_builder_async_obj().await;
+    println!("@@@NNA Pact builder initialized");
 
     let mut result = HashMap::new();
 
-    println!("Preparing expected result matchers...");
+    println!("@@@NNA Preparing expected result matchers...");
     result.insert(
         "stbVersion".into(),
         ContractMatcher::MatchRegex(
@@ -120,29 +132,36 @@ async fn test_device_get_model() {
     );
     result.insert("success".into(), ContractMatcher::MatchBool(true));
 
-    println!("Setting up Pact interaction...");
+    println!("@@@NNA Setting up Pact interaction...");
     pact_builder_async
         .synchronous_message_interaction("A request to get the device model", |mut i| async move {
+            println!("@@@NNA Defining synchronous message interaction for device model");
             i.given("System Version info is set");
             i.contents_from(get_pact!(
                 "org.rdk.System.1.getSystemVersions",
                 ContractResult { result }
             ))
             .await;
+            println!("@@@NNA Interaction contents defined");
             i.test_name("get_device_model");
+            println!("@@@NNA Test name set: get_device_model");
             i
         })
         .await;
 
-    println!("Starting Pact mock server...");
+    println!("@@@NNA Starting Pact mock server...");
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
+    println!(
+        "@@@NNA Mock server started at: {}",
+        mock_server.path("/jsonrpc")
+    );
 
     let url = url::Url::parse(mock_server.path("/jsonrpc").as_str())
         .unwrap()
         .to_string();
-    println!("Sending Thunder call message to: {}", url);
+    println!("@@@NNA Sending Thunder call message to: {}", url);
     send_thunder_call_message!(
         url,
         json!({
@@ -152,7 +171,8 @@ async fn test_device_get_model() {
         })
     )
     .await;
-    println!("test_device_get_model completed.");
+    println!("@@@NNA Thunder call message sent for device model");
+    println!("@@@NNA test_device_get_model completed.");
 }
 
 #[tokio::test(flavor = "multi_thread")]
