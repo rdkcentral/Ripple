@@ -19,7 +19,6 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::api::firebolt::fb_general::AgePolicyIdentifierAlias;
 use crate::utils::error::RippleError;
 use crate::{
     api::{
@@ -49,11 +48,16 @@ impl DiscoveryContext {
         }
     }
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum AgePolicy {
     Child,
     Teen,
     Adult,
+}
+impl std::fmt::Display for AgePolicy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_string())
+    }
 }
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct PolicyIdentifierAlias {
@@ -176,7 +180,7 @@ pub struct WatchedInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub watched_on: Option<String>,
-    pub age_policy: Option<AgePolicyIdentifierAlias>,
+    pub age_policy: Option<AgePolicy>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -545,7 +549,7 @@ mod tests {
             "agePolicy": "app:child"
         }"#;
         let watched: WatchedInfo = serde_json::from_str(json).unwrap();
-        assert_eq!(watched.age_policy, Some(AgePolicyIdentifierAlias::AppChild));
+        assert_eq!(watched.age_policy, Some(AgePolicy::Child));
     }
 
     #[test]
@@ -559,7 +563,7 @@ mod tests {
             "agePolicy": "app:adult"
         }"#;
         let watched: WatchedInfo = serde_json::from_str(json).unwrap();
-        assert_eq!(watched.age_policy, Some(AgePolicyIdentifierAlias::AppAdult));
+        assert_eq!(watched.age_policy, Some(AgePolicy::Adult));
     }
 
     #[test]
@@ -573,7 +577,7 @@ mod tests {
             "agePolicy": "app:teen"
         }"#;
         let watched: WatchedInfo = serde_json::from_str(json).unwrap();
-        assert_eq!(watched.age_policy, Some(AgePolicyIdentifierAlias::AppTeen));
+        assert_eq!(watched.age_policy, Some(AgePolicy::Teen));
     }
 
     #[test]

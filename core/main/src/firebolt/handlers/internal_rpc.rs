@@ -78,6 +78,8 @@ pub trait Internal {
         ctx: CallContext,
         request: PolicyIdentifierAlias,
     ) -> RpcResult<()>;
+    #[method(name = "account.getPolicyIdentifierAlias")]
+    async fn get_policy_identifier_alias(&self, ctx: CallContext) -> RpcResult<Vec<AgePolicy>>;
 }
 
 #[derive(Debug, Clone, Default)]
@@ -163,9 +165,16 @@ impl InternalServer for InternalImpl {
         _ctx: CallContext,
         policy_identifier_alias: PolicyIdentifierAlias,
     ) -> RpcResult<()> {
+        debug!(
+            "Setting policy identifier alias: {:?}",
+            policy_identifier_alias
+        );
         self.state
             .add_policy_identifier_alias(policy_identifier_alias);
         Ok(())
+    }
+    async fn get_policy_identifier_alias(&self, _ctx: CallContext) -> RpcResult<Vec<AgePolicy>> {
+        Ok(self.state.get_policy_identifier_alias())
     }
 }
 
