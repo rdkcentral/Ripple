@@ -55,10 +55,11 @@ pub async fn boot_ws_server(
     server_config
         .port(gateway.port().unwrap_or(0))
         .path(gateway.path());
+    println!("^^^ boot_ws_server 1");
     let ws_server = MockWebSocketServer::new(mock_data_v2, server_config, config)
         .await
         .map_err(BootFailedError::ServerStartFailed)?;
-
+println!("^^^ boot_ws_server 2");
     let ws_server = Arc::new(ws_server);
     let server = ws_server.clone();
 
