@@ -177,31 +177,39 @@ async fn test_device_get_info_mac_address() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
-async fn test_device_get_model() {
-    // Start test: get_device_model
+async fn test_device_get_system_verisons() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
+    let mut result = HashMap::new();
+    result.insert(
+        "stbVersion".into(),
+        ContractMatcher::MatchRegex(
+            r"^[A-Z0-9]+_VBN_[A-Za-z0-9]+_sprint_\d{14}sdy(_[A-Z0-9_]+)*$".into(),
+            "AX061AEI_VBN_1911_sprint_20200109040424sdy".into(),
+        ),
+    );
+    result.insert(
+        "receiverVersion".into(),
+        ContractMatcher::MatchRegex(r"^\d+\.\d+\.\d+\.\d+$".into(), "3.14.0.0".into()),
+    );
+    result.insert(
+        "stbTimestamp".into(),
+        ContractMatcher::MatchRegex(
+            r"^\w{3} \d{2} \w{3} \d{4} \d{2}:\d{2}:\d{2} [A-Z ]*UTC$".into(),
+            "Thu 09 Jan 2020 04:04:24 AP UTC".into(),
+        ),
+    );
+    result.insert("success".into(), ContractMatcher::MatchBool(true));
+
     pact_builder_async
-        .synchronous_message_interaction("A request to get the device model", |mut i| async move {
-            i.given("websocket connection has been established");
-            i.contents_from(json!({
-                "pact:content-type": "application/json",
-                "request": {
-                    "jsonrpc": "matching(type, '2.0')",
-                    "id": "matching(integer, 0)",
-                    "method": "org.rdk.System.1.getSystemVersions"
-                },
-                "requestMetadata": {
-                    "path": "/jsonrpc"
-                },
-                "response": [{
-                    "jsonrpc": "matching(type, '2.0')",
-                    "id": "matching(integer, 0)",
-                    "result": "matching(type, 'AX061AEI')"
-                }]
-            }))
+        .synchronous_message_interaction("A request to get system versions", |mut i| async move {
+            i.given("System Version info is set");
+            i.contents_from(get_pact!(
+                "org.rdk.System.1.getSystemVersions",
+                ContractResult { result }
+            ))
             .await;
-            i.test_name("get_device_model");
+            i.test_name("get_system_versions");
             i
         })
         .await;
@@ -217,8 +225,8 @@ async fn test_device_get_model() {
         url,
         json!({
             "jsonrpc": "2.0",
-            "id": 0,
-            "method": "Device.model"
+            "id": 42,
+            "method": "org.rdk.System.1.getSystemVersions"
         })
     )
     .await;
@@ -226,7 +234,7 @@ async fn test_device_get_model() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
-async fn test_device_get_interfaces_wifi() {
+async fn test_device_get_model() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
     pact_builder_async
@@ -278,7 +286,7 @@ async fn test_device_get_interfaces_wifi() {
         json!({
             "jsonrpc": "2.0",
             "id": 0,
-            "method": "org.rdk.Network.1.getInterfaces"
+            "method": "device.model"
         })
     )
     .await;
