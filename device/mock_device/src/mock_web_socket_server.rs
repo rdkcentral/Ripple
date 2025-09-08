@@ -219,12 +219,28 @@ impl MockWebSocketServer {
 
     async fn create_listener(port: u16) -> Result<TcpListener, MockServerWebSocketError> {
         let addr: SocketAddr = format!("127.0.0.1:{}", port).parse().unwrap();
-        let listener = TcpListener::bind(&addr)
-            .await
-            .map_err(|_| MockServerWebSocketError::CantListen)?;
-        debug!("Listening on: {:?}", listener.local_addr().unwrap());
+        // let listener = TcpListener::bind(&addr)
+        //     .await
+        //     .map_err(|_| MockServerWebSocketError::CantListen)?;
+        let listener = TcpListener::bind(&addr).await;
+        match listener {
+            Ok(a) => {
+                info!("Listening on address: {}", addr);
+                Ok(a)
+            }
+            Err(e) => {
+                error!("Failed to bind to address {}: {}", addr, e);
+                return Err(MockServerWebSocketError::CantListen);
+            }
+        }
+        // if let Err(e) = &listener {
+        //     error!("Error binding to address {}: {}", addr, e);
+        //     return Err(MockServerWebSocketError::CantListen);
+        // }
 
-        Ok(listener)
+        // debug!("Listening on: {:?}", &listener.clone().unwrap().local_addr().unwrap());
+
+        // Ok(listener.unwrap())
     }
 
     pub fn into_arc(self) -> Arc<Self> {
