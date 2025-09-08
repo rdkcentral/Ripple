@@ -222,14 +222,13 @@ impl MockWebSocketServer {
         // let listener = TcpListener::bind(&addr)
         //     .await
         //     .map_err(|_| MockServerWebSocketError::CantListen)?;
-        let listener = TcpListener::bind(&addr)
-            .await;
+        let listener = TcpListener::bind(&addr).await;
         match listener {
             Ok(a) => {
                 info!("Listening on address: {}", addr);
                 Ok(a)
             }
-            Err(e) => { 
+            Err(e) => {
                 error!("Failed to bind to address {}: {}", addr, e);
                 return Err(MockServerWebSocketError::CantListen);
             }

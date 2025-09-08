@@ -59,7 +59,7 @@ pub async fn boot_ws_server(
     let ws_server = MockWebSocketServer::new(mock_data_v2, server_config, config)
         .await
         .map_err(BootFailedError::ServerStartFailed)?;
-println!("^^^ boot_ws_server 2");
+    println!("^^^ boot_ws_server 2");
     let ws_server = Arc::new(ws_server);
     let server = ws_server.clone();
 
