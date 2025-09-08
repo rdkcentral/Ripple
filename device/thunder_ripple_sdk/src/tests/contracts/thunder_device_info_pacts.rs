@@ -183,7 +183,7 @@ async fn test_device_get_model() {
 
     pact_builder_async
         .synchronous_message_interaction("A request to get the device model", |mut i| async move {
-            i.given("System Version info is set");
+            i.given("websocket connection has been established");
             i.contents_from(json!({
                 "pact:content-type": "application/json",
                 "request": {
@@ -217,8 +217,8 @@ async fn test_device_get_model() {
         url,
         json!({
             "jsonrpc": "2.0",
-            "id": 42,
-            "method": "org.rdk.System.1.getSystemVersions"
+            "id": 0,
+            "method": "Device.model"
         })
     )
     .await;
@@ -230,43 +230,46 @@ async fn test_device_get_interfaces_wifi() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
     pact_builder_async
-    .synchronous_message_interaction("A request to get the device wifi interface", |mut i| async move {
-        i.contents_from(json!({
-            "pact:content-type": "application/json",
-            "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "org.rdk.Network.1.getInterfaces"},
-            "requestMetadata": {
-                "path": "/jsonrpc"
-            },
-            "response": [{
-                "jsonrpc": "matching(type, '2.0')",
-                "id": "matching(integer, 0)",
-                "result": {
-                    "interfaces": [
-                        {
-                            "interface": "matching(regex, '(WIFI|ETHERNET)', 'WIFI')",
-                            "macAddress": "matching(regex, '^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$', 'AA:AA:AA:AA:AA:AA')",
-                            "enabled": "matching(boolean, true)",
-                            "connected": "matching(boolean, true)"
-                        },
-                        {
-                            "interface": "matching(regex, '(WIFI|ETHERNET)', 'ETHERNET')",
-                            "macAddress": "matching(regex, '^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$', 'AA:AA:AA:AA:AA:AA')",
-                            "enabled": "matching(boolean, true)",
-                            "connected": "matching(boolean, false)"
-                        }
-                    ],
-                    "success": true
-                }
-            }]
-        })).await;
-        i.test_name("get_device_interfaces_wifi");
-
-        i
-    }).await;
+        .synchronous_message_interaction("A request to get the device model", |mut i| async move {
+            i.given("Device model is set");
+            i.contents_from(json!({
+                "pact:content-type": "application/json",
+                "request": {
+                    "jsonrpc": "2.0",
+                    "id": 0,
+                    "method": "Device.model"
+                },
+                "requestMetadata": {
+                    "path": "/jsonrpc"
+                },
+                "response": [{
+                    "jsonrpc": "2.0",
+                    "id": 0,
+                    "result": "xi7"
+                }]
+            }))
+            .await;
+            i.test_name("get_device_model");
+            i
+        })
+        .await;
 
     let mock_server = pact_builder_async
         .start_mock_server_async(Some("websockets/transport/websockets"))
         .await;
+
+    let url = url::Url::parse(mock_server.path("/jsonrpc").as_str())
+        .unwrap()
+        .to_string();
+    send_thunder_call_message!(
+        url,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "Device.model"
+        })
+    )
+    .await;
 
     send_thunder_call_message!(
         url::Url::parse(mock_server.path("/jsonrpc").as_str())
