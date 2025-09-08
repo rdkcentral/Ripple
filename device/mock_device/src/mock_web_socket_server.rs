@@ -224,13 +224,24 @@ impl MockWebSocketServer {
         //     .map_err(|_| MockServerWebSocketError::CantListen)?;
         let listener = TcpListener::bind(&addr)
             .await;
-        if let Err(e) = &listener {
-            error!("Error binding to address {}: {}", addr, e);
-            return Err(MockServerWebSocketError::CantListen);
+        match listener {
+            Ok(a) => {
+                info!("Listening on address: {}", addr);
+                Ok(a)
+            }
+            Err(e) => { 
+                error!("Failed to bind to address {}: {}", addr, e);
+                return Err(MockServerWebSocketError::CantListen);
+            }
         }
-        debug!("Listening on: {:?}", listener.local_addr().unwrap());
+        // if let Err(e) = &listener {
+        //     error!("Error binding to address {}: {}", addr, e);
+        //     return Err(MockServerWebSocketError::CantListen);
+        // }
 
-        Ok(listener)
+        // debug!("Listening on: {:?}", &listener.clone().unwrap().local_addr().unwrap());
+
+        // Ok(listener.unwrap())
     }
 
     pub fn into_arc(self) -> Arc<Self> {
