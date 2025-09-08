@@ -429,6 +429,7 @@ pub struct MediaEventsAccountLinkRequestParams {
     pub client_supports_opt_out: bool,
     pub dist_session: AccountSession,
     pub data_tags: HashSet<DataTagInfo>,
+    pub category_tags: Vec<String>,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MediaEventsAccountLinkResponse {}
