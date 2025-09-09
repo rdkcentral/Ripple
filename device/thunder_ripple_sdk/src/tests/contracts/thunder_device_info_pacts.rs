@@ -294,6 +294,121 @@ async fn test_device_get_system_verisons() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
+async fn test_device_get_model() {
+    let mut pact_builder_async = get_pact_builder_async_obj().await;
+
+    let mut result = HashMap::new();
+
+    result.insert(
+        "stbVersion".into(),
+        ContractMatcher::MatchRegex(
+            r"^[A-Z0-9]+_VBN_[A-Za-z0-9]+_sprint_\d{14}sdy(_[A-Z0-9_]+)*$".into(),
+            "AX061AEI_VBN_1911_sprint_20200109040424sdy".into(),
+        ),
+    );
+
+    result.insert(
+        "receiverVersion".into(),
+        ContractMatcher::MatchRegex(r"^\d+\.\d+\.\d+\.\d+$".into(), "3.14.0.0".into()),
+    );
+
+    result.insert(
+        "stbTimestamp".into(),
+        ContractMatcher::MatchRegex(
+            r"^\w{3} \d{2} \w{3} \d{4} \d{2}:\d{2}:\d{2} [A-Z ]*UTC$".into(),
+            "Thu 09 Jan 2020 04:04:24 AP UTC".into(),
+        ),
+    );
+    result.insert("success".into(), ContractMatcher::MatchBool(true));
+
+    pact_builder_async
+        .synchronous_message_interaction("A request to get the device model", |mut i| async move {
+            i.contents_from(get_pact!(
+                "org.rdk.System.1.getSystemVersions",
+                ContractResult { result }
+            ))
+            .await;
+            i.test_name("get_device_model");
+            i
+        })
+        .await;
+
+    let mock_server = pact_builder_async
+        .start_mock_server_async(Some("websockets/transport/websockets"))
+        .await;
+
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 42,
+            "method": "org.rdk.System.1.getSystemVersions"
+        })
+    )
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
+async fn test_device_get_interfaces_wifi() {
+    let mut pact_builder_async = get_pact_builder_async_obj().await;
+
+    pact_builder_async
+    .synchronous_message_interaction("A request to get the device wifi interface", |mut i| async move {
+        i.contents_from(json!({
+            "pact:content-type": "application/json",
+            "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "org.rdk.Network.1.getInterfaces"},
+            "requestMetadata": {
+                "path": "/jsonrpc"
+            },
+            "response": [{
+                "jsonrpc": "matching(type, '2.0')",
+                "id": "matching(integer, 0)",
+                "result": {
+                    "interfaces": [
+                        {
+                            "interface": "matching(regex, '(WIFI|ETHERNET)', 'WIFI')",
+                            "macAddress": "matching(regex, '^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$', 'AA:AA:AA:AA:AA:AA')",
+                            "enabled": "matching(boolean, true)",
+                            "connected": "matching(boolean, true)"
+                        },
+                        {
+                            "interface": "matching(regex, '(WIFI|ETHERNET)', 'ETHERNET')",
+                            "macAddress": "matching(regex, '^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$', 'AA:AA:AA:AA:AA:AA')",
+                            "enabled": "matching(boolean, true)",
+                            "connected": "matching(boolean, false)"
+                        }
+                    ],
+                    "success": true
+                }
+            }]
+        })).await;
+        i.test_name("get_device_interfaces_wifi");
+
+        i
+    }).await;
+
+    let mock_server = pact_builder_async
+        .start_mock_server_async(Some("websockets/transport/websockets"))
+        .await;
+
+    send_thunder_call_message!(
+        url::Url::parse(mock_server.path("/jsonrpc").as_str())
+            .unwrap()
+            .to_string(),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "org.rdk.Network.1.getInterfaces"
+        })
+    )
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[cfg_attr(not(feature = "websocket_contract_tests"), ignore)]
 async fn test_device_get_interfaces_ethernet() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 

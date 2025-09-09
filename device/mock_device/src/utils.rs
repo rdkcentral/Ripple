@@ -38,6 +38,10 @@ pub async fn boot_ws_server(
     mut client: ExtnClient,
 ) -> Result<Arc<MockWebSocketServer>, MockDeviceError> {
     debug!("@@@NNA Booting WS Server for mock device");
+    debug!(
+        "@@@NNA Booting WS Server for mock device client:{:?}",
+        client
+    );
     let gateway = platform_gateway_url(&mut client).await?;
     debug!("@@@NNA platform_gateway_url returned: {:?}", gateway);
 
@@ -85,20 +89,27 @@ pub async fn boot_ws_server(
 }
 
 async fn platform_gateway_url(client: &mut ExtnClient) -> Result<Url, MockDeviceError> {
-    debug!("sending request for config.platform_parameters");
+    debug!(
+        "@@@NNA platform_gateway_url called with client: {:?}",
+        client
+    );
+    debug!("@@@NNA sending request for config.platform_parameters");
     if let Ok(response) = client.request(Config::PlatformParameters).await {
+        debug!("@@@NNA received response: {:?}", response);
         if let Some(ExtnResponse::Value(value)) = response.payload.extract() {
+            debug!("@@@NNA extracted value: {:?}", value);
             let gateway: Url = value
                 .as_object()
                 .and_then(|obj| obj.get("gateway"))
                 .and_then(|val| val.as_str())
                 .and_then(|s| s.parse().ok())
                 .ok_or(BootFailedError::GetPlatformGatewayFailed)?;
-            debug!("{}", gateway);
+            debug!("@@@NNA parsed gateway URL: {}", gateway);
             return Ok(gateway);
         }
     }
 
+    error!("@@@NNA Failed to get platform gateway URL");
     Err(BootFailedError::GetPlatformGatewayFailed)?
 }
 
