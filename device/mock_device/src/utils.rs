@@ -37,35 +37,50 @@ use crate::{
 pub async fn boot_ws_server(
     mut client: ExtnClient,
 ) -> Result<Arc<MockWebSocketServer>, MockDeviceError> {
-    debug!("Booting WS Server for mock device");
+    debug!("@@@NNA Booting WS Server for mock device");
     let gateway = platform_gateway_url(&mut client).await?;
+    debug!("@@@NNA platform_gateway_url returned: {:?}", gateway);
 
     if gateway.scheme() != "ws" {
+        debug!("@@@NNA Bad URL scheme: {}", gateway.scheme());
         return Err(BootFailedError::BadUrlScheme)?;
     }
 
     if !is_valid_host(gateway.host()) {
+        debug!("@@@NNA Bad hostname: {:?}", gateway.host());
         return Err(BootFailedError::BadHostname)?;
     }
 
     let config = load_config(&client);
+    debug!("@@@NNA Loaded config: {:?}", config);
 
     let mut server_config = WsServerParameters::new();
     let mock_data_v2 = load_mock_data_v2(client.clone()).await?;
+    debug!("@@@NNA Loaded mock data v2");
+
     server_config
         .port(gateway.port().unwrap_or(0))
         .path(gateway.path());
+    debug!(
+        "@@@NNA Server config: port={}, path={}",
+        gateway.port().unwrap_or(0),
+        gateway.path()
+    );
+
     let ws_server = MockWebSocketServer::new(mock_data_v2, server_config, config)
         .await
         .map_err(BootFailedError::ServerStartFailed)?;
+    debug!("@@@NNA MockWebSocketServer created");
 
     let ws_server = Arc::new(ws_server);
     let server = ws_server.clone();
 
     tokio::spawn(async move {
+        debug!("@@@NNA Starting WebSocket server");
         server.start_server().await;
     });
 
+    debug!("@@@NNA Returning ws_server Arc");
     Ok(ws_server)
 }
 

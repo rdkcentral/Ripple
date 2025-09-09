@@ -70,60 +70,84 @@ pub async fn start_service() {
 }
 
 async fn init(client: ServiceClient) {
+    info!("@@@NNA: Entered init function");
     if let Some(mut extn_client) = client.get_extn_client() {
+        info!("@@@NNA: extn_client found, spawning websocket server");
         let client_c_for_init = client.clone();
         tokio::spawn(async move {
             match boot_ws_server(extn_client.clone()).await {
                 Ok(server) => {
+                    info!("@@@NNA: Websocket server started successfully");
                     let state = MockDeviceState::new(server);
 
                     let mut methods = Methods::new();
                     let _ = methods.merge(MockDeviceController::new(state).into_rpc());
+                    info!("@@@NNA: RPC methods merged");
                     let processor = RPCRequestProcessor::new(
                         extn_client.clone(),
                         methods,
                         ExtnId::new_channel(ExtnClassId::Device, "mock_device".into()),
                     );
+                    info!("@@@NNA: RPCRequestProcessor created, adding to extn_client");
                     extn_client.add_request_processor(processor);
                 }
-                Err(err) => panic!("websocket server failed to start. {}", err),
+                Err(err) => {
+                    error!("@@@NNA: websocket server failed to start. {}", err);
+                    panic!("websocket server failed to start. {}", err);
+                }
             };
         });
 
+        info!("@@@NNA: Initializing client_c_for_init");
         client_c_for_init.initialize().await;
+        info!("@@@NNA: client_c_for_init initialized");
     } else {
-        error!("Service client does not hold an extn client. Cannot start eos extension.");
+        error!("@@@NNA: Service client does not hold an extn client. Cannot start eos extension.");
     }
 }
 
 fn start() {
+    info!("@@@NNA: Entered start function");
     let Ok((extn_manifest, _device_manifest)) = RippleManifestLoader::initialize() else {
-        error!("Error initializing manifests");
+        error!("@@@NNA: Error initializing manifests");
         return;
     };
+    info!("@@@NNA: Manifests initialized successfully");
+
     let runtime = match Runtime::new() {
-        Ok(r) => r,
+        Ok(r) => {
+            info!("@@@NNA: Tokio runtime created successfully");
+            r
+        }
         Err(err) => {
-            error!("Error creating runtime: {}", err);
+            error!("@@@NNA: Error creating runtime: {}", err);
             return;
         }
     };
 
     let id = ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.to_string()).to_string();
+    info!("@@@NNA: Generated ExtnId: {}", id);
+
     let symbol = extn_manifest.get_extn_symbol(&id);
     if symbol.is_none() {
-        error!("Error getting symbol");
+        error!("@@@NNA: Error getting symbol");
         return;
     }
+    info!("@@@NNA: Extension symbol found");
+
     let service_client = if let Some(symbol) = symbol {
+        info!("@@@NNA: Building ServiceClient with extension symbol");
         ServiceClient::builder().with_extension(symbol).build()
     } else {
+        info!("@@@NNA: Building ServiceClient without extension symbol");
         ServiceClient::builder().build()
     };
 
+    info!("@@@NNA: Starting async init in runtime");
     runtime.block_on(async move {
         init(service_client.clone()).await;
     });
+    info!("@@@NNA: Exiting start function");
 }
 
 fn init_extn_channel() -> ExtnChannel {
