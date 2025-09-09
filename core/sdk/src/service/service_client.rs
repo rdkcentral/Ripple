@@ -499,10 +499,7 @@ impl ServiceClient {
                 ServiceRequestType::Request => {
                     ServiceMessage::new_request(method.to_owned(), params, Id::String(id.clone()))
                 }
-                ServiceRequestType::Event => {
-                    ServiceMessage::new_notification(method.to_owned(), params)
-                }
-                ServiceRequestType::Transient => {
+                ServiceRequestType::Event | ServiceRequestType::Transient=> {
                     ServiceMessage::new_notification(method.to_owned(), params)
                 }
             }
