@@ -1,23 +1,25 @@
 use crate::state::platform_state::PlatformState;
-use crate::tokio;
-use ripple_sdk::api::context::{RippleContextUpdateRequest, RippleContextUpdateType};
-use ripple_sdk::api::device::device_request::AccountToken;
-use ripple_sdk::service::service_message::{JsonRpcMessage, JsonRpcNotification, ServiceMessage};
+use jsonrpsee::core::async_trait;
+use ripple_sdk::api::context::RippleContextUpdateType;
+use ripple_sdk::api::{context::RippleContextUpdateRequest, device::device_request::AccountToken};
 use ripple_sdk::{
     log::{debug, error, trace},
+    service::service_message::{JsonRpcMessage, JsonRpcNotification, ServiceMessage},
+    tokio,
+    tokio::sync::Mutex,
     tokio_tungstenite::tungstenite::Message,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::{collections::HashMap, sync::Arc};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, Hash, PartialEq)]
 pub enum NotificationEvent {
     RippleContextEvent,
     RippleContextUpdateRequest,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, Hash, PartialEq)]
 pub enum NotificationUpdateType {
     Token,
     Activation,
@@ -27,77 +29,139 @@ pub enum NotificationUpdateType {
     UpdateFeatures,
 }
 
-pub struct ServiceNotificationProcessor;
+#[async_trait]
+pub trait NotificationEventStrategy: Send + Sync + std::fmt::Debug {
+    fn handle_notification(
+        &self,
+        json_rpc_notification: &JsonRpcNotification,
+        platform_state: &PlatformState,
+        context: Option<Value>,
+    );
+}
 
-impl Default for ServiceNotificationProcessor {
-    fn default() -> Self {
-        Self::new()
+// Implement strategies for each notification type
+#[derive(Debug, Default)]
+pub struct ContextEventNotificationStrategy;
+impl NotificationEventStrategy for ContextEventNotificationStrategy {
+    fn handle_notification(
+        &self,
+        json_rpc_notification: &JsonRpcNotification,
+        platform_state: &PlatformState,
+        context: Option<Value>,
+    ) {
+        if let Some((_context_update, update_type)) = json_rpc_notification.method.split_once(".") {
+            platform_state
+                .service_controller_state
+                .service_event_state
+                .subscribe_context_event(update_type, context.clone());
+        } else {
+            error!(
+                "Invalid method format in notification: {}",
+                json_rpc_notification.method
+            );
+        }
     }
+}
+
+#[derive(Debug, Default)]
+pub struct ContextUpdateEventNotificationStrategy;
+
+impl NotificationEventStrategy for ContextUpdateEventNotificationStrategy {
+    fn handle_notification(
+        &self,
+        json_rpc_notification: &JsonRpcNotification,
+        platform_state: &PlatformState,
+        context: Option<Value>,
+    ) {
+        if let Some((_context_update, update_type)) = json_rpc_notification.method.split_once(".") {
+            platform_state
+                .service_controller_state
+                .service_notification_processor
+                .clone()
+                .process_event_notification(
+                    platform_state,
+                    update_type,
+                    json_rpc_notification,
+                    context.clone(),
+                );
+        } else {
+            error!(
+                "Invalid method format in notification: {}",
+                json_rpc_notification.method
+            );
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ServiceNotificationProcessor {
+    pub notification_strategies:
+        Arc<Mutex<HashMap<NotificationEvent, Box<dyn NotificationEventStrategy>>>>,
 }
 
 impl ServiceNotificationProcessor {
     pub fn new() -> Self {
-        ServiceNotificationProcessor {}
+        let mut strategies = HashMap::new();
+        strategies.insert(
+            NotificationEvent::RippleContextEvent,
+            Box::new(ContextEventNotificationStrategy) as Box<dyn NotificationEventStrategy>,
+        );
+        strategies.insert(
+            NotificationEvent::RippleContextUpdateRequest,
+            Box::new(ContextUpdateEventNotificationStrategy) as Box<dyn NotificationEventStrategy>,
+        );
+
+        ServiceNotificationProcessor {
+            notification_strategies: Arc::new(Mutex::new(strategies)),
+        }
     }
 
-    pub fn process_service_notification(
+    pub async fn process_service_notification(
+        self,
         json_rpc_notification: &JsonRpcNotification,
-        state: &PlatformState,
+        platform_state: &PlatformState,
         context: Option<Value>,
     ) {
         debug!(
             "Received service notification: {:#?}",
             json_rpc_notification
         );
-        if let Some((context_update, update_type)) = json_rpc_notification.method.split_once(".") {
-            debug!(
-                "Received service event notification request event type {:?} update type {:?}",
-                context_update, update_type
-            );
-            let context_update = format!("\"{}\"", context_update);
-            let notification_event = serde_json::from_str::<NotificationEvent>(&context_update);
+        if let Some((context_update, _update_type)) = json_rpc_notification.method.split_once(".") {
+            let context_update: String = format!("\"{}\"", context_update);
 
+            // json_rpc_notifiction method is like "RippleContextEvent.TokenChanged"
+            // We need to extract "RippleContextEvent" and convert it to NotificationEvent enum
+            // Then we can use it to get the appropriate strategy from the map
+
+            let notification_event = serde_json::from_str::<NotificationEvent>(&context_update);
             match notification_event {
-                Ok(NotificationEvent::RippleContextEvent) => {
-                    state
-                        .service_controller_state
-                        .service_event_state
-                        .subscribe_context_event(update_type, context.clone());
-                }
-                Ok(NotificationEvent::RippleContextUpdateRequest) => {
-                    Self::process_event_notification(
-                        state,
-                        update_type,
-                        json_rpc_notification,
-                        context.clone(),
-                    );
-                }
                 Err(e) => {
-                    error!(
-                        "Invalid context update request: {} error: {}",
-                        context_update, e
-                    );
+                    error!("Invalid event type error: {}", e);
                 }
-            }
-            debug!(
-                " service event subscribers: {:?}",
-                state
-                    .service_controller_state
-                    .service_event_state
-                    .event_subscribers
-            );
-        } else {
-            error!("Invalid service event request format");
+                Ok(event) => {
+                    let strategies = self.notification_strategies.lock().await;
+                    if let Some(strategy) = strategies.get(&event) {
+                        strategy.handle_notification(
+                            json_rpc_notification,
+                            platform_state,
+                            context,
+                        );
+                    } else {
+                        error!("No strategy found for event: {:?}", event.clone());
+                    }
+                }
+            };
         }
     }
 
-    pub fn process_event_notification(
+    fn process_event_notification(
+        self,
         platform_state: &PlatformState,
         update_type: &str,
         json_rpc_notification: &JsonRpcNotification,
         context: Option<Value>,
     ) {
-        debug!("process service notification: {:?}", json_rpc_notification);
+        debug!("process event notification: {:?}", json_rpc_notification);
         let params = json_rpc_notification.params.clone();
         let update_type_str = format!("\"{}\"", update_type);
         let notification_update_type =
@@ -193,7 +257,10 @@ impl ServiceNotificationProcessor {
         };
         if propagate {
             let update_type_str = format!("\"{}Changed\"", update_type);
-            println!("&&&& Propagating update_type_str: {}", update_type_str);
+            debug!(
+                "Context update. Propagating updated type: {}",
+                update_type_str
+            );
             let ripple_context_update_type =
                 serde_json::from_str::<RippleContextUpdateType>(&update_type_str);
             match ripple_context_update_type {
@@ -220,7 +287,6 @@ impl ServiceNotificationProcessor {
 
                         let service_controller_state =
                             platform_state.service_controller_state.clone();
-                        // let context = context.clone();
 
                         let new_ripple_context =
                             serde_json::to_string(&new_ripple_context).unwrap();
@@ -229,7 +295,6 @@ impl ServiceNotificationProcessor {
                             if let Some(sender) =
                                 service_controller_state.get_sender(&service_id).await
                             {
-                                //let context = vec![sender_id, Some(&service_id), Some(&request_type)];
                                 let context = vec![sender_id, service_id, request_type];
                                 let service_message = ServiceMessage {
                                     message: JsonRpcMessage::Notification(JsonRpcNotification {

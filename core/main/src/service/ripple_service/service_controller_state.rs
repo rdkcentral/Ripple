@@ -67,6 +67,7 @@ pub struct ServiceInfo {
 pub struct ServiceControllerState {
     pub service_info: Arc<Mutex<ServiceRegistry>>,
     pub service_event_state: ServiceEventState,
+    pub service_notification_processor: ServiceNotificationProcessor,
 }
 
 impl ServiceInfo {
@@ -120,6 +121,7 @@ impl ServiceControllerState {
         ServiceControllerState {
             service_info: Arc::new(Mutex::new(ServiceRegistry::default())),
             service_event_state: ServiceEventState::new(),
+            service_notification_processor: ServiceNotificationProcessor::new(),
         }
     }
     // Ripple Main processing the inbound ServiceMessage received from a service.
@@ -177,11 +179,12 @@ impl ServiceControllerState {
                 };
             }
             JsonRpcMessage::Notification(json_rpc_notification) => {
-                ServiceNotificationProcessor::process_service_notification(
-                    json_rpc_notification,
-                    state,
-                    sm.context.clone(),
-                );
+                state
+                    .service_controller_state
+                    .service_notification_processor
+                    .clone()
+                    .process_service_notification(json_rpc_notification, state, sm.context.clone())
+                    .await;
             }
             JsonRpcMessage::Success(_) | JsonRpcMessage::Error(_) => {
                 // Handling response message
