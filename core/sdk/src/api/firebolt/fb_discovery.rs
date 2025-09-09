@@ -180,6 +180,7 @@ pub struct WatchedInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub watched_on: Option<String>,
+    #[serde(rename = "agePolicy")]
     pub age_policy: Option<AgePolicy>,
 }
 

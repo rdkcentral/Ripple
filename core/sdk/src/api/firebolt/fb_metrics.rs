@@ -375,6 +375,7 @@ pub struct ErrorParams {
     pub description: String,
     pub visible: bool,
     pub parameters: Option<HashMap<String, FlatMapValue>>,
+    #[serde(rename = "agePolicy")]
     pub age_policy: Option<AgePolicy>,
 }
 
