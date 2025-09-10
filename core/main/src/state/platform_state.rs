@@ -15,11 +15,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::firebolt::handlers::internal_rpc::{PolicyIdentifierAlias, PolicyState};
+use crate::firebolt::handlers::internal_rpc::PolicyState;
 use ripple_sdk::{
     api::{
         config::FEATURE_DISTRIBUTOR_SESSION,
-        firebolt::fb_discovery::AgePolicy,
+        firebolt::fb_discovery::{AgePolicy, PolicyIdentifierAlias},
         gateway::rpc_gateway_api::RpcRequest,
         manifest::{
             app_library::AppLibraryState,

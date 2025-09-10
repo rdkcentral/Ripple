@@ -21,7 +21,8 @@ use ripple_sdk::{
         apps::{AppEvent, AppManagerResponse, AppMethod, AppRequest, AppResponse},
         caps::CapsRequest,
         firebolt::{
-            fb_discovery::AgePolicy, fb_general::ListenRequestWithEvent,
+            fb_discovery::{AgePolicy, PolicyIdentifierAlias},
+            fb_general::ListenRequestWithEvent,
             fb_telemetry::TelemetryPayload,
         },
         gateway::rpc_gateway_api::CallContext,
@@ -30,7 +31,7 @@ use ripple_sdk::{
     log::{debug, error},
     tokio::sync::oneshot,
 };
-use serde::{Deserialize, Serialize};
+
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
@@ -71,12 +72,15 @@ pub trait Internal {
         caps_request: CapsRequest,
     ) -> RpcResult<HashMap<String, bool>>;
 
-    #[method(name = "account.policyIdentifierAlias")]
+    #[method(name = "account.setPolicyIdentifierAlias")]
     async fn set_policy_identifier_alias(
         &self,
         ctx: CallContext,
-        request: PolicyIdentifierAlias,
+        params: PolicyIdentifierAlias,
     ) -> RpcResult<()>;
+
+    #[method(name = "account.policyIdentifierAlias")]
+    async fn get_policy_identifier_alias(&self, ctx: CallContext) -> RpcResult<Vec<AgePolicy>>;
 }
 
 #[derive(Debug, Clone, Default)]
@@ -84,11 +88,6 @@ pub struct PolicyState {
     pub policy_identifiers_alias: Arc<RwLock<Vec<AgePolicy>>>,
 }
 
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-pub struct PolicyIdentifierAlias {
-    #[serde(rename = "policyIdentifierAlias")]
-    pub policy_identifier_alias: Vec<AgePolicy>,
-}
 #[derive(Debug)]
 pub struct InternalImpl {
     pub state: PlatformState,
@@ -165,11 +164,15 @@ impl InternalServer for InternalImpl {
     async fn set_policy_identifier_alias(
         &self,
         _ctx: CallContext,
-        policy_identifier_alias: PolicyIdentifierAlias,
+        params: PolicyIdentifierAlias,
     ) -> RpcResult<()> {
-        self.state
-            .add_policy_identifier_alias(policy_identifier_alias);
+        debug!("Setting policy identifier alias: {:?}", params);
+        self.state.add_policy_identifier_alias(params);
         Ok(())
+    }
+
+    async fn get_policy_identifier_alias(&self, _ctx: CallContext) -> RpcResult<Vec<AgePolicy>> {
+        Ok(self.state.get_policy_identifier_alias())
     }
 }
 
