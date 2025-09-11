@@ -30,10 +30,15 @@ use ripple_sdk::{
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
     log::{debug, error, info, trace},
+    service::service_message::{
+        Id as ServiceMessageId, JsonRpcMessage as ServiceJsonRpcMessage,
+        JsonRpcSuccess as ServiceJsonRpcSuccess, ServiceMessage,
+    },
     tokio::{
         self,
         sync::mpsc::{self, Receiver, Sender},
     },
+    tokio_tungstenite::tungstenite::Message,
     utils::error::RippleError,
 };
 use serde_json::{json, Value};
@@ -370,7 +375,7 @@ pub struct EndpointBrokerState {
     callback: BrokerCallback,
     request_map: Arc<RwLock<HashMap<u64, BrokerRequest>>>,
     extension_request_map: Arc<RwLock<HashMap<u64, ExtnMessage>>>,
-    rule_engine: RuleEngine,
+    rule_engine: Arc<RwLock<RuleEngine>>,
     cleaner_list: Arc<RwLock<Vec<BrokerCleaner>>>,
     reconnect_tx: Sender<BrokerConnectRequest>,
     provider_broker_state: ProvideBrokerState,
@@ -461,7 +466,7 @@ impl Default for EndpointBrokerState {
             callback: BrokerCallback::default(),
             request_map: Arc::new(RwLock::new(HashMap::new())),
             extension_request_map: Arc::new(RwLock::new(HashMap::new())),
-            rule_engine: RuleEngine::default(),
+            rule_engine: Arc::new(RwLock::new(RuleEngine::default())),
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx: mpsc::channel(2).0,
             provider_broker_state: ProvideBrokerState::default(),
@@ -483,7 +488,7 @@ impl EndpointBrokerState {
             callback: BrokerCallback { sender: tx },
             request_map: Arc::new(RwLock::new(HashMap::new())),
             extension_request_map: Arc::new(RwLock::new(HashMap::new())),
-            rule_engine,
+            rule_engine: Arc::new(RwLock::new(rule_engine)),
             cleaner_list: Arc::new(RwLock::new(Vec::new())),
             reconnect_tx,
             provider_broker_state: ProvideBrokerState::default(),
@@ -494,16 +499,16 @@ impl EndpointBrokerState {
         state.reconnect_thread(_rec_tr, _ripple_client);
         state
     }
-    pub fn with_rules_engine(mut self, rule_engine: RuleEngine) -> Self {
+    pub fn with_rules_engine(mut self, rule_engine: Arc<RwLock<RuleEngine>>) -> Self {
         self.rule_engine = rule_engine;
         self
     }
-    pub fn add_rule(mut self, rule: Rule) -> Self {
-        self.rule_engine.add_rule(rule);
+    pub fn add_rule(self, rule: Rule) -> Self {
+        self.rule_engine.write().unwrap().add_rule(rule);
         self
     }
     pub fn has_rule(&self, rule: &str) -> bool {
-        self.rule_engine.has_rule(rule)
+        self.rule_engine.read().unwrap().has_rule(rule)
     }
     #[cfg(not(test))]
     fn reconnect_thread(&self, mut rx: Receiver<BrokerConnectRequest>, client: RippleClient) {
@@ -660,7 +665,16 @@ impl EndpointBrokerState {
         )
     }
     pub fn build_thunder_endpoint(&mut self, ps: Option<PlatformState>) {
-        if let Some(endpoint) = self.rule_engine.rules.endpoints.get("thunder").cloned() {
+        let endpoint = {
+            self.rule_engine
+                .write()
+                .unwrap()
+                .rules
+                .endpoints
+                .get("thunder")
+                .cloned()
+        };
+        if let Some(endpoint) = endpoint {
             let request = BrokerConnectRequest::new(
                 "thunder".to_owned(),
                 endpoint.clone(),
@@ -671,7 +685,8 @@ impl EndpointBrokerState {
     }
 
     pub fn build_other_endpoints(&mut self, ps: PlatformState, session: Option<AccountSession>) {
-        for (key, endpoint) in self.rule_engine.rules.endpoints.clone() {
+        let endpoints = self.rule_engine.read().unwrap().rules.endpoints.clone();
+        for (key, endpoint) in endpoints {
             // skip thunder endpoint as it is already built using build_thunder_endpoint
             if let RuleEndpointProtocol::Thunder = endpoint.protocol {
                 continue;
@@ -812,7 +827,7 @@ impl EndpointBrokerState {
         &self,
         rpc_request: &RpcRequest,
     ) -> Result<RuleRetrieved, RuleRetrievalError> {
-        self.rule_engine.get_rule(rpc_request)
+        self.rule_engine.read().unwrap().get_rule(rpc_request)
     }
     /// Main handler method which checks for brokerage and then sends the request for
     /// asynchronous processing
@@ -1066,10 +1081,6 @@ impl EndpointBrokerState {
         }
     }
 
-    pub fn get_rule(&self, rpc_request: &RpcRequest) -> Result<RuleRetrieved, RuleRetrievalError> {
-        self.rule_engine.get_rule(rpc_request)
-    }
-
     // Method to cleanup all subscription on App termination
     pub async fn cleanup_for_app(&self, app_id: &str) {
         let cleaners = { self.cleaner_list.read().unwrap().clone() };
@@ -1220,7 +1231,6 @@ impl BrokerOutputForwarder {
                 let output_c = output.clone();
                 let mut response = output.data.clone();
                 let mut is_event = false;
-                // First validate the id check if it could be an event
                 let id = if let Some(e) = output_c.get_event() {
                     is_event = true;
                     Some(e)
@@ -1236,141 +1246,50 @@ impl BrokerOutputForwarder {
                             broker_request.clone(),
                         )
                         .emit_debug();
-                        /*
-                        save off rpc method name for rule context telemetry
-                        */
-                        let rule_context_name = broker_request.rpc.method.clone();
 
-                        let workflow_callback = broker_request.clone().workflow_callback;
+                        let rule_context_name = broker_request.rpc.method.clone();
+                        let workflow_callback = broker_request.workflow_callback.clone();
                         let telemetry_response_listeners =
-                            broker_request.clone().telemetry_response_listeners;
+                            broker_request.telemetry_response_listeners.clone();
                         let sub_processed = broker_request.is_subscription_processed();
                         let rpc_request = broker_request.rpc.clone();
-                        let session_id = rpc_request.ctx.get_id();
                         let is_subscription = rpc_request.is_subscription();
-                        let mut apply_response_needed = false;
 
-                        // Step 1: Create the data
-                        if let Some(result) = response.result.clone() {
-                            LogSignal::new(
-                                "start_forwarder".to_string(),
-                                "processing event".to_string(),
-                                broker_request.clone(),
-                            )
-                            .emit_debug();
-
+                        let apply_response_needed = if let Some(result) = response.result.clone() {
                             if is_event {
-                                if let Some(event_handler) =
-                                    broker_request.rule.event_handler.clone()
+                                LogSignal::new(
+                                    "handle_event_output".to_string(),
+                                    "processing event".to_string(),
+                                    broker_request.clone(),
+                                )
+                                .emit_debug();
+                                if Self::handle_event_output(
+                                    &broker_request,
+                                    &rpc_request,
+                                    &mut response,
+                                    &platform_state,
+                                    &event_utility_clone,
+                                    result.clone(),
+                                )
+                                .await
                                 {
-                                    let platform_state_c = platform_state.clone();
-                                    let rpc_request_c = rpc_request.clone();
-                                    let response_c = response.clone();
-                                    let broker_request_c = broker_request.clone();
-
-                                    tokio::spawn(Self::handle_event(
-                                        platform_state_c,
-                                        event_handler,
-                                        broker_request_c,
-                                        rpc_request_c,
-                                        response_c,
-                                    ));
-
                                     continue;
                                 }
-
-                                if let Some(filter) =
-                                    broker_request.rule.transform.get_transform_data(
-                                        super::rules::rules_engine::RuleTransformType::Event(
-                                            rpc_request.ctx.context.contains(&RPC_V2.into()),
-                                        ),
-                                    )
-                                {
-                                    apply_rule_for_event(
-                                        &broker_request,
-                                        &result,
-                                        &rpc_request,
-                                        &filter,
-                                        &mut response,
-                                    );
-                                }
-
-                                if !apply_filter(&broker_request, &result, &rpc_request) {
-                                    continue;
-                                }
-
-                                // check if the request transform has event_decorator_method
-                                if let Some(decorator_method) =
-                                    broker_request.rule.transform.event_decorator_method.clone()
-                                {
-                                    if let Some(func) =
-                                        event_utility_clone.get_function(&decorator_method)
-                                    {
-                                        // spawn a tokio thread to run the function and continue the main thread.
-                                        LogSignal::new(
-                                            "start_forwarder".to_string(),
-                                            "event decorator method found".to_string(),
-                                            rpc_request.ctx.clone(),
-                                        )
-                                        .emit_debug();
-                                        let session_id = rpc_request.ctx.get_id();
-                                        let request_id = rpc_request.ctx.call_id;
-                                        let protocol = rpc_request.ctx.protocol.clone();
-                                        let platform_state_c = platform_state.clone();
-                                        let ctx = rpc_request.ctx.clone();
-                                        tokio::spawn(async move {
-                                            if let Ok(value) = func(
-                                                platform_state_c.clone(),
-                                                ctx.clone(),
-                                                Some(result.clone()),
-                                            )
-                                            .await
-                                            {
-                                                response.result = Some(value.expect("REASON"));
-                                            }
-                                            response.id = Some(request_id);
-
-                                            let message = ApiMessage::new(
-                                                protocol,
-                                                serde_json::to_string(&response).unwrap(),
-                                                rpc_request.ctx.request_id.clone(),
-                                            );
-
-                                            if let Some(session) = platform_state_c
-                                                .session_state
-                                                .get_session_for_connection_id(&session_id)
-                                            {
-                                                let _ = session.send_json_rpc(message).await;
-                                            }
-                                        });
-                                        continue;
-                                    } else {
-                                        LogSignal::new(
-                                            "start_forwarder".to_string(),
-                                            "event decorator method not found".to_string(),
-                                            rpc_request.ctx.clone(),
-                                        )
-                                        .emit_debug();
-                                        error!(
-                                            "Failed to invoke decorator method {:?}",
-                                            decorator_method
-                                        );
-                                    }
-                                }
-                            } else if is_subscription {
-                                if sub_processed {
-                                    continue;
-                                }
-                                response.result = Some(json!({
-                                    "listening" : rpc_request.is_listening(),
-                                    "event" : rpc_request.ctx.method
-                                }));
-                                platform_state.endpoint_state.update_unsubscribe_request(id);
-                            } else {
-                                apply_response_needed = true;
+                            } else if is_subscription
+                                && Self::handle_subscription_response(
+                                    &broker_request,
+                                    &rpc_request,
+                                    &mut response,
+                                    sub_processed,
+                                    &platform_state,
+                                    id,
+                                )
+                            {
+                                continue;
                             }
+
+                            !is_event && !is_subscription
                         } else {
-                            trace!("start_forwarder: no result {:?}", response);
                             LogSignal::new(
                                 "start_forwarder".to_string(),
                                 "no result".to_string(),
@@ -1378,126 +1297,30 @@ impl BrokerOutputForwarder {
                             )
                             .with_diagnostic_context_item("response", response.to_string().as_str())
                             .emit_debug();
-                            apply_response_needed = true;
-                        }
+                            true
+                        };
 
                         if apply_response_needed {
-                            // Apply response rule using params if there is any; otherwise, apply response rule using main broker request's response rule
-                            let mut apply_response_using_main_req_needed = true;
-                            if let Some(params) = output.data.params {
-                                if let Some(param) = params.as_object() {
-                                    for (key, value) in param {
-                                        if key == "response" {
-                                            if let Some(filter) = value.as_str() {
-                                                apply_response_using_main_req_needed = false;
-                                                apply_response(
-                                                    filter.to_string(),
-                                                    &rpc_request.ctx.method,
-                                                    &mut response,
-                                                );
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            if apply_response_using_main_req_needed {
-                                if let Some(filter) =
-                                    broker_request.rule.transform.get_transform_data(
-                                        super::rules::rules_engine::RuleTransformType::Response,
-                                    )
-                                {
-                                    apply_response(filter, &rule_context_name, &mut response);
-                                } else if response.result.is_none() && response.error.is_none() {
-                                    response.result = Some(Value::Null);
-                                }
-                            }
-                        }
-
-                        let request_id = rpc_request.ctx.call_id;
-                        response.id = Some(request_id);
-
-                        if let Some(workflow_callback) = workflow_callback {
-                            debug!("sending to workflow callback {:?}", response);
-                            LogSignal::new(
-                                "start_forwarder".to_string(),
-                                "sending to workflow callback".to_string(),
-                                rpc_request.ctx.clone(),
-                            )
-                            .emit_debug();
-                            let _ = workflow_callback
-                                .sender
-                                .try_send(BrokerOutput::new(response.clone()));
-                        } else {
-                            let tm_str = get_rpc_header(&rpc_request);
-
-                            if is_event {
-                                response.update_event_message(&rpc_request);
-                            }
-
-                            // Step 2: Create the message
-                            let mut message = ApiMessage::new(
-                                rpc_request.ctx.protocol.clone(),
-                                serde_json::to_string(&response).unwrap(),
-                                rpc_request.ctx.request_id.clone(),
+                            Self::apply_response_transform(
+                                &broker_request,
+                                &output_c,
+                                &mut response,
+                                &rule_context_name,
                             );
-                            let mut status_code: i64 = 1;
-                            if let Some(e) = &response.error {
-                                if let Some(Value::Number(n)) = e.get("code") {
-                                    if let Some(v) = n.as_i64() {
-                                        status_code = v;
-                                    }
-                                }
-                            }
-
-                            platform_state.metrics.update_api_stats_ref(
-                                &rpc_request.ctx.request_id,
-                                add_telemetry_status_code(
-                                    &tm_str,
-                                    status_code.to_string().as_str(),
-                                ),
-                            );
-
-                            if let Some(api_stats) = platform_state
-                                .metrics
-                                .get_api_stats(&rpc_request.ctx.request_id)
-                            {
-                                message.stats = Some(api_stats);
-
-                                if rpc_request.ctx.app_id.eq_ignore_ascii_case("internal") {
-                                    platform_state
-                                        .metrics
-                                        .remove_api_stats(&rpc_request.ctx.request_id);
-                                }
-                            }
-
-                            // Step 3: Handle Non Extension
-                            if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
-                                if let Ok(extn_message) =
-                                    platform_state.endpoint_state.get_extn_message(id, is_event)
-                                {
-                                    let client = platform_state.get_client().get_extn_client();
-                                    if is_event {
-                                        forward_extn_event(
-                                            &extn_message,
-                                            response.clone(),
-                                            &platform_state,
-                                        )
-                                        .await;
-                                    } else {
-                                        return_extn_response(message, extn_message, client)
-                                    }
-                                }
-                            } else if let Some(session) = platform_state
-                                .session_state
-                                .get_session_for_connection_id(&session_id)
-                            {
-                                let _ = session.send_json_rpc(message).await;
-                            }
                         }
 
-                        for listener in telemetry_response_listeners {
-                            let _ = listener.try_send(BrokerOutput::new(response.clone()));
-                        }
+                        response.id = Some(rpc_request.ctx.call_id);
+
+                        Self::forward_response(
+                            response,
+                            &rpc_request,
+                            &mut platform_state,
+                            is_event,
+                            id,
+                            workflow_callback,
+                            telemetry_response_listeners,
+                        )
+                        .await;
                     } else {
                         error!(
                             "start_forwarder:{} request not found for {:?}",
@@ -1513,6 +1336,326 @@ impl BrokerOutputForwarder {
                 }
             }
         });
+    }
+
+    async fn forward_response(
+        response: JsonRpcApiResponse,
+        rpc_request: &RpcRequest,
+        platform_state: &mut PlatformState,
+        is_event: bool,
+        id: u64,
+        workflow_callback: Option<BrokerCallback>,
+        telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
+    ) {
+        LogSignal::new(
+            "forward_response".to_string(),
+            "entered".to_string(),
+            rpc_request.ctx.clone(),
+        )
+        .emit_debug();
+        let session_id = rpc_request.ctx.get_id();
+        if let Some(workflow_callback) = workflow_callback {
+            debug!("sending to workflow callback {:?}", response);
+            LogSignal::new(
+                "forward_response".to_string(),
+                "sending to workflow callback".to_string(),
+                rpc_request.ctx.clone(),
+            )
+            .emit_debug();
+            let _ = workflow_callback
+                .sender
+                .try_send(BrokerOutput::new(response.clone()));
+        } else {
+            let tm_str = get_rpc_header(rpc_request);
+            let mut response = response.clone();
+            if is_event {
+                response.update_event_message(rpc_request);
+            }
+            let mut message = ApiMessage::new(
+                rpc_request.ctx.protocol.clone(),
+                serde_json::to_string(&response).unwrap(),
+                rpc_request.ctx.request_id.clone(),
+            );
+            let mut status_code: i64 = 1;
+            if let Some(e) = &response.error {
+                if let Some(Value::Number(n)) = e.get("code") {
+                    if let Some(v) = n.as_i64() {
+                        status_code = v;
+                    }
+                }
+            }
+            platform_state.metrics.update_api_stats_ref(
+                &rpc_request.ctx.request_id,
+                add_telemetry_status_code(&tm_str, status_code.to_string().as_str()),
+            );
+            if let Some(api_stats) = platform_state
+                .metrics
+                .get_api_stats(&rpc_request.ctx.request_id)
+            {
+                message.stats = Some(api_stats);
+                if rpc_request.ctx.app_id.eq_ignore_ascii_case("internal") {
+                    platform_state
+                        .metrics
+                        .remove_api_stats(&rpc_request.ctx.request_id);
+                }
+            }
+            if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
+                if let Ok(extn_message) =
+                    platform_state.endpoint_state.get_extn_message(id, is_event)
+                {
+                    let client = platform_state.get_client().get_extn_client();
+                    if is_event {
+                        forward_extn_event(&extn_message, response.clone(), platform_state).await;
+                    } else {
+                        return_extn_response(message, extn_message, client)
+                    }
+                }
+            } else if matches!(rpc_request.ctx.protocol, ApiProtocol::Service) {
+                Self::handle_service_message(rpc_request, &message, platform_state).await;
+            } else if let Some(session) = platform_state
+                .session_state
+                .get_session_for_connection_id(&session_id)
+            {
+                let _ = session.send_json_rpc(message).await;
+            }
+        }
+        for listener in telemetry_response_listeners {
+            let _ = listener.try_send(BrokerOutput::new(response.clone()));
+        }
+    }
+
+    async fn handle_event_output(
+        broker_request: &BrokerRequest,
+        rpc_request: &RpcRequest,
+        response: &mut JsonRpcApiResponse,
+        platform_state: &PlatformState,
+        event_utility: &Arc<EventManagementUtility>,
+        result: Value,
+    ) -> bool {
+        if let Some(event_handler) = broker_request.rule.event_handler.clone() {
+            let platform_state_c = platform_state.clone();
+            let rpc_request_c = rpc_request.clone();
+            let response_c = response.clone();
+            let broker_request_c = broker_request.clone();
+
+            LogSignal::new(
+                "handle_event_output".to_string(),
+                "spawning event handler".to_string(),
+                broker_request.clone(),
+            )
+            .emit_debug();
+
+            tokio::spawn(Self::handle_event(
+                platform_state_c,
+                event_handler,
+                broker_request_c,
+                rpc_request_c,
+                response_c,
+            ));
+            return true;
+        }
+
+        if let Some(filter) = broker_request.rule.transform.get_transform_data(
+            super::rules::rules_engine::RuleTransformType::Event(
+                rpc_request.ctx.context.contains(&RPC_V2.into()),
+            ),
+        ) {
+            apply_rule_for_event(broker_request, &result, rpc_request, &filter, response);
+        }
+
+        if !apply_filter(broker_request, &result, rpc_request) {
+            LogSignal::new(
+                "handle_event_output".to_string(),
+                "event filtered out".to_string(),
+                broker_request.clone(),
+            )
+            .emit_debug();
+            return true;
+        }
+
+        if let Some(decorator_method) = broker_request.rule.transform.event_decorator_method.clone()
+        {
+            if let Some(func) = event_utility.get_function(&decorator_method) {
+                LogSignal::new(
+                    "handle_event_output".to_string(),
+                    "event decorator method found".to_string(),
+                    rpc_request.ctx.clone(),
+                )
+                .emit_debug();
+                let session_id = rpc_request.ctx.get_id();
+                let request_id = rpc_request.ctx.call_id;
+                let protocol = rpc_request.ctx.protocol.clone();
+                let platform_state_c = platform_state.clone();
+                let ctx = rpc_request.ctx.clone();
+                let mut response_c = response.clone();
+                tokio::spawn(async move {
+                    if let Ok(value) =
+                        func(platform_state_c.clone(), ctx.clone(), Some(result.clone())).await
+                    {
+                        response_c.result = Some(value.expect("REASON"));
+                    }
+                    response_c.id = Some(request_id);
+                    let message = ApiMessage::new(
+                        protocol,
+                        serde_json::to_string(&response_c).unwrap(),
+                        ctx.request_id.clone(),
+                    );
+                    if let Some(session) = platform_state_c
+                        .session_state
+                        .get_session_for_connection_id(&session_id)
+                    {
+                        let _ = session.send_json_rpc(message).await;
+                    }
+                });
+                return true;
+            } else {
+                LogSignal::new(
+                    "handle_event_output".to_string(),
+                    "event decorator method not found".to_string(),
+                    rpc_request.ctx.clone(),
+                )
+                .emit_debug();
+                error!("Failed to invoke decorator method {:?}", decorator_method);
+            }
+        }
+        false
+    }
+
+    fn handle_subscription_response(
+        broker_request: &BrokerRequest,
+        rpc_request: &RpcRequest,
+        response: &mut JsonRpcApiResponse,
+        sub_processed: bool,
+        platform_state: &PlatformState,
+        id: u64,
+    ) -> bool {
+        LogSignal::new(
+            "handle_subscription_response".to_string(),
+            "entered".to_string(),
+            broker_request.clone(),
+        )
+        .emit_debug();
+
+        if sub_processed {
+            LogSignal::new(
+                "handle_subscription_response".to_string(),
+                "subscription already processed".to_string(),
+                broker_request.clone(),
+            )
+            .emit_debug();
+            return true;
+        }
+        response.result = Some(json!({
+            "listening" : rpc_request.is_listening(),
+            "event" : rpc_request.ctx.method
+        }));
+        platform_state.endpoint_state.update_unsubscribe_request(id);
+
+        LogSignal::new(
+            "handle_subscription_response".to_string(),
+            "subscription response set".to_string(),
+            broker_request.clone(),
+        )
+        .emit_debug();
+        false
+    }
+
+    fn apply_response_transform(
+        broker_request: &BrokerRequest,
+        output: &BrokerOutput,
+        response: &mut JsonRpcApiResponse,
+        rule_context_name: &str,
+    ) {
+        LogSignal::new(
+            "apply_response_transform".to_string(),
+            "entered".to_string(),
+            broker_request.clone(),
+        )
+        .emit_debug();
+
+        let mut apply_response_using_main_req_needed = true;
+        if let Some(params) = output.data.params.clone() {
+            if let Some(param) = params.as_object() {
+                for (key, value) in param {
+                    if key == "response" {
+                        if let Some(filter) = value.as_str() {
+                            apply_response_using_main_req_needed = false;
+                            apply_response(
+                                filter.to_string(),
+                                &broker_request.rpc.ctx.method,
+                                response,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        if apply_response_using_main_req_needed {
+            if let Some(filter) = broker_request
+                .rule
+                .transform
+                .get_transform_data(super::rules::rules_engine::RuleTransformType::Response)
+            {
+                apply_response(filter, rule_context_name, response);
+            } else if response.result.is_none() && response.error.is_none() {
+                response.result = Some(Value::Null);
+            }
+        }
+    }
+
+    async fn handle_service_message(
+        rpc_request: &RpcRequest,
+        message: &ApiMessage,
+        platform_state: &PlatformState,
+    ) {
+        let context = rpc_request.ctx.clone().context;
+        if context.len() < 2 {
+            error!("Context does not contain a valid service id");
+            return;
+        }
+        let service_id = context[1].to_string();
+        let service_sender = platform_state
+            .service_controller_state
+            .get_sender(&service_id)
+            .await;
+        if let Some(sender) = service_sender {
+            let json_rpc_response =
+                serde_json::from_str::<serde_json::Value>(message.jsonrpc_msg.clone().as_str())
+                    .unwrap();
+
+            let result = json_rpc_response.get("result").cloned().unwrap_or_default();
+            let jsonrpc = serde_json::to_string(
+                &json_rpc_response
+                    .get("jsonrpc")
+                    .cloned()
+                    .unwrap_or_default(),
+            )
+            .unwrap();
+            let id = ServiceMessageId::String(message.request_id.clone());
+
+            let service_message = ServiceMessage {
+                message: ServiceJsonRpcMessage::Success(ServiceJsonRpcSuccess {
+                    result,
+                    jsonrpc,
+                    id,
+                }),
+                context: Some(serde_json::to_value(rpc_request.ctx.clone()).unwrap_or_default()),
+            };
+            let msg_str = serde_json::to_string(&service_message).unwrap();
+            let mes = Message::Text(msg_str.clone());
+            debug!(
+                "Sending response to service {} message: {:?}",
+                service_id, mes
+            );
+            if let Err(err) = sender.try_send(mes) {
+                error!(
+                    "Failed to send request to service {}: {:?}",
+                    service_id, err
+                );
+            } else {
+                debug!("Successfully sent request to service: {}", service_id);
+            }
+        }
     }
 
     async fn handle_event(

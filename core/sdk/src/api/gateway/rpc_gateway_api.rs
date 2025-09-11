@@ -81,6 +81,7 @@ impl From<CallContext> for serde_json::Value {
             "method": ctx.method,
             "cid": ctx.cid,
             "gateway_secure": ctx.gateway_secure,
+            "context": ctx.context,
         })
     }
 }
@@ -173,6 +174,7 @@ pub enum ApiProtocol {
     Extn,
     #[default]
     JsonRpc,
+    Service,
 }
 impl std::fmt::Display for ApiProtocol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -180,6 +182,7 @@ impl std::fmt::Display for ApiProtocol {
             ApiProtocol::Bridge => write!(f, "Bridge"),
             ApiProtocol::Extn => write!(f, "Extn"),
             ApiProtocol::JsonRpc => write!(f, "JsonRpc"),
+            ApiProtocol::Service => write!(f, "Service"),
         }
     }
 }

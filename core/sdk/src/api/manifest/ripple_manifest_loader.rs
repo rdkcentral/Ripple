@@ -237,6 +237,8 @@ impl RippleConfigLoader {
             }
         }
 
+        sort_rules_paths_by_keywords(&mut merged_manifest.rules_path);
+
         if let Ok(json_string) = serde_json::to_string_pretty(&merged_manifest) {
             info!("Merged Extension Manifest:\n{}", json_string);
         } else {
@@ -395,6 +397,29 @@ impl RippleConfigLoader {
             panic!("get_device_manifest called in non-cascaded mode after initialization");
         }
     }
+}
+
+pub fn sort_rules_paths_by_keywords(paths: &mut [String]) {
+    paths.sort_by(|a, b| {
+        // A helper function to determine the priority of a given path.
+        // The keywords are checked in a specific order to ensure the correct
+        let get_priority = |path: &str| -> usize {
+            if path.contains("ripple.common") && !path.contains("panel") {
+                0
+            } else if path.contains("ripple.panel.common") {
+                1
+            } else if path.contains("ripple.") && path.contains(".common") {
+                2
+            } else if path.contains("ripple.") && path.contains(".panel") {
+                3
+            } else if path.contains("entos.private") {
+                4
+            } else {
+                usize::MAX
+            }
+        };
+        get_priority(a).cmp(&get_priority(b))
+    });
 }
 
 #[cfg(test)]

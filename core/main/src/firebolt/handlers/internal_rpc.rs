@@ -19,12 +19,22 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
 use ripple_sdk::{
     api::{
         apps::{AppEvent, AppManagerResponse, AppMethod, AppRequest, AppResponse},
-        firebolt::{fb_general::ListenRequestWithEvent, fb_telemetry::TelemetryPayload},
+        caps::CapsRequest,
+        firebolt::{
+            fb_discovery::{AgePolicy, PolicyIdentifierAlias},
+            fb_general::ListenRequestWithEvent,
+            fb_telemetry::TelemetryPayload,
+        },
         gateway::rpc_gateway_api::CallContext,
     },
     async_trait::async_trait,
     log::{debug, error},
     tokio::sync::oneshot,
+};
+
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
 };
 
 use crate::{
@@ -54,6 +64,28 @@ pub trait Internal {
 
     #[method(name = "ripple.getAppCatalogId")]
     async fn get_app_catalog_id(&self, ctx: CallContext, app_id: String) -> RpcResult<String>;
+
+    #[method(name = "ripple.checkCapsRequest")]
+    async fn check_caps_request(
+        &self,
+        ctx: CallContext,
+        caps_request: CapsRequest,
+    ) -> RpcResult<HashMap<String, bool>>;
+
+    #[method(name = "account.setPolicyIdentifierAlias")]
+    async fn set_policy_identifier_alias(
+        &self,
+        ctx: CallContext,
+        params: PolicyIdentifierAlias,
+    ) -> RpcResult<()>;
+
+    #[method(name = "account.policyIdentifierAlias")]
+    async fn get_policy_identifier_alias(&self, ctx: CallContext) -> RpcResult<Vec<AgePolicy>>;
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PolicyState {
+    pub policy_identifiers_alias: Arc<RwLock<Vec<AgePolicy>>>,
 }
 
 #[derive(Debug)]
@@ -106,6 +138,41 @@ impl InternalServer for InternalImpl {
         }
 
         Ok(app_id)
+    }
+
+    async fn check_caps_request(
+        &self,
+        _ctx: CallContext,
+        caps_request: CapsRequest,
+    ) -> RpcResult<HashMap<String, bool>> {
+        match caps_request {
+            CapsRequest::Supported(request) => {
+                let result = self.state.cap_state.generic.check_for_processor(request);
+                Ok(result)
+            }
+            CapsRequest::Permitted(app_id, request) => {
+                let result = self
+                    .state
+                    .cap_state
+                    .permitted_state
+                    .check_multiple(&app_id, request);
+                Ok(result)
+            }
+        }
+    }
+
+    async fn set_policy_identifier_alias(
+        &self,
+        _ctx: CallContext,
+        params: PolicyIdentifierAlias,
+    ) -> RpcResult<()> {
+        debug!("Setting policy identifier alias: {:?}", params);
+        self.state.add_policy_identifier_alias(params);
+        Ok(())
+    }
+
+    async fn get_policy_identifier_alias(&self, _ctx: CallContext) -> RpcResult<Vec<AgePolicy>> {
+        Ok(self.state.get_policy_identifier_alias())
     }
 }
 
