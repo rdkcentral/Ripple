@@ -67,6 +67,16 @@ impl ExtnSender {
         }
     }
 
+    pub fn new_main_with_sender(sender: Sender<ApiMessage>) -> Self {
+        ExtnSender {
+            tx: Some(sender),
+            id: ExtnId::get_main_target("main".to_owned()),
+            permitted: Vec::default(),
+            fulfills: Vec::default(),
+            config: None,
+        }
+    }
+
     pub fn new_extn(tx: Sender<ApiMessage>, symbol: ExtnSymbol) -> Self {
         ExtnSender {
             tx: Some(tx),
