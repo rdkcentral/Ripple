@@ -47,8 +47,6 @@ contract_tests = [
     "websocket_contract_tests",
 ]
 tdk=[]
-
-#dhat-heap = ["dep:dhat", "dep:signal-hook"]
 [dependencies]
 base64.workspace = true
 ripple_sdk = { workspace = true, features = ["full"] }
@@ -79,8 +77,8 @@ strum_macros = "0.24"
 # Only included when openrpc_validation feature is enabled
 openrpc_validator = { path = "../../openrpc_validator", optional = true, default-features = false }
 proc-macro2.workspace = true
-dhat = { workspace = true }
-signal-hook = { version = "0.3", optional = true }
+dhat = { workspace = true  }
+signal-hook = { version = "0.3" }
 
 [build-dependencies]
 vergen = "1"
