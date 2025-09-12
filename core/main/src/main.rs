@@ -31,8 +31,14 @@ pub mod state;
 pub mod utils;
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
 #[tokio::main(worker_threads = 2)]
 async fn main() {
+    let _profiler = dhat::Profiler::builder()
+        .file_name("/opt/ripple-heap.json")
+        .build();
     // Init logger
     if let Err(e) = init_and_configure_logger(SEMVER_LIGHTWEIGHT, "gateway".into(), None) {
         println!("{:?} logger init error", e);
