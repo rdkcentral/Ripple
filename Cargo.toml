@@ -49,10 +49,12 @@ ripple_sdk = { path = "./core/sdk" }
 proc-macro2 = { version = "1.0.86"}
 dhat = { version = "0.3" }
 
+
 [profile.release]
-strip=false
-debug=1
-lto=false
+strip=true
+opt-level="z"
+codegen-units=1
+lto=true
 panic="abort"
 
 # Memory profiling profile - keeps debug symbols for meaningful stack traces
