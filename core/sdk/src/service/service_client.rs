@@ -369,39 +369,6 @@ impl ServiceClient {
         self.extn_client.as_ref().and_then(|ec| ec.get_stack_size())
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub async fn call_and_parse_ripple_event_rpc(
-        &mut self,
-        method: &str,
-        params: Option<serde_json::Value>,
-        ctx: Option<&CallContext>,
-        timeout: u64,
-        service_id: &str,
-        _error_msg: &str,
-        event_sender: MSender<ServiceMessage>,
-    ) -> RpcResult<bool> {
-        let res = self
-            .request_with_timeout_main(
-                method.to_string(),
-                params,
-                ctx,
-                timeout,
-                service_id.to_string(),
-                Some(event_sender),
-                ServiceRequestType::Event,
-            )
-            .await;
-
-        if let Ok(r) = res {
-            match r.message {
-                JsonRpcMessage::Success(_) => Ok(true),
-                _ => Ok(false),
-            }
-        } else {
-            Ok(false)
-        }
-    }
-
     pub async fn call_and_parse_ripple_main_rpc<T: DeserializeOwned>(
         &mut self,
         method: &str,
@@ -432,6 +399,39 @@ impl ServiceClient {
                 "Failed to get Success response for {}",
                 method
             ))),
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn call_and_parse_ripple_event_rpc(
+        &mut self,
+        method: &str,
+        params: Option<serde_json::Value>,
+        ctx: Option<&CallContext>,
+        timeout: u64,
+        service_id: &str,
+        _error_msg: &str,
+        event_sender: MSender<ServiceMessage>,
+    ) -> RpcResult<bool> {
+        let res = self
+            .request_with_timeout_main(
+                method.to_string(),
+                params,
+                ctx,
+                timeout,
+                service_id.to_string(),
+                Some(event_sender),
+                ServiceRequestType::Event,
+            )
+            .await;
+
+        if let Ok(r) = res {
+            match r.message {
+                JsonRpcMessage::Success(_) => Ok(true),
+                _ => Ok(false),
+            }
+        } else {
+            Ok(false)
         }
     }
 

@@ -221,7 +221,7 @@ mod tests {
             app_id: "test_app".to_string(),
             intent: Some(InternalNavigationIntent::NavigationIntentLoose(
                 NavigationIntentLoose {
-                    context: DiscoveryContext::new("voice"),
+                    context: DiscoveryContext::new("voice", None),
                     action: "test_action".to_string(),
                     data: None,
                 },
@@ -233,7 +233,7 @@ mod tests {
             intent,
             Some(NavigationIntent::NavigationIntentLoose(
                 NavigationIntentLoose {
-                    context: DiscoveryContext::new("voice"),
+                    context: DiscoveryContext::new("voice", None),
                     action: "test_action".to_string(),
                     data: None,
                 },
@@ -258,7 +258,7 @@ mod tests {
             app_id: "test_app".to_string(),
             intent: Some(InternalNavigationIntent::NavigationIntentStrict(
                 InternalNavigationIntentStrict::Home(HomeIntent {
-                    context: DiscoveryContext::new("voice"),
+                    context: DiscoveryContext::new("voice", None),
                 }),
             )),
         };
@@ -270,7 +270,7 @@ mod tests {
                 app_id: "test_app".to_string(),
                 intent: Some(NavigationIntent::NavigationIntentStrict(
                     NavigationIntentStrict::Home(HomeIntent {
-                        context: DiscoveryContext::new("voice"),
+                        context: DiscoveryContext::new("voice", None),
                     }),
                 )),
             }
@@ -308,6 +308,7 @@ mod tests {
                         InternalNavigationIntentStrict::Home(HomeIntent {
                             context: DiscoveryContext {
                                 source: "test_source".to_string(),
+                                age_policy: None,
                             },
                         }),
                     )),

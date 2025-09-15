@@ -17,6 +17,8 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use crate::api::firebolt::fb_discovery::AgePolicy;
 //https://developer.comcast.com/firebolt/core/sdk/latest/api/metrics
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -373,6 +375,8 @@ pub struct ErrorParams {
     pub description: String,
     pub visible: bool,
     pub parameters: Option<HashMap<String, FlatMapValue>>,
+    #[serde(rename = "agePolicy")]
+    pub age_policy: Option<AgePolicy>,
 }
 
 impl From<ErrorParams> for ErrorType {
