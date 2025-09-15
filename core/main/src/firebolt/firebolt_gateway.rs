@@ -32,7 +32,7 @@ use ripple_sdk::{
     },
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
-    log::{debug, error, info, trace, warn},
+    log::{error, info, trace, warn},
     serde_json::{self, Value},
     service::service_message::{JsonRpcMessage as JsonRpcServiceMessage, ServiceMessage},
     tokio::{self, runtime::Handle, sync::mpsc::Sender},
