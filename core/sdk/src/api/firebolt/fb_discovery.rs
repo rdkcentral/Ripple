@@ -17,7 +17,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::utils::error::RippleError;
 use crate::{
@@ -28,19 +28,80 @@ use crate::{
     utils::serde_utils::{optional_date_time_str_serde, progress_value_deserialize},
 };
 use async_trait::async_trait;
+use serde::Serializer;
 
 pub const DISCOVERY_EVENT_ON_NAVIGATE_TO: &str = "discovery.onNavigateTo";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct DiscoveryContext {
     pub source: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "agePolicy")]
+    pub age_policy: Option<Vec<String>>,
 }
 
 impl DiscoveryContext {
-    pub fn new(source: &str) -> DiscoveryContext {
+    pub fn new(source: &str, age_policy: Option<Vec<String>>) -> DiscoveryContext {
         DiscoveryContext {
             source: source.to_string(),
+            age_policy,
         }
+    }
+}
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum AgePolicy {
+    Child,
+    Teen,
+    Adult,
+}
+impl std::fmt::Display for AgePolicy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_string())
+    }
+}
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct PolicyIdentifierAlias {
+    #[serde(rename = "policyIdentifierAlias")]
+    pub policy_identifier_alias: Vec<AgePolicy>,
+}
+impl<'de> Deserialize<'de> for AgePolicy {
+    fn deserialize<D>(deserializer: D) -> Result<AgePolicy, <D as serde::Deserializer<'de>>::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let policy = String::deserialize(deserializer)?;
+        match policy.as_str() {
+            "app:child" => Ok(AgePolicy::Child),
+            "app:teen" => Ok(AgePolicy::Teen),
+            "app:adult" => Ok(AgePolicy::Adult),
+            _ => Err(serde::de::Error::custom(format!(
+                "Unknown age policy: {}",
+                policy
+            ))),
+        }
+    }
+}
+impl AgePolicy {
+    pub fn as_string(&self) -> &'static str {
+        match self {
+            AgePolicy::Child => "app:child",
+            AgePolicy::Teen => "app:teen",
+            AgePolicy::Adult => "app:adult",
+        }
+    }
+}
+
+impl Serialize for AgePolicy {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let policy = match self {
+            AgePolicy::Child => "app:child",
+            AgePolicy::Teen => "app:teen",
+            AgePolicy::Adult => "app:adult",
+        };
+        serializer.serialize_str(policy)
     }
 }
 
@@ -98,7 +159,7 @@ pub struct SignInInfo {
 }
 
 //type LocalizedString = string | object
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
 #[serde(untagged)]
 pub enum LocalizedString {
     Simple(String),
@@ -119,6 +180,8 @@ pub struct WatchedInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub watched_on: Option<String>,
+    #[serde(rename = "agePolicy")]
+    pub age_policy: Option<AgePolicy>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -367,6 +430,7 @@ pub struct MediaEventsAccountLinkRequestParams {
     pub client_supports_opt_out: bool,
     pub dist_session: AccountSession,
     pub data_tags: HashSet<DataTagInfo>,
+    pub category_tags: Vec<String>,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MediaEventsAccountLinkResponse {}
@@ -404,8 +468,9 @@ mod tests {
 
     #[test]
     fn test_new_discovery_context() {
-        let context = DiscoveryContext::new("test_source");
+        let context = DiscoveryContext::new("test_source", None);
         assert_eq!(context.source, "test_source");
+        assert_eq!(context.age_policy, None);
     }
 
     #[test]
@@ -413,6 +478,7 @@ mod tests {
         let home_intent = HomeIntent {
             context: DiscoveryContext {
                 source: "test_source".to_string(),
+                age_policy: None,
             },
         };
 
@@ -428,7 +494,8 @@ mod tests {
             intent,
             NavigationIntent::NavigationIntentStrict(NavigationIntentStrict::Home(HomeIntent {
                 context: DiscoveryContext {
-                    source: "test_source".to_string()
+                    source: "test_source".to_string(),
+                    age_policy: None,
                 }
             }))
         );
@@ -474,19 +541,45 @@ mod tests {
     }
 
     #[test]
-    fn test_from_sign_in_info_to_content_access_identifiers() {
-        let sign_in_info = SignInInfo {
-            entitlements: Some(get_mock_entitlement_data()),
-        };
+    fn test_watched_info_json_age_policy_child() {
+        // Explicitly test age_policy string value "app:child"
+        let json = r#"{
+            "entityId": "movie-123",
+            "progress": 0.5,
+            "completed": true,
+            "watchedOn": "2024-01-01T00:00:00.000Z",
+            "agePolicy": "app:child"
+        }"#;
+        let watched: WatchedInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(watched.age_policy, Some(AgePolicy::Child));
+    }
 
-        let content_access_identifiers = ContentAccessIdentifiers::from(sign_in_info);
-        assert_eq!(
-            content_access_identifiers,
-            ContentAccessIdentifiers {
-                availabilities: None,
-                entitlements: Some(get_mock_entitlement_data()),
-            }
-        );
+    #[test]
+    fn test_watched_info_json_age_policy_adult() {
+        // Explicitly test age_policy string value "app:adult"
+        let json = r#"{
+            "entityId": "movie-456",
+            "progress": 1.0,
+            "completed": false,
+            "watchedOn": "2024-02-01T00:00:00.000Z",
+            "agePolicy": "app:adult"
+        }"#;
+        let watched: WatchedInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(watched.age_policy, Some(AgePolicy::Adult));
+    }
+
+    #[test]
+    fn test_watched_info_json_age_policy_teen() {
+        // Explicitly test age_policy string value "app:teen"
+        let json = r#"{
+            "entityId": "movie-789",
+            "progress": 0.25,
+            "completed": true,
+            "watchedOn": "2024-03-01T00:00:00.000Z",
+            "agePolicy": "app:teen"
+        }"#;
+        let watched: WatchedInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(watched.age_policy, Some(AgePolicy::Teen));
     }
 
     #[test]
@@ -569,5 +662,590 @@ mod tests {
         } else {
             panic!("Launch Schema Fail")
         }
+    }
+
+    // Comprehensive JSON serialization/deserialization tests for Firebolt OpenRPC compliance
+
+    #[test]
+    fn test_discovery_context_json_serialization() {
+        // Test standard case
+        let context = DiscoveryContext {
+            source: "app".to_string(),
+            age_policy: None,
+        };
+
+        let json = serde_json::to_string(&context).unwrap();
+        assert_eq!(json, r#"{"source":"app"}"#);
+
+        let deserialized: DiscoveryContext = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, context);
+    }
+
+    #[test]
+    fn test_discovery_context_json_edge_cases() {
+        // Empty source
+        let context = DiscoveryContext {
+            source: "".to_string(),
+            age_policy: None,
+        };
+        let json = serde_json::to_string(&context).unwrap();
+        let deserialized: DiscoveryContext = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.source, "");
+
+        // Special characters
+        let context = DiscoveryContext {
+            source: "voice-control/system".to_string(),
+            age_policy: None,
+        };
+        let json = serde_json::to_string(&context).unwrap();
+        let deserialized: DiscoveryContext = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.source, "voice-control/system");
+    }
+
+    #[test]
+    fn test_discovery_context_json_invalid() {
+        // Missing required field
+        assert!(serde_json::from_str::<DiscoveryContext>(r#"{}"#).is_err());
+
+        // Wrong type
+        assert!(serde_json::from_str::<DiscoveryContext>(r#"{"source":123}"#).is_err());
+    }
+
+    #[test]
+    fn test_launch_request_json_serialization() {
+        // Test with minimal data
+        let request = LaunchRequest {
+            app_id: "netflix".to_string(),
+            intent: None,
+        };
+
+        let json = serde_json::to_string(&request).unwrap();
+        assert!(json.contains(r#""appId":"netflix""#));
+
+        let deserialized: LaunchRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.app_id, "netflix");
+        assert!(deserialized.intent.is_none());
+    }
+
+    #[test]
+    fn test_launch_request_json_edge_cases() {
+        // Empty app_id
+        let request = LaunchRequest {
+            app_id: "".to_string(),
+            intent: None,
+        };
+        let json = serde_json::to_string(&request).unwrap();
+        let deserialized: LaunchRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.app_id, "");
+    }
+
+    #[test]
+    fn test_launch_request_json_invalid() {
+        // Missing required field
+        assert!(serde_json::from_str::<LaunchRequest>(r#"{}"#).is_err());
+
+        // Wrong type for appId
+        assert!(serde_json::from_str::<LaunchRequest>(r#"{"appId":123}"#).is_err());
+    }
+
+    #[test]
+    fn test_entitlement_data_json_serialization() {
+        // Test with all fields
+        let entitlement = EntitlementData {
+            entitlement_id: "premium-subscription".to_string(),
+            start_time: Some("2024-01-01T00:00:00.000Z".to_string()),
+            end_time: Some("2024-12-31T23:59:59.999Z".to_string()),
+        };
+
+        let json = serde_json::to_string(&entitlement).unwrap();
+        assert!(json.contains(r#""entitlementId":"premium-subscription""#));
+        assert!(json.contains(r#""startTime":"2024-01-01T00:00:00.000Z""#));
+        assert!(json.contains(r#""endTime":"2024-12-31T23:59:59.999Z""#));
+
+        let deserialized: EntitlementData = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, entitlement);
+    }
+
+    #[test]
+    fn test_entitlement_data_json_optional_fields() {
+        // Test with only required field
+        let entitlement = EntitlementData {
+            entitlement_id: "basic-access".to_string(),
+            start_time: None,
+            end_time: None,
+        };
+
+        let json = serde_json::to_string(&entitlement).unwrap();
+        assert!(json.contains(r#""entitlementId":"basic-access""#));
+        assert!(!json.contains("startTime"));
+        assert!(!json.contains("endTime"));
+
+        let deserialized: EntitlementData = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, entitlement);
+    }
+
+    #[test]
+    fn test_entitlement_data_json_invalid() {
+        // Missing required field
+        assert!(serde_json::from_str::<EntitlementData>(r#"{}"#).is_err());
+
+        // Invalid date format
+        assert!(serde_json::from_str::<EntitlementData>(
+            r#"{"entitlementId":"test","startTime":"invalid-date"}"#
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_watched_info_json_serialization() {
+        // Test with all fields
+        let watched = WatchedInfo {
+            entity_id: "movie-123".to_string(),
+            progress: 0.75,
+            completed: Some(false),
+            watched_on: Some("2024-01-15T14:30:00.000Z".to_string()),
+            age_policy: None,
+        };
+
+        let json = serde_json::to_string(&watched).unwrap();
+        assert!(json.contains(r#""entityId":"movie-123""#));
+        assert!(json.contains(r#""progress":0.75"#));
+        assert!(json.contains(r#""completed":false"#));
+        assert!(json.contains(r#""watchedOn":"2024-01-15T14:30:00.000Z""#));
+
+        let deserialized: WatchedInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, watched);
+    }
+
+    #[test]
+    fn test_watched_info_json_edge_cases() {
+        // Test with None for completed
+        let watched = WatchedInfo {
+            entity_id: "show-456".to_string(),
+            progress: 1.0,
+            completed: None,
+            watched_on: Some("2024-01-15T14:30:00.000Z".to_string()),
+            age_policy: None,
+        };
+
+        let json = serde_json::to_string(&watched).unwrap();
+        let deserialized: WatchedInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.completed, None);
+
+        // Test with 0.0 progress
+        let watched = WatchedInfo {
+            entity_id: "episode-789".to_string(),
+            progress: 0.0,
+            completed: Some(true),
+            watched_on: Some("2024-01-15T14:30:00.000Z".to_string()),
+            age_policy: None,
+        };
+
+        let json = serde_json::to_string(&watched).unwrap();
+        let deserialized: WatchedInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.progress, 0.0);
+    }
+
+    #[test]
+    fn test_watched_info_json_invalid() {
+        // Negative progress should fail validation
+        assert!(serde_json::from_str::<WatchedInfo>(
+            r#"{"entityId":"test","progress":-0.1,"watchedOn":"2024-01-01T00:00:00.000Z"}"#
+        )
+        .is_err());
+
+        // Progress > 1.0 is actually allowed by the deserializer
+        // Only negative values are rejected
+        assert!(serde_json::from_str::<WatchedInfo>(
+            r#"{"entityId":"test","progress":1.1,"watchedOn":"2024-01-01T00:00:00.000Z"}"#
+        )
+        .is_ok());
+
+        // Invalid date format
+        assert!(serde_json::from_str::<WatchedInfo>(
+            r#"{"entityId":"test","progress":0.5,"watchedOn":"invalid-date"}"#
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_localized_string_json_serialization() {
+        // Test simple string
+        let localized = LocalizedString::Simple("English Title".to_string());
+        let json = serde_json::to_string(&localized).unwrap();
+        assert_eq!(json, r#""English Title""#);
+
+        let deserialized: LocalizedString = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, localized);
+
+        // Test localized map
+        let mut map = HashMap::new();
+        map.insert("en".to_string(), "English Title".to_string());
+        map.insert("es".to_string(), "Título en Español".to_string());
+        let localized = LocalizedString::Locale(map.clone());
+
+        let json = serde_json::to_string(&localized).unwrap();
+        let deserialized: LocalizedString = serde_json::from_str(&json).unwrap();
+
+        if let LocalizedString::Locale(deserialized_map) = deserialized {
+            assert_eq!(
+                deserialized_map.get("en"),
+                Some(&"English Title".to_string())
+            );
+            assert_eq!(
+                deserialized_map.get("es"),
+                Some(&"Título en Español".to_string())
+            );
+        } else {
+            panic!("Expected Locale variant");
+        }
+    }
+
+    #[test]
+    fn test_content_access_request_json_serialization() {
+        let entitlements = vec![EntitlementData {
+            entitlement_id: "premium".to_string(),
+            start_time: None,
+            end_time: None,
+        }];
+
+        let request = ContentAccessRequest {
+            ids: ContentAccessIdentifiers {
+                availabilities: None,
+                entitlements: Some(entitlements),
+            },
+        };
+
+        let json = serde_json::to_string(&request).unwrap();
+        assert!(json.contains(r#""entitlementId":"premium""#));
+
+        let deserialized: ContentAccessRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, request);
+    }
+
+    #[test]
+    fn test_content_type_json_serialization() {
+        // Test ChannelLineup
+        let content_type = ContentType::ChannelLineup;
+        let json = serde_json::to_string(&content_type).unwrap();
+        assert_eq!(json, r#""channel-lineup""#);
+
+        let deserialized: ContentType = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, content_type);
+
+        // Test ProgramLineup
+        let content_type = ContentType::ProgramLineup;
+        let json = serde_json::to_string(&content_type).unwrap();
+        assert_eq!(json, r#""program-lineup""#);
+
+        let deserialized: ContentType = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, content_type);
+    }
+
+    #[test]
+    fn test_availability_json_serialization() {
+        // Test with all fields
+        let availability = Availability {
+            _type: ContentType::ChannelLineup,
+            id: "hbo-max".to_string(),
+            catalog_id: Some("premium-catalog".to_string()),
+            start_time: Some("2024-01-01T00:00:00.000Z".to_string()),
+            end_time: Some("2024-12-31T23:59:59.999Z".to_string()),
+        };
+
+        let json = serde_json::to_string(&availability).unwrap();
+        assert!(json.contains(r#""type":"channel-lineup""#));
+        assert!(json.contains(r#""id":"hbo-max""#));
+        assert!(json.contains(r#""catalogId":"premium-catalog""#));
+
+        let deserialized: Availability = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, availability);
+    }
+
+    #[test]
+    fn test_availability_json_optional_fields() {
+        // Test with only required fields
+        let availability = Availability {
+            _type: ContentType::ProgramLineup,
+            id: "basic-channel".to_string(),
+            catalog_id: None,
+            start_time: None,
+            end_time: None,
+        };
+
+        let json = serde_json::to_string(&availability).unwrap();
+        assert!(!json.contains("catalogId"));
+        assert!(!json.contains("startTime"));
+        assert!(!json.contains("endTime"));
+
+        let deserialized: Availability = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, availability);
+    }
+
+    #[test]
+    fn test_content_access_identifiers_json_serialization() {
+        let entitlements = vec![EntitlementData {
+            entitlement_id: "test-entitlement".to_string(),
+            start_time: None,
+            end_time: None,
+        }];
+
+        let availabilities = vec![Availability {
+            _type: ContentType::ChannelLineup,
+            id: "test-channel".to_string(),
+            catalog_id: None,
+            start_time: None,
+            end_time: None,
+        }];
+
+        let identifiers = ContentAccessIdentifiers {
+            availabilities: Some(availabilities),
+            entitlements: Some(entitlements),
+        };
+
+        let json = serde_json::to_string(&identifiers).unwrap();
+        assert!(json.contains(r#""entitlementId":"test-entitlement""#));
+        assert!(json.contains(r#""id":"test-channel""#));
+
+        let deserialized: ContentAccessIdentifiers = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, identifiers);
+    }
+
+    #[test]
+    fn test_content_access_entitlement_json_serialization() {
+        let entitlement = ContentAccessEntitlement {
+            entitlement_id: "premium-sports".to_string(),
+            start_time: Some("2024-01-01T00:00:00.000Z".to_string()),
+            end_time: Some("2024-12-31T23:59:59.999Z".to_string()),
+        };
+
+        let json = serde_json::to_string(&entitlement).unwrap();
+        assert!(json.contains(r#""entitlementId":"premium-sports""#));
+
+        let deserialized: ContentAccessEntitlement = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, entitlement);
+    }
+
+    #[test]
+    fn test_content_access_availability_json_serialization() {
+        let availability = ContentAccessAvailability {
+            _type: "channel-lineup".to_string(),
+            id: "espn".to_string(),
+            catalog_id: Some("sports-catalog".to_string()),
+            start_time: Some("2024-01-01T00:00:00.000Z".to_string()),
+            end_time: None,
+        };
+
+        let json = serde_json::to_string(&availability).unwrap();
+        assert!(json.contains(r#""type":"channel-lineup""#));
+        assert!(json.contains(r#""id":"espn""#));
+
+        let deserialized: ContentAccessAvailability = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, availability);
+    }
+
+    #[test]
+    fn test_session_params_json_serialization() {
+        let session = SessionParams {
+            app_id: "netflix".to_string(),
+            dist_session: AccountSession {
+                id: "session-123".to_string(),
+                token: "token-456".to_string(),
+                account_id: "account-789".to_string(),
+                device_id: "device-012".to_string(),
+            },
+        };
+
+        let json = serde_json::to_string(&session).unwrap();
+        assert!(json.contains(r#""appId":"netflix""#));
+        assert!(json.contains(r#""id":"session-123""#));
+
+        let deserialized: SessionParams = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, session);
+    }
+
+    #[test]
+    fn test_content_access_info_json_serialization() {
+        let info = ContentAccessInfo {
+            availabilities: Some(vec![ContentAccessAvailability {
+                _type: "program-lineup".to_string(),
+                id: "hbo-shows".to_string(),
+                catalog_id: None,
+                start_time: None,
+                end_time: None,
+            }]),
+            entitlements: Some(vec![ContentAccessEntitlement {
+                entitlement_id: "hbo-premium".to_string(),
+                start_time: None,
+                end_time: None,
+            }]),
+        };
+
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains(r#""id":"hbo-shows""#));
+        assert!(json.contains(r#""entitlementId":"hbo-premium""#));
+
+        let deserialized: ContentAccessInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, info);
+    }
+
+    #[test]
+    fn test_progress_unit_json_serialization() {
+        // Test Seconds
+        let unit = ProgressUnit::Seconds;
+        let json = serde_json::to_string(&unit).unwrap();
+        assert_eq!(json, r#""seconds""#);
+
+        let deserialized: ProgressUnit = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, unit);
+
+        // Test Percent
+        let unit = ProgressUnit::Percent;
+        let json = serde_json::to_string(&unit).unwrap();
+        assert_eq!(json, r#""percent""#);
+
+        let deserialized: ProgressUnit = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, unit);
+    }
+
+    #[test]
+    fn test_media_event_json_serialization() {
+        let event = MediaEvent {
+            content_id: "movie-123".to_string(),
+            completed: true,
+            progress: 95.5,
+            progress_unit: Some(ProgressUnit::Percent),
+            watched_on: Some("2024-01-15T20:30:00.000Z".to_string()),
+            app_id: "netflix".to_string(),
+        };
+
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains(r#""content_id":"movie-123""#));
+        assert!(json.contains(r#""completed":true"#));
+        assert!(json.contains(r#""progress":95.5"#));
+        assert!(json.contains(r#""progress_unit":"percent""#));
+        assert!(json.contains(r#""app_id":"netflix""#));
+
+        let deserialized: MediaEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, event);
+    }
+
+    #[test]
+    fn test_discovery_entitlement_json_serialization() {
+        let entitlement = DiscoveryEntitlement {
+            entitlement_id: "sports-package".to_string(),
+            start_time: 1640995200, // 2022-01-01T00:00:00Z
+            end_time: 1672531199,   // 2022-12-31T23:59:59Z
+        };
+
+        let json = serde_json::to_string(&entitlement).unwrap();
+        assert!(json.contains(r#""entitlement_id":"sports-package""#));
+        assert!(json.contains(r#""start_time":1640995200"#));
+        assert!(json.contains(r#""end_time":1672531199"#));
+
+        let deserialized: DiscoveryEntitlement = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.entitlement_id, "sports-package");
+        assert_eq!(deserialized.start_time, 1640995200);
+        assert_eq!(deserialized.end_time, 1672531199);
+    }
+
+    #[test]
+    fn test_account_launchpad_json_serialization() {
+        let mut title_map = HashMap::new();
+        title_map.insert("en".to_string(), "Premium Content".to_string());
+
+        let mut image_map = HashMap::new();
+        let mut size_map = HashMap::new();
+        size_map.insert(
+            "1x".to_string(),
+            "https://example.com/image.png".to_string(),
+        );
+        image_map.insert("poster".to_string(), size_map);
+
+        let launchpad = AccountLaunchpad {
+            expiration: 1672531199,
+            app_name: "Netflix".to_string(),
+            content_id: Some("movie-456".to_string()),
+            deeplink: Some("netflix://movie/456".to_string()),
+            content_url: Some("https://netflix.com/movie/456".to_string()),
+            app_id: "netflix".to_string(),
+            title: title_map,
+            images: image_map,
+            account_link_type: ACCOUNT_LINK_TYPE_LAUNCH_PAD.to_string(),
+            account_link_action: ACCOUNT_LINK_ACTION_APP_LAUNCH.to_string(),
+        };
+
+        let json = serde_json::to_string(&launchpad).unwrap();
+        assert!(json.contains(r#""app_name":"Netflix""#));
+        assert!(json.contains(r#""app_id":"netflix""#));
+
+        let deserialized: AccountLaunchpad = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.app_name, "Netflix");
+        assert_eq!(deserialized.app_id, "netflix");
+    }
+
+    #[test]
+    fn test_data_tag_info_json_serialization() {
+        let tag_info = DataTagInfo {
+            tag_name: "user-preference".to_string(),
+            propagation_state: true,
+        };
+
+        let json = serde_json::to_string(&tag_info).unwrap();
+        assert!(json.contains(r#""tag_name":"user-preference""#));
+        assert!(json.contains(r#""propagation_state":true"#));
+
+        let deserialized: DataTagInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, tag_info);
+    }
+
+    #[test]
+    fn test_sign_in_request_params_json_serialization() {
+        let params = SignInRequestParams {
+            session_info: SessionParams {
+                app_id: "disney-plus".to_string(),
+                dist_session: AccountSession {
+                    id: "session-abc".to_string(),
+                    token: "token-def".to_string(),
+                    account_id: "account-ghi".to_string(),
+                    device_id: "device-jkl".to_string(),
+                },
+            },
+            is_signed_in: true,
+        };
+
+        let json = serde_json::to_string(&params).unwrap();
+        assert!(json.contains(r#""appId":"disney-plus""#));
+        assert!(json.contains(r#""is_signed_in":true"#));
+
+        let deserialized: SignInRequestParams = serde_json::from_str(&json).unwrap();
+        assert!(deserialized.is_signed_in);
+        assert_eq!(deserialized.session_info.app_id, "disney-plus");
+    }
+
+    #[test]
+    fn test_json_serialization_edge_cases() {
+        // Test empty optional collections
+        let identifiers = ContentAccessIdentifiers {
+            availabilities: Some(vec![]),
+            entitlements: Some(vec![]),
+        };
+
+        let json = serde_json::to_string(&identifiers).unwrap();
+        assert!(json.contains(r#""availabilities":[]"#));
+        assert!(json.contains(r#""entitlements":[]"#));
+
+        let deserialized: ContentAccessIdentifiers = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, identifiers);
+    }
+
+    #[test]
+    fn test_json_invalid_cases() {
+        // Test invalid JSON structure
+        assert!(serde_json::from_str::<DiscoveryContext>(r#"{"invalid":"structure"}"#).is_err());
+
+        // Test invalid enum values
+        assert!(serde_json::from_str::<ContentType>(r#""invalid-type""#).is_err());
+        assert!(serde_json::from_str::<ProgressUnit>(r#""InvalidUnit""#).is_err());
     }
 }

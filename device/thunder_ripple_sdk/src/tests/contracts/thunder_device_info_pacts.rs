@@ -95,22 +95,25 @@ async fn test_device_get_model() {
     let mut pact_builder_async = get_pact_builder_async_obj().await;
 
     let mut result = HashMap::new();
+
     result.insert(
         "stbVersion".into(),
-        ContractMatcher::MatchType("AX061AEI_VBN_1911_sprint_20200109040424sdy".into()),
-    );
-    result.insert(
-        "receiverVersion".into(),
         ContractMatcher::MatchRegex(
-            r"^[0-9]\d*.[0-9]\d*.[0-9]\d*.[0-9]\d*$".into(),
-            "3.14.0.0".into(),
+            r"^[A-Z0-9]+_VBN_[A-Za-z0-9]+_sprint_\d{14}sdy(_[A-Z0-9_]+)*$".into(),
+            "AX061AEI_VBN_1911_sprint_20200109040424sdy".into(),
         ),
     );
+
+    result.insert(
+        "receiverVersion".into(),
+        ContractMatcher::MatchRegex(r"^\d+\.\d+\.\d+\.\d+$".into(), "3.14.0.0".into()),
+    );
+
     result.insert(
         "stbTimestamp".into(),
         ContractMatcher::MatchRegex(
-            "^\\w{3} \\d{1,2} \\w{3} (?:\\d{2})?\\d{2} \\d{2}:\\d{2}:\\d{2} UTC$".into(),
-            "Wed 01 Jan 2024 02:45:28 UTC".into(),
+            r"^\w{3} \d{2} \w{3} \d{4} \d{2}:\d{2}:\d{2} [A-Z ]*UTC$".into(),
+            "Thu 09 Jan 2020 04:04:24 AP UTC".into(),
         ),
     );
     result.insert("success".into(), ContractMatcher::MatchBool(true));
@@ -137,7 +140,7 @@ async fn test_device_get_model() {
             .to_string(),
         json!({
             "jsonrpc": "2.0",
-            "id": 0,
+            "id": 42,
             "method": "org.rdk.System.1.getSystemVersions"
         })
     )
@@ -265,6 +268,7 @@ async fn test_device_get_audio() {
 
     pact_builder_async
         .synchronous_message_interaction("A request to get the device audio", |mut i| async move {
+            i.given("audio format display setting is set");
             i.contents_from(json!({
                 "pact:content-type": "application/json",
                 "request": {"jsonrpc": "matching(type, '2.0')", "id": "matching(integer, 0)", "method": "org.rdk.DisplaySettings.1.getAudioFormat"},
@@ -456,6 +460,7 @@ async fn test_device_get_screen_resolution_without_port() {
         .synchronous_message_interaction(
             "A request to get the device current screen resolution without provided port",
             |mut i| async move {
+                i.given("current resolution display setting is set");
                 i.contents_from(get_pact!(
                     "org.rdk.DisplaySettings.1.getCurrentResolution",
                     ContractResult { result }
@@ -529,6 +534,7 @@ async fn test_device_get_video_resolution() {
         .synchronous_message_interaction(
             "A request to get the current resolution on the selected video display port",
             |mut i| async move {
+                i.given("current resolution display setting is set");
                 i.contents_from(json!({
                     "pact:content-type": "application/json",
                     "request": {
@@ -683,6 +689,7 @@ async fn test_device_get_available_timezone() {
         .synchronous_message_interaction(
             "A request to get the device available timezone",
             |mut i| async move {
+                i.given("system time zones is set");
                 i.contents_from(json!({
                     "pact:content-type": "application/json",
                     "request": {

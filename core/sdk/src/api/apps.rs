@@ -313,6 +313,7 @@ mod tests {
         let home_intent = HomeIntent {
             context: DiscoveryContext {
                 source: "test_source".to_string(),
+                age_policy: None,
             },
         };
 

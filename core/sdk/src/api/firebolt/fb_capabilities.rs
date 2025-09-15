@@ -833,4 +833,328 @@ mod tests {
             CAPABILITY_GRANT_PROVIDER_MISSING
         );
     }
+
+    // Comprehensive JSON serialization/deserialization tests for Firebolt OpenRPC compliance
+
+    #[test]
+    fn test_capability_role_json_serialization() {
+        // Test all enum variants
+        let use_role = CapabilityRole::Use;
+        let json = serde_json::to_string(&use_role).unwrap();
+        assert_eq!(json, r#""use""#);
+        let deserialized: CapabilityRole = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, use_role);
+
+        let manage_role = CapabilityRole::Manage;
+        let json = serde_json::to_string(&manage_role).unwrap();
+        assert_eq!(json, r#""manage""#);
+        let deserialized: CapabilityRole = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, manage_role);
+
+        let provide_role = CapabilityRole::Provide;
+        let json = serde_json::to_string(&provide_role).unwrap();
+        assert_eq!(json, r#""provide""#);
+        let deserialized: CapabilityRole = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, provide_role);
+    }
+
+    #[test]
+    fn test_capability_role_json_invalid() {
+        // Test invalid enum value
+        assert!(serde_json::from_str::<CapabilityRole>(r#""invalid""#).is_err());
+
+        // Test wrong type
+        assert!(serde_json::from_str::<CapabilityRole>(r#"123"#).is_err());
+    }
+
+    #[test]
+    fn test_role_permission_json_serialization() {
+        // Test with both fields
+        let role_perm = RolePermission {
+            permitted: true,
+            granted: Some(false),
+        };
+
+        let json = serde_json::to_string(&role_perm).unwrap();
+        assert!(json.contains(r#""permitted":true"#));
+        assert!(json.contains(r#""granted":false"#));
+
+        let deserialized: RolePermission = serde_json::from_str(&json).unwrap();
+        assert!(deserialized.permitted);
+        assert_eq!(deserialized.granted, Some(false));
+    }
+
+    #[test]
+    fn test_role_permission_json_optional_fields() {
+        // Test with None granted
+        let role_perm = RolePermission {
+            permitted: false,
+            granted: None,
+        };
+
+        let json = serde_json::to_string(&role_perm).unwrap();
+        assert!(json.contains(r#""permitted":false"#));
+        assert!(json.contains(r#""granted":null"#));
+
+        let deserialized: RolePermission = serde_json::from_str(&json).unwrap();
+        assert!(!deserialized.permitted);
+        assert_eq!(deserialized.granted, None);
+    }
+
+    #[test]
+    fn test_role_permission_json_invalid() {
+        // Missing required field
+        assert!(serde_json::from_str::<RolePermission>(r#"{"granted":true}"#).is_err());
+
+        // Wrong type for permitted
+        assert!(
+            serde_json::from_str::<RolePermission>(r#"{"permitted":"true","granted":true}"#)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn test_capability_info_json_serialization() {
+        let cap_info = CapabilityInfo {
+            capability: "xrn:firebolt:capability:account:session".to_string(),
+            supported: true,
+            available: true,
+            _use: RolePermission {
+                permitted: true,
+                granted: Some(true),
+            },
+            manage: RolePermission {
+                permitted: false,
+                granted: None,
+            },
+            provide: RolePermission {
+                permitted: false,
+                granted: Some(false),
+            },
+            details: Some(vec![DenyReason::Unpermitted]),
+        };
+
+        let json = serde_json::to_string(&cap_info).unwrap();
+        assert!(json.contains(r#""capability":"xrn:firebolt:capability:account:session""#));
+        assert!(json.contains(r#""supported":true"#));
+        assert!(json.contains(r#""available":true"#));
+        assert!(json.contains(r#""use""#));
+        assert!(json.contains(r#""manage""#));
+        assert!(json.contains(r#""provide""#));
+
+        let deserialized: CapabilityInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            deserialized.capability,
+            "xrn:firebolt:capability:account:session"
+        );
+        assert!(deserialized.supported);
+        assert!(deserialized.available);
+        assert!(deserialized._use.permitted);
+        assert!(!deserialized.manage.permitted);
+    }
+
+    #[test]
+    fn test_capability_info_json_optional_fields() {
+        let cap_info = CapabilityInfo {
+            capability: "test:capability".to_string(),
+            supported: false,
+            available: false,
+            _use: RolePermission {
+                permitted: false,
+                granted: None,
+            },
+            manage: RolePermission {
+                permitted: false,
+                granted: None,
+            },
+            provide: RolePermission {
+                permitted: false,
+                granted: None,
+            },
+            details: None,
+        };
+
+        let json = serde_json::to_string(&cap_info).unwrap();
+        assert!(!json.contains("details"));
+
+        let deserialized: CapabilityInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.details, None);
+    }
+
+    #[test]
+    fn test_role_info_json_serialization() {
+        // Test with role present
+        let role_info = RoleInfo {
+            role: Some(CapabilityRole::Manage),
+            capability: FireboltCap::short("device:id"),
+        };
+
+        let json = serde_json::to_string(&role_info).unwrap();
+        assert!(json.contains(r#""role":"manage""#));
+        assert!(json.contains(r#""capability""#));
+
+        let deserialized: RoleInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.role, Some(CapabilityRole::Manage));
+    }
+
+    #[test]
+    fn test_role_info_json_optional_fields() {
+        // Test with None role
+        let role_info = RoleInfo {
+            role: None,
+            capability: FireboltCap::short("device:model"),
+        };
+
+        let json = serde_json::to_string(&role_info).unwrap();
+        assert!(json.contains(r#""role":null"#));
+
+        let deserialized: RoleInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.role, None);
+    }
+
+    #[test]
+    fn test_cap_request_rpc_request_deserialization_only() {
+        // Test deserialization only since this struct doesn't implement Serialize
+        let json =
+            r#"{"grants":[{"role":"use","capability":"xrn:firebolt:capability:account:session"}]}"#;
+        let deserialized: CapRequestRpcRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(deserialized.grants.len(), 1);
+        assert_eq!(deserialized.grants[0].role, Some(CapabilityRole::Use));
+    }
+
+    #[test]
+    fn test_cap_request_rpc_request_empty_grants() {
+        // Test with empty grants - deserialization only
+        let json = r#"{"grants":[]}"#;
+        let deserialized: CapRequestRpcRequest = serde_json::from_str(json).unwrap();
+        assert!(deserialized.grants.is_empty());
+    }
+
+    #[test]
+    fn test_cap_info_rpc_request_deserialization_only() {
+        // Test deserialization only since this struct doesn't implement Serialize
+        let json = r#"{"capabilities":["xrn:firebolt:capability:account:session","xrn:firebolt:capability:device:model"]}"#;
+        let deserialized: CapInfoRpcRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(deserialized.capabilities.len(), 2);
+    }
+
+    #[test]
+    fn test_cap_rpc_request_deserialization_only() {
+        // Test with options - deserialization only
+        let json = r#"{"capability":"xrn:firebolt:capability:account:session","options":{"role":"manage"}}"#;
+        let deserialized: CapRPCRequest = serde_json::from_str(json).unwrap();
+        assert!(deserialized.options.is_some());
+        assert_eq!(deserialized.options.unwrap().role, CapabilityRole::Manage);
+    }
+
+    #[test]
+    fn test_cap_rpc_request_no_options() {
+        // Test with None options - deserialization only
+        let json = r#"{"capability":"xrn:firebolt:capability:device:id","options":null}"#;
+        let deserialized: CapRPCRequest = serde_json::from_str(json).unwrap();
+        assert!(deserialized.options.is_none());
+    }
+
+    #[test]
+    fn test_capability_option_deserialization_only() {
+        // Test deserialization only since this struct doesn't implement Serialize
+        let json = r#"{"role":"provide"}"#;
+        let deserialized: CapabilityOption = serde_json::from_str(json).unwrap();
+        assert_eq!(deserialized.role, CapabilityRole::Provide);
+    }
+
+    #[test]
+    fn test_cap_listen_rpc_request_deserialization_only() {
+        // Test with role present - deserialization only
+        let json =
+            r#"{"capability":"xrn:firebolt:capability:device:model","listen":true,"role":"use"}"#;
+        let deserialized: CapListenRPCRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            deserialized.capability,
+            "xrn:firebolt:capability:device:model"
+        );
+        assert!(deserialized.listen);
+        assert_eq!(deserialized.role, Some(CapabilityRole::Use));
+    }
+
+    #[test]
+    fn test_cap_listen_rpc_request_no_role() {
+        // Test with None role - deserialization only
+        let json = r#"{"capability":"test:capability","listen":false,"role":null}"#;
+        let deserialized: CapListenRPCRequest = serde_json::from_str(json).unwrap();
+        assert!(!deserialized.listen);
+        assert_eq!(deserialized.role, None);
+    }
+
+    #[test]
+    fn test_conversion_from_cap_rpc_request_to_role_info() {
+        let cap_request = CapRPCRequest {
+            capability: FireboltCap::short("device:id"),
+            options: Some(CapabilityOption {
+                role: CapabilityRole::Manage,
+            }),
+        };
+
+        let role_info = RoleInfo::from(cap_request);
+        assert_eq!(role_info.role, Some(CapabilityRole::Manage));
+        assert_eq!(role_info.capability, FireboltCap::short("device:id"));
+    }
+
+    #[test]
+    fn test_conversion_from_cap_rpc_request_with_default_options() {
+        let cap_request = CapRPCRequest {
+            capability: FireboltCap::short("account:session"),
+            options: None,
+        };
+
+        let role_info = RoleInfo::from(cap_request);
+        assert_eq!(role_info.role, Some(CapabilityRole::Use)); // Default role
+        assert_eq!(role_info.capability, FireboltCap::short("account:session"));
+    }
+
+    #[test]
+    fn test_json_serialization_comprehensive_edge_cases() {
+        // Test complex CapabilityInfo with all fields
+        let complex_cap_info = CapabilityInfo {
+            capability: "xrn:firebolt:capability:complex:test".to_string(),
+            supported: true,
+            available: false,
+            _use: RolePermission {
+                permitted: true,
+                granted: Some(true),
+            },
+            manage: RolePermission {
+                permitted: false,
+                granted: Some(false),
+            },
+            provide: RolePermission {
+                permitted: true,
+                granted: None,
+            },
+            details: Some(vec![DenyReason::Unavailable, DenyReason::Unpermitted]),
+        };
+
+        let json = serde_json::to_string(&complex_cap_info).unwrap();
+        let deserialized: CapabilityInfo = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.capability, complex_cap_info.capability);
+        assert_eq!(deserialized.supported, complex_cap_info.supported);
+        assert_eq!(deserialized.available, complex_cap_info.available);
+        assert_eq!(deserialized.details.as_ref().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_json_invalid_structures() {
+        // Test invalid JSON for various structures
+        assert!(serde_json::from_str::<RolePermission>(r#"{"invalid":"structure"}"#).is_err());
+        assert!(serde_json::from_str::<CapabilityInfo>(r#"{"capability":"test"}"#).is_err()); // Missing required fields
+        assert!(serde_json::from_str::<CapRequestRpcRequest>(r#"{}"#).is_err()); // Missing grants field
+
+        // Test wrong types
+        assert!(serde_json::from_str::<CapabilityOption>(r#"{"role":123}"#).is_err());
+        assert!(serde_json::from_str::<CapListenRPCRequest>(
+            r#"{"capability":"test","listen":"true"}"#
+        )
+        .is_err()); // listen should be boolean
+    }
 }

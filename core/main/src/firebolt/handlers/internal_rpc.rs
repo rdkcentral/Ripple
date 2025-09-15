@@ -20,7 +20,11 @@ use ripple_sdk::{
     api::{
         apps::{AppEvent, AppManagerResponse, AppMethod, AppRequest, AppResponse},
         caps::CapsRequest,
-        firebolt::{fb_general::ListenRequestWithEvent, fb_telemetry::TelemetryPayload},
+        firebolt::{
+            fb_discovery::{AgePolicy, PolicyIdentifierAlias},
+            fb_general::ListenRequestWithEvent,
+            fb_telemetry::TelemetryPayload,
+        },
         gateway::rpc_gateway_api::CallContext,
     },
     async_trait::async_trait,
@@ -28,7 +32,11 @@ use ripple_sdk::{
     tokio::sync::oneshot,
     utils::rpc_utils::rpc_err,
 };
-use std::collections::HashMap;
+
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
@@ -67,6 +75,21 @@ pub trait Internal {
 
     #[method(name = "ripple.getSecondScreenPayload")]
     async fn get_second_screen_payload(&self, ctx: CallContext) -> RpcResult<String>;
+
+    #[method(name = "account.setPolicyIdentifierAlias")]
+    async fn set_policy_identifier_alias(
+        &self,
+        ctx: CallContext,
+        params: PolicyIdentifierAlias,
+    ) -> RpcResult<()>;
+
+    #[method(name = "account.policyIdentifierAlias")]
+    async fn get_policy_identifier_alias(&self, ctx: CallContext) -> RpcResult<Vec<AgePolicy>>;
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PolicyState {
+    pub policy_identifiers_alias: Arc<RwLock<Vec<AgePolicy>>>,
 }
 
 #[derive(Debug)]
@@ -140,6 +163,20 @@ impl InternalServer for InternalImpl {
                 Ok(result)
             }
         }
+    }
+
+    async fn set_policy_identifier_alias(
+        &self,
+        _ctx: CallContext,
+        params: PolicyIdentifierAlias,
+    ) -> RpcResult<()> {
+        debug!("Setting policy identifier alias: {:?}", params);
+        self.state.add_policy_identifier_alias(params);
+        Ok(())
+    }
+
+    async fn get_policy_identifier_alias(&self, _ctx: CallContext) -> RpcResult<Vec<AgePolicy>> {
+        Ok(self.state.get_policy_identifier_alias())
     }
 
     async fn get_second_screen_payload(&self, ctx: CallContext) -> RpcResult<String> {
