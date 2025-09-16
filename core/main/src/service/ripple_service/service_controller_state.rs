@@ -26,7 +26,10 @@ use ripple_sdk::{
     },
     framework::ripple_contract::RippleContract,
     log::{error, info, trace},
-    service::service_message::{Id, JsonRpcMessage, ServiceMessage},
+    service::{
+        service_event_state::ServiceEventState,
+        service_message::{Id, JsonRpcMessage, ServiceMessage},
+    },
     tokio::{
         self,
         net::TcpStream,
@@ -37,6 +40,7 @@ use ripple_sdk::{
     uuid::Uuid,
 };
 
+use crate::service::ripple_service::service_notification_processor::ServiceNotificationProcessor;
 use crate::{
     broker::endpoint_broker::{BrokerCallback, BrokerOutput},
     firebolt::{firebolt_gateway::FireboltGatewayCommand, firebolt_ws::ClientIdentity},
@@ -62,6 +66,8 @@ pub struct ServiceInfo {
 #[derive(Debug, Clone, Default)]
 pub struct ServiceControllerState {
     pub service_info: Arc<Mutex<ServiceRegistry>>,
+    pub service_event_state: ServiceEventState,
+    pub service_notification_processor: ServiceNotificationProcessor,
 }
 
 impl ServiceInfo {
@@ -114,6 +120,8 @@ impl ServiceControllerState {
     pub fn new() -> Self {
         ServiceControllerState {
             service_info: Arc::new(Mutex::new(ServiceRegistry::default())),
+            service_event_state: ServiceEventState::new(),
+            service_notification_processor: ServiceNotificationProcessor::new(),
         }
     }
     // Ripple Main processing the inbound ServiceMessage received from a service.
@@ -170,8 +178,13 @@ impl ServiceControllerState {
                     error!("failed to send request {:?}", e);
                 };
             }
-            JsonRpcMessage::Notification(_) => {
-                // TBD: Handle notifications.
+            JsonRpcMessage::Notification(json_rpc_notification) => {
+                state
+                    .service_controller_state
+                    .service_notification_processor
+                    .clone()
+                    .process_service_notification(json_rpc_notification, state, sm.context.clone())
+                    .await;
             }
             JsonRpcMessage::Success(_) | JsonRpcMessage::Error(_) => {
                 // Handling response message
