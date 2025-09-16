@@ -47,6 +47,17 @@ impl From<bool> for ActivationStatus {
     }
 }
 
+//implement a function to convert activation status to bool
+
+impl From<ActivationStatus> for bool {
+    fn from(status: ActivationStatus) -> Self {
+        match status {
+            ActivationStatus::Activated => true,
+            ActivationStatus::NotActivated | ActivationStatus::AccountToken(_) => false,
+        }
+    }
+}
+
 impl From<AccountToken> for ActivationStatus {
     fn from(value: AccountToken) -> Self {
         ActivationStatus::AccountToken(value)
