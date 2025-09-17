@@ -286,8 +286,9 @@ impl RpcRouter {
                         serde_json::from_str::<serde_json::Value>(msg.jsonrpc_msg.clone().as_str())
                             .unwrap();
 
-                    let result = json_rpc_response.get("result").cloned().unwrap_or_default();
-                    if !result.is_null() {
+                    // Treat presence of 'result' key (even if null) as success
+                    if json_rpc_response.get("result").is_some() {
+                        let result = json_rpc_response.get("result").cloned().unwrap();
                         let jsonrpc = serde_json::to_string(
                             &json_rpc_response
                                 .get("jsonrpc")
@@ -308,8 +309,7 @@ impl RpcRouter {
                             ),
                         };
                         send_response(&service_id, &sender, &service_message);
-                    } else {
-                        let error = json_rpc_response.get("error").cloned().unwrap_or_default();
+                    } else if let Some(error) = json_rpc_response.get("error") {
                         if !error.is_null() {
                             let jsonrpc = serde_json::to_string(
                                 &json_rpc_response
@@ -323,7 +323,7 @@ impl RpcRouter {
                                 code: -32600,
                                 message: "Ripple Main does not support this request from Service"
                                     .to_string(),
-                                data: Some(error),
+                                data: Some(error.clone()),
                             };
 
                             let service_message = ServiceMessage {
@@ -343,6 +343,11 @@ impl RpcRouter {
                                 json_rpc_response
                             );
                         }
+                    } else {
+                        error!(
+                            "Received unexpected response from service {:?}",
+                            json_rpc_response
+                        );
                     }
                 } else {
                     error!(
