@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use crate::tokio::sync::mpsc::Sender;
 use futures::StreamExt;
 use jsonrpsee::{
     core::server::{
@@ -33,8 +34,9 @@ use ripple_sdk::{
     extn::extn_client_message::ExtnMessage,
     log::{debug, error, info},
     service::service_message::{
-        Id as ServiceMessageId, JsonRpcMessage as ServiceJsonRpcMessage,
-        JsonRpcSuccess as ServiceJsonRpcSuccess, ServiceMessage,
+        Id as ServiceMessageId, JsonRpcError, JsonRpcErrorDetails,
+        JsonRpcMessage as ServiceJsonRpcMessage, JsonRpcSuccess as ServiceJsonRpcSuccess,
+        ServiceMessage,
     },
     tokio,
     tokio_tungstenite::tungstenite::Message,
@@ -203,7 +205,6 @@ async fn resolve_route(
         if let Some(api_stats) = platform_state.metrics.get_api_stats(&request_id) {
             msg.stats = Some(api_stats);
         }
-
         return Ok(msg);
     }
     error!("Invalid output from method sink");
@@ -285,34 +286,68 @@ impl RpcRouter {
                         serde_json::from_str::<serde_json::Value>(msg.jsonrpc_msg.clone().as_str())
                             .unwrap();
 
-                    let result = json_rpc_response.get("result").cloned().unwrap_or_default();
-                    let jsonrpc = serde_json::to_string(
-                        &json_rpc_response
-                            .get("jsonrpc")
-                            .cloned()
-                            .unwrap_or_default(),
-                    )
-                    .unwrap();
-                    let id = ServiceMessageId::String(msg.request_id.clone());
+                    // Treat presence of 'result' key (even if null) as success
+                    if json_rpc_response.get("result").is_some() {
+                        let result = json_rpc_response.get("result").cloned().unwrap();
+                        let jsonrpc = serde_json::to_string(
+                            &json_rpc_response
+                                .get("jsonrpc")
+                                .cloned()
+                                .unwrap_or_default(),
+                        )
+                        .unwrap();
+                        let id = ServiceMessageId::String(msg.request_id.clone());
 
-                    let service_message = ServiceMessage {
-                        message: ServiceJsonRpcMessage::Success(ServiceJsonRpcSuccess {
-                            result,
-                            jsonrpc,
-                            id,
-                        }),
-                        context: Some(serde_json::to_value(req.ctx.clone()).unwrap_or_default()),
-                    };
-                    let msg_str = serde_json::to_string(&service_message).unwrap();
-                    let message = Message::Text(msg_str.clone());
-                    debug!("Sending response to service {}: {:?}", service_id, message);
-                    if let Err(err) = sender.try_send(message) {
-                        error!(
-                            "Failed to send request to service {}: {:?}",
-                            service_id, err
-                        );
+                        let service_message = ServiceMessage {
+                            message: ServiceJsonRpcMessage::Success(ServiceJsonRpcSuccess {
+                                result,
+                                jsonrpc,
+                                id,
+                            }),
+                            context: Some(
+                                serde_json::to_value(req.ctx.clone()).unwrap_or_default(),
+                            ),
+                        };
+                        send_response(&service_id, &sender, &service_message);
+                    } else if let Some(error) = json_rpc_response.get("error") {
+                        if !error.is_null() {
+                            let jsonrpc = serde_json::to_string(
+                                &json_rpc_response
+                                    .get("jsonrpc")
+                                    .cloned()
+                                    .unwrap_or_default(),
+                            )
+                            .unwrap();
+                            let id = ServiceMessageId::String(msg.request_id.clone());
+                            let details = JsonRpcErrorDetails {
+                                code: -32600,
+                                message: "Ripple Main does not support this request from Service"
+                                    .to_string(),
+                                data: Some(error.clone()),
+                            };
+
+                            let service_message = ServiceMessage {
+                                message: ServiceJsonRpcMessage::Error(JsonRpcError {
+                                    error: details,
+                                    jsonrpc,
+                                    id,
+                                }),
+                                context: Some(
+                                    serde_json::to_value(req.ctx.clone()).unwrap_or_default(),
+                                ),
+                            };
+                            send_response(&service_id, &sender, &service_message);
+                        } else {
+                            error!(
+                                "Received unexpected response from service {:?}",
+                                json_rpc_response
+                            );
+                        }
                     } else {
-                        debug!("Successfully sent request to service: {}", service_id);
+                        error!(
+                            "Received unexpected response from service {:?}",
+                            json_rpc_response
+                        );
                     }
                 } else {
                     error!(
@@ -331,5 +366,19 @@ impl RpcRouter {
                 error!("Error response: {:?}", error_msg);
             }
         });
+    }
+}
+
+fn send_response(service_id: &str, sender: &Sender<Message>, service_message: &ServiceMessage) {
+    let msg_str = serde_json::to_string(&service_message).unwrap();
+    let message = Message::Text(msg_str.clone());
+    debug!("Sending response to service {}: {:?}", service_id, message);
+    if let Err(err) = sender.try_send(message) {
+        error!(
+            "Failed to send request to service {}: {:?}",
+            service_id, err
+        );
+    } else {
+        debug!("Successfully sent request to service: {}", service_id);
     }
 }

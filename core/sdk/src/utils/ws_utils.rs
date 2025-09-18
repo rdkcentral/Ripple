@@ -19,7 +19,7 @@ use std::time::Duration;
 
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::StreamExt;
-use log::{error, info};
+use log::{error, info, warn};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
 
@@ -226,7 +226,7 @@ impl WebSocketUtils {
                 }
             }
             index += 1;
-            error!(
+            warn!(
                 "new Websocket TCP Connection with {} failed with retry for last {} millisecs in {}",
                 url_path,
                 delay_duration.as_millis(),
