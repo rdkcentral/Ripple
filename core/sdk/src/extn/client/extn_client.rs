@@ -127,18 +127,6 @@ impl ExtnClient {
         }
     }
 
-    pub fn new_main_with_sender(sender: tokio::sync::mpsc::Sender<ApiMessage>) -> ExtnClient {
-        Self {
-            sender: ExtnSender::new_main_with_sender(sender),
-            extn_sender_map: Arc::new(RwLock::new(HashMap::new())),
-            contract_map: Arc::new(RwLock::new(HashMap::new())),
-            response_processors: Arc::new(RwLock::new(HashMap::new())),
-            request_processors: Arc::new(RwLock::new(HashMap::new())),
-            event_processors: Arc::new(RwLock::new(HashMap::new())),
-            ripple_context: Arc::new(RwLock::new(RippleContext::default())),
-        }
-    }
-
     pub fn new_extn(symbol: ExtnSymbol) -> (ExtnClient, mpsc::Receiver<ApiMessage>) {
         let (tx, tr) = mpsc::channel::<ApiMessage>(32);
         let client = Self {
@@ -1057,6 +1045,18 @@ impl ExtnClient {
     pub fn get_features(&self) -> Vec<String> {
         let ripple_context = self.ripple_context.read().unwrap();
         ripple_context.features.clone()
+    }
+
+    pub fn new_main_with_sender(sender: tokio::sync::mpsc::Sender<ApiMessage>) -> ExtnClient {
+        Self {
+            sender: ExtnSender::mock_new_main_with_sender(sender),
+            extn_sender_map: Arc::new(RwLock::new(HashMap::new())),
+            contract_map: Arc::new(RwLock::new(HashMap::new())),
+            response_processors: Arc::new(RwLock::new(HashMap::new())),
+            request_processors: Arc::new(RwLock::new(HashMap::new())),
+            event_processors: Arc::new(RwLock::new(HashMap::new())),
+            ripple_context: Arc::new(RwLock::new(RippleContext::default())),
+        }
     }
 }
 

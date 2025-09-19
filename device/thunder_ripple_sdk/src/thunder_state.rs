@@ -33,7 +33,6 @@ use url::Url;
 use crate::{
     client::{
         device_operator::{DeviceOperator, DeviceResponseMessage},
-        plugin_manager::ThunderPluginBootParam,
         thunder_client::ThunderClient,
     },
     events::thunder_event_processor::{ThunderEventHandler, ThunderEventProcessor},
@@ -63,8 +62,6 @@ impl ThunderConnectionState {
 pub struct ThunderBootstrapStateWithConfig {
     pub extn_client: ExtnClient,
     pub url: Url,
-    pub pool_size: Option<u32>,
-    pub plugin_param: Option<ThunderPluginBootParam>,
     pub thunder_connection_state: Option<Arc<ThunderConnectionState>>,
 }
 

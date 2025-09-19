@@ -100,8 +100,6 @@ pub async fn boot_thunder(
         let thndr_boot_statecfg = ThunderBootstrapStateWithConfig {
             extn_client: ext_client,
             url: gateway_url,
-            pool_size: None,
-            plugin_param: None,
             thunder_connection_state: None,
         };
 

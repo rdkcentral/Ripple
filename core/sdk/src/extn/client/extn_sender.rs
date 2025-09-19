@@ -67,7 +67,7 @@ impl ExtnSender {
         }
     }
 
-    pub fn new_main_with_sender(sender: Sender<ApiMessage>) -> Self {
+    pub fn mock_new_main_with_sender(sender: Sender<ApiMessage>) -> Self {
         ExtnSender {
             tx: Some(sender),
             id: ExtnId::get_main_target("main".to_owned()),

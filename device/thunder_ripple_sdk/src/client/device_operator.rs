@@ -35,8 +35,6 @@ pub trait DeviceOperator: Clone {
         request: DeviceSubscribeRequest,
         handler: mpsc::Sender<DeviceResponseMessage>,
     ) -> Result<DeviceResponseMessage, RecvError>;
-
-    //async fn unsubscribe(&self, request: DeviceUnsubscribeRequest); //not used anywhere commented out for now.
 }
 
 #[derive(Debug, Clone)]
@@ -92,7 +90,7 @@ impl DeviceChannelRequest {
         }
     }
 
-    pub fn get_dev_call_request(&self) -> Option<DeviceCallRequest> {
+    pub fn mock_get_dev_call_request(&self) -> Option<DeviceCallRequest> {
         if let DeviceChannelRequest::Call(call_req) = self {
             Some(call_req.clone())
         } else {
@@ -100,17 +98,9 @@ impl DeviceChannelRequest {
         }
     }
 
-    pub fn get_dev_subscribe_request(&self) -> Option<DeviceSubscribeRequest> {
+    pub fn mock_get_dev_subscribe_request(&self) -> Option<DeviceSubscribeRequest> {
         if let DeviceChannelRequest::Subscribe(sub_req) = self {
             Some(sub_req.clone())
-        } else {
-            None
-        }
-    }
-
-    pub fn get_dev_unsubscribe_request(&self) -> Option<DeviceUnsubscribeRequest> {
-        if let DeviceChannelRequest::Unsubscribe(unsub_req) = self {
-            Some(unsub_req.clone())
         } else {
             None
         }

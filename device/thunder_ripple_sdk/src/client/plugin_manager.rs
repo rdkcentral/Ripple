@@ -15,207 +15,157 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use ripple_sdk::tokio;
-use ripple_sdk::tokio::sync::oneshot;
-use serde::{Deserialize, Serialize};
-use std::time::Duration;
+// use ripple_sdk::tokio;
+// use ripple_sdk::tokio::sync::oneshot;
+//use serde::{Deserialize, Serialize};
+// use std::time::Duration;
 
-pub struct ActivationSubscriber {
-    pub callsign: String,
-    pub callback: oneshot::Sender<PluginState>,
-}
+// pub struct ActivationSubscriber {
+//     pub callsign: String,
+//     pub callback: oneshot::Sender<PluginState>,
+// }
 
-#[derive(Debug, Deserialize, Clone)]
-#[cfg_attr(any(test, feature = "mock"), derive(Serialize))]
-pub struct PluginStateChangeEvent {
-    pub callsign: String,
-    pub state: PluginState,
-}
+// #[derive(Debug, Deserialize, Clone)]
+// #[cfg_attr(any(test, feature = "mock"), derive(Serialize))]
+// pub struct PluginStateChangeEvent {
+//     pub callsign: String,
+//     pub state: PluginState,
+// }
 
-#[derive(Debug, Serialize)]
-pub struct ThunderActivatePluginParams {
-    pub callsign: String,
-}
+// #[derive(Debug, PartialEq, Deserialize, Clone)]
+// #[cfg_attr(any(test, feature = "mock"), derive(Serialize))]
+// pub struct PluginStatus {
+//     pub state: String,
+// }
 
-#[derive(Debug, PartialEq, Deserialize, Clone)]
-#[cfg_attr(any(test, feature = "mock"), derive(Serialize))]
-pub struct PluginStatus {
-    pub state: String,
-}
+// impl PluginStatus {
+//     pub fn to_plugin_state(&self) -> PluginState {
+//         match self.state.as_str() {
+//             "activated" | "resumed" | "suspended" => PluginState::Activated,
+//             "deactivated" => PluginState::Deactivated,
+//             "deactivation" => PluginState::Deactivation,
+//             "activation" | "precondition" => PluginState::Activation,
+//             _ => PluginState::Unavailable,
+//         }
+//     }
+// }
 
-#[derive(Debug, Deserialize)]
-pub struct ThunderError {
-    pub code: i32,
-    pub message: String,
-}
+// #[derive(Debug, Deserialize, PartialEq, Clone)]
+// #[cfg_attr(any(test, feature = "mock"), derive(Serialize))]
+// pub enum PluginState {
+//     Activated,
+//     Activation,
+//     Deactivated,
+//     Deactivation,
+//     Unavailable,
+//     Precondition,
+//     Suspended,
+//     Resumed,
+//     Missing,
+//     Error,
+//     InProgress,
+//     Unknown,
+// }
 
-impl ThunderError {
-    pub fn get_plugin_state(&self) -> PluginState {
-        match self.message.as_str() {
-            "ERROR_INPROGRESS" | "ERROR_PENDING_CONDITIONS" => PluginState::InProgress,
-            "ERROR_UNKNOWN_KEY" => PluginState::Missing,
-            _ => PluginState::Unknown,
-        }
-    }
-}
+// impl PluginState {
+//     pub fn is_activated(&self) -> bool {
+//         matches!(self, PluginState::Activated)
+//     }
+//     pub fn is_activating(&self) -> bool {
+//         matches!(self, PluginState::Activation)
+//     }
+//     pub fn is_missing(&self) -> bool {
+//         matches!(self, PluginState::Missing)
+//     }
+// }
 
-impl PluginStatus {
-    pub fn to_plugin_state(&self) -> PluginState {
-        match self.state.as_str() {
-            "activated" | "resumed" | "suspended" => PluginState::Activated,
-            "deactivated" => PluginState::Deactivated,
-            "deactivation" => PluginState::Deactivation,
-            "activation" | "precondition" => PluginState::Activation,
-            _ => PluginState::Unavailable,
-        }
-    }
-}
+// #[derive(Debug)]
+// pub enum PluginManagerCommand {
+//     StateChangeEvent(PluginStateChangeEvent),
+//     ActivatePluginIfNeeded {
+//         callsign: String,
+//         tx: oneshot::Sender<PluginActivatedResult>,
+//     },
+//     WaitForActivation {
+//         callsign: String,
+//         tx: oneshot::Sender<PluginActivatedResult>,
+//     },
+//     ReactivatePluginState {
+//         tx: oneshot::Sender<PluginActivatedResult>,
+//     },
+//     WaitForActivationForDynamicPlugin {
+//         callsign: String,
+//         tx: oneshot::Sender<PluginActivatedResult>,
+//     },
+// }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-#[cfg_attr(any(test, feature = "mock"), derive(Serialize))]
-pub enum PluginState {
-    Activated,
-    Activation,
-    Deactivated,
-    Deactivation,
-    Unavailable,
-    Precondition,
-    Suspended,
-    Resumed,
-    Missing,
-    Error,
-    InProgress,
-    Unknown,
-}
+// #[derive(Debug)]
+// pub enum PluginActivatedResult {
+//     Ready,
+//     Pending(oneshot::Receiver<PluginState>),
+//     Error,
+// }
 
-impl PluginState {
-    pub fn is_activated(&self) -> bool {
-        matches!(self, PluginState::Activated)
-    }
-    pub fn is_activating(&self) -> bool {
-        matches!(self, PluginState::Activation)
-    }
-    pub fn is_missing(&self) -> bool {
-        matches!(self, PluginState::Missing)
-    }
-}
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
 
-#[derive(Debug)]
-pub enum PluginManagerCommand {
-    StateChangeEvent(PluginStateChangeEvent),
-    ActivatePluginIfNeeded {
-        callsign: String,
-        tx: oneshot::Sender<PluginActivatedResult>,
-    },
-    WaitForActivation {
-        callsign: String,
-        tx: oneshot::Sender<PluginActivatedResult>,
-    },
-    ReactivatePluginState {
-        tx: oneshot::Sender<PluginActivatedResult>,
-    },
-    WaitForActivationForDynamicPlugin {
-        callsign: String,
-        tx: oneshot::Sender<PluginActivatedResult>,
-    },
-}
+//     // test PluginStatus
+//     #[test]
+//     fn test_plugin_status() {
+//         let status = PluginStatus {
+//             state: "activated".to_string(),
+//         };
+//         assert_eq!(status.to_plugin_state(), PluginState::Activated);
+//     }
 
-#[derive(Debug)]
-pub enum PluginActivatedResult {
-    Ready,
-    Pending(oneshot::Receiver<PluginState>),
-    Error,
-}
+//     #[test]
+//     fn test_plugin_states() {
+//         fn get_plugin_status(state: &str) -> PluginStatus {
+//             PluginStatus {
+//                 state: state.to_owned(),
+//             }
+//         }
 
-impl PluginActivatedResult {
-    pub async fn ready(self) -> bool {
-        match self {
-            PluginActivatedResult::Ready => true,
-            PluginActivatedResult::Error => false,
-            PluginActivatedResult::Pending(sub_rx) => {
-                // Fail after 30 secs of expecting a Plugin to be activated
-                match tokio::time::timeout(Duration::from_millis(30000), sub_rx).await {
-                    Ok(Ok(v)) => v.is_activated(),
-                    _ => false,
-                }
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum ThunderPluginParam {
-    None,
-    Custom(Vec<String>),
-    Default,
-}
-
-#[derive(Debug, Clone)]
-pub struct ThunderPluginBootParam {
-    pub expected: ThunderPluginParam,
-    pub activate_on_boot: ThunderPluginParam,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // test PluginStatus
-    #[test]
-    fn test_plugin_status() {
-        let status = PluginStatus {
-            state: "activated".to_string(),
-        };
-        assert_eq!(status.to_plugin_state(), PluginState::Activated);
-    }
-
-    #[test]
-    fn test_plugin_states() {
-        fn get_plugin_status(state: &str) -> PluginStatus {
-            PluginStatus {
-                state: state.to_owned(),
-            }
-        }
-
-        assert!(matches!(
-            get_plugin_status("activated").to_plugin_state(),
-            PluginState::Activated
-        ));
-        assert!(matches!(
-            get_plugin_status("resumed").to_plugin_state(),
-            PluginState::Activated
-        ));
-        assert!(matches!(
-            get_plugin_status("suspended").to_plugin_state(),
-            PluginState::Activated
-        ));
-        assert!(matches!(
-            get_plugin_status("deactivated").to_plugin_state(),
-            PluginState::Deactivated
-        ));
-        assert!(matches!(
-            get_plugin_status("deactivation").to_plugin_state(),
-            PluginState::Deactivation
-        ));
-        assert!(matches!(
-            get_plugin_status("activation").to_plugin_state(),
-            PluginState::Activation
-        ));
-        assert!(matches!(
-            get_plugin_status("precondition").to_plugin_state(),
-            PluginState::Activation
-        ));
-        assert!(matches!(
-            get_plugin_status("unavailable").to_plugin_state(),
-            PluginState::Unavailable
-        ));
-        assert!(matches!(
-            get_plugin_status("hibernated").to_plugin_state(),
-            PluginState::Unavailable
-        ));
-        assert!(matches!(
-            get_plugin_status("").to_plugin_state(),
-            PluginState::Unavailable
-        ));
-    }
-}
+//         assert!(matches!(
+//             get_plugin_status("activated").to_plugin_state(),
+//             PluginState::Activated
+//         ));
+//         assert!(matches!(
+//             get_plugin_status("resumed").to_plugin_state(),
+//             PluginState::Activated
+//         ));
+//         assert!(matches!(
+//             get_plugin_status("suspended").to_plugin_state(),
+//             PluginState::Activated
+//         ));
+//         assert!(matches!(
+//             get_plugin_status("deactivated").to_plugin_state(),
+//             PluginState::Deactivated
+//         ));
+//         assert!(matches!(
+//             get_plugin_status("deactivation").to_plugin_state(),
+//             PluginState::Deactivation
+//         ));
+//         assert!(matches!(
+//             get_plugin_status("activation").to_plugin_state(),
+//             PluginState::Activation
+//         ));
+//         assert!(matches!(
+//             get_plugin_status("precondition").to_plugin_state(),
+//             PluginState::Activation
+//         ));
+//         assert!(matches!(
+//             get_plugin_status("unavailable").to_plugin_state(),
+//             PluginState::Unavailable
+//         ));
+//         assert!(matches!(
+//             get_plugin_status("hibernated").to_plugin_state(),
+//             PluginState::Unavailable
+//         ));
+//         assert!(matches!(
+//             get_plugin_status("").to_plugin_state(),
+//             PluginState::Unavailable
+//         ));
+//     }
+// }

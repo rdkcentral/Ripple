@@ -19,7 +19,7 @@ use crate::{
     client::{
         device_operator::{DeviceCallRequest, DeviceChannelRequest, DeviceSubscribeRequest},
         jsonrpc_method_locator::JsonRpcMethodLocator,
-        plugin_manager::{PluginState, PluginStateChangeEvent, PluginStatus},
+        //plugin_manager::{PluginState, PluginStateChangeEvent, PluginStatus},
         thunder_async_client::{ThunderAsyncRequest, ThunderAsyncResponse},
         thunder_client::ThunderClient,
         thunder_plugin::ThunderPlugin,
@@ -28,6 +28,37 @@ use crate::{
     thunder_state::ThunderState,
 };
 use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize, Clone)]
+#[cfg_attr(any(test, feature = "mock"), derive(Serialize))]
+pub struct PluginStateChangeEvent {
+    pub callsign: String,
+    pub state: PluginState,
+}
+
+#[derive(Debug, PartialEq, Deserialize, Clone)]
+#[cfg_attr(any(test, feature = "mock"), derive(Serialize))]
+pub struct PluginStatus {
+    pub state: String,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[cfg_attr(any(test, feature = "mock"), derive(Serialize))]
+pub enum PluginState {
+    Activated,
+    Activation,
+    Deactivated,
+    Deactivation,
+    Unavailable,
+    Precondition,
+    Suspended,
+    Resumed,
+    Missing,
+    Error,
+    InProgress,
+    Unknown,
+}
 
 pub type ThunderHandlerFn =
     dyn Fn(DeviceCallRequest, oneshot::Sender<ThunderAsyncResponse>, u64) + Send + Sync;
@@ -156,7 +187,7 @@ impl MockThunderController {
         );
         let msg = thunder_async_request
             .request
-            .get_dev_call_request()
+            .mock_get_dev_call_request()
             .unwrap();
 
         let locator = JsonRpcMethodLocator::from_str(&msg.method).unwrap();
@@ -230,7 +261,7 @@ impl MockThunderController {
     ) {
         let sub_req = thunder_async_request
             .request
-            .get_dev_subscribe_request()
+            .mock_get_dev_subscribe_request()
             .unwrap();
 
         let module = sub_req.module.clone();
