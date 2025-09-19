@@ -19,7 +19,6 @@ use crate::{
     client::{
         device_operator::{DeviceCallRequest, DeviceChannelRequest, DeviceSubscribeRequest},
         jsonrpc_method_locator::JsonRpcMethodLocator,
-        //plugin_manager::{PluginState, PluginStateChangeEvent, PluginStatus},
         thunder_async_client::{ThunderAsyncRequest, ThunderAsyncResponse},
         thunder_client::ThunderClient,
         thunder_plugin::ThunderPlugin,
@@ -357,7 +356,7 @@ impl MockThunderController {
         let thunder_client = ThunderClient::mock_thunderclient(thunder_async_request_tx);
 
         let (api_message_tx, api_message_rx) = mpsc::channel::<ApiMessage>(32);
-        let extn_client = ExtnClient::new_main_with_sender(api_message_tx);
+        let extn_client = ExtnClient::mock_new_main_with_sender(api_message_tx);
 
         let thunder_state = ThunderState::new(extn_client, thunder_client);
 
@@ -401,7 +400,7 @@ impl MockThunderController {
         let thunder_client = ThunderClient::mock_thunderclient(thunder_async_request_tx);
 
         let (api_message_tx, _api_message_rx) = mpsc::channel::<ApiMessage>(32);
-        let extn_client = ExtnClient::new_main_with_sender(api_message_tx);
+        let extn_client = ExtnClient::mock_new_main_with_sender(api_message_tx);
 
         ThunderState::new(extn_client, thunder_client)
     }

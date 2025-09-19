@@ -1047,7 +1047,7 @@ impl ExtnClient {
         ripple_context.features.clone()
     }
 
-    pub fn new_main_with_sender(sender: tokio::sync::mpsc::Sender<ApiMessage>) -> ExtnClient {
+    pub fn mock_new_main_with_sender(sender: tokio::sync::mpsc::Sender<ApiMessage>) -> ExtnClient {
         Self {
             sender: ExtnSender::mock_new_main_with_sender(sender),
             extn_sender_map: Arc::new(RwLock::new(HashMap::new())),
