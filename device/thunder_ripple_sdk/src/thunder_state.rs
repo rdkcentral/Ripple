@@ -32,8 +32,7 @@ use url::Url;
 
 use crate::{
     client::{
-        device_operator::{DeviceOperator, DeviceResponseMessage, DeviceUnsubscribeRequest},
-        plugin_manager::ThunderPluginBootParam,
+        device_operator::{DeviceOperator, DeviceResponseMessage},
         thunder_client::ThunderClient,
     },
     events::thunder_event_processor::{ThunderEventHandler, ThunderEventProcessor},
@@ -63,8 +62,6 @@ impl ThunderConnectionState {
 pub struct ThunderBootstrapStateWithConfig {
     pub extn_client: ExtnClient,
     pub url: Url,
-    pub pool_size: Option<u32>,
-    pub plugin_param: Option<ThunderPluginBootParam>,
     pub thunder_connection_state: Option<Arc<ThunderConnectionState>>,
 }
 
@@ -119,12 +116,9 @@ impl ThunderState {
         if self
             .event_processor
             .handle_listener(listen, app_id.clone(), handler.clone())
+            && listen
         {
-            if listen {
-                self.subscribe(handler).await
-            } else {
-                self.unsubscribe(handler).await
-            }
+            self.subscribe(handler).await
         }
     }
 
@@ -132,15 +126,6 @@ impl ThunderState {
         let client = self.get_thunder_client();
         let sender = self.sender.clone();
         let _ = client.subscribe(handler.request, sender).await;
-    }
-
-    async fn unsubscribe(&self, handler: ThunderEventHandler) {
-        let client = self.get_thunder_client();
-        let request = DeviceUnsubscribeRequest {
-            module: handler.request.module,
-            event_name: handler.request.event_name,
-        };
-        client.unsubscribe(request).await;
     }
 
     pub fn start_event_thread(&self) {
