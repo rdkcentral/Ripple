@@ -484,6 +484,38 @@ impl ServiceNotificationProcessor {
                     }
                 });
             }
+
+            let processors = platform_state
+                .service_controller_state
+                .service_event_state
+                .get_event_main_processors(Some(update_type_str.clone()));
+
+            if let Some(processor) = processors {
+                debug!(
+                    "Main Subscriber found for update type: {:?} subscriber: {:?}",
+                    update_type, processor
+                );
+
+                let processor = processor.clone();
+                let new_ripple_context = serde_json::to_string(&new_ripple_context).unwrap();
+
+                tokio::spawn(async move {
+                    let service_message = ServiceMessage {
+                        message: JsonRpcMessage::Notification(JsonRpcNotification {
+                            jsonrpc: "2.0".to_string(),
+                            method: "service.eventNotification".to_string(),
+                            params: Some(new_ripple_context.into()),
+                        }),
+                        context: None,
+                    };
+                    let _ = processor.send(service_message).await;
+                });
+            } else {
+                debug!(
+                    "No main subscriber found for update type: {:?}",
+                    update_type.clone()
+                );
+            }
         } else {
             trace!("Context information is already updated. Hence not propagating");
         }
