@@ -15,22 +15,31 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use crate::service::settings_processor::{get_settings_map, subscribe_to_settings};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
 use ripple_sdk::{
     api::{
-        apps::{AppEvent, AppManagerResponse, AppMethod, AppRequest, AppResponse},
+        apps::{AppEvent, AppEventRequest, AppManagerResponse, AppMethod, AppRequest, AppResponse},
         caps::CapsRequest,
         firebolt::{
             fb_discovery::{AgePolicy, PolicyIdentifierAlias},
             fb_general::ListenRequestWithEvent,
+            fb_keyboard::{
+                KeyboardSessionRequest, KeyboardSessionResponse, KEYBOARD_PROVIDER_CAPABILITY,
+            },
+            fb_pin::{
+                PinChallengeRequestWithContext, PinChallengeResponse, PIN_CHALLENGE_CAPABILITY,
+            },
             fb_telemetry::TelemetryPayload,
+            provider::{ProviderRequestPayload, ProviderResponsePayload},
         },
         gateway::rpc_gateway_api::CallContext,
+        settings::{SettingValue, SettingsRequest, SettingsRequestParam},
     },
     async_trait::async_trait,
     log::{debug, error},
     tokio::sync::oneshot,
-    utils::rpc_utils::rpc_err,
+    utils::{error::RippleError, rpc_utils::rpc_err},
 };
 
 use std::{
@@ -40,7 +49,13 @@ use std::{
 
 use crate::{
     firebolt::rpc::RippleRPCProvider,
-    service::{apps::app_events::AppEvents, telemetry_builder::TelemetryBuilder},
+    service::{
+        apps::{
+            app_events::AppEvents,
+            provider_broker::{ProviderBroker, ProviderBrokerRequest},
+        },
+        telemetry_builder::TelemetryBuilder,
+    },
     state::platform_state::PlatformState,
     utils::rpc_utils::rpc_await_oneshot,
 };
@@ -85,6 +100,41 @@ pub trait Internal {
 
     #[method(name = "account.policyIdentifierAlias")]
     async fn get_policy_identifier_alias(&self, ctx: CallContext) -> RpcResult<Vec<AgePolicy>>;
+
+    #[method(name = "ripple.sendAppEventRequest")]
+    async fn send_app_event_request(
+        &self,
+        ctx: CallContext,
+        app_event_request: AppEventRequest,
+    ) -> RpcResult<bool>;
+
+    #[method(name = "ripple.promptEmailRequest")]
+    async fn prompt_email_request(
+        &self,
+        ctx: CallContext,
+        request: KeyboardSessionRequest,
+    ) -> RpcResult<KeyboardSessionResponse>;
+
+    #[method(name = "ripple.showPinOverlay")]
+    async fn show_pin_overlay(
+        &self,
+        ctx: CallContext,
+        request: PinChallengeRequestWithContext,
+    ) -> RpcResult<PinChallengeResponse>;
+
+    #[method(name = "ripple.getSettingsRequest")]
+    async fn get_settings_request(
+        &self,
+        ctx: CallContext,
+        request: SettingsRequest,
+    ) -> RpcResult<HashMap<String, SettingValue>>;
+
+    #[method(name = "ripple.subscribeSettings")]
+    async fn subscribe_settings(
+        &self,
+        ctx: CallContext,
+        request: SettingsRequestParam,
+    ) -> RpcResult<()>;
 }
 
 #[derive(Debug, Clone, Default)]
@@ -203,6 +253,105 @@ impl InternalServer for InternalImpl {
             ctx.app_id
         );
         Ok(String::new())
+    }
+
+    async fn send_app_event_request(
+        &self,
+        _ctx: CallContext,
+        app_event_request: AppEventRequest,
+    ) -> RpcResult<bool> {
+        match app_event_request.clone() {
+            AppEventRequest::Emit(event) => {
+                if let Some(app_id) = event.app_id {
+                    let event_name = &event.event_name;
+                    let result = &event.result;
+                    AppEvents::emit_to_app(&self.state, app_id, event_name, result).await;
+                } else {
+                    AppEvents::emit_with_app_event(&self.state, app_event_request).await;
+                }
+            }
+            AppEventRequest::Register(ctx, event, request) => {
+                AppEvents::add_listener(&self.state, event, ctx, request);
+            }
+        }
+        Ok(true)
+    }
+
+    async fn prompt_email_request(
+        &self,
+        _ctx: CallContext,
+        request: KeyboardSessionRequest,
+    ) -> RpcResult<KeyboardSessionResponse> {
+        let method = String::from(request._type.to_provider_method());
+        let (session_tx, session_rx) = oneshot::channel::<ProviderResponsePayload>();
+        let pr_msg = ProviderBrokerRequest {
+            capability: KEYBOARD_PROVIDER_CAPABILITY.to_string(),
+            method,
+            caller: request.clone().ctx.into(),
+            request: ProviderRequestPayload::KeyboardSession(request.clone()),
+            tx: session_tx,
+            app_id: None,
+        };
+        ProviderBroker::invoke_method(&self.state, pr_msg).await;
+        if let Ok(result) = session_rx.await {
+            if let Some(keyboard_response) = result.as_keyboard_result() {
+                return Ok(keyboard_response);
+            }
+        }
+        Err(rpc_err("Unpermitted"))
+    }
+
+    async fn show_pin_overlay(
+        &self,
+        _ctx: CallContext,
+        request: PinChallengeRequestWithContext,
+    ) -> RpcResult<PinChallengeResponse> {
+        let (session_tx, session_rx) = oneshot::channel::<ProviderResponsePayload>();
+        let pr_msg = ProviderBrokerRequest {
+            capability: String::from(PIN_CHALLENGE_CAPABILITY),
+            method: String::from("pinchallenge.onRequestChallenge"),
+            caller: request.call_ctx.clone().into(),
+            request: ProviderRequestPayload::PinChallenge(request.into()),
+            tx: session_tx,
+            app_id: None,
+        };
+        ProviderBroker::invoke_method(&self.state, pr_msg).await;
+        if let Ok(result) = session_rx.await {
+            if let Some(response) = result.as_pin_challenge_response() {
+                return Ok(response);
+            }
+        }
+        Err(rpc_err("Unpermitted"))
+    }
+
+    async fn get_settings_request(
+        &self,
+        _ctx: CallContext,
+        request: SettingsRequest,
+    ) -> RpcResult<HashMap<String, SettingValue>> {
+        let settings = match request {
+            SettingsRequest::Get(req) => get_settings_map(&self.state, &req).await,
+            _ => {
+                error!("Unsupported SettingsRequest variant");
+                Err(RippleError::InvalidInput)
+            }
+        };
+        match settings {
+            Ok(map) => Ok(map),
+            Err(e) => {
+                error!("Error getting settings: {:?}", e);
+                Err(rpc_err("Error getting settings"))
+            }
+        }
+    }
+
+    async fn subscribe_settings(
+        &self,
+        _ctx: CallContext,
+        request: SettingsRequestParam,
+    ) -> RpcResult<()> {
+        subscribe_to_settings(&self.state, request).await;
+        Ok(())
     }
 }
 

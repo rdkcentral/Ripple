@@ -64,7 +64,7 @@ enum MethodType {
     Response,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct RpcModuleContext {
     platform_state: PlatformState,
     method: String,
@@ -160,8 +160,8 @@ impl ProviderRegistrar {
         rpc_module: &mut RpcModule<RpcModuleContext>,
     ) -> bool {
         info!(
-            "register_method: method_name={}, method_type={:?}",
-            method_name, method_type
+            "register_method: method_name={}, method_type={:?}, rpc_module={:?}",
+            method_name, method_type, rpc_module
         );
 
         let result = match method_type {
