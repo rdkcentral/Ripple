@@ -346,8 +346,9 @@ impl ServiceNotificationProcessor {
                             "Sending context update to processor: {} message: {}",
                             processor, msg_str
                         );
-                        let send_res = sender.try_send(mes);
-                        trace!("Send to processor result: {:?}", send_res);
+                        if let Err(e) = sender.try_send(mes) {
+                            error!("Failed to send service notification: {:?}", e);
+                        }
                     } else {
                         error!("No sender found for service_id: {}", service_id);
                     }

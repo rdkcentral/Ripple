@@ -223,7 +223,7 @@ impl ServiceClient {
                                                 id, self.event_processors
                                             );
                                             tokio::spawn(async move {
-                                                if let Err(e) = event_processor.send(sm).await {
+                                                if let Err(e) = event_processor.try_send(sm) {
                                                     error!(
                                                         "Failed to send service notification: {:?}",
                                                         e
