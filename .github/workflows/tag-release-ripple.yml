@@ -42,4 +42,4 @@ jobs:
           git push origin $BRANCH_NAME
           git tag $TAG_NAME $BRANCH_NAME
           git push origin $TAG_NAME
-          gh release create $TAG_NAME --repo comcast-firebolt/Ripple --title "$TAG_NAME Release" --notes "Automated release for $TAG_NAME"
+          gh release create $TAG_NAME --repo comcast-firebolt/Ripple --title "$TAG_NAME Release" --notes "Automated release for $TAG_NAME" --prerelease
