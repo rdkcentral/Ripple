@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use serde_json::json;
 use std::collections::HashMap;
 
 use crate::api::gateway::rpc_gateway_api::CallContext;
@@ -43,8 +42,7 @@ use tokio::sync::{mpsc::Sender as MSender, oneshot::Sender as OSender};
 use tokio_tungstenite::tungstenite::Message;
 use uuid::Uuid;
 
-use super::service_message::{
-    JsonRpcNotification, JsonRpcSuccess, ServiceMessage, ServiceRequestType,
+use super::service_message::{JsonRpcSuccess, ServiceMessage, ServiceRequestType,
 };
 #[derive(Debug, Clone, Default)]
 pub struct ServiceClient {
@@ -214,18 +212,37 @@ impl ServiceClient {
                                     json_rpc_notification,
                                     sm.context.clone().unwrap()
                                 );
-
-                                let new_context = json!({"context": sm.context.clone()});
-
-                                let new_sm = ServiceMessage {
-                                    message: JsonRpcMessage::Notification(JsonRpcNotification {
-                                        jsonrpc: "2.0".to_string(),
-                                        method: json_rpc_notification.method.clone(),
-                                        params: json_rpc_notification.params.clone(),
-                                    }),
-                                    context: Some(new_context.clone()),
-                                };
-                                self.send_service_response(new_sm.clone());
+                                if let Some(context) = &sm.context {
+                                    if let Some(Value::String(id)) =
+                                        context.as_array().and_then(|a| a.first())
+                                    {
+                                        if let Some(event_processor) =
+                                            self.event_processors.write().unwrap().get(id).cloned()
+                                        {
+                                            debug!(
+                                                "Sending service notification for id: {} event_processors {:?}",
+                                                id, self.event_processors
+                                            );
+                                            tokio::spawn(async move {
+                                                if let Err(e) = event_processor.send(sm).await {
+                                                    error!(
+                                                        "Failed to send service notification: {:?}",
+                                                        e
+                                                    );
+                                                }
+                                            });
+                                        } else {
+                                            warn!("No event processor found for id: {}", id);
+                                        }
+                                    } else {
+                                        warn!("Context does not contain a valid sender_id context: {:?}", context);
+                                    }
+                                } else {
+                                    warn!(
+                                        "Service message context is None service message: {:?}",
+                                        sm
+                                    );
+                                }
                             }
                             JsonRpcMessage::Success(ref json_rpc_success) => {
                                 debug!(
@@ -302,57 +319,23 @@ impl ServiceClient {
 
     fn send_service_response(&self, sm: ServiceMessage) {
         if let Some(context) = &sm.context {
-            if let Some(request_type) = sm.get_request_type() {
-                debug!("Service response for request_type: {}", request_type,);
-                // extract service id from context
-                if let Some(Value::String(id)) = context
-                    .get("context")
-                    .and_then(|c| c.as_array())
-                    .and_then(|a| a.first())
-                {
-                    match request_type {
-                        ServiceRequestType::Request => {
-                            if let Some(response_processor) =
-                                self.response_processors.write().unwrap().remove(id)
-                            {
-                                if let Err(e) = response_processor.send(sm) {
-                                    error!("Failed to send service response: {:?}", e);
-                                }
-                            } else {
-                                warn!("No response processor found for id: {}", id);
-                            }
-                        }
-                        ServiceRequestType::Event => {
-                            if let Some(event_processor) =
-                                self.event_processors.write().unwrap().get(id).cloned()
-                            {
-                                debug!(
-                                    "Sending service event for id: {} event_processors {:?}",
-                                    id, self.event_processors
-                                );
-                                tokio::spawn(async move {
-                                    if let Err(e) = event_processor.send(sm).await {
-                                        error!("Failed to send service event: {:?}", e);
-                                    }
-                                });
-                            } else {
-                                warn!("No event processor found for id: {}", id);
-                            }
-                        }
-                        ServiceRequestType::Transient => debug!("Transient request type"),
+            if let Some(Value::String(id)) = context
+                .get("context")
+                .and_then(|c| c.as_array())
+                .and_then(|a| a.first())
+            {
+                if let Some(processor) = self.response_processors.write().unwrap().remove(id) {
+                    if let Err(e) = processor.send(sm) {
+                        error!("Failed to send service response: {:?}", e);
                     }
-                } else if request_type != ServiceRequestType::Transient {
-                    warn!(
-                        "Service ID not found in context for service message: {:?}",
-                        sm
-                    );
+                } else {
+                    warn!("No processor found for id: {}", id);
                 }
             } else {
-                warn!(
-                    "Service message RequestType is None, cannot send response: {:?}",
-                    sm
-                );
+                warn!("Context does not contain a valid sender_id");
             }
+        } else {
+            warn!("Service message context is None");
         }
     }
 
@@ -403,7 +386,7 @@ impl ServiceClient {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub async fn call_and_parse_ripple_event_rpc(
+    pub async fn call_and_parse_ripple_event_request_rpc(
         &mut self,
         method: &str,
         params: Option<serde_json::Value>,
@@ -421,7 +404,7 @@ impl ServiceClient {
                 timeout,
                 service_id.to_string(),
                 Some(event_sender),
-                ServiceRequestType::Event,
+                ServiceRequestType::Request,
             )
             .await;
 
@@ -534,6 +517,7 @@ impl ServiceClient {
             }
         } else {
             add_response_processor(id.clone(), event_sender, self.event_processors.clone());
+            debug!("Added event processor for id: {} ", id);
             if let Some(sender) = &self.service_sender {
                 match sender.try_send(service_req) {
                     Ok(_) => {

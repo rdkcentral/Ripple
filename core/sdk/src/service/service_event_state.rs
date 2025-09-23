@@ -1,5 +1,4 @@
 use crate::api::context::RippleContext;
-use crate::api::gateway::rpc_gateway_api::CallContext;
 use crate::log::{debug, error};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -28,78 +27,52 @@ impl ServiceEventState {
         *ripple_context = context;
     }
 
-    pub fn get_event_processors(&self, context_update_type: Option<String>) -> Vec<String> {
+    pub fn get_event_processors(&self, event: Option<String>) -> Vec<String> {
         let event_subscribers: Arc<RwLock<HashMap<String, Vec<String>>>> =
             Arc::clone(&self.event_subscribers);
         let read_lock = event_subscribers.read().unwrap();
-        match context_update_type {
-            Some(update_type) => read_lock.get(&update_type).cloned().unwrap_or_default(),
+        match event {
+            Some(event) => read_lock.get(&event).cloned().unwrap_or_default(),
             None => Vec::new(),
         }
     }
 
-    pub fn add_event_processor(&self, update_type: String, processor: String) {
+    pub fn add_event_processor(&self, event: String, processor: String) {
         let mut event_subscribers = self.event_subscribers.write().unwrap();
-        event_subscribers
-            .entry(update_type)
-            .or_default()
-            .push(processor);
+        event_subscribers.entry(event).or_default().push(processor);
     }
 
-    pub fn subscribe_context_event(&self, update_type: &str, context: Option<Value>) {
-        let update_type = update_type.to_string();
-        let ctx = &context.as_ref().map_or_else(CallContext::default, |v| {
-            serde_json::from_value(v.clone()).unwrap_or_default()
-        });
-
+    pub fn subscribe_context_event(&self, event: &str, context: Option<Value>) {
+        let event = event.to_string();
         debug!(
-            "subscribe_context_event context: {:?} update_type {:?}",
-            ctx, update_type
+            "subscribe_context_event context: {:?} event {:?}",
+            context, event
         );
 
-        //Add context[sender_id, service_id, request_type] in event processors as string split by "&"
-        let sender_tx = ctx.context.first();
-        let subscriber = ctx.context.get(1);
-        let request_type = ctx.context.get(2);
-        let new_event_processor = format!(
-            "{}&{}&{}",
-            sender_tx.unwrap_or(&"".to_string()),
-            subscriber.unwrap_or(&"".to_string()),
-            request_type.unwrap_or(&"".to_string())
-        );
-        if let Some(_s) = subscriber {
-            self.add_event_processor(update_type, new_event_processor);
+        if let Some(ctx) = context {
+            if !ctx.is_array() {
+                error!("Context is not an array of strings");
+                return;
+            }
+            //Add context[sender_id, service_id] in event processors as string split by "&"
+            let sender_tx = ctx.get(0);
+            let subscriber = ctx.get(1);
+            let new_event_processor = format!(
+                "{}&{}",
+                sender_tx.and_then(|v| v.as_str()).unwrap_or(""),
+                subscriber.and_then(|v| v.as_str()).unwrap_or("")
+            );
+            if let Some(_s) = subscriber {
+                debug!(
+                    "Subscribing to context event: {:?} with processor {}",
+                    event, new_event_processor
+                );
+                self.add_event_processor(event, new_event_processor);
+            } else {
+                error!("Subscriber not found in context");
+            }
         } else {
-            error!("Subscriber not found in context");
+            error!("Context is None event: {}", event);
         }
-        // let update_type = serde_json::from_str::<RippleContextUpdateType>(&update_type);
-        // match update_type {
-        //     Ok(update_type) => {
-        //         let ctx = &context.as_ref().map_or_else(CallContext::default, |v| {
-        //             serde_json::from_value(v.clone()).unwrap_or_default()
-        //         });
-
-        //         debug!("subscribe_context_event context: {:?}", ctx);
-
-        //         //Add context[sender_id, service_id, request_type] in event processors as string split by "&"
-        //         let sender_tx = ctx.context.first();
-        //         let subscriber = ctx.context.get(1);
-        //         let request_type = ctx.context.get(2);
-        //         let new_event_processor = format!(
-        //             "{}&{}&{}",
-        //             sender_tx.unwrap_or(&"".to_string()),
-        //             subscriber.unwrap_or(&"".to_string()),
-        //             request_type.unwrap_or(&"".to_string())
-        //         );
-        //         if let Some(_s) = subscriber {
-        //             self.add_event_processor(update_type, new_event_processor);
-        //         } else {
-        //             error!("Subscriber not found in context");
-        //         }
-        //     }
-        //     Err(e) => {
-        //         error!("Failed to parse update type: {}", e);
-        //     }
-        // }
     }
 }

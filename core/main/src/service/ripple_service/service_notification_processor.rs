@@ -19,28 +19,12 @@ use std::{collections::HashMap, sync::Arc};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, Hash, PartialEq)]
 pub enum NotificationEvent {
-    RippleContextTokenChangedEvent,
-    RippleContextActivationChangedEvent,
-    RippleContextInternetStatusChangedEvent,
-    RippleContextPowerStateChangedEvent,
-    RippleContextTimeZoneChangedEvent,
-    RippleContextUpdateFeaturesChangedEvent,
     RippleContextUpdateTokenRequest,
     RippleContextUpdateActivationRequest,
     RippleContextUpdateInternetStatusRequest,
     RippleContextUpdatePowerStateRequest,
     RippleContextUpdateTimeZoneRequest,
     RippleContextUpdateFeaturesRequest,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Eq, Hash, PartialEq)]
-pub enum NotificationUpdateType {
-    Token,
-    Activation,
-    InternetStatus,
-    PowerState,
-    TimeZone,
-    UpdateFeatures,
 }
 
 #[async_trait]
@@ -51,109 +35,6 @@ pub trait NotificationEventStrategy: Send + Sync + std::fmt::Debug {
         platform_state: &PlatformState,
         context: Option<Value>,
     );
-}
-
-// Implement strategies for each notification type
-#[derive(Debug, Default)]
-pub struct RippleContextTokenChangedEvent;
-
-impl NotificationEventStrategy for RippleContextTokenChangedEvent {
-    fn handle_notification(
-        &self,
-        _json_rpc_notification: &JsonRpcNotification,
-        platform_state: &PlatformState,
-        context: Option<Value>,
-    ) {
-        platform_state
-            .service_controller_state
-            .service_event_state
-            .subscribe_context_event("RippleContextTokenChangedEvent", context);
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct RippleContextActivationChangedEvent;
-
-impl NotificationEventStrategy for RippleContextActivationChangedEvent {
-    fn handle_notification(
-        &self,
-        _json_rpc_notification: &JsonRpcNotification,
-        platform_state: &PlatformState,
-        context: Option<Value>,
-    ) {
-        platform_state
-            .service_controller_state
-            .service_event_state
-            .subscribe_context_event("RippleContextActivationChangedEvent", context);
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct RippleContextInternetStatusChangedEvent;
-
-impl NotificationEventStrategy for RippleContextInternetStatusChangedEvent {
-    fn handle_notification(
-        &self,
-        _json_rpc_notification: &JsonRpcNotification,
-        platform_state: &PlatformState,
-        context: Option<Value>,
-    ) {
-        platform_state
-            .service_controller_state
-            .service_event_state
-            .subscribe_context_event("RippleContextInternetStatusChangedEvent", context);
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct RippleContextPowerStateChangedEvent;
-
-impl NotificationEventStrategy for RippleContextPowerStateChangedEvent {
-    fn handle_notification(
-        &self,
-        _json_rpc_notification: &JsonRpcNotification,
-        platform_state: &PlatformState,
-        context: Option<Value>,
-    ) {
-        platform_state
-            .service_controller_state
-            .service_event_state
-            .subscribe_context_event("RippleContextPowerStateChangedEvent", context);
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct RippleContextTimeZoneChangedEvent;
-
-impl NotificationEventStrategy for RippleContextTimeZoneChangedEvent {
-    fn handle_notification(
-        &self,
-        _json_rpc_notification: &JsonRpcNotification,
-        platform_state: &PlatformState,
-        context: Option<Value>,
-    ) {
-        platform_state
-            .service_controller_state
-            .service_event_state
-            .subscribe_context_event("RippleContextTimeZoneChangedEvent", context);
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct RippleContextUpdateFeaturesChangedEvent;
-
-impl NotificationEventStrategy for RippleContextUpdateFeaturesChangedEvent {
-    fn handle_notification(
-        &self,
-        _json_rpc_notification: &JsonRpcNotification,
-        platform_state: &PlatformState,
-        context: Option<Value>,
-    ) {
-        platform_state
-            .service_controller_state
-            .service_event_state
-            .subscribe_context_event("RippleContextUpdateFeaturesChangedEvent", context);
-    }
 }
 
 #[derive(Debug, Default)]
@@ -321,30 +202,7 @@ pub struct ServiceNotificationProcessor {
 impl ServiceNotificationProcessor {
     pub fn new() -> Self {
         let mut strategies = HashMap::new();
-        strategies.insert(
-            NotificationEvent::RippleContextTokenChangedEvent,
-            Box::new(RippleContextTokenChangedEvent) as Box<dyn NotificationEventStrategy>,
-        );
-        strategies.insert(
-            NotificationEvent::RippleContextActivationChangedEvent,
-            Box::new(RippleContextActivationChangedEvent) as Box<dyn NotificationEventStrategy>,
-        );
-        strategies.insert(
-            NotificationEvent::RippleContextInternetStatusChangedEvent,
-            Box::new(RippleContextInternetStatusChangedEvent) as Box<dyn NotificationEventStrategy>,
-        );
-        strategies.insert(
-            NotificationEvent::RippleContextPowerStateChangedEvent,
-            Box::new(RippleContextPowerStateChangedEvent) as Box<dyn NotificationEventStrategy>,
-        );
-        strategies.insert(
-            NotificationEvent::RippleContextTimeZoneChangedEvent,
-            Box::new(RippleContextTimeZoneChangedEvent) as Box<dyn NotificationEventStrategy>,
-        );
-        strategies.insert(
-            NotificationEvent::RippleContextUpdateFeaturesChangedEvent,
-            Box::new(RippleContextUpdateFeaturesChangedEvent) as Box<dyn NotificationEventStrategy>,
-        );
+
         strategies.insert(
             NotificationEvent::RippleContextUpdateTokenRequest,
             Box::new(RippleContextUpdateTokenRequest) as Box<dyn NotificationEventStrategy>,
@@ -386,14 +244,14 @@ impl ServiceNotificationProcessor {
             "Received service notification: {:#?}",
             json_rpc_notification
         );
-        if let Some((_context_update, update_type)) = json_rpc_notification.method.split_once(".") {
-            let update_type: String = format!("\"{}\"", update_type);
+        if let Some((_context_update, event)) = json_rpc_notification.method.split_once(".") {
+            let event: String = format!("\"{}\"", event);
 
             // json_rpc_notifiction method is like "ripple.RippleContextTokenChangedEvent"
             // We need to extract "RippleContextTokenChangedEvent" and convert it to NotificationEvent enum
             // Then we can use it to get the appropriate strategy from the map
 
-            let notification_event = serde_json::from_str::<NotificationEvent>(&update_type);
+            let notification_event = serde_json::from_str::<NotificationEvent>(&event);
             match notification_event {
                 Err(e) => {
                     error!("Invalid event type error: {}", e);
@@ -415,7 +273,7 @@ impl ServiceNotificationProcessor {
     }
 
     pub fn context_update(
-        update_type: &str,
+        event: &str,
         request: RippleContextUpdateRequest,
         platform_state: &PlatformState,
         _context: Option<Value>,
@@ -428,8 +286,8 @@ impl ServiceNotificationProcessor {
                 .write()
                 .unwrap();
             debug!(
-                "Received context update request: {:?} current ripple_context: {:?} update_type: {}",
-                request, ripple_context, update_type
+                "Received context update request: {:?} current ripple_context: {:?} event: {}",
+                request, ripple_context, event
             );
             ripple_context.update(request.clone())
         };
@@ -443,13 +301,19 @@ impl ServiceNotificationProcessor {
                 .clone()
         };
         if propagate {
-            let update_type_str = update_type.to_string();
+            let event_str = event.to_string();
             let processors = platform_state
                 .service_controller_state
                 .service_event_state
-                .get_event_processors(Some(update_type_str.clone()));
+                .get_event_processors(Some(event_str.clone()));
             if processors.is_empty() {
-                warn!("No subscribers found for update type: {}", update_type_str);
+                warn!("No subscribers found for event: {}", event_str);
+            } else {
+                debug!(
+                    "Found {} subscribers for event: {}",
+                    processors.len(),
+                    event_str
+                );
             }
             for processor in processors {
                 let processor = processor.clone();
@@ -460,27 +324,32 @@ impl ServiceNotificationProcessor {
                     .collect::<Vec<String>>();
                 let sender_id = processor_arr.first().unwrap().to_string();
                 let service_id = processor_arr.get(1).unwrap().to_string();
-                let request_type = processor_arr.get(2).unwrap().to_string();
-
                 let service_controller_state = platform_state.service_controller_state.clone();
 
                 let new_ripple_context = serde_json::to_string(&new_ripple_context).unwrap();
+                let event_str = event_str.clone();
 
                 tokio::spawn(async move {
                     if let Some(sender) = service_controller_state.get_sender(&service_id).await {
-                        let context = vec![sender_id, service_id, request_type];
+                        let context = vec![sender_id, service_id];
                         let service_message = ServiceMessage {
                             message: JsonRpcMessage::Notification(JsonRpcNotification {
                                 jsonrpc: "2.0".to_string(),
-                                method: "service.eventNotification".to_string(),
+                                method: format!("ripple.{}", event_str),
                                 params: Some(new_ripple_context.into()),
                             }),
                             context: Some(context.into()),
                         };
                         let msg_str = serde_json::to_string(&service_message).unwrap();
                         let mes = Message::Text(msg_str.clone());
+                        debug!(
+                            "Sending context update to processor: {} message: {}",
+                            processor, msg_str
+                        );
                         let send_res = sender.try_send(mes);
                         trace!("Send to processor result: {:?}", send_res);
+                    } else {
+                        error!("No sender found for service_id: {}", service_id);
                     }
                 });
             }
