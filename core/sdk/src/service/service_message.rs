@@ -19,7 +19,6 @@ use jsonrpsee::core::RpcResult;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::fmt;
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -113,23 +112,6 @@ impl JsonRpcMessage {
             JsonRpcMessage::Notification(_) => {}
             JsonRpcMessage::Success(success) => success.id = id,
             JsonRpcMessage::Error(err) => err.id = id,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum ServiceRequestType {
-    Request,
-    Event,
-    Transient,
-}
-
-impl fmt::Display for ServiceRequestType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ServiceRequestType::Request => write!(f, "request"),
-            ServiceRequestType::Event => write!(f, "event"),
-            ServiceRequestType::Transient => write!(f, "transient"),
         }
     }
 }
@@ -280,27 +262,6 @@ impl ServiceMessage {
                     0
                 }
             }
-        }
-    }
-
-    pub fn get_request_type(&self) -> Option<ServiceRequestType> {
-        if let Some(context) = &self.context {
-            if let Some(Value::String(request_type)) = context
-                .get("context")
-                .and_then(|c| c.as_array())
-                .and_then(|a| a.get(2))
-            {
-                match request_type.as_str() {
-                    "request" => Some(ServiceRequestType::Request),
-                    "event" => Some(ServiceRequestType::Event),
-                    "transient" => Some(ServiceRequestType::Transient),
-                    _ => None,
-                }
-            } else {
-                None
-            }
-        } else {
-            None
         }
     }
 

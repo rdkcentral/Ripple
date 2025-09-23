@@ -42,8 +42,7 @@ use tokio::sync::{mpsc::Sender as MSender, oneshot::Sender as OSender};
 use tokio_tungstenite::tungstenite::Message;
 use uuid::Uuid;
 
-use super::service_message::{JsonRpcSuccess, ServiceMessage, ServiceRequestType,
-};
+use super::service_message::{JsonRpcSuccess, ServiceMessage};
 #[derive(Debug, Clone, Default)]
 pub struct ServiceClient {
     pub service_sender: Option<MSender<ServiceMessage>>,
@@ -369,7 +368,6 @@ impl ServiceClient {
                 timeout,
                 service_id.to_string(),
                 None,
-                ServiceRequestType::Request,
             )
             .await
             .map_err(|_| jsonrpsee::core::Error::Custom(error_msg.to_string()))?;
@@ -404,7 +402,6 @@ impl ServiceClient {
                 timeout,
                 service_id.to_string(),
                 Some(event_sender),
-                ServiceRequestType::Request,
             )
             .await;
 
@@ -428,7 +425,6 @@ impl ServiceClient {
         timeout_in_msecs: u64,
         service_id: String,
         event_sender: Option<MSender<ServiceMessage>>,
-        request_type: ServiceRequestType,
     ) -> Result<ServiceMessage, RippleError> {
         let default_ctx;
         let ctx = match ctx {
@@ -443,7 +439,7 @@ impl ServiceClient {
         {
             let resp = tokio::time::timeout(
                 std::time::Duration::from_millis(timeout_in_msecs),
-                self.send_rpc_main(method, params, ctx, service_id, event_sender, request_type),
+                self.send_rpc_main(method, params, ctx, service_id, event_sender),
             )
             .await;
 
@@ -474,23 +470,14 @@ impl ServiceClient {
         ctx: &CallContext,
         service_id: String,
         event_sender: Option<MSender<ServiceMessage>>,
-        request_type: ServiceRequestType,
     ) -> Result<ServiceMessage, RippleError> {
         let id = uuid::Uuid::new_v4().to_string();
-        let mut service_req: ServiceMessage = {
-            match request_type {
-                ServiceRequestType::Request => {
-                    ServiceMessage::new_request(method.to_owned(), params, Id::String(id.clone()))
-                }
-                ServiceRequestType::Event | ServiceRequestType::Transient => {
-                    ServiceMessage::new_notification(method.to_owned(), params)
-                }
-            }
-        };
+        let mut service_req =
+            ServiceMessage::new_request(method.to_owned(), params, Id::String(id.clone()));
         let mut context = ctx.clone();
         context.protocol = ApiProtocol::Service;
 
-        let vec = vec![id.clone(), service_id, request_type.to_string()];
+        let vec = vec![id.clone(), service_id];
         context.context = vec;
 
         let service_message_context = serde_json::to_value(context).unwrap();
@@ -689,15 +676,7 @@ pub mod tests {
             false,
         );
         let result: Result<ServiceMessage, RippleError> = client
-            .request_with_timeout_main(
-                "method.1".to_string(),
-                None,
-                Some(&context),
-                5000,
-                id,
-                None,
-                ServiceRequestType::Request,
-            )
+            .request_with_timeout_main("method.1".to_string(), None, Some(&context), 5000, id, None)
             .await;
         println!("result: {:?}", result);
         assert!(result.is_ok());
