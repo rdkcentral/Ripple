@@ -1,0 +1,45 @@
+name: Tag and Release Ripple
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name to create'
+        required: true
+        type: string
+      branch_name:
+        description: 'Branch name to create'
+        required: true
+        type: string
+
+jobs:
+  tag_and_release:
+    runs-on: comcast-ubuntu-latest
+    steps:
+      - name: Checkout Ripple
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up GitHub CLI
+        uses: cli/gh-action@v2
+
+      - name: Parse tag and branch names
+        id: parse
+        run: |
+          TAG_NAME="${{ github.event.inputs.tag_name }}"
+          BRANCH_NAME="${{ github.event.inputs.branch_name }}"
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+
+      - name: Tag and release Ripple
+        run: |
+          TAG_NAME="${{ steps.parse.outputs.tag_name }}"
+          BRANCH_NAME="${{ steps.parse.outputs.branch_name }}"
+          git fetch origin
+          git checkout origin/main
+          git checkout -b $BRANCH_NAME
+          git push origin $BRANCH_NAME
+          git tag $TAG_NAME $BRANCH_NAME
+          git push origin $TAG_NAME
+          gh release create $TAG_NAME --repo comcast-firebolt/Ripple --title "$TAG_NAME Release" --notes "Automated release for $TAG_NAME"
