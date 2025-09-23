@@ -85,6 +85,9 @@ pub trait Internal {
 
     #[method(name = "account.policyIdentifierAlias")]
     async fn get_policy_identifier_alias(&self, ctx: CallContext) -> RpcResult<Vec<AgePolicy>>;
+
+    #[method(name = "ripple.contextTokenChangedEvent")]
+    async fn subscribe_context_token_changed_event(&self, ctx: CallContext) -> RpcResult<()>;
 }
 
 #[derive(Debug, Clone, Default)]
@@ -203,6 +206,20 @@ impl InternalServer for InternalImpl {
             ctx.app_id
         );
         Ok(String::new())
+    }
+
+    async fn subscribe_context_token_changed_event(&self, ctx: CallContext) -> RpcResult<()> {
+        let context = ctx.context.clone();
+        let service_message_context = serde_json::to_value(context).unwrap();
+
+        self.state
+            .service_controller_state
+            .service_event_state
+            .subscribe_context_event(
+                "RippleContextTokenChangedEvent",
+                Some(service_message_context),
+            );
+        Ok(())
     }
 }
 

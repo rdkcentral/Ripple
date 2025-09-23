@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 use crate::utils::error::RippleError;
+use jsonrpsee::core::RpcResult;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt::Debug;
@@ -260,6 +262,28 @@ impl ServiceMessage {
                     0
                 }
             }
+        }
+    }
+
+    pub fn parse_rpc_notification<T: DeserializeOwned>(&self) -> RpcResult<T> {
+        if let JsonRpcMessage::Notification(notification) = &self.message {
+            let params = notification.params.clone().unwrap_or_default();
+            let params = serde_json::from_value::<String>(params);
+            let params = params.unwrap();
+            let params = params.clone();
+            let a = params.as_bytes();
+            let msg = std::str::from_utf8(a).unwrap();
+            //let ripple_context = serde_json::from_str::<T>(msg);
+            match serde_json::from_str::<T>(msg) {
+                Ok(value) => Ok(value),
+                Err(_) => Err(jsonrpsee::core::Error::Custom(
+                    "Failed to get Success response".to_string(),
+                )),
+            }
+        } else {
+            Err(jsonrpsee::core::Error::Custom(
+                "Failed to get Success response".to_string(),
+            ))
         }
     }
 }

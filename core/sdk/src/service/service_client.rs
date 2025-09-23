@@ -15,7 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use super::service_message::ServiceMessage;
+use std::collections::HashMap;
+
 use crate::api::gateway::rpc_gateway_api::CallContext;
 use crate::api::{
     gateway::rpc_gateway_api::{ApiMessage, ApiProtocol},
@@ -35,18 +36,19 @@ use jsonrpsee::core::{server::rpc_module::Methods, RpcResult};
 use log::{debug, error, info, trace, warn};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
-use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc, oneshot};
 use tokio::sync::{mpsc::Sender as MSender, oneshot::Sender as OSender};
 use tokio_tungstenite::tungstenite::Message;
 use uuid::Uuid;
 
+use super::service_message::{JsonRpcSuccess, ServiceMessage};
 #[derive(Debug, Clone, Default)]
 pub struct ServiceClient {
     pub service_sender: Option<MSender<ServiceMessage>>,
     pub service_router: Arc<RwLock<RouterState>>,
     response_processors: Arc<RwLock<HashMap<String, OSender<ServiceMessage>>>>,
+    event_processors: Arc<RwLock<HashMap<String, MSender<ServiceMessage>>>>,
     pub extn_client: Option<ExtnClient>,
     // TBD: Remove this field after implementing service.register API call.
     pub service_id: Option<ExtnId>,
@@ -86,6 +88,7 @@ impl ServiceClientBuilder {
                 extn_client: Some(extn_client),
                 service_id: Some(ExtnId::try_from(symbol.id.clone()).unwrap()),
                 response_processors: Arc::new(RwLock::new(HashMap::new())),
+                event_processors: Arc::new(RwLock::new(HashMap::new())),
                 outbound_extn_rx: Arc::new(RwLock::new(Some(ext_tr))),
                 outbound_service_rx: Arc::new(RwLock::new(Some(service_tr))),
             }
@@ -96,6 +99,7 @@ impl ServiceClientBuilder {
                 extn_client: None,
                 service_id: None,
                 response_processors: Arc::new(RwLock::new(HashMap::new())),
+                event_processors: Arc::new(RwLock::new(HashMap::new())),
                 outbound_extn_rx: Arc::new(RwLock::new(None)),
                 outbound_service_rx: Arc::new(RwLock::new(None)),
             }
@@ -184,6 +188,7 @@ impl ServiceClient {
             let handle_ws_message = |msg: Message| {
                 if let Message::Text(message) = msg.clone() {
                     // Service message
+                    debug!("Received Service Message: {:#?}", message);
                     if let Ok(sm) = serde_json::from_str::<ServiceMessage>(&message) {
                         match sm.message {
                             JsonRpcMessage::Request(ref _json_rpc_request) => {
@@ -200,7 +205,44 @@ impl ServiceClient {
                                     error!("Service sender is not available");
                                 }
                             }
-                            JsonRpcMessage::Notification(_json_rpc_notification) => todo!(),
+                            JsonRpcMessage::Notification(ref json_rpc_notification) => {
+                                debug!(
+                                    "Received Service Notification: {:?} context {:?}",
+                                    json_rpc_notification,
+                                    sm.context.clone().unwrap()
+                                );
+                                if let Some(context) = &sm.context {
+                                    if let Some(Value::String(id)) =
+                                        context.as_array().and_then(|a| a.first())
+                                    {
+                                        if let Some(event_processor) =
+                                            self.event_processors.write().unwrap().get(id).cloned()
+                                        {
+                                            debug!(
+                                                "Sending service notification for id: {} event_processors {:?}",
+                                                id, self.event_processors
+                                            );
+                                            tokio::spawn(async move {
+                                                if let Err(e) = event_processor.try_send(sm) {
+                                                    error!(
+                                                        "Failed to send service notification: {:?}",
+                                                        e
+                                                    );
+                                                }
+                                            });
+                                        } else {
+                                            warn!("No event processor found for id: {}", id);
+                                        }
+                                    } else {
+                                        warn!("Context does not contain a valid sender_id context: {:?}", context);
+                                    }
+                                } else {
+                                    warn!(
+                                        "Service message context is None service message: {:?}",
+                                        sm
+                                    );
+                                }
+                            }
                             JsonRpcMessage::Success(ref json_rpc_success) => {
                                 debug!(
                                     "Received Service Success: {:?} context {:?}",
@@ -325,6 +367,7 @@ impl ServiceClient {
                 ctx,
                 timeout,
                 service_id.to_string(),
+                None,
             )
             .await
             .map_err(|_| jsonrpsee::core::Error::Custom(error_msg.to_string()))?;
@@ -340,7 +383,40 @@ impl ServiceClient {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub async fn call_and_parse_ripple_event_request_rpc(
+        &mut self,
+        method: &str,
+        params: Option<serde_json::Value>,
+        ctx: Option<&CallContext>,
+        timeout: u64,
+        service_id: &str,
+        _error_msg: &str,
+        event_sender: MSender<ServiceMessage>,
+    ) -> RpcResult<bool> {
+        let res = self
+            .request_with_timeout_main(
+                method.to_string(),
+                params,
+                ctx,
+                timeout,
+                service_id.to_string(),
+                Some(event_sender),
+            )
+            .await;
+
+        if let Ok(r) = res {
+            match r.message {
+                JsonRpcMessage::Success(_) => Ok(true),
+                _ => Ok(false),
+            }
+        } else {
+            Ok(false)
+        }
+    }
+
     #[allow(unused_variables)]
+    #[allow(clippy::too_many_arguments)]
     pub async fn request_with_timeout_main(
         &mut self,
         method: String,
@@ -348,6 +424,7 @@ impl ServiceClient {
         ctx: Option<&CallContext>,
         timeout_in_msecs: u64,
         service_id: String,
+        event_sender: Option<MSender<ServiceMessage>>,
     ) -> Result<ServiceMessage, RippleError> {
         let default_ctx;
         let ctx = match ctx {
@@ -362,7 +439,7 @@ impl ServiceClient {
         {
             let resp = tokio::time::timeout(
                 std::time::Duration::from_millis(timeout_in_msecs),
-                self.send_rpc_main(method, params, ctx, service_id),
+                self.send_rpc_main(method, params, ctx, service_id, event_sender),
             )
             .await;
 
@@ -392,38 +469,64 @@ impl ServiceClient {
         params: Option<Value>,
         ctx: &CallContext,
         service_id: String,
+        event_sender: Option<MSender<ServiceMessage>>,
     ) -> Result<ServiceMessage, RippleError> {
         let id = uuid::Uuid::new_v4().to_string();
-        let (tx, rx) = oneshot::channel();
-        add_single_processor(id.clone(), Some(tx), self.response_processors.clone());
-
-        let mut service_request =
+        let mut service_req =
             ServiceMessage::new_request(method.to_owned(), params, Id::String(id.clone()));
-
         let mut context = ctx.clone();
         context.protocol = ApiProtocol::Service;
-        let vec = vec![id, service_id];
+
+        let vec = vec![id.clone(), service_id];
         context.context = vec;
 
         let service_message_context = serde_json::to_value(context).unwrap();
-        service_request.set_context(Some(service_message_context));
-
-        if let Some(sender) = &self.service_sender {
-            match sender.try_send(service_request) {
-                Ok(_) => {
-                    if let Ok(r) = rx.await {
-                        return Ok(r);
+        service_req.set_context(Some(service_message_context));
+        if event_sender.is_none() {
+            let (tx, rx) = oneshot::channel();
+            add_response_processor(id, Some(tx), self.response_processors.clone());
+            if let Some(sender) = &self.service_sender {
+                match sender.try_send(service_req) {
+                    Ok(_) => {
+                        if let Ok(r) = rx.await {
+                            return Ok(r);
+                        }
+                        Err(RippleError::ExtnError)
                     }
-                    Err(RippleError::ExtnError)
+                    Err(e) => {
+                        error!("Error sending service request: {:?}", e);
+                        Err(RippleError::ServiceError)
+                    }
                 }
-                Err(e) => {
-                    error!("Error sending service request: {:?}", e);
-                    Err(RippleError::ServiceError)
-                }
+            } else {
+                error!("request sender is not available");
+                Err(RippleError::ServiceError)
             }
         } else {
-            error!("Service sender is not available");
-            Err(RippleError::ServiceError)
+            add_response_processor(id.clone(), event_sender, self.event_processors.clone());
+            debug!("Added event processor for id: {} ", id);
+            if let Some(sender) = &self.service_sender {
+                match sender.try_send(service_req) {
+                    Ok(_) => {
+                        let service_message = ServiceMessage {
+                            message: JsonRpcMessage::Success(JsonRpcSuccess {
+                                result: Value::Bool(true),
+                                jsonrpc: "2.0".to_string(),
+                                id: Id::Null,
+                            }),
+                            context: None,
+                        };
+                        Ok(service_message)
+                    }
+                    Err(e) => {
+                        error!("Error sending service request: {:?}", e);
+                        Err(RippleError::ServiceError)
+                    }
+                }
+            } else {
+                error!("request sender is not available");
+                Err(RippleError::ServiceError)
+            }
         }
     }
 
@@ -457,16 +560,15 @@ impl ServiceClient {
         };
 
         let id = Uuid::new_v4().to_string();
-        let mut service_request =
-            ServiceMessage::new_request(method.to_owned(), params, Id::String(id.clone()));
+        let mut service_message = ServiceMessage::new_notification(method.to_owned(), params);
         let mut context = ctx.clone();
         context.protocol = ApiProtocol::Service;
         let vec = vec![id.clone(), service_id];
         context.context = vec;
         let service_message_context = serde_json::to_value(context).unwrap();
-        service_request.set_context(Some(service_message_context));
+        service_message.set_context(Some(service_message_context));
         if let Some(sender) = &self.service_sender {
-            match sender.try_send(service_request) {
+            match sender.try_send(service_message) {
                 Ok(_) => Ok(id),
                 Err(e) => {
                     error!("Error sending service request: {:?}", e);
@@ -480,13 +582,16 @@ impl ServiceClient {
     }
 }
 
-fn add_single_processor<P>(id: String, processor: Option<P>, map: Arc<RwLock<HashMap<String, P>>>) {
+fn add_response_processor<P>(
+    id: String,
+    processor: Option<P>,
+    map: Arc<RwLock<HashMap<String, P>>>,
+) {
     if let Some(processor) = processor {
         let mut processor_state = map.write().unwrap();
         processor_state.insert(id, processor);
     }
 }
-
 #[cfg(test)]
 pub mod tests {
     use crate::api::gateway::rpc_gateway_api::ApiProtocol;
@@ -531,6 +636,7 @@ pub mod tests {
                 response_processors: Arc::new(RwLock::new(HashMap::new())),
                 outbound_extn_rx: Arc::new(RwLock::new(Some(extn_tr))),
                 outbound_service_rx: Arc::new(RwLock::new(Some(service_tr))),
+                event_processors: Arc::new(RwLock::new(HashMap::new())),
             }
         }
 
@@ -570,7 +676,7 @@ pub mod tests {
             false,
         );
         let result: Result<ServiceMessage, RippleError> = client
-            .request_with_timeout_main("method.1".to_string(), None, Some(&context), 5000, id)
+            .request_with_timeout_main("method.1".to_string(), None, Some(&context), 5000, id, None)
             .await;
         println!("result: {:?}", result);
         assert!(result.is_ok());
