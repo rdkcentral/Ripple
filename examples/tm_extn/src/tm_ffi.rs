@@ -42,11 +42,7 @@ use crate::telemetry_processor::TelemetryProcessor;
 fn init_library() -> CExtnMetadata {
     let _ = init_logger("tm".into());
 
-    let dist_meta = ExtnSymbolMetadata::get(
-        ExtnId::new_channel(ExtnClassId::Distributor, "tm".into()),
-        ContractFulfiller::new(vec![RippleContract::OperationalMetricListener]),
-        Version::new(1, 1, 0),
-    );
+
 
     debug!("Returning tm builder");
     let extn_metadata = ExtnMetadata {
@@ -63,10 +59,7 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
     info!("Starting tm channel");
     let mut client = ExtnClient::new(receiver, sender);
 
-    if !client.check_contract_permitted(RippleContract::OperationalMetricListener) {
-        let _ = client.event(ExtnStatus::Error);
-        return;
-    }
+ 
     if let Some(ws_url) = client.get_config("ws_url") {
         info!("ws_url={}", ws_url);
         let runtime = ExtnUtils::get_runtime("e-tm".to_owned(), client.get_stack_size());

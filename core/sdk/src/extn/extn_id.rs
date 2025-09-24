@@ -28,7 +28,6 @@ use super::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest, 
 pub enum ExtnClassId {
     Gateway,
     Device,
-    DataGovernance,
     Distributor,
     Protected,
     #[default]
@@ -42,7 +41,6 @@ impl std::fmt::Display for ExtnClassId {
         match self {
             Self::Gateway => write!(f, "gateway"),
             Self::Device => write!(f, "device"),
-            Self::DataGovernance => write!(f, "data-governance"),
             Self::Distributor => write!(f, "distributor"),
             Self::Protected => write!(f, "rpc"),
             Self::Jsonrpsee => write!(f, "jsonrpsee"),
@@ -56,7 +54,6 @@ impl ExtnClassId {
     pub fn get(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "device" => Some(Self::Device),
-            "data-governance" => Some(Self::DataGovernance),
             "distributor" => Some(Self::Distributor),
             "protected" => Some(Self::Protected),
             "jsonrpsee" => Some(Self::Jsonrpsee),
@@ -527,7 +524,6 @@ mod tests {
     fn test_extn_class_id_to_string() {
         assert_eq!(ExtnClassId::Gateway.to_string(), "gateway");
         assert_eq!(ExtnClassId::Device.to_string(), "device");
-        assert_eq!(ExtnClassId::DataGovernance.to_string(), "data-governance");
         assert_eq!(ExtnClassId::Distributor.to_string(), "distributor");
         assert_eq!(ExtnClassId::Protected.to_string(), "rpc");
         assert_eq!(ExtnClassId::Jsonrpsee.to_string(), "jsonrpsee");
