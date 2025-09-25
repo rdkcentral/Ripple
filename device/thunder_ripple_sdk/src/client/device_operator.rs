@@ -91,6 +91,22 @@ impl DeviceChannelRequest {
             }
         }
     }
+
+    pub fn mock_get_dev_call_request(&self) -> Option<DeviceCallRequest> {
+        if let DeviceChannelRequest::Call(call_req) = self {
+            Some(call_req.clone())
+        } else {
+            None
+        }
+    }
+
+    pub fn mock_get_dev_subscribe_request(&self) -> Option<DeviceSubscribeRequest> {
+        if let DeviceChannelRequest::Subscribe(sub_req) = self {
+            Some(sub_req.clone())
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
