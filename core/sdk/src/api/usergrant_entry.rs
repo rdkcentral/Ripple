@@ -18,15 +18,10 @@
 use std::time::Duration;
 
 use crate::api::firebolt::fb_capabilities::CapabilityRole;
-use crate::{
-    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
-    framework::ripple_contract::RippleContract,
-};
+
 use serde::{Deserialize, Serialize};
 
-use super::device::device_user_grants_data::{GrantLifespan, GrantStatus, PolicyPersistenceType};
-use super::firebolt::fb_capabilities::FireboltPermission;
-use super::storage_property::StorageAdjective;
+use super::device::device_user_grants_data::{GrantLifespan, GrantStatus};
 
 #[derive(Clone, Debug, Deserialize)]
 pub enum UserGrantsPersistenceType {
