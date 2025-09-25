@@ -17,7 +17,7 @@
 
 use super::device_operator::{
     DeviceCallRequest, DeviceChannelRequest, DeviceOperator, DeviceResponseMessage,
-    DeviceResponseSubscription, DeviceSubscribeRequest,
+    DeviceResponseSubscription, DeviceSubscribeRequest, DeviceUnsubscribeRequest,
 };
 use super::thunder_async_client::{ThunderAsyncClient, ThunderAsyncRequest, ThunderAsyncResponse};
 use super::thunder_async_client_plugins_status_mgr::{AsyncCallback, AsyncSender};
@@ -175,6 +175,20 @@ impl DeviceOperator for ThunderClient {
             })
         }
     }
+
+    async fn unsubscribe(&self, request: DeviceUnsubscribeRequest) {
+        if let Some(unsubscribe_request) = self.remove_subscription_handler(&request) {
+            let (tx, rx) = oneshot::channel::<DeviceResponseMessage>();
+            self.add_callback(&unsubscribe_request, tx);
+            if let Some(async_client) = &self.thunder_async_client {
+                async_client.send(unsubscribe_request).await;
+            }
+            let result = rx.await;
+            if let Err(ref e) = result {
+                error!("unsubscribe: e={:?}", e);
+            }
+        }
+    }
 }
 
 impl ThunderClient {
@@ -226,6 +240,36 @@ impl ThunderClient {
             // Insert the new subscription into the thunder_async_subscriptions map
             thunder_async_subscriptions.insert(key, dev_resp_sub);
             Some(async_request)
+        }
+    }
+
+    // if subscription exists, remove it and return unsubscribe request
+    fn remove_subscription_handler(
+        &self,
+        request: &DeviceUnsubscribeRequest,
+    ) -> Option<ThunderAsyncRequest> {
+        let mut thunder_async_subscriptions = self
+            .thunder_async_subscriptions
+            .as_ref()
+            .unwrap()
+            .write()
+            .unwrap();
+
+        // Create a key for the subscription based on the event name
+        let key = format!("client.events.{}", request.event_name);
+
+        // Check if there are existing subscriptions for the given key
+        if let Some(_subs) = thunder_async_subscriptions.get(&key) {
+            // Remove the subscription entry completely
+            thunder_async_subscriptions.remove(&key);
+
+            // Create an async request for unsubscription
+            let async_request =
+                ThunderAsyncRequest::new(DeviceChannelRequest::Unsubscribe(request.clone()));
+            Some(async_request)
+        } else {
+            // No subscription exists for this key
+            None
         }
     }
 
