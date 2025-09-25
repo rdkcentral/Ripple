@@ -13,7 +13,15 @@
 // limitations under the License.
 //
 // SPDX-License-Identifier: Apache-2.0
+
 //
+// COMMENTED OUT: This processor is now dead code after migration to RPC handlers
+// All user grants functionality has been migrated to distributor.usergrants RPC methods:
+// - distributor.usergrants.getCloudUserGrants
+// - distributor.usergrants.setCloudUserGrants
+// The UserGrantsStoreRequest enum is commented out, making this processor non-functional
+
+/*
 use crate::state::platform_state::PlatformState;
 use ripple_sdk::{
     api::{
@@ -193,3 +201,4 @@ impl ExtnRequestProcessor for StoreUserGrantsProcessor {
         }
     }
 }
+*/
