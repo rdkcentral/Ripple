@@ -92,6 +92,13 @@ pub trait UserGrants {
     ) -> RpcResult<()>;
     #[method(name = "ripple.syncGrantsMap")]
     async fn sync_user_grants_map(&self, ctx: CallContext) -> RpcResult<()>;
+    #[method(name = "ripple.getUserGrants")]
+    async fn get_user_grants(
+        &self,
+        ctx: CallContext,
+        app_id: String,
+        permission: FireboltPermission,
+    ) -> RpcResult<Option<bool>>;
 }
 
 #[derive(Debug)]
@@ -215,6 +222,39 @@ impl UserGrantsServer for UserGrantsImpl {
             .sync_grant_map_with_grant_policy(&self.platform_state)
             .await;
         Ok(())
+    }
+
+    async fn get_user_grants(
+        &self,
+        _ctx: CallContext,
+        app_id: String,
+        permission: FireboltPermission,
+    ) -> RpcResult<Option<bool>> {
+        debug!(
+            "Getting user grants for app: {} and permission: {:?}",
+            app_id, permission
+        );
+
+        let result = self
+            .platform_state
+            .cap_state
+            .grant_state
+            .get_grant_status(&app_id, &permission);
+
+        match result {
+            Some(grant_status) => {
+                let granted = match grant_status {
+                    ripple_sdk::api::device::device_user_grants_data::GrantStatus::Allowed => true,
+                    ripple_sdk::api::device::device_user_grants_data::GrantStatus::Denied => false,
+                };
+                debug!("Found user grant status: {}", granted);
+                Ok(Some(granted))
+            }
+            None => {
+                debug!("No user grant status found");
+                Ok(None)
+            }
+        }
     }
     async fn clear_user_grants(&self, _ctx: CallContext) -> RpcResult<()> {
         debug!("Handling clear user grants request");

@@ -14,6 +14,16 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
+
+/*
+COMMENTED OUT: This processor is now dead code after migration to RPC handlers
+All privacy settings functionality has been migrated to distributor.privacy RPC methods:
+- distributor.privacy.getProperty
+- distributor.privacy.getProperties
+- distributor.privacy.setProperty
+- distributor.privacy.getPartnerExclusions
+The PrivacySettingsStoreRequest enum is commented out, making this processor non-functional
+
 use crate::processor::storage::storage_manager::StorageManager;
 use crate::state::platform_state::PlatformState;
 use ripple_sdk::{
@@ -236,3 +246,4 @@ impl ExtnRequestProcessor for StorePrivacySettingsProcessor {
         }
     }
 }
+*/
