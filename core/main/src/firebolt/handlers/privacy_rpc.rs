@@ -38,7 +38,7 @@ use ripple_sdk::{
             fb_capabilities::{CapabilityRole, FireboltCap, RoleInfo, CAPABILITY_NOT_AVAILABLE},
             fb_general::{ListenRequest, ListenerResponse},
         },
-        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
+        gateway::rpc_gateway_api::CallContext,
         storage_property::{
             StorageProperty::{
                 self, AllowAcrCollection, AllowAppContentAdTargeting, AllowBusinessAnalytics,
@@ -56,10 +56,8 @@ use ripple_sdk::{
             EVENT_ALLOW_UNENTITLED_RESUME_POINTS_CHANGED, EVENT_ALLOW_WATCH_HISTORY_CHANGED,
         },
     },
-    extn::extn_client_message::ExtnPayload,
-    extn::extn_client_message::ExtnResponse,
     log::{debug, error},
-    serde_json::{from_value, json},
+    serde_json::json,
 };
 
 use super::advertising_rpc::ScopeOption;
@@ -92,35 +90,25 @@ impl AllowAppContentAdTargetingSettings {
         platform_state: &mut PlatformState,
         ctx: &CallContext,
     ) -> HashMap<String, String> {
-        let mut new_ctx = ctx.clone();
-        new_ctx.protocol = ApiProtocol::Extn;
-
         platform_state
             .metrics
             .add_api_stats(&ctx.request_id, "localization.countryCode");
 
-        let rpc_request = RpcRequest {
-            ctx: new_ctx.clone(),
-            method: "localization.countryCode".into(),
-            params_json: RpcRequest::prepend_ctx(None, &new_ctx),
-        };
-        let resp = platform_state
-            .get_client()
-            .get_extn_client()
-            .main_internal_request(rpc_request.clone())
-            .await;
-
-        let country_code = if let Ok(res) = resp.clone() {
-            if let Some(ExtnResponse::Value(val)) = res.payload.extract::<ExtnResponse>() {
-                match from_value::<String>(val) {
-                    Ok(v) => v,
-                    Err(_) => "US".to_owned(),
+        let country_code = match BrokerUtils::process_internal_main_request(
+            platform_state,
+            "localization.countryCode",
+            None,
+        )
+        .await
+        {
+            Ok(response_value) => {
+                if let Ok(country) = serde_json::from_value::<String>(response_value) {
+                    country
+                } else {
+                    "US".to_owned()
                 }
-            } else {
-                "US".to_owned()
             }
-        } else {
-            "US".to_owned()
+            Err(_) => "US".to_owned(),
         };
 
         [

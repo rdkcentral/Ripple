@@ -66,8 +66,7 @@ impl Default for UserGrantInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::firebolt::fb_capabilities::{CapabilityRole, FireboltCap};
-    use crate::utils::test_utils::test_extn_payload_provider;
+    use crate::api::firebolt::fb_capabilities::CapabilityRole;
 
     #[test]
     fn test_user_grants_persistence_type_as_string() {
