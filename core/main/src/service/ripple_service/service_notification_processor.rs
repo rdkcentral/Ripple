@@ -10,9 +10,11 @@ use ripple_sdk::{
     log::{debug, error, trace},
     service::service_message::{JsonRpcMessage, JsonRpcNotification, ServiceMessage},
     tokio,
+    service::service_event_state::EventSubscriber,
     tokio::sync::Mutex,
     tokio_tungstenite::tungstenite::Message,
 };
+use serde_json::json;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};
@@ -308,6 +310,7 @@ impl ServiceNotificationProcessor {
                 .get_event_processors(Some(event_str.clone()));
             if processors.is_empty() {
                 warn!("No subscribers found for event: {}", event_str);
+                return;
             } else {
                 debug!(
                     "Found {} subscribers for event: {}",
@@ -317,42 +320,62 @@ impl ServiceNotificationProcessor {
             }
             for processor in processors {
                 let processor = processor.clone();
-                let collect = processor.split('&').collect::<Vec<&str>>();
-                let processor_arr = collect
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect::<Vec<String>>();
-                let sender_id = processor_arr.first().unwrap().to_string();
-                let service_id = processor_arr.get(1).unwrap().to_string();
-                let service_controller_state = platform_state.service_controller_state.clone();
-
-                let new_ripple_context = serde_json::to_string(&new_ripple_context).unwrap();
                 let event_str = event_str.clone();
+                match processor {
+                    EventSubscriber::MainSubscriber(s) => {
+                        let new_ripple_context = serde_json::to_string(&new_ripple_context).unwrap();
 
-                tokio::spawn(async move {
-                    if let Some(sender) = service_controller_state.get_sender(&service_id).await {
-                        let context = vec![sender_id, service_id];
-                        let service_message = ServiceMessage {
-                            message: JsonRpcMessage::Notification(JsonRpcNotification {
-                                jsonrpc: "2.0".to_string(),
-                                method: format!("ripple.{}", event_str),
-                                params: Some(new_ripple_context.into()),
-                            }),
-                            context: Some(context.into()),
-                        };
-                        let msg_str = serde_json::to_string(&service_message).unwrap();
-                        let mes = Message::Text(msg_str.clone());
-                        debug!(
-                            "Sending context update to processor: {} message: {}",
-                            processor, msg_str
-                        );
-                        if let Err(e) = sender.try_send(mes) {
-                            error!("Failed to send service notification: {:?}", e);
-                        }
-                    } else {
-                        error!("No sender found for service_id: {}", service_id);
+                        tokio::spawn(async move {
+                            let service_message = ServiceMessage {
+                                message: JsonRpcMessage::Notification(JsonRpcNotification {
+                                    jsonrpc: "2.0".to_string(),
+                                    method: format!("ripple.{}", event_str),
+                                    params: Some(new_ripple_context.into()),
+                                }),
+                                context: None,
+                            };
+                            let _ = s.send(service_message).await;
+                        });
                     }
-                });
+                    EventSubscriber::ServiceSubscriber(s) => {
+                        let collect = s.split('&').collect::<Vec<&str>>();
+                        let processor_arr = collect
+                            .iter()
+                            .map(|s| s.to_string())
+                            .collect::<Vec<String>>();
+                        let sender_id = processor_arr.first().unwrap().to_string();
+                        let service_id = processor_arr.get(1).unwrap().to_string();
+                        let service_controller_state = platform_state.service_controller_state.clone();
+
+                        let new_ripple_context = serde_json::to_string(&new_ripple_context).unwrap();
+                        let event_str = event_str.clone();
+
+                        tokio::spawn(async move {
+                            if let Some(sender) = service_controller_state.get_sender(&service_id).await {
+                                let params = json!({"ripple_context": new_ripple_context, "sender_id": sender_id});
+                                let service_message = ServiceMessage {
+                                    message: JsonRpcMessage::Notification(JsonRpcNotification {
+                                        jsonrpc: "2.0".to_string(),
+                                        method: format!("ripple.{}", event_str),
+                                        params: Some(params),
+                                    }),
+                                    context: None,
+                                };
+                                let msg_str = serde_json::to_string(&service_message).unwrap();
+                                let mes = Message::Text(msg_str.clone());
+                                debug!(
+                                    "Sending context update to service: {} message: {}",
+                                    s, msg_str
+                                );
+                                if let Err(e) = sender.try_send(mes) {
+                                    error!("Failed to send service notification: {:?}", e);
+                                }
+                            } else {
+                                error!("No sender found for service_id: {}", service_id);
+                            }
+                        });
+                    }
+                }
             }
         } else {
             trace!("Context information is already updated. Hence not propagating");

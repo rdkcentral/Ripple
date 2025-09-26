@@ -86,7 +86,7 @@ pub trait Internal {
     #[method(name = "account.policyIdentifierAlias")]
     async fn get_policy_identifier_alias(&self, ctx: CallContext) -> RpcResult<Vec<AgePolicy>>;
 
-    #[method(name = "ripple.contextTokenChangedEvent")]
+    #[method(name = "ripple.onContextTokenChangedEvent")]
     async fn subscribe_context_token_changed_event(&self, ctx: CallContext) -> RpcResult<()>;
 }
 

@@ -207,38 +207,48 @@ impl ServiceClient {
                             }
                             JsonRpcMessage::Notification(ref json_rpc_notification) => {
                                 debug!(
-                                    "Received Service Notification: {:?} context {:?}",
+                                    "Received Service Notification: {:?}",
                                     json_rpc_notification,
-                                    sm.context.clone().unwrap()
                                 );
-                                if let Some(context) = &sm.context {
-                                    if let Some(Value::String(id)) =
-                                        context.as_array().and_then(|a| a.first())
-                                    {
-                                        if let Some(event_processor) =
-                                            self.event_processors.write().unwrap().get(id).cloned()
-                                        {
-                                            debug!(
-                                                "Sending service notification for id: {} event_processors {:?}",
-                                                id, self.event_processors
-                                            );
-                                            tokio::spawn(async move {
-                                                if let Err(e) = event_processor.try_send(sm) {
-                                                    error!(
-                                                        "Failed to send service notification: {:?}",
-                                                        e
+                                let params = json_rpc_notification.params.clone().unwrap_or_default();
+                        
+                                let params_map: HashMap<String, Value> =
+                                    serde_json::from_value(params).unwrap_or_default();
+                                if let Some(sender_id) = params_map.get("sender_id") {
+                                    let sender_id = sender_id.clone();
+                                    let sender_id = serde_json::from_value::<String>(sender_id);
+                                    match sender_id {
+                                        Ok(sender_id) => {
+                                            match self.event_processors.write().unwrap().get(&sender_id).cloned() {
+                                                Some(event_processor) => {
+                                                    debug!(
+                                                        "Sending service notification for sender id: {} event_processors {:?}",
+                                                        sender_id, self.event_processors
                                                     );
+                                                    tokio::spawn(async move {
+                                                        if let Err(e) = event_processor.try_send(sm) {
+                                                            error!(
+                                                                "Failed to send service notification: {:?}",
+                                                                e
+                                                            );
+                                                        }
+                                                    });
                                                 }
-                                            });
-                                        } else {
-                                            warn!("No event processor found for id: {}", id);
+                                                None => {
+                                                    warn!("No event processor found for sender id: {}", sender_id);
+                                                }
+                                            }
                                         }
-                                    } else {
-                                        warn!("Context does not contain a valid sender_id context: {:?}", context);
+                                        Err(e) => {
+                                            warn!(
+                                                "Fail to parse sender id. Service message: {:?}: {:?}",
+                                                sm, e
+                                            );
+                                        }
                                     }
                                 } else {
                                     warn!(
-                                        "Service message context is None service message: {:?}",
+                                        "Service message does not contain sender id {:?}",
                                         sm
                                     );
                                 }

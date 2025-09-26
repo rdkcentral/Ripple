@@ -1,13 +1,21 @@
 use crate::api::context::RippleContext;
 use crate::log::{debug, error};
+use crate::service::service_message::ServiceMessage;
 use serde_json::Value;
+use tokio::sync::mpsc::Sender;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 #[derive(Debug, Clone, Default)]
 pub struct ServiceEventState {
     pub ripple_context: Arc<RwLock<RippleContext>>,
-    pub event_subscribers: Arc<RwLock<HashMap<String, Vec<String>>>>,
+    pub event_subscribers: Arc<RwLock<HashMap<String, Vec<EventSubscriber>>>>,
+}
+
+#[derive(Debug, Clone)]
+pub enum EventSubscriber {
+    ServiceSubscriber(String),
+    MainSubscriber(Sender<ServiceMessage>)
 }
 
 impl ServiceEventState {
@@ -27,19 +35,27 @@ impl ServiceEventState {
         *ripple_context = context;
     }
 
-    pub fn get_event_processors(&self, event: Option<String>) -> Vec<String> {
-        let event_subscribers: Arc<RwLock<HashMap<String, Vec<String>>>> =
-            Arc::clone(&self.event_subscribers);
+    pub fn get_event_processors(&self, event: Option<String>) -> Vec<EventSubscriber> {
+        let event_subscribers = Arc::clone(&self.event_subscribers);
         let read_lock = event_subscribers.read().unwrap();
-        match event {
-            Some(event) => read_lock.get(&event).cloned().unwrap_or_default(),
-            None => Vec::new(),
+        let s = read_lock.get(&event.clone().unwrap_or_default()).cloned();
+        if let Some(ref subscribers) = s {
+            debug!("Found event subscribers: {:?}", subscribers);
+            subscribers.clone()
+        } else {
+            debug!("No event subscriber found for event {:?}", event);
+            Vec::new()
         }
     }
 
     pub fn add_event_processor(&self, event: String, processor: String) {
         let mut event_subscribers = self.event_subscribers.write().unwrap();
-        event_subscribers.entry(event).or_default().push(processor);
+        event_subscribers.entry(event).or_default().push(EventSubscriber::ServiceSubscriber(processor));
+    }
+
+    pub fn add_main_event_processor(&self, event: String, processor: Sender<ServiceMessage>) {
+        let mut event_subscribers = self.event_subscribers.write().unwrap();
+        event_subscribers.entry(event).or_default().push(EventSubscriber::MainSubscriber(processor));
     }
 
     pub fn subscribe_context_event(&self, event: &str, context: Option<Value>) {

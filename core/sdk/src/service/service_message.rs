@@ -265,7 +265,7 @@ impl ServiceMessage {
         }
     }
 
-    pub fn parse_rpc_notification<T: DeserializeOwned>(&self) -> RpcResult<T> {
+    pub fn parse_rpc_notification_param<T: DeserializeOwned>(&self) -> RpcResult<T> {
         if let JsonRpcMessage::Notification(notification) = &self.message {
             let params = notification.params.clone().unwrap_or_default();
             let params = serde_json::from_value::<String>(params);
