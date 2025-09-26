@@ -33,6 +33,8 @@ jobs:
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
       - name: Tag and release Ripple
+      permissions:
+        contents: write
         run: |
           TAG_NAME="${{ steps.parse.outputs.tag_name }}"
           BRANCH_NAME="${{ steps.parse.outputs.branch_name }}"
