@@ -378,7 +378,7 @@ impl ServiceNotificationProcessor {
                 }
             }
         } else {
-            trace!("Context information is already updated. Hence not propagating");
+            debug!("Context information is already updated. Hence not propagating");
         }
     }
 }
