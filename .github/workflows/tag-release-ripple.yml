@@ -19,11 +19,14 @@ jobs:
       contents: write
       issues: read
       pull-requests: read
+      actions: read
+      metadata: read
     steps:
       - name: Checkout Ripple
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up GitHub CLI
         uses: cli/gh-action@v2
@@ -37,9 +40,13 @@ jobs:
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
       - name: Tag and release Ripple
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG_NAME="${{ steps.parse.outputs.tag_name }}"
           BRANCH_NAME="${{ steps.parse.outputs.branch_name }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin
           git checkout origin/main
           git checkout -b $BRANCH_NAME
