@@ -214,7 +214,6 @@ impl MergeConfig<CascadedExtnSymbol> for ExtnSymbol {
             self.id = id;
         }
         if let Some(uses) = cascaded.uses {
-            println!("Uses before merge: {:?}", self.uses);
             self.uses.extend(uses);
             self.uses.sort();
             self.uses.dedup(); // Remove duplicates if needed
