@@ -60,6 +60,7 @@ impl MergeConfig<CascadedExtnManifest> for ExtnManifest {
         if let Some(cas_required_contracts) = cascaded.required_contracts {
             self.required_contracts.extend(cas_required_contracts);
             self.required_contracts.sort();
+            self.required_contracts.dedup();
         }
         if let Some(cas_rpc_aliases) = cascaded.rpc_aliases {
             for (key, values) in cas_rpc_aliases {
@@ -75,14 +76,17 @@ impl MergeConfig<CascadedExtnManifest> for ExtnManifest {
         if let Some(cas_rules_path) = cascaded.rules_path {
             self.rules_path.extend(cas_rules_path);
             self.rules_path.sort();
+            self.rules_path.dedup();
         }
         if let Some(cas_extn_sdks) = cascaded.extn_sdks {
             self.extn_sdks.extend(cas_extn_sdks);
             self.extn_sdks.sort();
+            self.extn_sdks.dedup();
         }
         if let Some(cas_provider_reg) = cascaded.provider_registrations {
             self.provider_registrations.extend(cas_provider_reg);
             self.provider_registrations.sort();
+            self.provider_registrations.dedup();
         }
     }
 }
@@ -210,11 +214,14 @@ impl MergeConfig<CascadedExtnSymbol> for ExtnSymbol {
             self.id = id;
         }
         if let Some(uses) = cascaded.uses {
+            println!("Uses before merge: {:?}", self.uses);
             self.uses.extend(uses);
+            self.uses.sort();
             self.uses.dedup(); // Remove duplicates if needed
         }
         if let Some(fulfills) = cascaded.fulfills {
             self.fulfills.extend(fulfills);
+            self.fulfills.sort();
             self.fulfills.dedup(); // Remove duplicates if needed
         }
         if let Some(cascaded_config) = cascaded.config {
