@@ -42,6 +42,8 @@ struct DefaultManifestConfig {
     device: String,
     extn: String,
     tag: Option<String>,
+    test_device: String,
+    test_extn: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]
@@ -193,6 +195,7 @@ impl RippleConfigLoader {
         &self,
         paths: &[String],
         default_path: Option<String>,
+        test_paths: Option<String>,
     ) -> ExtnManifest {
         let mut merged_manifest = ExtnManifest::default();
 
@@ -237,6 +240,23 @@ impl RippleConfigLoader {
             }
         }
 
+        // Finally, merge the test manifest if provided
+        if let Some(test_path_str) = &test_paths {
+            info!("Loading test extension manifest from: {}", test_path_str);
+            match CascadedExtnManifest::load(test_path_str.clone()) {
+                Ok((_, test_manifest)) => {
+                    info!("Merging test extension manifest from: {}", test_path_str);
+                    merged_manifest.merge_config(test_manifest);
+                }
+                Err(e) => {
+                    error!(
+                        "Error loading or merging test extension manifest from {}: {:?}",
+                        test_path_str, e
+                    );
+                }
+            }
+        }
+
         sort_rules_paths_by_keywords(&mut merged_manifest.rules_path);
 
         if let Ok(json_string) = serde_json::to_string_pretty(&merged_manifest) {
@@ -252,6 +272,7 @@ impl RippleConfigLoader {
         &self,
         paths: &[String],
         default_path: Option<String>,
+        test_paths: Option<String>,
     ) -> DeviceManifest {
         let mut merged_manifest = DeviceManifest::default();
 
@@ -291,6 +312,23 @@ impl RippleConfigLoader {
             }
         }
 
+        // Finally, merge the test manifest if provided
+        if let Some(test_path_str) = &test_paths {
+            info!("Loading test device manifest from: {}", test_path_str);
+            match CascadedDeviceManifest::load(test_path_str.clone()) {
+                Ok((_, test_manifest)) => {
+                    info!("Merging test device manifest from: {}", test_path_str);
+                    merged_manifest.merge_config(test_manifest);
+                }
+                Err(e) => {
+                    error!(
+                        "Error loading or merging test device manifest from {}: {:?}",
+                        test_path_str, e
+                    );
+                }
+            }
+        }
+
         if let Ok(json_string) = serde_json::to_string_pretty(&merged_manifest) {
             info!("Merged Device Manifest:\n{}", json_string);
         } else {
@@ -300,7 +338,7 @@ impl RippleConfigLoader {
         merged_manifest
     }
 
-    fn get_manifest_paths(&self, is_extn: bool) -> (Option<String>, Vec<String>) {
+    fn get_manifest_paths(&self, is_extn: bool) -> (Option<String>, Vec<String>, Option<String>) {
         let mut paths = Vec::new();
         let manifest_key = if is_extn { "extn" } else { "manifest" };
         let default_path = if is_extn {
@@ -311,6 +349,18 @@ impl RippleConfigLoader {
 
         let default_path_resolved = if !default_path.is_empty() {
             Some(self.resolve_path(default_path))
+        } else {
+            None
+        };
+
+        let test_path = if is_extn {
+            self.manifest_config.default.test_extn.as_str()
+        } else {
+            self.manifest_config.default.test_device.as_str()
+        };
+
+        let test_path_resolved = if !test_path.is_empty() {
+            Some(self.resolve_path(test_path))
         } else {
             None
         };
@@ -367,19 +417,19 @@ impl RippleConfigLoader {
         }
 
         paths.dedup();
-        (default_path_resolved, paths)
+        (default_path_resolved, paths, test_path_resolved)
     }
 
     fn load_cascaded_extn_manifest(&self) -> ExtnManifest {
         info!("Loading cascaded extension manifest");
-        let (default_path, paths) = self.get_manifest_paths(true);
-        self.load_and_merge_extn_manifests(&paths, default_path)
+        let (default_path, paths, test_paths) = self.get_manifest_paths(true);
+        self.load_and_merge_extn_manifests(&paths, default_path, test_paths)
     }
 
     fn load_cascaded_device_manifest(&self) -> DeviceManifest {
         info!("Loading cascaded device manifest");
-        let (default_path, paths) = self.get_manifest_paths(false);
-        self.load_and_merge_device_manifests(&paths, default_path)
+        let (default_path, paths, test_paths) = self.get_manifest_paths(false);
+        self.load_and_merge_device_manifests(&paths, default_path, test_paths)
     }
 
     pub fn get_extn_manifest(&self) -> ExtnManifest {
@@ -522,7 +572,8 @@ mod tests {
         let base_path = config_path_buf.parent().unwrap().display().to_string();
         println!("basepath - {:?}", base_path);
 
-        let (default_device_path, device_paths) = config_loader.get_manifest_paths(false);
+        let (default_device_path, device_paths, test_paths) =
+            config_loader.get_manifest_paths(false);
 
         assert_eq!(
             default_device_path,
@@ -536,7 +587,10 @@ mod tests {
                 format!("{}/na/na.tv.manifest.json", base_path)
             ]
         );
-
+        assert_eq!(
+            test_paths,
+            Some(format!("{}/test.manifest.json", base_path))
+        );
         // Test with a device type that has a specific tag for extensions
         env::set_var("RIPPLE_COUNTRY", "eu");
         env::set_var("RIPPLE_DEVICE_PLATFORM", "tv");
@@ -548,7 +602,7 @@ mod tests {
             device_type: Some("tv".to_string()),
         };
         let config_loader_eu_tv = loader_eu_tv.get_config_loader();
-        let (_, extn_paths_eu_tv) = config_loader_eu_tv.get_manifest_paths(true);
+        let (_, extn_paths_eu_tv, _) = config_loader_eu_tv.get_manifest_paths(true);
 
         assert_eq!(
             extn_paths_eu_tv,

@@ -218,8 +218,7 @@ impl GrantPolicy {
         None
     }
 }
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-#[cfg_attr(test, derive(PartialEq))]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GrantExclusionFilter {
     pub capability: Option<String>,
     pub id: Option<String>,

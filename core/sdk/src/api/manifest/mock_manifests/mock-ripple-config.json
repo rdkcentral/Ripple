@@ -2,7 +2,9 @@
     "default": {
         "device": "/manifest.json",
         "extn": "/extn.json",
-        "tag": "eu"
+        "tag": "eu",
+        "test_device": "/test.manifest.json",
+        "test_extn": "/test.extn.json"
     },
     "tags": {
         "na": {

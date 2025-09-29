@@ -463,14 +463,24 @@ impl MergeConfig<CascadedCapabilityConfiguration> for CapabilityConfiguration {
 
         if let Some(other_filters) = cascaded.grant_exclusion_filters {
             self.grant_exclusion_filters.extend(other_filters);
+            let set: HashSet<GrantExclusionFilter> =
+                self.grant_exclusion_filters.drain(..).collect();
+            self.grant_exclusion_filters = set.into_iter().collect();
         }
 
         if let Some(cas_dependencies) = cascaded.dependencies {
             for (key, other_dependencies) in cas_dependencies {
                 self.dependencies
-                    .entry(key)
+                    .entry(key.clone())
                     .or_default()
                     .extend(other_dependencies);
+                let set: HashSet<FireboltPermission> = self
+                    .dependencies
+                    .get_mut(&key.clone())
+                    .unwrap()
+                    .drain(..)
+                    .collect();
+                self.dependencies.insert(key, set.into_iter().collect());
             }
         }
     }
@@ -821,6 +831,8 @@ impl MergeConfig<CascadedExclusoryImpl> for ExclusoryImpl {
         }
         if let Some(other_method_ignore_rules) = other.method_ignore_rules {
             self.method_ignore_rules.extend(other_method_ignore_rules);
+            self.method_ignore_rules.sort();
+            self.method_ignore_rules.dedup();
         }
     }
 }
