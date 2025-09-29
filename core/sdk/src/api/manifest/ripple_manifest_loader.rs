@@ -587,7 +587,7 @@ mod tests {
                 format!("{}/na/na.tv.manifest.json", base_path)
             ]
         );
-        assert_eq!(test_paths, Some(format!("{}/test.device.json", base_path)));
+        assert_eq!(test_paths, Some(format!("{}/test.manifest.json", base_path)));
         // Test with a device type that has a specific tag for extensions
         env::set_var("RIPPLE_COUNTRY", "eu");
         env::set_var("RIPPLE_DEVICE_PLATFORM", "tv");
