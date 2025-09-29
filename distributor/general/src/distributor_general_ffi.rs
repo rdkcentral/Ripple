@@ -36,10 +36,7 @@ use ripple_sdk::{
     utils::{error::RippleError, extn_utils::ExtnUtils, logger::init_logger},
 };
 
-use crate::{
-    general_permission_processor::DistributorPermissionProcessor,
-    general_privacy_processor::DistributorPrivacyProcessor,
-};
+use crate::general_permission_processor::DistributorPermissionProcessor;
 
 fn init_library() -> CExtnMetadata {
     let _ = init_logger("distributor_general".into());
@@ -49,7 +46,6 @@ fn init_library() -> CExtnMetadata {
         ContractFulfiller::new(vec![
             RippleContract::Permissions,
             RippleContract::Storage(StorageAdjective::Secure),
-            RippleContract::Storage(StorageAdjective::PrivacyCloud),
         ]),
         Version::new(1, 1, 0),
     );
@@ -73,11 +69,14 @@ fn start_launcher(sender: ExtnSender, receiver: CReceiver<CExtnMessage>) {
         let client_c = client.clone();
         tokio::spawn(async move {
             if let Ok(response) = client.request(Config::SavedDir).await {
-                if let Some(ExtnResponse::String(value)) = response.payload.extract() {
-                    client.add_request_processor(DistributorPrivacyProcessor::new(
-                        client.clone(),
-                        value.clone(),
-                    ));
+                if let Some(ExtnResponse::String(_value)) = response.payload.extract() {
+                    // Stubbed out - DistributorPrivacyProcessor replaced with direct RPC calls
+                    // Privacy operations now handled by distributor RPC API
+                    debug!("Privacy processor stubbed out - using direct RPC calls instead");
+                    // client.add_request_processor(DistributorPrivacyProcessor::new(
+                    //     client.clone(),
+                    //     value.clone(),
+                    // ));
                 }
             }
 
