@@ -7,15 +7,15 @@ use ripple_sdk::api::device::device_request::{
 };
 use ripple_sdk::api::{context::RippleContextUpdateRequest, device::device_request::AccountToken};
 use ripple_sdk::{
-    log::{debug, error, trace},
+    log::{debug, error},
+    service::service_event_state::EventSubscriber,
     service::service_message::{JsonRpcMessage, JsonRpcNotification, ServiceMessage},
     tokio,
-    service::service_event_state::EventSubscriber,
     tokio::sync::Mutex,
     tokio_tungstenite::tungstenite::Message,
 };
-use serde_json::json;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};
 
@@ -323,7 +323,8 @@ impl ServiceNotificationProcessor {
                 let event_str = event_str.clone();
                 match processor {
                     EventSubscriber::MainSubscriber(s) => {
-                        let new_ripple_context = serde_json::to_string(&new_ripple_context).unwrap();
+                        let new_ripple_context =
+                            serde_json::to_string(&new_ripple_context).unwrap();
 
                         tokio::spawn(async move {
                             let service_message = ServiceMessage {
@@ -345,13 +346,17 @@ impl ServiceNotificationProcessor {
                             .collect::<Vec<String>>();
                         let sender_id = processor_arr.first().unwrap().to_string();
                         let service_id = processor_arr.get(1).unwrap().to_string();
-                        let service_controller_state = platform_state.service_controller_state.clone();
+                        let service_controller_state =
+                            platform_state.service_controller_state.clone();
 
-                        let new_ripple_context = serde_json::to_string(&new_ripple_context).unwrap();
+                        let new_ripple_context =
+                            serde_json::to_string(&new_ripple_context).unwrap();
                         let event_str = event_str.clone();
 
                         tokio::spawn(async move {
-                            if let Some(sender) = service_controller_state.get_sender(&service_id).await {
+                            if let Some(sender) =
+                                service_controller_state.get_sender(&service_id).await
+                            {
                                 let params = json!({"ripple_context": new_ripple_context, "sender_id": sender_id});
                                 let service_message = ServiceMessage {
                                     message: JsonRpcMessage::Notification(JsonRpcNotification {

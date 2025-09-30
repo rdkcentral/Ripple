@@ -1,10 +1,12 @@
 use crate::api::context::RippleContext;
 use crate::log::{debug, error};
 use crate::service::service_message::ServiceMessage;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tokio::sync::mpsc::Sender;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use tokio::sync::mpsc::Sender;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, Default)]
 pub struct ServiceEventState {
@@ -15,7 +17,30 @@ pub struct ServiceEventState {
 #[derive(Debug, Clone)]
 pub enum EventSubscriber {
     ServiceSubscriber(String),
-    MainSubscriber(Sender<ServiceMessage>)
+    MainSubscriber(Sender<ServiceMessage>),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, Hash, PartialEq)]
+pub enum Event {
+    RippleContextTokenChangedEvent,
+    RippleContextActivationChangedEvent,
+    RippleContextInternetStatusChangedEvent,
+    RippleContextPowerStateChangedEvent,
+    RippleContextTimeZoneChangedEvent,
+    RippleContextFeaturesChangedEvent,
+}
+
+impl Display for Event {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        match self {
+            Event::RippleContextTokenChangedEvent => write!(f, "RippleContextTokenChangedEvent"),
+            Event::RippleContextActivationChangedEvent => write!(f, "RippleContextActivationChangedEvent"),
+            Event::RippleContextInternetStatusChangedEvent => write!(f, "RippleContextInternetStatusChangedEvent"),
+            Event::RippleContextPowerStateChangedEvent => write!(f, "RippleContextPowerStateChangedEvent"),
+            Event::RippleContextTimeZoneChangedEvent => write!(f, "RippleContextTimeZoneChangedEvent"),
+            Event::RippleContextFeaturesChangedEvent => write!(f, "RippleContextFeaturesChangedEvent"),
+        }
+    }
 }
 
 impl ServiceEventState {
@@ -50,12 +75,18 @@ impl ServiceEventState {
 
     pub fn add_event_processor(&self, event: String, processor: String) {
         let mut event_subscribers = self.event_subscribers.write().unwrap();
-        event_subscribers.entry(event).or_default().push(EventSubscriber::ServiceSubscriber(processor));
+        event_subscribers
+            .entry(event)
+            .or_default()
+            .push(EventSubscriber::ServiceSubscriber(processor));
     }
 
     pub fn add_main_event_processor(&self, event: String, processor: Sender<ServiceMessage>) {
         let mut event_subscribers = self.event_subscribers.write().unwrap();
-        event_subscribers.entry(event).or_default().push(EventSubscriber::MainSubscriber(processor));
+        event_subscribers
+            .entry(event)
+            .or_default()
+            .push(EventSubscriber::MainSubscriber(processor));
     }
 
     pub fn subscribe_context_event(&self, event: &str, context: Option<Value>) {

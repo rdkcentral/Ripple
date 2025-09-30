@@ -15,8 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use ripple_sdk::framework::bootstrap::Bootstep;
-use ripple_sdk::{async_trait::async_trait, framework::RippleResponse};
 
 use crate::state::bootstrap_state::BootstrapState;
 use crate::state::cap::cap_state::CapState;
@@ -24,18 +22,22 @@ use crate::state::platform_state::PlatformState;
 use crate::tokio;
 use crate::tokio::sync::mpsc;
 use jsonrpsee::core::RpcResult;
-use ripple_sdk::api::context::RippleContext;
-use ripple_sdk::api::context::{ActivationStatus, RippleContextUpdateType};
-use ripple_sdk::api::device::device_request::PowerState;
-use ripple_sdk::api::device::device_request::SystemPowerState;
-use ripple_sdk::api::device::device_user_grants_data::GrantLifespan;
-use ripple_sdk::api::firebolt::fb_capabilities::CapEvent;
-use ripple_sdk::api::firebolt::fb_capabilities::CapabilityRole;
-use ripple_sdk::api::firebolt::fb_capabilities::FireboltCap;
-use ripple_sdk::api::firebolt::fb_capabilities::FireboltPermission;
-use ripple_sdk::api::session::AccountSessionRequest;
-use ripple_sdk::log::{debug, error, info};
-use ripple_sdk::service::service_message::{JsonRpcMessage, ServiceMessage};
+
+use ripple_sdk::{
+    api::context::{ActivationStatus, RippleContext, RippleContextUpdateType},
+    api::device::{
+        device_request::{PowerState, SystemPowerState},
+        device_user_grants_data::GrantLifespan,
+    },
+    api::firebolt::fb_capabilities::{CapEvent, CapabilityRole, FireboltCap, FireboltPermission},
+    api::session::AccountSessionRequest,
+    async_trait::async_trait,
+    framework::bootstrap::Bootstep,
+    framework::RippleResponse,
+    log::{debug, error, info},
+    service::service_event_state::Event,
+    service::service_message::{JsonRpcMessage, ServiceMessage},
+};
 
 pub struct LoadDistributorValuesStep;
 
@@ -58,17 +60,20 @@ impl Bootstep<BootstrapState> for LoadDistributorValuesStep {
 }
 
 fn setup_ripple_context_event_handler(state: PlatformState) {
-    let (tx, mut rx) = mpsc::channel::<ServiceMessage>(1);
+    let (tx, mut rx) = mpsc::channel::<ServiceMessage>(10);
     tokio::spawn(async move {
         state
             .service_controller_state
             .service_event_state
-            .add_main_event_processor("RippleContextTokenChangedEvent".to_string(), tx.clone());
+            .add_main_event_processor(
+                Event::RippleContextTokenChangedEvent.to_string(),
+                tx.clone(),
+            );
 
         state
             .service_controller_state
             .service_event_state
-            .add_main_event_processor("RippleContextPowerStateChangedEvent".to_string(), tx);
+            .add_main_event_processor(Event::RippleContextPowerStateChangedEvent.to_string(), tx);
 
         while let Some(sm) = rx.recv().await {
             debug!("[REFRESH TOKEN] received context event {:?}", sm);
@@ -118,18 +123,16 @@ fn remove_expired_and_inactive_entries(state: &PlatformState) {
 }
 
 fn handle_power_state(state: &PlatformState, power_state: &Option<SystemPowerState>) {
-        // fn handle_power_state(state: &PlatformState, power_state: &SystemPowerState) {
-        let power_state = match power_state {
-            Some(state) => state,
-            None => return,
-        };
+    // fn handle_power_state(state: &PlatformState, power_state: &SystemPowerState) {
+    let power_state = match power_state {
+        Some(state) => state,
+        None => return,
+    };
 
-        if matches!(power_state.power_state, PowerState::On)
-            && handle_power_active_cleanup(state)
-        {
-            // if power_state.power_state != PowerState::On && Self::handle_power_active_cleanup(state) {
-            info!("Usergrants updated for Powerstate");
-        }
+    if matches!(power_state.power_state, PowerState::On) && handle_power_active_cleanup(state) {
+        // if power_state.power_state != PowerState::On && Self::handle_power_active_cleanup(state) {
+        info!("Usergrants updated for Powerstate");
+    }
 }
 
 pub fn handle_power_active_cleanup(state: &PlatformState) -> bool {
