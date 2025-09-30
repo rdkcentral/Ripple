@@ -15,7 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-
 use crate::state::bootstrap_state::BootstrapState;
 use crate::state::cap::cap_state::CapState;
 use crate::state::platform_state::PlatformState;

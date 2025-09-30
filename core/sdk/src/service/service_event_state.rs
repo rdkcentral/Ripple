@@ -4,9 +4,9 @@ use crate::service::service_message::ServiceMessage;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::Sender;
-use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, Default)]
 pub struct ServiceEventState {
@@ -34,11 +34,21 @@ impl Display for Event {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match self {
             Event::RippleContextTokenChangedEvent => write!(f, "RippleContextTokenChangedEvent"),
-            Event::RippleContextActivationChangedEvent => write!(f, "RippleContextActivationChangedEvent"),
-            Event::RippleContextInternetStatusChangedEvent => write!(f, "RippleContextInternetStatusChangedEvent"),
-            Event::RippleContextPowerStateChangedEvent => write!(f, "RippleContextPowerStateChangedEvent"),
-            Event::RippleContextTimeZoneChangedEvent => write!(f, "RippleContextTimeZoneChangedEvent"),
-            Event::RippleContextFeaturesChangedEvent => write!(f, "RippleContextFeaturesChangedEvent"),
+            Event::RippleContextActivationChangedEvent => {
+                write!(f, "RippleContextActivationChangedEvent")
+            }
+            Event::RippleContextInternetStatusChangedEvent => {
+                write!(f, "RippleContextInternetStatusChangedEvent")
+            }
+            Event::RippleContextPowerStateChangedEvent => {
+                write!(f, "RippleContextPowerStateChangedEvent")
+            }
+            Event::RippleContextTimeZoneChangedEvent => {
+                write!(f, "RippleContextTimeZoneChangedEvent")
+            }
+            Event::RippleContextFeaturesChangedEvent => {
+                write!(f, "RippleContextFeaturesChangedEvent")
+            }
         }
     }
 }
