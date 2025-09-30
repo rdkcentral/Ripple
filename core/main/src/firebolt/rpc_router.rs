@@ -282,74 +282,7 @@ impl RpcRouter {
                     .get_sender(&service_id)
                     .await;
                 if let Some(sender) = service_sender {
-                    let json_rpc_response =
-                        serde_json::from_str::<serde_json::Value>(msg.jsonrpc_msg.clone().as_str())
-                            .unwrap();
-
-                    //
-                    // Treat presence of 'result' key (even if null) as success
-                    if json_rpc_response.get("result").is_some() {
-                        let result = json_rpc_response.get("result").cloned().unwrap();
-                        let jsonrpc = serde_json::to_string(
-                            &json_rpc_response
-                                .get("jsonrpc")
-                                .cloned()
-                                .unwrap_or_default(),
-                        )
-                        .unwrap();
-                        let id = ServiceMessageId::String(msg.request_id.clone());
-
-                        let service_message = ServiceMessage {
-                            message: ServiceJsonRpcMessage::Success(ServiceJsonRpcSuccess {
-                                result,
-                                jsonrpc,
-                                id,
-                            }),
-                            context: Some(
-                                serde_json::to_value(req.ctx.clone()).unwrap_or_default(),
-                            ),
-                        };
-                        send_response(&service_id, &sender, &service_message);
-                    } else if let Some(error) = json_rpc_response.get("error") {
-                        if !error.is_null() {
-                            let jsonrpc = serde_json::to_string(
-                                &json_rpc_response
-                                    .get("jsonrpc")
-                                    .cloned()
-                                    .unwrap_or_default(),
-                            )
-                            .unwrap();
-                            let id = ServiceMessageId::String(msg.request_id.clone());
-                            let details = JsonRpcErrorDetails {
-                                code: -32600,
-                                message: "Ripple Main does not support this request from Service"
-                                    .to_string(),
-                                data: Some(error.clone()),
-                            };
-
-                            let service_message = ServiceMessage {
-                                message: ServiceJsonRpcMessage::Error(JsonRpcError {
-                                    error: details,
-                                    jsonrpc,
-                                    id,
-                                }),
-                                context: Some(
-                                    serde_json::to_value(req.ctx.clone()).unwrap_or_default(),
-                                ),
-                            };
-                            send_response(&service_id, &sender, &service_message);
-                        } else {
-                            error!(
-                                "Received unexpected response from service {:?}",
-                                json_rpc_response
-                            );
-                        }
-                    } else {
-                        error!(
-                            "Received unexpected response from service {:?}",
-                            json_rpc_response
-                        );
-                    }
+                    process_service_response(&service_id, &sender, &msg, &req);
                 } else {
                     error!(
                         "Failed to find service sender for service_id: {}",
