@@ -95,13 +95,19 @@ async fn resolve_route(
     resources: Resources,
     req: RpcRequest,
 ) -> Result<ApiMessage, RippleError> {
-    info!("Routing {}", req.method);
+    if req.method.is_empty() {
+        error!("rpc_router: Empty method in request {:?}", req);
+        return Err(RippleError::InvalidInput);
+    }
+
     let id = Id::Number(req.ctx.call_id);
     let request_c = req.clone();
     let sink_size = 1024 * 1024;
     let (sink_tx, mut sink_rx) = futures_channel::mpsc::unbounded::<String>();
     let sink = MethodSink::new_with_limit(sink_tx, 1024 * 1024, 100 * 1024);
     let method_name = request_c.method.clone();
+
+    info!("rpc_router: Routing request {}", req);
 
     tokio::spawn(async move {
         let params_json = request_c.params_json.as_ref();
@@ -257,16 +263,18 @@ impl RpcRouter {
     }
 
     pub async fn route_service_protocol(state: &PlatformState, req: RpcRequest) {
+        debug!("rpc_router: route_service_protocol called: {:?}", req);
         let method_entry = state.router_state.get_method_entry(&req.method);
         let resources = state.router_state.resources.clone();
 
         let mut platform_state = state.clone();
         LogSignal::new(
             "rpc_router".to_string(),
-            "route_extn_protocol".into(),
+            "route_serviec_protocol".into(),
             req.clone(),
         )
         .emit_debug();
+
         tokio::spawn(async move {
             if let Ok(msg) =
                 resolve_route(&mut platform_state, method_entry, resources, req.clone()).await

@@ -15,8 +15,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::bootstrap::boot::boot;
+use crate::bootstrap::{boot::boot, logging_bootstrap_step::LoggingBootstrapStep};
 use ripple_sdk::{
+    framework::bootstrap::Bootstep,
     log::{error, info},
     tokio,
     utils::logger::init_and_configure_logger,
@@ -34,10 +35,6 @@ include!(concat!(env!("OUT_DIR"), "/version.rs"));
 #[tokio::main(worker_threads = 2)]
 async fn main() {
     // Init logger
-    if let Err(e) = init_and_configure_logger(SEMVER_LIGHTWEIGHT, "gateway".into(), None) {
-        println!("{:?} logger init error", e);
-        return;
-    }
     info!("version {}", SEMVER_LIGHTWEIGHT);
     let bootstate = BootstrapState::build().expect("Failure to init state for bootstrap");
 

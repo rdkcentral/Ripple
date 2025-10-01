@@ -3,6 +3,7 @@ use crate::api::gateway::rpc_gateway_api::{
 };
 use crate::utils::logger::MODULE_LOG_LEVELS;
 use std::collections::HashMap;
+use std::str::FromStr as _;
 
 /*
 
@@ -31,6 +32,9 @@ impl<T: std::fmt::Display + ContextAsJson> std::fmt::Display for LogSignal<T> {
             self.context
         )
     }
+}
+pub fn determine_log_level(_level: log::LevelFilter) -> log::LevelFilter {
+    log::LevelFilter::Info
 }
 
 fn map_to_jsonmap(map: HashMap<String, String>) -> serde_json::Map<String, serde_json::Value> {

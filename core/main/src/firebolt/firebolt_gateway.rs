@@ -396,6 +396,7 @@ impl FireboltGateway {
                                 }
                             }
                             ApiProtocol::Service => {
+                                debug!("handle: routing_to_service_protocol {:?}", request);
                                 RpcRouter::route_service_protocol(&platform_state, request.clone())
                                     .await
                             }

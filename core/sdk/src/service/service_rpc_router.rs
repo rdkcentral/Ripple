@@ -46,6 +46,7 @@ pub fn route_service_message(
             let json_rpc_request = json_rpc_request.clone();
             tokio::spawn(async move {
                 let router_state = state_clone.clone();
+                debug!("route_service_message={:?}, request={:?}", sm.clone(), req);
                 let resp = RpcRouter::resolve_route(req.clone(), &router_state).await;
 
                 match resp {

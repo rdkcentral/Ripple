@@ -29,6 +29,7 @@ use jsonrpsee::{
     },
     types::{error::ErrorCode, Id, Params},
 };
+use log::debug;
 use std::sync::{Arc, RwLock};
 
 pub struct RpcRouter;
@@ -78,7 +79,7 @@ impl RpcRouter {
         req: RpcRequest,
         router_state: &RouterState,
     ) -> Result<String, RippleError> {
-        trace!("SDK: Resolving route for {:?}", req);
+        debug!("SDK:resolve_route Resolving route for {:?}", req);
         let id = Id::Number(req.ctx.call_id);
         let request_c = req.clone();
         let method_name = request_c.method.clone();

@@ -1,5 +1,6 @@
 use crate::{state::bootstrap_state::BootstrapState, SEMVER_LIGHTWEIGHT};
 use ripple_sdk::{
+    api::observability::log_signal::{determine_log_level, LogSignal},
     async_trait::async_trait,
     framework::{bootstrap::Bootstep, RippleResponse},
     log,
@@ -21,12 +22,16 @@ impl Bootstep<BootstrapState> for LoggingBootstrapStep {
             .log_signal_log_level
             .parse()
             .unwrap_or(log::LevelFilter::Info);
+        println!(
+            "LoggingBootstrapStep, log_signal_level={}",
+            log_signal_level
+        );
         let _ = init_and_configure_logger(
             SEMVER_LIGHTWEIGHT,
             "gateway".into(),
             Some(vec![(
                 "ripple_sdk::api::observability::log_signal".to_string(),
-                log_signal_level,
+                determine_log_level(log_signal_level),
             )]),
         );
 

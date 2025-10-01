@@ -15,7 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc, tracing::field::debug, RpcModule};
+
 use ripple_sdk::{
     api::{
         apps::{AppEvent, AppManagerResponse, AppMethod, AppRequest, AppResponse},
@@ -25,11 +26,15 @@ use ripple_sdk::{
             fb_general::ListenRequestWithEvent,
             fb_telemetry::TelemetryPayload,
         },
-        gateway::rpc_gateway_api::CallContext,
+        gateway::rpc_gateway_api::{
+            CallContext, JsonRpcApiRequest, JsonRpcApiResponse, RpcRequest,
+        },
     },
     async_trait::async_trait,
     log::{debug, error},
-    tokio::sync::oneshot,
+    service::service_message::JsonRpcRequest,
+    tokio::sync::{mpsc, oneshot},
+    tokio_tungstenite::tungstenite::http::method,
     utils::rpc_utils::rpc_err,
 };
 
@@ -39,6 +44,10 @@ use std::{
 };
 
 use crate::{
+    broker::{
+        broker_utils::BrokerUtils,
+        endpoint_broker::{BrokerCallback, BrokerOutput},
+    },
     firebolt::rpc::RippleRPCProvider,
     service::{apps::app_events::AppEvents, telemetry_builder::TelemetryBuilder},
     state::platform_state::PlatformState,
@@ -85,6 +94,13 @@ pub trait Internal {
 
     #[method(name = "account.policyIdentifierAlias")]
     async fn get_policy_identifier_alias(&self, ctx: CallContext) -> RpcResult<Vec<AgePolicy>>;
+
+    #[method(name = "broker.route")]
+    async fn route_broker_request(
+        &self,
+        ctx: CallContext,
+        enveloped_request: JsonRpcRequest,
+    ) -> RpcResult<JsonRpcApiResponse>;
 }
 
 #[derive(Debug, Clone, Default)]
@@ -203,6 +219,77 @@ impl InternalServer for InternalImpl {
             ctx.app_id
         );
         Ok(String::new())
+    }
+    async fn route_broker_request(
+        &self,
+        ctx: CallContext,
+        enveloped_request: JsonRpcRequest,
+    ) -> RpcResult<JsonRpcApiResponse> {
+        debug!(
+            "route_broker_request called with ctx: {:?}, enveloped_request: {:?}",
+            ctx, enveloped_request
+        );
+
+        debug!("route_broker_request Creating RPC request for endpoint broker routing");
+
+        // Extract the method and params from the enveloped request
+
+        let params = enveloped_request.params.clone().unwrap();
+        let params = params.as_object().unwrap();
+        let params = params.get("enveloped_request").unwrap().to_owned();
+
+        // if params.is_none() {
+        //     return Err(())
+        // }
+
+        let params: JsonRpcRequest = serde_json::from_value(params).unwrap();
+        let method = params.method;
+        let params = params.params;
+
+        // Create an RPC request for the endpoint broker
+        let rpc_request = RpcRequest {
+            ctx: ctx.clone(),
+            method: method.clone(),
+            params_json: if let Some(params) = params {
+                serde_json::to_string(&params).unwrap_or_default()
+            } else {
+                String::new()
+            },
+        };
+
+        debug!(
+            "route_broker_request Routing request to endpoint broker: {:?}",
+            rpc_request
+        );
+
+        // Route through the endpoint broker instead of calling internal request directly
+        let (tx, mut rx) = mpsc::channel::<BrokerOutput>(10);
+        let callback: BrokerCallback = BrokerCallback { sender: tx };
+        let handled = self.state.endpoint_state.handle_brokerage(
+            rpc_request,
+            None,           // extn_message
+            Some(callback), // custom_callback
+            Vec::new(),     // permissions
+            None,           // session
+            Vec::new(),     // telemetry_response_listeners
+        );
+
+        match rx.recv().await {
+            Some(broker_output) => {
+                debug!(
+                    "route_broker_request Received broker output for method: {} {:?}",
+                    method, broker_output
+                );
+                Ok(broker_output.data)
+            }
+            None => {
+                error!("route_broker_request Failed to receive broker output");
+                Err(rpc_err(format!(
+                    "method {} did not return a response from the endpoint_broker",
+                    method
+                )))
+            }
+        }
     }
 }
 
