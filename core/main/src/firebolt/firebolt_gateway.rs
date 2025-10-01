@@ -32,7 +32,7 @@ use ripple_sdk::{
     },
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
-    log::{debug, error, info, trace, warn},
+    log::{error, info, trace, warn},
     serde_json::{self, Value},
     tokio::{self, runtime::Handle, sync::mpsc::Sender},
 };
@@ -321,23 +321,23 @@ impl FireboltGateway {
         tokio::spawn(async move {
             capture_stage(&platform_state.metrics, &request_c, "context_ready");
             // Validate incoming request parameters.
-            // if let Err(error_string) = validate_request(open_rpc_state, &request_c, fail_open) {
-            //     TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
-            //         &platform_state.clone(),
-            //         metrics_timer,
-            //         format!("{}", JSON_RPC_STANDARD_ERROR_INVALID_PARAMS),
-            //     )
-            //     .await;
+            if let Err(error_string) = validate_request(open_rpc_state, &request_c, fail_open) {
+                TelemetryBuilder::stop_and_send_firebolt_metrics_timer(
+                    &platform_state.clone(),
+                    metrics_timer,
+                    format!("{}", JSON_RPC_STANDARD_ERROR_INVALID_PARAMS),
+                )
+                .await;
 
-            //     let json_rpc_error = JsonRpcError {
-            //         code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
-            //         message: error_string,
-            //         data: None,
-            //     };
+                let json_rpc_error = JsonRpcError {
+                    code: JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
+                    message: error_string,
+                    data: None,
+                };
 
-            //     send_json_rpc_error(&mut platform_state, &request, json_rpc_error).await;
-            //     return;
-            // }
+                send_json_rpc_error(&mut platform_state, &request, json_rpc_error).await;
+                return;
+            }
 
             capture_stage(&platform_state.metrics, &request_c, "openrpc_val");
 
@@ -503,14 +503,14 @@ fn validate_request(
         // Check if the cache is already created using add_json_schema_cache below
         #[cfg(feature = "openrpc_validation")]
         {
-        let v = open_rpc_state.validate_schema(&method_name, param);
-        if v.is_ok() {
-            // Params are valid
-            return Ok(());
-        } else if let Err(Some(s)) = v {
-            // Params are not valid
-            return Err(s);
-        }
+            let v = open_rpc_state.validate_schema(&method_name, param);
+            if v.is_ok() {
+                // Params are valid
+                return Ok(());
+            } else if let Err(Some(s)) = v {
+                // Params are not valid
+                return Err(s);
+            }
         }
         let major_version = open_rpc_state.get_version().major.to_string();
         let openrpc_validator = open_rpc_state.get_openrpc_validator();
@@ -543,7 +543,7 @@ fn validate_request(
         } else {
             // TODO: Currently LifecycleManagement and other APIs are not in the schema. Let these pass through to their
             // respective handlers for now.
-            debug!(
+            trace!(
                 "validate_request: Method not found in schema: {}",
                 request.method
             );

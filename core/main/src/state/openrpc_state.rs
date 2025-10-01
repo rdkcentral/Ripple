@@ -32,6 +32,7 @@ use ripple_sdk::{
     },
     utils::error::RippleError,
 };
+#[cfg(feature = "openrpc_validation")]
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -108,8 +109,6 @@ pub mod openrpc_validator {
     }
 }
 
-#[cfg(not(feature = "openrpc_validation"))]
-use openrpc_validator::jsonschema::JSONSchema;
 #[cfg(not(feature = "openrpc_validation"))]
 use openrpc_validator::{RpcMethod, RpcMethodValidator, ValidationError};
 #[cfg(not(feature = "openrpc_validation"))]
