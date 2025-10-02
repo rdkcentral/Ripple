@@ -22,7 +22,7 @@ pub enum EventSubscriber {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, Hash, PartialEq)]
 pub enum Event {
-    RippleContextTokenChangedEvent,
+RippleContextTokenChangedEvent,
     RippleContextActivationChangedEvent,
     RippleContextInternetStatusChangedEvent,
     RippleContextPowerStateChangedEvent,
@@ -99,37 +99,40 @@ impl ServiceEventState {
             .push(EventSubscriber::MainSubscriber(processor));
     }
 
-    pub fn subscribe_context_event(&self, event: &str, context: Option<Value>) {
+    pub fn subscribe_context_event(
+        &self,
+        event: &str,
+        context: Option<Value>,
+    ) -> Result<(), String> {
         let event = event.to_string();
         debug!(
             "subscribe_context_event context: {:?} event {:?}",
             context, event
         );
 
-        if let Some(ctx) = context {
-            if !ctx.is_array() {
-                error!("Context is not an array of strings");
-                return;
-            }
-            //Add context[sender_id, service_id] in event processors as string split by "&"
-            let sender_tx = ctx.get(0);
-            let subscriber = ctx.get(1);
-            let new_event_processor = format!(
-                "{}&{}",
-                sender_tx.and_then(|v| v.as_str()).unwrap_or(""),
-                subscriber.and_then(|v| v.as_str()).unwrap_or("")
-            );
-            if let Some(_s) = subscriber {
-                debug!(
-                    "Subscribing to context event: {:?} with processor {}",
-                    event, new_event_processor
-                );
-                self.add_event_processor(event, new_event_processor);
-            } else {
-                error!("Subscriber not found in context");
-            }
-        } else {
-            error!("Context is None event: {}", event);
+        let ctx = context.ok_or_else(|| format!("Context is None event: {}", event))?;
+        if !ctx.is_array() {
+            error!("Context is not an array of strings");
+            return Err("Context is not an array of strings".to_string());
         }
+        //Add context[sender_id, service_id] in event processors as string split by "&"
+        let sender_tx = ctx.get(0);
+        let subscriber = ctx.get(1);
+        let new_event_processor = format!(
+            "{}&{}",
+            sender_tx.and_then(|v| v.as_str()).unwrap_or(""),
+            subscriber.and_then(|v| v.as_str()).unwrap_or("")
+        );
+        if subscriber.is_some() {
+            debug!(
+                "Subscribing to context event: {:?} with processor {}",
+                event, new_event_processor
+            );
+            self.add_event_processor(event, new_event_processor);
+        } else {
+            error!("Subscriber not found in context");
+            return Err("Subscriber not found in context".to_string());
+        }
+        Ok(())
     }
 }

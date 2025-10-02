@@ -82,27 +82,7 @@ fn setup_ripple_context_event_handler(state: PlatformState) {
                     debug!("[REFRESH TOKEN] received parsed rpc result: {:?}", result);
                     match result {
                         Ok(ripple_context) => {
-                            if let Some(update_type) = ripple_context.update_type.clone() {
-                                match update_type {
-                                    RippleContextUpdateType::TokenChanged => {
-                                        if let Some(ActivationStatus::AccountToken(t)) =
-                                            &ripple_context.activation_status
-                                        {
-                                            state
-                                                .session_state
-                                                .insert_session_token(t.token.clone());
-                                        }
-                                        initialize_session(&state).await;
-                                    }
-                                    RippleContextUpdateType::PowerStateChanged => {
-                                        handle_power_state(
-                                            &state,
-                                            &ripple_context.system_power_state,
-                                        );
-                                    }
-                                    _ => {}
-                                }
-                            }
+                            handle_ripple_update_type(&state, &ripple_context).await;
                         }
                         Err(e) => {
                             error!("Failed to parse RippleContext from service message: {}", e);
@@ -117,6 +97,24 @@ fn setup_ripple_context_event_handler(state: PlatformState) {
     });
 }
 
+async fn handle_ripple_update_type(state: &PlatformState, ripple_context: &RippleContext) {
+    println!("^^^^^ handling ripple update");
+    if let Some(ref update_type) = ripple_context.update_type {
+        match update_type {
+            RippleContextUpdateType::TokenChanged => {
+                if let Some(ActivationStatus::AccountToken(t)) = &ripple_context.activation_status {
+                    state.session_state.insert_session_token(t.token.clone());
+                }
+                initialize_session(state).await;
+            }
+            RippleContextUpdateType::PowerStateChanged => {
+                handle_power_state(state, &ripple_context.system_power_state);
+            }
+            _ => {}
+        }
+    }
+}
+
 fn remove_expired_and_inactive_entries(state: &PlatformState) {
     state.cap_state.grant_state.cleanup_user_grants();
 }
@@ -127,7 +125,6 @@ fn handle_power_state(state: &PlatformState, power_state: &Option<SystemPowerSta
         Some(state) => state,
         None => return,
     };
-
     if matches!(power_state.power_state, PowerState::On) && handle_power_active_cleanup(state) {
         // if power_state.power_state != PowerState::On && Self::handle_power_active_cleanup(state) {
         info!("Usergrants updated for Powerstate");

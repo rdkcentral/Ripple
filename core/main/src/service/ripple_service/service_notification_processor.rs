@@ -8,7 +8,7 @@ use ripple_sdk::api::device::device_request::{
 use ripple_sdk::api::{context::RippleContextUpdateRequest, device::device_request::AccountToken};
 use ripple_sdk::{
     log::{debug, error},
-    service::service_event_state::EventSubscriber,
+    service::service_event_state::{Event, EventSubscriber},
     service::service_message::{JsonRpcMessage, JsonRpcNotification, ServiceMessage},
     tokio,
     tokio::sync::Mutex,
@@ -53,7 +53,7 @@ impl NotificationEventStrategy for RippleContextUpdateTokenRequest {
             if let Ok(token) = serde_json::from_value::<AccountToken>(params) {
                 let request = RippleContextUpdateRequest::Token(token);
                 ServiceNotificationProcessor::context_update(
-                    "RippleContextTokenChangedEvent",
+                    Event::RippleContextTokenChangedEvent.to_string().as_str(),
                     request,
                     platform_state,
                     context,
