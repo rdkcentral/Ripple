@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 use crate::utils::error::RippleError;
+use jsonrpsee::core::RpcResult;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt::Debug;
@@ -260,6 +262,49 @@ impl ServiceMessage {
                     0
                 }
             }
+        }
+    }
+
+    pub fn parse_rpc_notification_param<T: DeserializeOwned>(&self) -> RpcResult<T> {
+        if let JsonRpcMessage::Notification(notification) = &self.message {
+            let params_value = match &notification.params {
+                Some(val) => val.clone(),
+                None => {
+                    return Err(jsonrpsee::core::Error::Custom(
+                        "Notification params field is None".to_string(),
+                    ));
+                }
+            };
+            let params: Result<String, _> = serde_json::from_value(params_value);
+            let params = match params {
+                Ok(p) => p,
+                Err(e) => {
+                    return Err(jsonrpsee::core::Error::Custom(format!(
+                        "Failed to parse params as String: {}",
+                        e
+                    )));
+                }
+            };
+            let msg = match std::str::from_utf8(params.as_bytes()) {
+                Ok(m) => m,
+                Err(e) => {
+                    return Err(jsonrpsee::core::Error::Custom(format!(
+                        "Failed to convert params to UTF-8 string: {}",
+                        e
+                    )));
+                }
+            };
+            match serde_json::from_str::<T>(msg) {
+                Ok(value) => Ok(value),
+                Err(e) => Err(jsonrpsee::core::Error::Custom(format!(
+                    "Failed to deserialize param to target type: {}",
+                    e
+                ))),
+            }
+        } else {
+            Err(jsonrpsee::core::Error::Custom(
+                "Failed to get Success response".to_string(),
+            ))
         }
     }
 }
