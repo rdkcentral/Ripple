@@ -29,12 +29,20 @@ pub fn route_service_message(
     state: &RouterState,
     sm: ServiceMessage,
 ) -> Result<(), RippleError> {
-    trace!("Received Service Message: {:#?}", sm);
+    trace!("Received Service Message: {:#?}", sm.message);
     match sm.message {
         JsonRpcMessage::Request(ref json_rpc_request) => {
             let ctx = sm.context.as_ref().map_or_else(CallContext::default, |v| {
                 serde_json::from_value(v.clone()).unwrap_or_default()
             });
+            if json_rpc_request.method.is_empty() {
+                error!(
+                    "route_service_message: Empty method in Service Request: {}",
+                    json_rpc_request
+                );
+                return Ok(());
+            }
+            debug!("route_service_message - sending {}", json_rpc_request);
             let req: RpcRequest = RpcRequest {
                 ctx: ctx.clone(),
                 method: json_rpc_request.clone().method,
@@ -90,7 +98,10 @@ fn handle_resolved_response(
         debug!("Service Request resolved successfully: response {}", msg);
         send_response(msg, sender, sm, json_rpc_request);
     } else if let Some(error) = json_rpc_response.get("error") {
-        error!("Service Request resolved with error: response {}", error);
+        error!(
+            "Service Request resolved with error: response={} for method={}",
+            error, json_rpc_request.method
+        );
         send_response(msg, sender, sm, json_rpc_request);
     } else {
         error!("Service Request resolved with unknown response: {}", msg);

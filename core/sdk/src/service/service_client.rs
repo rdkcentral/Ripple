@@ -16,7 +16,7 @@
 //
 
 use super::service_message::ServiceMessage;
-use crate::api::gateway::rpc_gateway_api::{CallContext, JsonRpcApiRequest};
+use crate::api::gateway::rpc_gateway_api::{CallContext, JsonRpcApiRequest, JsonRpcApiResponse};
 use crate::api::{
     gateway::rpc_gateway_api::{ApiMessage, ApiProtocol},
     manifest::extn_manifest::ExtnSymbol,
@@ -29,6 +29,7 @@ use crate::service::service_rpc_router::route_service_message;
 use crate::utils::extn_utils::ExtnStackSize;
 #[cfg(any(test, feature = "mock"))]
 use crate::utils::mock_utils::get_next_mock_service_response;
+use crate::utils::rpc_utils::rpc_err;
 use crate::utils::{error::RippleError, ws_utils::WebSocketUtils};
 use futures_util::{SinkExt, StreamExt};
 use jsonrpsee::core::{server::rpc_module::Methods, RpcResult};
@@ -41,6 +42,10 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::sync::{mpsc::Sender as MSender, oneshot::Sender as OSender};
 use tokio_tungstenite::tungstenite::Message;
 use uuid::Uuid;
+
+// Use the project-wide tracing macro
+use crate::use_tracing;
+use_tracing!();
 
 #[derive(Debug, Clone, Default)]
 pub struct ServiceClient {
@@ -174,6 +179,11 @@ impl ServiceClient {
         }
     }
 
+    #[cfg_attr(feature = "tracing", instrument(
+        skip(self, outbound_service_rx, outbound_extn_rx),
+        fields(path = %path),
+        level = "info"
+    ))]
     async fn connect_websocket(
         &self,
         path: &str,
@@ -202,14 +212,14 @@ impl ServiceClient {
                                     )
                                     .unwrap_or_else(|e| {
                                         error!("Error handling service message: {:?}", e);
-                                        error!("route_service_message failed for message: {:?} error: {:?}", sm, e );
+                                        error!("connect_websocket: route_service_message failed for message: {:?} error: {:?}", sm, e );
                                         let mut service_message = sm.clone();
                                         service_message.message = JsonRpcMessage::Error(JsonRpcError::default());
                                         self.send_service_response(service_message);
                                     });
                                 } else {
                                     error!("Service sender is not available");
-                                    error!("route_service_message failed for message: {:?} no service sender", sm );
+                                    error!("connect_websocket:route_service_message failed for message: {:?} no service sender", sm );
                                     let mut service_message = sm.clone();
                                     service_message.message =
                                         JsonRpcMessage::Error(JsonRpcError::default());
@@ -219,7 +229,7 @@ impl ServiceClient {
                             JsonRpcMessage::Notification(_json_rpc_notification) => todo!(),
                             JsonRpcMessage::Success(ref json_rpc_success) => {
                                 debug!(
-                                    "Received Service Success: {:?} context {:?}",
+                                    "connect_websocket: Received Service Success: {:?} context {:?}",
                                     json_rpc_success,
                                     sm.context.clone().unwrap()
                                 );
@@ -353,7 +363,9 @@ impl ServiceClient {
                 service_id.to_string(),
             )
             .await
-            .map_err(|_| jsonrpsee::core::Error::Custom(error_msg.to_string()))?;
+            .map_err(|e| {
+                jsonrpsee::core::Error::Custom(format!("{}. error={}", error_msg.to_string(), e))
+            })?;
 
         match res.message {
             JsonRpcMessage::Success(v) => serde_json::from_value::<T>(v.result).map_err(|_| {
@@ -365,6 +377,16 @@ impl ServiceClient {
             ))),
         }
     }
+
+    #[cfg_attr(feature = "tracing", instrument(
+        skip(self, request),
+        fields(
+            method = %request.method,
+            service_id = %service_id,
+            timeout = %timeout
+        ),
+        level = "debug"
+    ))]
     pub async fn route_broker_request<T: DeserializeOwned>(
         &mut self,
         request: JsonRpcRequest,
@@ -378,18 +400,40 @@ impl ServiceClient {
         let params = serde_json::to_value(request).unwrap_or_default();
         //let ctx = self.get_default_service_call_context(method.to_string());
 
+        // let t = self
+        //     .call_and_parse_ripple_main_rpc::<JsonRpcApiResponse>(
+        //         "broker.route",
+        //         Some(params),
+        //         None,
+        //         timeout,
+        //         service_id,
+        //         error_msg,
+        //     )
+        //     .await;
         let t = self
-            .call_and_parse_ripple_main_rpc::<T>(
-                "broker.route",
+            .request_with_timeout_main(
+                "broker.route".into(),
                 Some(params),
                 None,
                 timeout,
-                service_id,
-                error_msg,
+                service_id.into(),
             )
-            .await
-            .map_err(|_| jsonrpsee::core::Error::Custom(error_msg.to_string()))?;
-        Ok(t)
+            .await;
+        match t {
+            Ok(response) => {
+                debug!("route_broker_request_success_response: {:?}", response);
+                //let result = serde_json::from_value::<T>(response.result.unwrap()).unwrap();
+                if let JsonRpcMessage::Success(msg) = response.message {
+                    Ok(serde_json::from_value::<T>(msg.result).unwrap())
+                } else {
+                    Err(rpc_err("route_broker_request: error"))
+                }
+            }
+            Err(e) => {
+                error!("route_broker_request_error: {:?}", e);
+                Err(jsonrpsee::core::Error::Custom(error_msg.to_string()))
+            }
+        }
 
         // match res.message {
         //     JsonRpcMessage::Success(v) => serde_json::from_value::<T>(v.result).map_err(|_| {
@@ -448,6 +492,16 @@ impl ServiceClient {
         }
     }
 
+    #[cfg_attr(feature = "tracing", instrument(
+        skip(self, params, ctx),
+        fields(
+            method = %method,
+            service_id = %service_id,
+            app_id = %ctx.app_id,
+            request_id = %ctx.request_id
+        ),
+        level = "debug"
+    ))]
     pub async fn send_rpc_main(
         &mut self,
         method: String,
@@ -480,6 +534,7 @@ impl ServiceClient {
         );
 
         if let Some(sender) = &self.service_sender {
+            debug!("send_rpc_main: service sender is available");
             match sender.try_send(service_request) {
                 Ok(_) => {
                     debug!("send_rpc_main: Service request sent successfully");
@@ -501,7 +556,7 @@ impl ServiceClient {
                 }
             }
         } else {
-            error!("Service sender is not available");
+            error!("send_rpc_main: Service sender is not available");
             Err(RippleError::ServiceError)
         }
     }

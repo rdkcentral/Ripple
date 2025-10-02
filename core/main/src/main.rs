@@ -19,10 +19,14 @@ use crate::bootstrap::{boot::boot, logging_bootstrap_step::LoggingBootstrapStep}
 use ripple_sdk::{
     framework::bootstrap::Bootstep,
     log::{error, info},
-    tokio,
+    tokio, use_tracing,
     utils::logger::init_and_configure_logger,
 };
 use state::bootstrap_state::BootstrapState;
+
+// Use the tracing macro
+use_tracing!();
+
 pub mod bootstrap;
 pub mod broker;
 pub mod firebolt;
@@ -36,6 +40,11 @@ include!(concat!(env!("OUT_DIR"), "/version.rs"));
 async fn main() {
     // Init logger
     info!("version {}", SEMVER_LIGHTWEIGHT);
+
+    // Initialize tracing if feature is enabled
+    #[cfg(feature = "tracing")]
+    ripple_sdk::init_tracing();
+
     let bootstate = BootstrapState::build().expect("Failure to init state for bootstrap");
 
     // bootstrap

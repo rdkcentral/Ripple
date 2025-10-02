@@ -31,7 +31,7 @@ use ripple_sdk::{
         },
     },
     async_trait::async_trait,
-    log::{debug, error},
+    log::{debug, error, trace},
     service::service_message::JsonRpcRequest,
     tokio::sync::{mpsc, oneshot},
     tokio_tungstenite::tungstenite::http::method,
@@ -53,6 +53,9 @@ use crate::{
     state::platform_state::PlatformState,
     utils::rpc_utils::rpc_await_oneshot,
 };
+
+// Enable tracing macros if feature is available
+ripple_sdk::use_tracing!();
 
 #[rpc(server)]
 pub trait Internal {
@@ -96,7 +99,7 @@ pub trait Internal {
     async fn get_policy_identifier_alias(&self, ctx: CallContext) -> RpcResult<Vec<AgePolicy>>;
 
     #[method(name = "broker.route")]
-    async fn route_broker_request(
+    async fn route_request_to_broker(
         &self,
         ctx: CallContext,
         enveloped_request: JsonRpcRequest,
@@ -137,7 +140,7 @@ impl InternalServer for InternalImpl {
         _ctx: CallContext,
         request: ListenRequestWithEvent,
     ) -> RpcResult<()> {
-        debug!("registering App event {:?}", &request);
+        debug!("registerroute_broker_requesting App event {:?}", &request);
         let event = request.event.clone();
         AppEvents::add_listener(&self.state, event, request.context.clone(), request.request);
         Ok(())
@@ -220,17 +223,30 @@ impl InternalServer for InternalImpl {
         );
         Ok(String::new())
     }
-    async fn route_broker_request(
+
+    async fn route_request_to_broker(
         &self,
         ctx: CallContext,
         enveloped_request: JsonRpcRequest,
     ) -> RpcResult<JsonRpcApiResponse> {
+        // For manager demo - let's use both error level tracing and console output
+        #[cfg(feature = "tracing")]
+        {
+            ripple_sdk::tracing::error!("🔥 URGENT: Manager demo trace - route_request_to_broker called! method={} session_id={} request_id={} app_id={}", 
+                enveloped_request.method, ctx.session_id, ctx.request_id, ctx.app_id);
+        }
+
         debug!(
-            "route_broker_request called with ctx: {:?}, enveloped_request: {:?}",
+            "route_request_to_broker called with ctx: {:?}, enveloped_request: {:?}",
             ctx, enveloped_request
         );
 
-        debug!("route_broker_request Creating RPC request for endpoint broker routing");
+        debug!(
+            "route_request_to_broker called with ctx: {:?}, enveloped_request: {:?}",
+            ctx, enveloped_request
+        );
+
+        debug!("route_request_to_broker Creating RPC request for endpoint broker routing");
 
         // Extract the method and params from the enveloped request
 
@@ -253,37 +269,53 @@ impl InternalServer for InternalImpl {
             params_json: if let Some(params) = params {
                 serde_json::to_string(&params).unwrap_or_default()
             } else {
-                String::new()
+                RpcRequest::prepend_ctx(None, &ctx)
             },
         };
 
         debug!(
-            "route_broker_request Routing request to endpoint broker: {:?}",
+            "route_request_to_broker Routing request to endpoint broker: {:?}",
             rpc_request
         );
 
         // Route through the endpoint broker instead of calling internal request directly
         let (tx, mut rx) = mpsc::channel::<BrokerOutput>(10);
         let callback: BrokerCallback = BrokerCallback { sender: tx };
-        let handled = self.state.endpoint_state.handle_brokerage(
+        match self.state.endpoint_state.handle_brokerage(
             rpc_request,
             None,           // extn_message
             Some(callback), // custom_callback
             Vec::new(),     // permissions
             None,           // session
             Vec::new(),     // telemetry_response_listeners
-        );
+        ) {
+            Ok(broker_output) => {
+                trace!(
+                    "route_request_to_broker: rendered broker_output: {:?}",
+                    broker_output
+                );
+            }
+            Err(e) => {
+                error!(
+                    "route_request_to_broker: Failed to handle brokerage: {:?}",
+                    e
+                );
+                return Err(rpc_err(
+                    "route_request_to_broker: Failed to handle brokerage",
+                ));
+            }
+        }
 
         match rx.recv().await {
             Some(broker_output) => {
                 debug!(
-                    "route_broker_request Received broker output for method: {} {:?}",
+                    "route_request_to_broker Received broker output for method: {} {:?}",
                     method, broker_output
                 );
                 Ok(broker_output.data)
             }
             None => {
-                error!("route_broker_request Failed to receive broker output");
+                error!("route_request_to_broker Failed to receive broker output");
                 Err(rpc_err(format!(
                     "method {} did not return a response from the endpoint_broker",
                     method

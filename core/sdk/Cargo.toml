@@ -30,6 +30,7 @@ sysd = []
 test = ["jsonrpsee", "mock"]
 mock_service = ["mock_app_gw/mock_service"]
 mock = []
+tracing = ["dep:tracing", "tracing-core", "tracing-subscriber", "tracing-opentelemetry", "opentelemetry", "opentelemetry-jaeger", "reqwest"]
 http_contract_tests = [
 ]
 
@@ -74,6 +75,15 @@ url.workspace = true
 futures-util = { version = "0.3.28", features = ["sink", "std"], default-features = false}
 mock_app_gw = { path = "src/service/mock_app_gw", optional = true}
 sysinfo = {version = "0.30", optional = true }
+
+# Tracing dependencies (optional)
+tracing = { version = "0.1", optional = true }
+tracing-core = { version = "0.1", optional = true }
+tracing-subscriber = { version = "0.3", optional = true, features = ["env-filter", "fmt"] }
+tracing-opentelemetry = { version = "0.21", optional = true }
+opentelemetry = { version = "0.20", optional = true }
+opentelemetry-jaeger = { version = "0.19", optional = true, features = ["rt-tokio", "collector_client", "reqwest_collector_client"] }
+reqwest = { version = "0.11", optional = true, features = ["json"] }
 
 [dev-dependencies]
 ripple_sdk = { path = ".", features=["tdk"]}

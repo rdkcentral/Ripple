@@ -33,6 +33,7 @@ local_dev = []
 sysd = ["sd-notify"]
 pre_prod = []
 openrpc_validation = ["dep:openrpc_validator"]
+tracing = ["ripple_sdk/tracing"]
 http_contract_tests = [
 ]
 

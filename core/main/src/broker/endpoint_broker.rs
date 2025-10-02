@@ -402,6 +402,18 @@ impl From<RuleRetrievalError> for HandleBrokerageError {
         }
     }
 }
+impl From<HandleBrokerageError> for RippleError {
+    fn from(value: HandleBrokerageError) -> Self {
+        match value {
+            HandleBrokerageError::RuleNotFound(_) => RippleError::RuleError,
+            HandleBrokerageError::BrokerNotFound(b) => RippleError::BrokerError(b),
+            HandleBrokerageError::BrokerSendError => {
+                RippleError::BrokerError("Broker Send Error".into())
+            }
+            HandleBrokerageError::Broker => RippleError::BrokerError("Broker general error".into()),
+        }
+    }
+}
 #[derive(Debug, Clone)]
 pub enum RenderedRequest {
     JsonRpc(JsonRpcApiResponse),
@@ -839,7 +851,7 @@ impl EndpointBrokerState {
         permissions: Vec<FireboltPermission>,
         session: Option<Session>,
         telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
-    ) -> bool {
+    ) -> Result<RenderedRequest, RippleError> {
         LogSignal::new(
             "handle_brokerage".to_string(),
             "starting brokerage".to_string(),
@@ -858,7 +870,7 @@ impl EndpointBrokerState {
         );
 
         if resp.is_err() {
-            let err = resp.unwrap_err();
+            let err = resp.as_ref().unwrap_err();
             LogSignal::new(
                 "handle_brokerage".to_string(),
                 "Rule error".to_string(),
@@ -866,10 +878,8 @@ impl EndpointBrokerState {
             )
             .with_diagnostic_context_item("error", &format!("{:?}", err))
             .emit_error();
-            false
-        } else {
-            true
         }
+        resp.map_err(RippleError::from)
     }
 
     fn get_endpoint(
@@ -1140,48 +1150,99 @@ pub trait EndpointBroker {
 
     /// Generic method which takes the given parameters from RPC request and adds rules using rule engine
     fn apply_request_rule(rpc_request: &BrokerRequest) -> Result<Value, RippleError> {
-        if let Ok(mut params) = serde_json::from_str::<Vec<Value>>(&rpc_request.rpc.params_json) {
-            let last = params.pop().unwrap_or(Value::Null);
+        match serde_json::from_str::<Vec<Value>>(&rpc_request.rpc.params_json) {
+            Ok(mut params) => {
+                let last = params.pop().unwrap_or(Value::Null);
 
-            if let Some(filter) = rpc_request
-                .rule
-                .transform
-                .get_transform_data(super::rules::rules_engine::RuleTransformType::Request)
-            {
-                let transformed_request_res = jq_compile(
-                    last,
-                    &filter,
-                    format!("{}_request", rpc_request.rpc.ctx.method),
-                );
+                if let Some(filter) = rpc_request
+                    .rule
+                    .transform
+                    .get_transform_data(super::rules::rules_engine::RuleTransformType::Request)
+                {
+                    let transformed_request_res = jq_compile(
+                        last,
+                        &filter,
+                        format!("{}_request", rpc_request.rpc.ctx.method),
+                    );
 
+                    LogSignal::new(
+                        "endpoint_broker".to_string(),
+                        "apply_request_rule".to_string(),
+                        rpc_request.rpc.ctx.clone(),
+                    )
+                    .with_diagnostic_context_item("success", "true")
+                    .with_diagnostic_context_item(
+                        "result",
+                        &format!("{:?}", transformed_request_res),
+                    )
+                    .emit_debug();
+
+                    return transformed_request_res;
+                }
                 LogSignal::new(
                     "endpoint_broker".to_string(),
                     "apply_request_rule".to_string(),
                     rpc_request.rpc.ctx.clone(),
                 )
                 .with_diagnostic_context_item("success", "true")
-                .with_diagnostic_context_item("result", &format!("{:?}", transformed_request_res))
+                .with_diagnostic_context_item("result", &last.to_string())
                 .emit_debug();
-
-                return transformed_request_res;
+                return Ok(serde_json::to_value(&last).unwrap());
             }
-            LogSignal::new(
-                "endpoint_broker".to_string(),
-                "apply_request_rule".to_string(),
-                rpc_request.rpc.ctx.clone(),
-            )
-            .with_diagnostic_context_item("success", "true")
-            .with_diagnostic_context_item("result", &last.to_string())
-            .emit_debug();
-            return Ok(serde_json::to_value(&last).unwrap());
+            Err(e) => {
+                LogSignal::new(
+                    "endpoint_broker".to_string(),
+                    "apply_request_rule: serde_parse error".to_string(),
+                    rpc_request.rpc.ctx.clone(),
+                )
+                .with_diagnostic_context_item("params_json", &rpc_request.rpc.params_json)
+                .with_diagnostic_context_item("err", &e.to_string())
+                .emit_error();
+                return Err(RippleError::ParseError);
+            }
         }
-        LogSignal::new(
-            "endpoint_broker".to_string(),
-            "apply_request_rule: parse error".to_string(),
-            rpc_request.rpc.ctx.clone(),
-        )
-        .emit_error();
-        Err(RippleError::ParseError)
+        // if let Ok(mut params) = serde_json::from_str::<Vec<Value>>(&rpc_request.rpc.params_json) {
+        //     let last = params.pop().unwrap_or(Value::Null);
+
+        //     if let Some(filter) = rpc_request
+        //         .rule
+        //         .transform
+        //         .get_transform_data(super::rules::rules_engine::RuleTransformType::Request)
+        //     {
+        //         let transformed_request_res = jq_compile(
+        //             last,
+        //             &filter,
+        //             format!("{}_request", rpc_request.rpc.ctx.method),
+        //         );
+
+        //         LogSignal::new(
+        //             "endpoint_broker".to_string(),
+        //             "apply_request_rule".to_string(),
+        //             rpc_request.rpc.ctx.clone(),
+        //         )
+        //         .with_diagnostic_context_item("success", "true")
+        //         .with_diagnostic_context_item("result", &format!("{:?}", transformed_request_res))
+        //         .emit_debug();
+
+        //         return transformed_request_res;
+        //     }
+        //     LogSignal::new(
+        //         "endpoint_broker".to_string(),
+        //         "apply_request_rule".to_string(),
+        //         rpc_request.rpc.ctx.clone(),
+        //     )
+        //     .with_diagnostic_context_item("success", "true")
+        //     .with_diagnostic_context_item("result", &last.to_string())
+        //     .emit_debug();
+        //     return Ok(serde_json::to_value(&last).unwrap());
+        // }
+        // LogSignal::new(
+        //     "endpoint_broker".to_string(),
+        //     "apply_request_rule: serde_parse error".to_string(),
+        //     rpc_request.rpc.ctx.clone(),
+        // ).with_diagnostic_context_item("params_json", &rpc_request.rpc.params_json)
+        // .emit_error();
+        // Err(RippleError::ParseError)
     }
 
     /// Default handler method for the broker to remove the context and send it back to the
