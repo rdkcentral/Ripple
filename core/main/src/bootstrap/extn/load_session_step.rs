@@ -98,7 +98,6 @@ fn setup_ripple_context_event_handler(state: PlatformState) {
 }
 
 async fn handle_ripple_update_type(state: &PlatformState, ripple_context: &RippleContext) {
-    println!("^^^^^ handling ripple update");
     if let Some(ref update_type) = ripple_context.update_type {
         match update_type {
             RippleContextUpdateType::TokenChanged => {
