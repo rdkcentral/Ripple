@@ -22,7 +22,7 @@ pub enum EventSubscriber {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, Hash, PartialEq)]
 pub enum Event {
-RippleContextTokenChangedEvent,
+    RippleContextTokenChangedEvent,
     RippleContextActivationChangedEvent,
     RippleContextInternetStatusChangedEvent,
     RippleContextPowerStateChangedEvent,
