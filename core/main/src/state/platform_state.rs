@@ -35,6 +35,11 @@ use ripple_sdk::{
     },
     framework::ripple_contract::RippleContract,
     log::debug,
+    serde_json::Value,
+    tokio::{
+        sync::oneshot,
+        time::{timeout, Duration},
+    },
     utils::error::RippleError,
     uuid::Uuid,
 };
@@ -246,6 +251,47 @@ impl PlatformState {
             .get_extn_client()
             .main_internal_request(rpc_request.to_owned())
             .await
+    }
+
+    ///
+    /// Direct broker rule-based RPC request without extn_client
+    pub async fn broker_rule_request(
+        &self,
+        rpc_request: &RpcRequest,
+    ) -> Result<Value, RippleError> {
+        self.broker_rule_request_timeout(rpc_request, 20).await
+    }
+
+    ///
+    /// Direct broker rule-based RPC request without extn_client with custom timeout
+    pub async fn broker_rule_request_timeout(
+        &self,
+        rpc_request: &RpcRequest,
+        timeout_secs: u64,
+    ) -> Result<Value, RippleError> {
+        let (tx, rx) = oneshot::channel();
+
+        // Send request through endpoint broker with response channel
+        self.endpoint_state
+            .send_with_response_timeout(rpc_request.clone(), tx, timeout_secs)
+            .await?;
+
+        // Wait for response with a timeout to handle infrastructure issues
+        let timeout_duration = Duration::from_secs(timeout_secs);
+        match timeout(timeout_duration, rx).await {
+            Ok(Ok(response)) => {
+                // Received a legitimate response
+                Ok(response)
+            }
+            Ok(Err(_)) => {
+                // The oneshot channel was closed without sending a response
+                Err(RippleError::ProcessorError)
+            }
+            Err(_) => {
+                // Timeout occurred
+                Err(RippleError::TimeoutError)
+            }
+        }
     }
 }
 
