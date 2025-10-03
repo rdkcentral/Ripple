@@ -282,7 +282,73 @@ impl RpcRouter {
                     .get_sender(&service_id)
                     .await;
                 if let Some(sender) = service_sender {
-                    process_service_response(&service_id, &sender, &msg, &req);
+                    let json_rpc_response =
+                        serde_json::from_str::<serde_json::Value>(msg.jsonrpc_msg.clone().as_str())
+                            .unwrap();
+
+                    // Treat presence of 'result' key (even if null) as success
+                    if json_rpc_response.get("result").is_some() {
+                        let result = json_rpc_response.get("result").cloned().unwrap();
+                        let jsonrpc = serde_json::to_string(
+                            &json_rpc_response
+                                .get("jsonrpc")
+                                .cloned()
+                                .unwrap_or_default(),
+                        )
+                        .unwrap();
+                        let id = ServiceMessageId::String(msg.request_id.clone());
+
+                        let service_message = ServiceMessage {
+                            message: ServiceJsonRpcMessage::Success(ServiceJsonRpcSuccess {
+                                result,
+                                jsonrpc,
+                                id,
+                            }),
+                            context: Some(
+                                serde_json::to_value(req.ctx.clone()).unwrap_or_default(),
+                            ),
+                        };
+                        send_response(&service_id, &sender, &service_message);
+                    } else if let Some(error) = json_rpc_response.get("error") {
+                        if !error.is_null() {
+                            let jsonrpc = serde_json::to_string(
+                                &json_rpc_response
+                                    .get("jsonrpc")
+                                    .cloned()
+                                    .unwrap_or_default(),
+                            )
+                            .unwrap();
+                            let id = ServiceMessageId::String(msg.request_id.clone());
+                            let details = JsonRpcErrorDetails {
+                                code: -32600,
+                                message: "Ripple Main does not support this request from Service"
+                                    .to_string(),
+                                data: Some(error.clone()),
+                            };
+
+                            let service_message = ServiceMessage {
+                                message: ServiceJsonRpcMessage::Error(JsonRpcError {
+                                    error: details,
+                                    jsonrpc,
+                                    id,
+                                }),
+                                context: Some(
+                                    serde_json::to_value(req.ctx.clone()).unwrap_or_default(),
+                                ),
+                            };
+                            send_response(&service_id, &sender, &service_message);
+                        } else {
+                            error!(
+                                "Received unexpected response from service {:?}",
+                                json_rpc_response
+                            );
+                        }
+                    } else {
+                        error!(
+                            "Received unexpected response from service {:?}",
+                            json_rpc_response
+                        );
+                    }
                 } else {
                     error!(
                         "Failed to find service sender for service_id: {}",
@@ -303,75 +369,6 @@ impl RpcRouter {
     }
 }
 
-fn process_service_response(
-    service_id: &str,
-    sender: &Sender<Message>,
-    msg: &ApiMessage,
-    req: &RpcRequest,
-) {
-    let json_rpc_response =
-        serde_json::from_str::<serde_json::Value>(msg.jsonrpc_msg.clone().as_str()).unwrap();
-
-    // Treat presence of 'result' key (even if null) as success
-    if json_rpc_response.get("result").is_some() {
-        let result = json_rpc_response.get("result").cloned().unwrap();
-        let jsonrpc = serde_json::to_string(
-            &json_rpc_response
-                .get("jsonrpc")
-                .cloned()
-                .unwrap_or_default(),
-        )
-        .unwrap();
-        let id = ServiceMessageId::String(msg.request_id.clone());
-
-        let service_message = ServiceMessage {
-            message: ServiceJsonRpcMessage::Success(ServiceJsonRpcSuccess {
-                result,
-                jsonrpc,
-                id,
-            }),
-            context: Some(serde_json::to_value(req.ctx.clone()).unwrap_or_default()),
-        };
-        send_response(service_id, sender, &service_message);
-    } else if let Some(error) = json_rpc_response.get("error") {
-        if !error.is_null() {
-            let jsonrpc = serde_json::to_string(
-                &json_rpc_response
-                    .get("jsonrpc")
-                    .cloned()
-                    .unwrap_or_default(),
-            )
-            .unwrap();
-            let id = ServiceMessageId::String(msg.request_id.clone());
-            let details = JsonRpcErrorDetails {
-                code: -32600,
-                message: "Ripple Main does not support this request from Service".to_string(),
-                data: Some(error.clone()),
-            };
-
-            let service_message = ServiceMessage {
-                message: ServiceJsonRpcMessage::Error(JsonRpcError {
-                    error: details,
-                    jsonrpc,
-                    id,
-                }),
-                context: Some(serde_json::to_value(req.ctx.clone()).unwrap_or_default()),
-            };
-            send_response(service_id, sender, &service_message);
-        } else {
-            error!(
-                "Received unexpected response from service {:?}",
-                json_rpc_response
-            );
-        }
-    } else {
-        error!(
-            "Received unexpected response from service {:?}",
-            json_rpc_response
-        );
-    }
-}
-
 fn send_response(service_id: &str, sender: &Sender<Message>, service_message: &ServiceMessage) {
     let msg_str = serde_json::to_string(&service_message).unwrap();
     let message = Message::Text(msg_str.clone());
@@ -383,77 +380,5 @@ fn send_response(service_id: &str, sender: &Sender<Message>, service_message: &S
         );
     } else {
         debug!("Successfully sent request to service: {}", service_id);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::firebolt::rpc_router::ApiMessage;
-    use ripple_sdk::api::gateway::rpc_gateway_api::ApiProtocol;
-    use ripple_sdk::api::gateway::rpc_gateway_api::CallContext;
-    use ripple_sdk::Mockable;
-    use std::time::Duration;
-
-    #[tokio::test]
-    async fn test_process_service_response() {
-        //create test cases to test process_service_response function
-
-        let (tx, mut rx) = tokio::sync::mpsc::channel(10);
-        let service_id = "test_service";
-        let req = RpcRequest {
-            method: "test_method".to_string(),
-            params_json: r#"{"param1": "value1"}"#.to_string(),
-            ctx: CallContext::mock(),
-        };
-        // Test case 1: Valid success response
-        let success_msg = ApiMessage {
-            protocol: ApiProtocol::Service,
-            jsonrpc_msg: r#"{"jsonrpc":"2.0","result":{"key":"value"},"id":"req_123"}"#.to_string(),
-            request_id: "req_123".to_string(),
-            stats: None,
-        };
-        process_service_response(service_id, &tx, &success_msg, &req);
-        if let Some(response) = rx.recv().await {
-            println!("Received response: {:?}", response);
-            assert!(matches!(response, Message::Text(_)));
-        }
-
-        //Test case 2: Valid error response
-        let error_msg = ApiMessage {
-        protocol: ApiProtocol::Service,
-        jsonrpc_msg: r#"{"jsonrpc":"2.0","error":{"code":-32601,"message":"Method not found"},"id":"req_123"}"#.to_string(),
-        request_id: "req_123".to_string(),
-        stats: None,
-    };
-        process_service_response(service_id, &tx, &error_msg, &req);
-        if let Some(response) = rx.recv().await {
-            println!("Received response: {:?}", response);
-            assert!(matches!(response, Message::Text(_)));
-        }
-
-        // Test case 3: Valid success response with null result
-        let null_result_msg = ApiMessage {
-            protocol: ApiProtocol::Service,
-            jsonrpc_msg: r#"{"jsonrpc":"2.0","result":null,"id":"req_123"}"#.to_string(),
-            request_id: "req_123".to_string(),
-            stats: None,
-        };
-        process_service_response(service_id, &tx, &null_result_msg, &req);
-        if let Some(response) = rx.recv().await {
-            println!("Received response: {:?}", response);
-            assert!(matches!(response, Message::Text(_)));
-        }
-
-        //Test case 4: Invalid response
-        let invalid_msg = ApiMessage {
-            protocol: ApiProtocol::Service,
-            jsonrpc_msg: r#"{"invalid":"response"}"#.to_string(),
-            request_id: "req_123".to_string(),
-            stats: None,
-        };
-        process_service_response(service_id, &tx, &invalid_msg, &req);
-        // timeout to wait for response
-        let _ = tokio::time::timeout(Duration::from_secs(3), rx.recv()).await;
     }
 }
