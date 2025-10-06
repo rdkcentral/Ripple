@@ -1046,6 +1046,18 @@ impl ExtnClient {
         let ripple_context = self.ripple_context.read().unwrap();
         ripple_context.features.clone()
     }
+
+    pub fn mock_new_main_with_sender(sender: tokio::sync::mpsc::Sender<ApiMessage>) -> ExtnClient {
+        Self {
+            sender: ExtnSender::mock_new_main_with_sender(sender),
+            extn_sender_map: Arc::new(RwLock::new(HashMap::new())),
+            contract_map: Arc::new(RwLock::new(HashMap::new())),
+            response_processors: Arc::new(RwLock::new(HashMap::new())),
+            request_processors: Arc::new(RwLock::new(HashMap::new())),
+            event_processors: Arc::new(RwLock::new(HashMap::new())),
+            ripple_context: Arc::new(RwLock::new(RippleContext::default())),
+        }
+    }
 }
 
 #[cfg(test)]
