@@ -557,6 +557,7 @@ impl ServiceClient {
             false,
         )
     }
+
     pub fn request_transient(
         &self,
         method: String,
@@ -564,7 +565,55 @@ impl ServiceClient {
         ctx: Option<&CallContext>,
         service_id: String,
     ) -> Result<String, RippleError> {
-        // if ctx is None, create a default CallContext using get_default_service_call_context
+        let default_ctx;
+        let ctx = match ctx {
+            Some(c) => c,
+            None => {
+                default_ctx = self.get_default_service_call_context(method.clone());
+                &default_ctx
+            }
+        };
+
+        let id = Uuid::new_v4().to_string();
+        let mut service_request =
+            ServiceMessage::new_request(method.to_owned(), params, Id::String(id.clone()));
+        self.send_transient(service_request, ctx, id.clone(), service_id)
+    }
+
+    fn send_transient(
+        &self,
+        mut service_request: ServiceMessage,
+        ctx: &CallContext,
+        id: String,
+        service_id: String,
+    ) -> Result<String, RippleError> {
+        let mut context = ctx.clone();
+        context.protocol = ApiProtocol::Service;
+        let vec = vec![id.clone(), service_id];
+        context.context = vec;
+        let service_message_context = serde_json::to_value(context).unwrap();
+        service_request.set_context(Some(service_message_context));
+        if let Some(sender) = &self.service_sender {
+            match sender.try_send(service_request) {
+                Ok(_) => Ok(id),
+                Err(e) => {
+                    error!("Error sending service request: {:?}", e);
+                    Err(RippleError::ServiceError)
+                }
+            }
+        } else {
+            error!("Service sender is not available");
+            Err(RippleError::ServiceError)
+        }
+    }
+
+    pub fn send_notification(
+        &self,
+        method: String,
+        params: Option<Value>,
+        ctx: Option<&CallContext>,
+        service_id: String,
+    ) -> Result<String, RippleError> {
         let default_ctx;
         let ctx = match ctx {
             Some(c) => c,
@@ -576,24 +625,7 @@ impl ServiceClient {
 
         let id = Uuid::new_v4().to_string();
         let mut service_message = ServiceMessage::new_notification(method.to_owned(), params);
-        let mut context = ctx.clone();
-        context.protocol = ApiProtocol::Service;
-        let vec = vec![id.clone(), service_id];
-        context.context = vec;
-        let service_message_context = serde_json::to_value(context).unwrap();
-        service_message.set_context(Some(service_message_context));
-        if let Some(sender) = &self.service_sender {
-            match sender.try_send(service_message) {
-                Ok(_) => Ok(id),
-                Err(e) => {
-                    error!("Error sending service request: {:?}", e);
-                    Err(RippleError::ServiceError)
-                }
-            }
-        } else {
-            error!("Service sender is not available");
-            Err(RippleError::ServiceError)
-        }
+        self.send_transient(service_message, ctx, id.clone(), service_id)
     }
 }
 
