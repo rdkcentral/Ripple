@@ -575,7 +575,7 @@ impl ServiceClient {
         };
 
         let id = Uuid::new_v4().to_string();
-        let mut service_request =
+        let service_request =
             ServiceMessage::new_request(method.to_owned(), params, Id::String(id.clone()));
         self.send_transient(service_request, ctx, id.clone(), service_id)
     }
@@ -624,7 +624,7 @@ impl ServiceClient {
         };
 
         let id = Uuid::new_v4().to_string();
-        let mut service_message = ServiceMessage::new_notification(method.to_owned(), params);
+        let service_message = ServiceMessage::new_notification(method.to_owned(), params);
         self.send_transient(service_message, ctx, id.clone(), service_id)
     }
 }

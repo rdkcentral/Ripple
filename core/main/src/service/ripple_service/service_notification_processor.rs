@@ -281,26 +281,34 @@ impl ServiceNotificationProcessor {
         _context: Option<Value>,
     ) {
         let propagate = {
-            let mut ripple_context = platform_state
+            if let Ok(mut ripple_context) = platform_state
                 .service_controller_state
                 .service_event_state
                 .ripple_context
                 .write()
-                .unwrap();
-            debug!(
-                "Received context update request: {:?} current ripple_context: {:?} event: {}",
-                request, ripple_context, event
-            );
-            ripple_context.update(request.clone())
+            {
+                debug!(
+                    "Received context update request: {:?} current ripple_context: {:?} event: {}",
+                    request, ripple_context, event
+                );
+                ripple_context.update(request.clone())
+            } else {
+                error!("Failed to acquire write lock for ripple_context");
+                false
+            }
         };
         let new_ripple_context = {
-            platform_state
+            if let Ok(r) = platform_state
                 .service_controller_state
                 .service_event_state
                 .ripple_context
                 .read()
-                .unwrap()
-                .clone()
+            {
+                r.clone()
+            } else {
+                error!("Failed to acquire read lock for ripple_context");
+                return;
+            }
         };
         if propagate {
             let event_str = event.to_string();
