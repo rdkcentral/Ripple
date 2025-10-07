@@ -657,8 +657,8 @@ impl ExtnPayloadProvider for StorageManagerRequest {
 pub enum StorageAdjective {
     PrivacyCloud,
     PrivacyLocal,
-    UsergrantCloud,
-    UsergrantLocal,
+    //UsergrantCloud,
+    //UsergrantLocal,
     Local,
     Manager,
     Secure,

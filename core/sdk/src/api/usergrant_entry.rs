@@ -18,23 +18,10 @@
 use std::time::Duration;
 
 use crate::api::firebolt::fb_capabilities::CapabilityRole;
-use crate::{
-    extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
-    framework::ripple_contract::RippleContract,
-};
+
 use serde::{Deserialize, Serialize};
 
-use super::device::device_user_grants_data::{GrantLifespan, GrantStatus, PolicyPersistenceType};
-use super::firebolt::fb_capabilities::FireboltPermission;
-use super::storage_property::StorageAdjective;
-
-#[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
-pub enum UserGrantsStoreRequest {
-    GetUserGrants(String, FireboltPermission),
-    SetUserGrants(UserGrantInfo),
-    SyncGrantMapPerPolicy(),
-    ClearUserGrants(PolicyPersistenceType),
-}
+use super::device::device_user_grants_data::{GrantLifespan, GrantStatus};
 
 #[derive(Clone, Debug, Deserialize)]
 pub enum UserGrantsPersistenceType {
@@ -48,24 +35,6 @@ impl UserGrantsPersistenceType {
             UserGrantsPersistenceType::Account => "account",
             UserGrantsPersistenceType::Cloud => "cloud",
         }
-    }
-}
-
-impl ExtnPayloadProvider for UserGrantsStoreRequest {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::UserGrantsStore(self.clone()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        if let ExtnPayload::Request(ExtnRequest::UserGrantsStore(r)) = payload {
-            return Some(r);
-        }
-
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::Storage(StorageAdjective::UsergrantLocal)
     }
 }
 
@@ -97,24 +66,8 @@ impl Default for UserGrantInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::firebolt::fb_capabilities::{CapabilityRole, FireboltCap};
-    use crate::utils::test_utils::test_extn_payload_provider;
+    use crate::api::firebolt::fb_capabilities::CapabilityRole;
 
-    #[test]
-    fn test_extn_request_user_grants_store() {
-        let user_id = "test_user_id".to_string();
-        let firebolt_permission = FireboltPermission {
-            cap: FireboltCap::Short("test_short_cap".to_string()),
-            role: CapabilityRole::Use,
-        };
-
-        let user_grants_request =
-            UserGrantsStoreRequest::GetUserGrants(user_id, firebolt_permission);
-        let contract_type: RippleContract =
-            RippleContract::Storage(StorageAdjective::UsergrantLocal);
-
-        test_extn_payload_provider(user_grants_request, contract_type);
-    }
     #[test]
     fn test_user_grants_persistence_type_as_string() {
         assert_eq!(UserGrantsPersistenceType::Account.as_string(), "account");
@@ -131,43 +84,5 @@ mod tests {
         assert_eq!(default_info.expiry_time, None);
         assert_eq!(default_info.app_name, None);
         assert_eq!(default_info.lifespan, GrantLifespan::Once);
-    }
-
-    #[test]
-    fn test_set_user_grants_request() {
-        let user_grant_info = UserGrantInfo {
-            role: CapabilityRole::Manage,
-            capability: "test_capability".to_string(),
-            status: Some(GrantStatus::Allowed),
-            last_modified_time: Duration::new(1000, 0),
-            expiry_time: Some(Duration::new(2000, 0)),
-            app_name: Some("test_app".to_string()),
-            lifespan: GrantLifespan::Forever,
-        };
-
-        let user_grants_request = UserGrantsStoreRequest::SetUserGrants(user_grant_info.clone());
-        let contract_type: RippleContract =
-            RippleContract::Storage(StorageAdjective::UsergrantLocal);
-
-        test_extn_payload_provider(user_grants_request, contract_type);
-    }
-
-    #[test]
-    fn test_sync_grant_map_per_policy_request() {
-        let user_grants_request = UserGrantsStoreRequest::SyncGrantMapPerPolicy();
-        let contract_type: RippleContract =
-            RippleContract::Storage(StorageAdjective::UsergrantLocal);
-
-        test_extn_payload_provider(user_grants_request, contract_type);
-    }
-
-    #[test]
-    fn test_clear_user_grants_request() {
-        let persistence_type = PolicyPersistenceType::Account;
-        let user_grants_request = UserGrantsStoreRequest::ClearUserGrants(persistence_type);
-        let contract_type: RippleContract =
-            RippleContract::Storage(StorageAdjective::UsergrantLocal);
-
-        test_extn_payload_provider(user_grants_request, contract_type);
     }
 }
