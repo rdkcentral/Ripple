@@ -30,8 +30,7 @@ pub struct ContentProvider {
     pub apis: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(test, derive(PartialEq))]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum OfferingType {
     FREE,
@@ -51,8 +50,7 @@ impl Default for FederationOptions {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Default, Clone)]
-#[cfg_attr(test, derive(PartialEq))]
+#[derive(Debug, Serialize, Deserialize, Default, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentIdentifiers {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -67,8 +65,7 @@ pub struct ContentIdentifiers {
     pub app_content_data: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[cfg_attr(test, derive(PartialEq))]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ContentRating {
     pub scheme: SchemeValue,
     #[serde(deserialize_with = "rating_format_extender")]
@@ -101,8 +98,7 @@ where
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Default, Clone)]
-#[cfg_attr(test, derive(PartialEq))]
+#[derive(Debug, Serialize, Deserialize, Default, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct WaysToWatch {
     pub identifiers: ContentIdentifiers,
@@ -156,8 +152,7 @@ pub struct WaysToWatch {
     pub audio_descriptions: Option<Vec<String>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[cfg_attr(test, derive(PartialEq))]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct EntityInfo {
     pub identifiers: ContentIdentifiers,
@@ -181,8 +176,7 @@ pub struct EntityInfo {
     pub ways_to_watch: Option<Vec<WaysToWatch>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[cfg_attr(test, derive(PartialEq))]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum EntityType {
     Program,
@@ -235,8 +229,7 @@ pub enum MusicType {
     Album,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(test, derive(PartialEq))]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum VideoQuality {
     Sd,
@@ -244,8 +237,7 @@ pub enum VideoQuality {
     Uhd,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(test, derive(PartialEq))]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum SchemeValue {
     #[serde(rename = "CA-Movie")]
     CaMovie,
@@ -260,8 +252,7 @@ pub enum SchemeValue {
     #[serde(rename = "US-TV")]
     UsTv,
 }
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(test, derive(PartialEq))]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum RatingValue {
     NR,
     G,
@@ -289,8 +280,7 @@ pub enum RatingValue {
     #[serde(rename = "18+")]
     Plus18,
 }
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[cfg_attr(test, derive(PartialEq))]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum AdvisoriesValue {
     AT,
     BN,
@@ -1027,6 +1017,8 @@ pub struct SearchIntent {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SearchIntentData {
     pub query: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggestions: Option<Vec<EntityInfo>>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
