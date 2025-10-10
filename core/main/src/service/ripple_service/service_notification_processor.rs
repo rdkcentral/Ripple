@@ -331,20 +331,21 @@ impl ServiceNotificationProcessor {
                 let event_str = event_str.clone();
                 match processor {
                     EventSubscriber::MainSubscriber(s) => {
-                        let new_ripple_context =
-                            serde_json::to_string(&new_ripple_context).unwrap();
-
-                        tokio::spawn(async move {
-                            let service_message = ServiceMessage {
-                                message: JsonRpcMessage::Notification(JsonRpcNotification {
-                                    jsonrpc: "2.0".to_string(),
-                                    method: format!("ripple.{}", event_str),
-                                    params: Some(new_ripple_context.into()),
-                                }),
-                                context: None,
-                            };
-                            let _ = s.send(service_message).await;
-                        });
+                        if let Ok(new_ripple_context) = serde_json::to_string(&new_ripple_context) {
+                            tokio::spawn(async move {
+                                let service_message = ServiceMessage {
+                                    message: JsonRpcMessage::Notification(JsonRpcNotification {
+                                        jsonrpc: "2.0".to_string(),
+                                        method: format!("ripple.{}", event_str),
+                                        params: Some(new_ripple_context.into()),
+                                    }),
+                                    context: None,
+                                };
+                                let _ = s.send(service_message).await;
+                            });
+                        } else {
+                            error!("Failed to serialize new_ripple_context for MainSubscriber");
+                        }
                     }
                     EventSubscriber::ServiceSubscriber(s) => {
                         let collect = s.split('&').collect::<Vec<&str>>();
@@ -352,41 +353,61 @@ impl ServiceNotificationProcessor {
                             .iter()
                             .map(|s| s.to_string())
                             .collect::<Vec<String>>();
-                        let sender_id = processor_arr.first().unwrap().to_string();
-                        let service_id = processor_arr.get(1).unwrap().to_string();
-                        let service_controller_state =
-                            platform_state.service_controller_state.clone();
+                        if let (Some(sender_id), Some(service_id)) =
+                            (processor_arr.first(), processor_arr.get(1))
+                        {
+                            let sender_id = sender_id.to_string();
+                            let service_id = service_id.to_string();
+                            let service_controller_state =
+                                platform_state.service_controller_state.clone();
 
-                        let new_ripple_context =
-                            serde_json::to_string(&new_ripple_context).unwrap();
-                        let event_str = event_str.clone();
-
-                        tokio::spawn(async move {
-                            if let Some(sender) =
-                                service_controller_state.get_sender(&service_id).await
+                            if let Ok(new_ripple_context) =
+                                serde_json::to_string(&new_ripple_context)
                             {
-                                let params = json!({"ripple_context": new_ripple_context, "sender_id": sender_id});
-                                let service_message = ServiceMessage {
-                                    message: JsonRpcMessage::Notification(JsonRpcNotification {
-                                        jsonrpc: "2.0".to_string(),
-                                        method: format!("ripple.{}", event_str),
-                                        params: Some(params),
-                                    }),
-                                    context: None,
-                                };
-                                let msg_str = serde_json::to_string(&service_message).unwrap();
-                                let mes = Message::Text(msg_str.clone());
-                                debug!(
-                                    "Sending context update to service: {} message: {}",
-                                    s, msg_str
-                                );
-                                if let Err(e) = sender.try_send(mes) {
-                                    error!("Failed to send service notification: {:?}", e);
-                                }
+                                let event_str = event_str.clone();
+                                tokio::spawn(async move {
+                                    if let Some(sender) =
+                                        service_controller_state.get_sender(&service_id).await
+                                    {
+                                        let params = json!({"ripple_context": new_ripple_context, "sender_id": sender_id});
+                                        let service_message = ServiceMessage {
+                                            message: JsonRpcMessage::Notification(
+                                                JsonRpcNotification {
+                                                    jsonrpc: "2.0".to_string(),
+                                                    method: format!("ripple.{}", event_str),
+                                                    params: Some(params),
+                                                },
+                                            ),
+                                            context: None,
+                                        };
+                                        if let Ok(msg_str) = serde_json::to_string(&service_message)
+                                        {
+                                            let mes = Message::Text(msg_str.clone());
+                                            debug!(
+                                                "Sending context update to service: {} message: {}",
+                                                s, msg_str
+                                            );
+                                            if let Err(e) = sender.try_send(mes) {
+                                                error!(
+                                                    "Failed to send service notification: {:?}",
+                                                    e
+                                                );
+                                            }
+                                        } else {
+                                            error!("Failed to serialize service_message for ServiceSubscriber");
+                                        }
+                                    } else {
+                                        error!("No sender found for service_id: {}", service_id);
+                                    }
+                                });
                             } else {
-                                error!("No sender found for service_id: {}", service_id);
+                                error!(
+                                    "Failed to serialize new_ripple_context for ServiceSubscriber"
+                                );
                             }
-                        });
+                        } else {
+                            error!("Invalid processor_arr: missing sender_id or service_id");
+                        }
                     }
                 }
             }
