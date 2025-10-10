@@ -212,14 +212,14 @@ pub struct WsConfiguration {
 pub fn ws_configuration_default() -> WsConfiguration {
     WsConfiguration {
         enabled: true,
-        gateway: "127.0.0.1:3473".into(),
+        gateway: std::env::var("RIPPLE_WEBSOCKET_URI").unwrap_or("127.0.0.1:3473".into()),
     }
 }
 
 pub fn ws_configuration_internal_default() -> WsConfiguration {
     WsConfiguration {
         enabled: true,
-        gateway: "127.0.0.1:3474".into(),
+        gateway: std::env::var("RIPPLE_WEBSOCKET_URI_INTERNAL").unwrap_or("127.0.0.1:3474".into()),
     }
 }
 

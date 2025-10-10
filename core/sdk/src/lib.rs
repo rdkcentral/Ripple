@@ -21,6 +21,7 @@ pub mod framework;
 pub mod manifest;
 pub mod processor;
 pub mod service;
+pub mod types;
 pub mod utils;
 
 // Externalize the reusable crates to avoid version
@@ -45,3 +46,25 @@ pub trait Mockable {
 
 pub type JsonRpcErrorType = jsonrpsee::core::error::Error;
 pub type JsonRpcErrorCode = jsonrpsee::types::error::ErrorCode;
+
+// Re-export type-safe identifiers for use throughout the codebase
+// Note: Conditional compilation to handle serde dependency
+#[cfg(feature = "rpc")]
+pub use types::{
+    AppId, AppInstanceId, ConnectionId, DeviceSessionId, IdentifierError, RequestId, SessionId,
+};
+
+// Type aliases for gradual migration (Phase 1)
+// These can be gradually replaced with the actual newtypes
+#[cfg(not(feature = "rpc"))]
+pub type SessionId = String;
+#[cfg(not(feature = "rpc"))]
+pub type ConnectionId = String;
+#[cfg(not(feature = "rpc"))]
+pub type AppId = String;
+#[cfg(not(feature = "rpc"))]
+pub type AppInstanceId = String;
+#[cfg(not(feature = "rpc"))]
+pub type RequestId = String;
+#[cfg(not(feature = "rpc"))]
+pub type DeviceSessionId = String;

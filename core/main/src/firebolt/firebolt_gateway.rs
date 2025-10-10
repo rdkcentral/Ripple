@@ -139,8 +139,9 @@ impl FireboltGateway {
                         .session_state
                         .add_session(session_id, session);
                 }
-                UnregisterSession { session_id, cid } => {
-                    AppEvents::remove_session(&self.state.platform_state, session_id.clone());
+                UnregisterSession { session_id: _, cid } => {
+                    // Use cid for all cleanup operations since that's what we used as the HashMap key during registration
+                    AppEvents::remove_session(&self.state.platform_state, cid.clone());
                     ProviderBroker::unregister_session(&self.state.platform_state, cid.clone())
                         .await;
                     self.state
