@@ -33,6 +33,9 @@ impl BrokerUtils {
     ) -> RpcResult<Value> {
         let mut rpc_request = RpcRequest::internal(method, None).with_params(params);
         rpc_request.ctx.app_id = app_id.to_owned();
+        state
+            .metrics
+            .add_api_stats(&rpc_request.ctx.request_id, method);
         Self::internal_request(state, rpc_request).await
     }
 
@@ -59,14 +62,8 @@ impl BrokerUtils {
 
     async fn internal_request(state: &PlatformState, rpc_request: RpcRequest) -> RpcResult<Value> {
         let method = rpc_request.method.clone();
-        match state.internal_rpc_request(&rpc_request).await {
-            Ok(res) => match res.as_value() {
-                Some(v) => Ok(v),
-                None => Err(JsonRpcApiError::default()
-                    .with_code(-32100)
-                    .with_message(format!("failed to get {} : {:?}", method, res))
-                    .into()),
-            },
+        match state.broker_rule_request(&rpc_request).await {
+            Ok(res) => Ok(res),
             Err(e) => Err(JsonRpcApiError::default()
                 .with_code(-32100)
                 .with_message(format!("failed to get {} : {}", method, e))
