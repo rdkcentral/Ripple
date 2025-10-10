@@ -315,7 +315,7 @@ impl ServiceNotificationProcessor {
             let processors = match platform_state
                 .service_controller_state
                 .service_event_state
-                .get_event_processors(&event)
+                .get_event_processors(event)
             {
                 Ok(p) if !p.is_empty() => {
                     debug!(
