@@ -1101,7 +1101,7 @@ impl EndpointBrokerState {
 
         for cleaner in cleaners {
             /*
-            for now, just eat the error - the return type was mainly added to prepate for future refactoring/testability
+            for now, just eat the error - the return type was mainly added to prepare for future refactoring/testability
             */
             let _ = cleaner.cleanup_session(app_id).await;
         }

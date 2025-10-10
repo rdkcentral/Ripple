@@ -19,7 +19,7 @@ use std::time::Duration;
 
 use futures::stream::{SplitSink, SplitStream};
 use futures_util::StreamExt;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{client_async, tungstenite::Message, WebSocketStream};
 
@@ -173,6 +173,10 @@ impl WebSocketUtils {
                 if !e.to_string().to_lowercase().contains("connection refused") {
                     error!("Failed to connect to TCP port {}: {}", tcp_port, e);
                 }
+                debug!(
+                    "Failed to connect to TCP port {}:{} , error={}",
+                    url_path, tcp_port, e
+                );
             }
         }
         Err(RippleError::NotAvailable)
@@ -230,7 +234,7 @@ impl WebSocketUtils {
                 "new Websocket TCP Connection with {} failed with retry for last {} millisecs in {}",
                 url_path,
                 delay_duration.as_millis(),
-                tcp_port
+                tcp_port,
             );
             if delay_duration < tokio::time::Duration::from_secs(3) {
                 delay_duration *= 2;
