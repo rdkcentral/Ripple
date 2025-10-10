@@ -38,6 +38,7 @@ use ripple_sdk::{
     },
     async_trait::async_trait,
     log::{debug, error},
+    service::service_event_state::Event,
     tokio::sync::oneshot,
     utils::{error::RippleError, rpc_utils::rpc_err},
 };
@@ -100,6 +101,9 @@ pub trait Internal {
 
     #[method(name = "account.policyIdentifierAlias")]
     async fn get_policy_identifier_alias(&self, ctx: CallContext) -> RpcResult<Vec<AgePolicy>>;
+
+    #[method(name = "ripple.onContextTokenChangedEvent")]
+    async fn subscribe_context_token_changed_event(&self, ctx: CallContext) -> RpcResult<()>;
 
     #[method(name = "ripple.sendAppEventRequest")]
     async fn send_app_event_request(
@@ -253,6 +257,26 @@ impl InternalServer for InternalImpl {
             ctx.app_id
         );
         Ok(String::new())
+    }
+
+    async fn subscribe_context_token_changed_event(&self, ctx: CallContext) -> RpcResult<()> {
+        let context = ctx.context;
+        if let Ok(service_message_context) = serde_json::to_value(context) {
+            match self
+                .state
+                .service_controller_state
+                .service_event_state
+                .subscribe_context_event(
+                    Event::RippleContextTokenChangedEvent.to_string().as_str(),
+                    Some(service_message_context),
+                ) {
+                Ok(()) => return Ok(()),
+                Err(e) => error!("Failed to subscribe to context token changed event: {}", e),
+            }
+        }
+        Err(jsonrpsee::core::error::Error::Custom(
+            "Failed to subscribe to context token changed event".to_owned(),
+        ))
     }
 
     async fn send_app_event_request(
