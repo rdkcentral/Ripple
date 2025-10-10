@@ -311,24 +311,28 @@ impl ServiceNotificationProcessor {
             }
         };
         if propagate {
-            let event_str = event.to_string();
-            let processors = platform_state
+            //let event_str = event.to_string();
+            let processors = match platform_state
                 .service_controller_state
                 .service_event_state
-                .get_event_processors(Some(event_str.clone()));
-            if processors.is_empty() {
-                warn!("No subscribers found for event: {}", event_str);
-                return;
-            } else {
-                debug!(
-                    "Found {} subscribers for event: {}",
-                    processors.len(),
-                    event_str
-                );
-            }
+                .get_event_processors(&event)
+            {
+                Ok(p) if !p.is_empty() => {
+                    debug!(
+                        "Found {} subscribers for event: {}",
+                        p.len(),
+                        event.to_string()
+                    );
+                    p
+                }
+                _ => {
+                    warn!("No subscribers found for event: {}", event.to_string());
+                    return;
+                }
+            };
             for processor in processors {
                 let processor = processor.clone();
-                let event_str = event_str.clone();
+                let event_str = event.to_string();
                 match processor {
                     EventSubscriber::MainSubscriber(s) => {
                         if let Ok(new_ripple_context) = serde_json::to_string(&new_ripple_context) {

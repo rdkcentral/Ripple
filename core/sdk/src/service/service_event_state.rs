@@ -20,6 +20,13 @@ pub enum EventSubscriber {
     MainSubscriber(Sender<ServiceMessage>),
 }
 
+#[derive(Debug)]
+pub enum ServiceEventError {
+    LockError,
+    InvalidContext(String),
+    EventNotFound(String),
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, Hash, PartialEq)]
 pub enum Event {
     RippleContextTokenChangedEvent,
@@ -70,17 +77,28 @@ impl ServiceEventState {
         *ripple_context = context;
     }
 
-    pub fn get_event_processors(&self, event: Option<String>) -> Vec<EventSubscriber> {
-        let event_subscribers = Arc::clone(&self.event_subscribers);
-        let read_lock = event_subscribers.read().unwrap();
-        let s = read_lock.get(&event.clone().unwrap_or_default()).cloned();
-        if let Some(ref subscribers) = s {
-            debug!("Found event subscribers: {:?}", subscribers);
-            subscribers.clone()
-        } else {
-            debug!("No event subscriber found for event {:?}", event);
-            Vec::new()
-        }
+    // pub fn get_event_processors(&self, event: Option<String>) -> Vec<EventSubscriber> {
+    //     let event_subscribers = Arc::clone(&self.event_subscribers);
+    //     let read_lock = event_subscribers.read().unwrap();
+    //     let s = read_lock.get(&event.clone().unwrap_or_default()).cloned();
+    //     if let Some(ref subscribers) = s {
+    //         debug!("Found event subscribers: {:?}", subscribers);
+    //         subscribers.clone()
+    //     } else {
+    //         debug!("No event subscriber found for event {:?}", event);
+    //         Vec::new()
+    //     }
+    // }
+
+    pub fn get_event_processors(
+        &self,
+        event: &str,
+    ) -> Result<Vec<EventSubscriber>, ServiceEventError> {
+        let read_lock = self
+            .event_subscribers
+            .read()
+            .map_err(|_| ServiceEventError::LockError)?;
+        Ok(read_lock.get(event).cloned().unwrap_or_default())
     }
 
     pub fn add_event_processor(&self, event: String, processor: String) {
