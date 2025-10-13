@@ -463,7 +463,7 @@ impl FireboltWs {
         }
         debug!("SESSION DEBUG Unregistering {}", connection_id);
         let msg = FireboltGatewayCommand::UnregisterSession {
-            session_id: SessionId::new_unchecked(identity.session_id.clone()),
+            session_id: SessionId::new_unchecked(connection_id.clone()),
             cid: ConnectionId::new_unchecked(connection_id),
         };
         if let Err(e) = client.send_gateway_command(msg) {
@@ -517,7 +517,7 @@ async fn return_invalid_service_error_message(
 ) {
     if let Some(session) = state
         .session_state
-        .get_session_for_connection_id(connection_id)
+        .get_session_for_connection_id_legacy(connection_id)
     {
         let id = if let RippleError::BrokerError(id) = e.clone() {
             id
@@ -543,7 +543,7 @@ async fn return_invalid_format_error_message(
 ) {
     if let Some(session) = state
         .session_state
-        .get_session_for_connection_id(connection_id)
+        .get_session_for_connection_id_legacy(connection_id)
     {
         let err = ErrorResponse::owned(
             ErrorObject::owned::<()>(INVALID_REQUEST_CODE, "invalid request".to_owned(), None),

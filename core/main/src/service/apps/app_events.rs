@@ -430,7 +430,7 @@ impl AppEvents {
     }
 
     pub fn remove_session(state: &PlatformState, session_id: String) {
-        state.session_state.clear_session(&session_id);
+        state.session_state.clear_session_legacy(&session_id);
         let mut listeners = state.app_events_state.listeners.write().unwrap();
         let all_events = listeners.keys().cloned().collect::<Vec<String>>();
         for event_name in all_events {
@@ -461,7 +461,7 @@ pub mod tests {
         let session = Session::new(call_context.clone().app_id, None);
         platform_state
             .session_state
-            .add_session(call_context.clone().session_id, session);
+            .add_session_legacy(call_context.clone().session_id, session);
 
         AppEvents::add_listener(
             &platform_state,

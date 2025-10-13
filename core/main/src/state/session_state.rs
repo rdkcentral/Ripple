@@ -27,6 +27,7 @@ use ripple_sdk::{
         session::{AccountSession, ProvisionRequest},
     },
     tokio::sync::mpsc::Sender,
+    types::{ConnectionId, SessionId}, // Import our newtypes for type-safe session identifiers
     utils::error::RippleError,
 };
 
@@ -80,7 +81,7 @@ impl Session {
 
 #[derive(Debug, Clone, Default)]
 pub struct SessionState {
-    session_map: Arc<RwLock<HashMap<String, Session>>>,
+    session_map: Arc<RwLock<HashMap<ConnectionId, Session>>>,
     account_session: Arc<RwLock<Option<AccountSession>>>,
     pending_sessions: Arc<RwLock<HashMap<String, Option<PendingSessionInfo>>>>,
 }
@@ -117,26 +118,52 @@ impl SessionState {
         None
     }
 
-    pub fn get_app_id(&self, session_id: String) -> Option<String> {
+    pub fn get_app_id(&self, session_id: &SessionId) -> Option<String> {
         let session_map = self.session_map.read().unwrap();
-        if let Some(session) = session_map.get(&session_id) {
+        // Convert SessionId to ConnectionId - in the context of this codebase, they often use the same value
+        let connection_id = ConnectionId::new_unchecked(session_id.as_str().to_string());
+        if let Some(session) = session_map.get(&connection_id) {
+            return Some(session.get_app_id());
+        }
+        None
+    }
+
+    pub fn get_app_id_for_connection(&self, connection_id: &ConnectionId) -> Option<String> {
+        let session_map = self.session_map.read().unwrap();
+        if let Some(session) = session_map.get(connection_id) {
             return Some(session.get_app_id());
         }
         None
     }
 
     pub fn has_session(&self, ctx: &CallContext) -> bool {
-        self.session_map.read().unwrap().contains_key(&ctx.get_id())
+        let connection_id = ConnectionId::new_unchecked(ctx.get_id());
+        self.session_map
+            .read()
+            .unwrap()
+            .contains_key(&connection_id)
     }
 
-    pub fn add_session(&self, id: String, session: Session) {
+    pub fn add_session(&self, id: ConnectionId, session: Session) {
         let mut session_state = self.session_map.write().unwrap();
         session_state.insert(id, session);
     }
 
-    pub fn clear_session(&self, id: &str) {
+    // Legacy compatibility method - TODO: Remove once all callers are updated
+    pub fn add_session_legacy(&self, id: String, session: Session) {
+        let connection_id = ConnectionId::new_unchecked(id);
+        self.add_session(connection_id, session);
+    }
+
+    pub fn clear_session(&self, id: &ConnectionId) {
         let mut session_state = self.session_map.write().unwrap();
         session_state.remove(id);
+    }
+
+    // Legacy compatibility method - TODO: Remove once all callers are updated
+    pub fn clear_session_legacy(&self, id: &str) {
+        let connection_id = ConnectionId::new_unchecked(id.to_string());
+        self.clear_session(&connection_id);
     }
 
     pub fn update_account_session(&self, provision: ProvisionRequest) {
@@ -155,15 +182,23 @@ impl SessionState {
     pub fn get_session(&self, ctx: &CallContext) -> Option<Session> {
         let session_state = self.session_map.read().unwrap();
         if let Some(cid) = &ctx.cid {
-            session_state.get(cid).cloned()
+            let connection_id = ConnectionId::new_unchecked(cid.clone());
+            session_state.get(&connection_id).cloned()
         } else {
-            session_state.get(&ctx.session_id).cloned()
+            let connection_id = ConnectionId::new_unchecked(ctx.session_id.clone());
+            session_state.get(&connection_id).cloned()
         }
     }
 
-    pub fn get_session_for_connection_id(&self, cid: &str) -> Option<Session> {
+    pub fn get_session_for_connection_id(&self, cid: &ConnectionId) -> Option<Session> {
         let session_state = self.session_map.read().unwrap();
         session_state.get(cid).cloned()
+    }
+
+    // Legacy compatibility method - TODO: Remove once all callers are updated
+    pub fn get_session_for_connection_id_legacy(&self, cid: &str) -> Option<Session> {
+        let connection_id = ConnectionId::new_unchecked(cid.to_string());
+        self.get_session_for_connection_id(&connection_id)
     }
 
     pub fn add_pending_session(&self, app_id: String, info: Option<PendingSessionInfo>) {

@@ -2098,7 +2098,7 @@ mod tests {
                 let ctx_c = ctx.clone();
                 state
                     .session_state
-                    .add_session(ctx.session_id.clone(), sample_app_session);
+                    .add_session_legacy(ctx.session_id.clone(), sample_app_session);
 
                 ProviderBroker::register_or_unregister_provider(
                     &state_c,

@@ -1428,7 +1428,7 @@ impl BrokerOutputForwarder {
                 Self::handle_service_message(rpc_request, &message, platform_state).await;
             } else if let Some(session) = platform_state
                 .session_state
-                .get_session_for_connection_id(&session_id)
+                .get_session_for_connection_id_legacy(&session_id)
             {
                 let _ = session.send_json_rpc(message).await;
             }
@@ -1516,7 +1516,7 @@ impl BrokerOutputForwarder {
                     );
                     if let Some(session) = platform_state_c
                         .session_state
-                        .get_session_for_connection_id(&session_id)
+                        .get_session_for_connection_id_legacy(&session_id)
                     {
                         let _ = session.send_json_rpc(message).await;
                     }
@@ -1739,7 +1739,7 @@ impl BrokerOutputForwarder {
 
         if let Some(session) = platform_state_c
             .session_state
-            .get_session_for_connection_id(&session_id)
+            .get_session_for_connection_id_legacy(&session_id)
         {
             let _ = session.send_json_rpc(message).await;
         }
