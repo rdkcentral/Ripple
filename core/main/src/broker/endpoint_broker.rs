@@ -965,7 +965,21 @@ impl EndpointBrokerState {
          attempt to get the endpoint from the rule
         https://github.com/rdkcentral/Ripple/blob/ae3fcd78b055cf70022959bf827de9ed569762aa/core/main/src/broker/endpoint_broker.rs#L722
         */
-        let endpoint = self.get_endpoint(&rule, self.callback.clone())?;
+        let endpoint = match self.get_endpoint(&rule, self.callback.clone()) {
+            Ok(endpoint) => {
+                LogSignal::new(
+                    "handle_brokerage_workflow".to_string(),
+                    "rule found".to_string(),
+                    rpc_request.ctx.clone(),
+                )
+                .with_diagnostic_context_item("rule", &format!("{}", rule))
+                .with_diagnostic_context_item("endpoint", &format!("{}", endpoint))
+                .emit_debug();
+                endpoint
+            }
+            Err(e) => return Err(e),
+        };
+
         LogSignal::new(
             "handle_brokerage_workflow".to_string(),
             "starting brokerage workflow".to_string(),

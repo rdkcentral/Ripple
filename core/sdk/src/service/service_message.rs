@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 use crate::utils::error::RippleError;
+use jsonrpsee::core::RpcResult;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fmt::Debug;
@@ -260,6 +262,37 @@ impl ServiceMessage {
                     0
                 }
             }
+        }
+    }
+
+    pub fn parse_rpc_notification_param<T: DeserializeOwned>(&self) -> RpcResult<T> {
+        match &self.message {
+            JsonRpcMessage::Notification(notification) => {
+                let params_value = notification.params.clone().ok_or_else(|| {
+                    jsonrpsee::core::Error::Custom("Notification params field is None".to_string())
+                })?;
+                let params: String = serde_json::from_value(params_value).map_err(|e| {
+                    jsonrpsee::core::Error::Custom(format!(
+                        "Failed to parse params as String: {}",
+                        e
+                    ))
+                })?;
+                let msg = std::str::from_utf8(params.as_bytes()).map_err(|e| {
+                    jsonrpsee::core::Error::Custom(format!(
+                        "Failed to convert params to UTF-8 string: {}",
+                        e
+                    ))
+                })?;
+                serde_json::from_str::<T>(msg).map_err(|e| {
+                    jsonrpsee::core::Error::Custom(format!(
+                        "Failed to deserialize param to target type: {}",
+                        e
+                    ))
+                })
+            }
+            _ => Err(jsonrpsee::core::Error::Custom(
+                "Failed to get Success response".to_string(),
+            )),
         }
     }
 }

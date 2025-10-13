@@ -107,6 +107,14 @@ impl From<FireboltSemanticVersion> for FirmwareInfo {
         }
     }
 }
+impl Default for FirmwareInfo {
+    fn default() -> Self {
+        FirmwareInfo {
+            name: "rdk".into(),
+            version: FireboltSemanticVersion::default(),
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum DeviceResponse {
