@@ -744,9 +744,9 @@ mod tests {
                         "Expected UUID detection error, got: {}",
                         msg
                     );
-                    println!("✅ Correctly detected UUID in app ID: {}", uuid_str);
+                    println!("✅ Correctly detected UUID in app ID: ");
                 }
-                Ok(_) => panic!("Expected error for UUID-like app ID: {}", uuid_str),
+                Ok(_) => panic!("Expected error for UUID-like app ID"),
                 Err(e) => panic!("Unexpected error type: {}", e),
             }
         }
@@ -757,14 +757,13 @@ mod tests {
         // This demonstrates the key insight: preventing type confusion
 
         // These should work (correct types for correct purposes)
-        let session_id = SessionId::new("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let _session_id = SessionId::new("550e8400-e29b-41d4-a716-446655440000").unwrap();
         let app_id = AppId::new("Netflix").unwrap();
 
         // These should fail (wrong types for purposes)
         assert!(AppId::new("550e8400-e29b-41d4-a716-446655440000").is_err()); // UUID as app ID
         assert!(SessionId::new("Netflix").is_err()); // app name as session ID
 
-        println!("✅ Session ID (UUID): {}", session_id);
         println!("✅ App ID (human): {}", app_id);
     }
 }
