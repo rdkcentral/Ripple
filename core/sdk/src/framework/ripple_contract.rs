@@ -86,7 +86,6 @@ pub enum RippleContract {
     /// Extensions can use this contract to get more information on the firebolt capabilities  
     Caps,
     /// Contract for Extensions to recieve Telemetry events from Main
-    OperationalMetricListener,
     Observability,
     TelemetryEventsListener,
     Storage(StorageAdjective),
@@ -98,7 +97,6 @@ pub enum RippleContract {
     ExtnProvider(ExtnProviderAdjective),
     // Runtime ability for a given distributor to turn off a certian feature
     RemoteFeatureControl,
-    Analytics,
 }
 
 pub trait ContractAdjective: serde::ser::Serialize + DeserializeOwned {

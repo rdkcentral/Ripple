@@ -16,4 +16,5 @@
 //
 
 pub mod service_controller_state;
+pub mod service_notification_processor;
 pub mod service_registry;

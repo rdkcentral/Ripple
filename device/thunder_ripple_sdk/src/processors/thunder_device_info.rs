@@ -143,6 +143,10 @@ impl CachedState {
         }
     }
 
+    pub fn get_thunder_state(&self) -> ThunderState {
+        self.state.clone()
+    }
+
     fn get_client(&self) -> ExtnClient {
         self.state.get_client()
     }
@@ -985,8 +989,9 @@ fn round_to_nearest_quarter_hour(offset_seconds: i64) -> i64 {
 
 #[cfg(test)]
 pub mod tests {
-    use std::sync::Arc;
-
+    use crate::client::thunder_async_client::ThunderAsyncResponse;
+    use ripple_sdk::api::device::device_info_request::DeviceResponse;
+    use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
     use ripple_sdk::{
         api::device::{
             device_info_request::{DeviceInfoRequest, PlatformBuildInfo},
@@ -1002,22 +1007,33 @@ pub mod tests {
         utils::channel_utils::oneshot_send_and_log,
     };
     use serde::{Deserialize, Serialize};
+    use std::sync::Arc;
+    use tokio::sync::oneshot;
 
     use crate::{
-        client::{
-            device_operator::DeviceResponseMessage, thunder_client::ThunderCallMessage,
-            thunder_plugin::ThunderPlugin,
-        },
+        client::{device_operator::DeviceCallRequest, thunder_plugin::ThunderPlugin},
         processors::thunder_device_info::ThunderDeviceInfoRequestProcessor,
         tests::mock_thunder_controller::{CustomHandler, MockThunderController, ThunderHandlerFn},
     };
 
     macro_rules! run_platform_info_test {
         ($build_name:expr) => {
-            test_platform_build_info_with_build_name($build_name, Arc::new(|msg: ThunderCallMessage| {
-                oneshot_send_and_log(
-                    msg.callback,
-                    DeviceResponseMessage::call(json!({"success" : true, "stbVersion": $build_name, "receiverVersion": $build_name, "stbTimestamp": "".to_owned() })),
+            test_platform_build_info_with_build_name($build_name, Arc::new(|_msg: DeviceCallRequest, async_resp_message_tx: oneshot::Sender<ThunderAsyncResponse>, id: u64| {
+            let thunderasyncresp = ThunderAsyncResponse {
+                id: Some(id),
+                result: Ok(JsonRpcApiResponse {
+                    jsonrpc: "2.0".to_owned(),
+                    id: Some(id),
+                    result: Some(json!({"success" : true, "stbVersion": $build_name, "receiverVersion": $build_name, "stbTimestamp": "".to_owned() })),
+                    error: None,
+                    method: None,
+                    params: None
+                }),
+            };
+
+            oneshot_send_and_log(
+                    async_resp_message_tx,
+                    thunderasyncresp,
                     "",
                 );
             })).await;
@@ -1056,15 +1072,25 @@ pub mod tests {
     }
 
     async fn test_platform_build_info_with_build_name(
-        _build_name: &'static str,
+        build_name: &'static str,
         handler: Arc<ThunderHandlerFn>,
     ) {
+        println!(
+            "*** _DEBUG: test_platform_build_info_with_build_name: {}",
+            build_name
+        );
+
         let mut ch = CustomHandler::default();
         ch.custom_request_handler.insert(
             ThunderPlugin::System.unversioned_method("getSystemVersions"),
             handler,
         );
-        let state = MockThunderController::state_with_mock(Some(ch));
+
+        let mock_thunder_controller_items = MockThunderController::state_with_mock(Some(ch));
+
+        let state = mock_thunder_controller_items.cached_state;
+        let mut api_message_rx = mock_thunder_controller_items.api_message_rx;
+
         let msg = MockExtnClient::req(
             RippleContract::DeviceInfo,
             ExtnRequest::Device(DeviceRequest::DeviceInfo(
@@ -1072,12 +1098,61 @@ pub mod tests {
             )),
         );
 
+        tokio::spawn(async move {
+            while let Some(_api_message) = api_message_rx.recv().await {
+                let mut assertions_done = false;
+
+                if let Some(api_message) = api_message_rx.recv().await {
+                    if let Ok(jsonrpc_msg_value) =
+                        serde_json::from_str::<serde_json::Value>(&api_message.jsonrpc_msg)
+                    {
+                        if let Some(result) = jsonrpc_msg_value.get("result") {
+                            if let Ok(DeviceResponse::PlatformBuildInfo(info)) =
+                                serde_json::from_value::<DeviceResponse>(result.clone())
+                            {
+                                // Basic assertions: name should match build_name
+                                assert!(
+                                    info.name.contains(&build_name[..5]),
+                                    "PlatformBuildInfo.name should contain build_name prefix"
+                                );
+                                // Device model should not be empty
+                                assert!(
+                                    !info.device_model.is_empty(),
+                                    "PlatformBuildInfo.device_model should not be empty"
+                                );
+                                // Debug flag should be set for VBN builds
+                                if build_name.contains("VBN") {
+                                    assert!(
+                                        info.debug,
+                                        "PlatformBuildInfo.debug should be true for VBN builds"
+                                    );
+                                }
+                                // Release version or branch should be present for most builds
+                                assert!(
+                                    info.release_version.is_some() || info.branch.is_some(),
+                                    "PlatformBuildInfo should have release_version or branch"
+                                );
+                                assertions_done = true;
+                            }
+                        }
+                    }
+
+                    //panic if assertions were not run
+                    assert!(
+                        assertions_done,
+                        "Did not extract PlatformBuildInfo from ApiMessage"
+                    );
+                }
+            }
+        });
+
         ThunderDeviceInfoRequestProcessor::process_request(
             state,
             msg,
             DeviceInfoRequest::PlatformBuildInfo,
         )
         .await;
+
         // let msg: ExtnMessage = r.recv().await.unwrap().try_into().unwrap();
         // let resp_opt = msg.payload.extract::<DeviceResponse>();
         // if let Some(DeviceResponse::PlatformBuildInfo(info)) = resp_opt {
