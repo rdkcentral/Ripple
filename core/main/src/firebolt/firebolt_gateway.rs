@@ -36,6 +36,7 @@ use ripple_sdk::{
     serde_json::{self, Value},
     service::service_message::{JsonRpcMessage as JsonRpcServiceMessage, ServiceMessage},
     tokio::{self, runtime::Handle, sync::mpsc::Sender},
+    types::{ConnectionId, SessionId},
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -79,12 +80,12 @@ pub struct JsonRpcError {
 #[derive(Debug, Clone)]
 pub enum FireboltGatewayCommand {
     RegisterSession {
-        session_id: String,
+        session_id: SessionId,
         session: Session,
     },
     UnregisterSession {
-        session_id: String,
-        cid: String,
+        session_id: SessionId,
+        cid: ConnectionId,
     },
     HandleRpc {
         request: RpcRequest,
@@ -137,19 +138,25 @@ impl FireboltGateway {
                     self.state
                         .platform_state
                         .session_state
-                        .add_session(session_id, session);
+                        .add_session(session_id.into_string(), session);
                 }
                 UnregisterSession { session_id: _, cid } => {
                     // Use cid for all cleanup operations since that's what we used as the HashMap key during registration
-                    AppEvents::remove_session(&self.state.platform_state, cid.clone());
-                    ProviderBroker::unregister_session(&self.state.platform_state, cid.clone())
-                        .await;
+                    AppEvents::remove_session(&self.state.platform_state, cid.as_str().to_string());
+                    ProviderBroker::unregister_session(
+                        &self.state.platform_state,
+                        cid.as_str().to_string(),
+                    )
+                    .await;
                     self.state
                         .platform_state
                         .endpoint_state
-                        .cleanup_for_app(&cid)
+                        .cleanup_for_app(cid.as_str())
                         .await;
-                    self.state.platform_state.session_state.clear_session(&cid);
+                    self.state
+                        .platform_state
+                        .session_state
+                        .clear_session(cid.as_str());
                 }
                 HandleRpc { request } => self.handle(request, None).await,
                 HandleRpcForExtn { msg } => {
@@ -583,5 +590,126 @@ async fn send_json_rpc_error(
             "send_json_rpc_error: Session no found: method={}",
             request.method
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::session_state::Session;
+    use ripple_sdk::tokio::sync::mpsc;
+
+    #[test]
+    fn test_firebolt_gateway_command_uses_newtypes() {
+        // Test that FireboltGatewayCommand properly uses SessionId and ConnectionId newtypes
+        let session_id = SessionId::new("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let connection_id = ConnectionId::new("123e4567-e89b-12d3-a456-426614174000").unwrap();
+        let (tx, _rx) = mpsc::channel(1);
+        let session = Session::new("test_app".to_string(), Some(tx));
+
+        // Test RegisterSession command
+        let register_cmd = FireboltGatewayCommand::RegisterSession {
+            session_id: session_id.clone(),
+            session: session.clone(),
+        };
+
+        // Test UnregisterSession command
+        let unregister_cmd = FireboltGatewayCommand::UnregisterSession {
+            session_id: session_id.clone(),
+            cid: connection_id.clone(),
+        };
+
+        // Verify the commands can be created and cloned (testing Debug trait)
+        assert!(format!("{:?}", register_cmd).contains("RegisterSession"));
+        assert!(format!("{:?}", unregister_cmd).contains("UnregisterSession"));
+
+        // Test cloning works
+        let _cloned_register = register_cmd.clone();
+        let _cloned_unregister = unregister_cmd.clone();
+    }
+
+    #[test]
+    fn test_firebolt_gateway_command_serialization() {
+        // Test that FireboltGatewayCommand with newtypes can be serialized/deserialized
+        let session_id = SessionId::new("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let connection_id = ConnectionId::new("123e4567-e89b-12d3-a456-426614174000").unwrap();
+
+        // Test that our newtypes serialize correctly
+        let session_json = serde_json::to_string(&session_id).unwrap();
+        assert_eq!(session_json, "\"550e8400-e29b-41d4-a716-446655440000\"");
+
+        let connection_json = serde_json::to_string(&connection_id).unwrap();
+        assert_eq!(connection_json, "\"123e4567-e89b-12d3-a456-426614174000\"");
+
+        // Test deserialization
+        let deserialized_session: SessionId = serde_json::from_str(&session_json).unwrap();
+        let deserialized_connection: ConnectionId = serde_json::from_str(&connection_json).unwrap();
+
+        assert_eq!(deserialized_session.as_str(), session_id.as_str());
+        assert_eq!(deserialized_connection.as_str(), connection_id.as_str());
+    }
+
+    #[test]
+    fn test_session_id_connection_id_type_safety() {
+        // This test demonstrates that our newtypes prevent type confusion at compile time
+        let session_uuid = "550e8400-e29b-41d4-a716-446655440000";
+        let connection_uuid = "123e4567-e89b-12d3-a456-426614174000";
+
+        let session_id = SessionId::new(session_uuid).unwrap();
+        let connection_id = ConnectionId::new(connection_uuid).unwrap();
+
+        // These should be different types even with same UUID format
+        assert_eq!(session_id.as_str(), session_uuid);
+        assert_eq!(connection_id.as_str(), connection_uuid);
+
+        // If we accidentally tried to use them interchangeably, it would be a compile error:
+        // let wrong_cmd = FireboltGatewayCommand::RegisterSession {
+        //     session_id: connection_id,  // ← This would fail to compile!
+        //     session: session,
+        // };
+    }
+
+    #[test]
+    fn test_json_rpc_message_with_newtype_integration() {
+        // Test that our JsonRpc structures work with the newtype refactor
+        let error = JsonRpcError {
+            code: 1001,
+            message: "Test error".to_string(),
+            data: None,
+        };
+
+        let message = JsonRpcMessage {
+            jsonrpc: TwoPointZero,
+            id: 123,
+            error: Some(error),
+        };
+
+        // Should serialize correctly
+        let serialized = serde_json::to_string(&message).unwrap();
+        assert!(serialized.contains("Test error"));
+        assert!(serialized.contains("1001"));
+
+        // Should deserialize correctly
+        let deserialized: JsonRpcMessage = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.id, 123);
+        assert_eq!(deserialized.error.unwrap().message, "Test error");
+    }
+
+    #[test]
+    fn test_newtype_migration_compatibility() {
+        // Test that our new_unchecked methods support migration from String
+        let legacy_session_id = "some-legacy-session-id";
+        let legacy_connection_id = "some-legacy-connection-id";
+
+        // These should work even with non-UUID strings (for migration)
+        let session_id = SessionId::new_unchecked(legacy_session_id);
+        let connection_id = ConnectionId::new_unchecked(legacy_connection_id);
+
+        assert_eq!(session_id.as_str(), legacy_session_id);
+        assert_eq!(connection_id.as_str(), legacy_connection_id);
+
+        // They should convert back to strings correctly
+        assert_eq!(session_id.into_string(), legacy_session_id);
+        assert_eq!(connection_id.into_string(), legacy_connection_id);
     }
 }

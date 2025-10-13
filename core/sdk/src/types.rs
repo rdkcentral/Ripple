@@ -766,4 +766,110 @@ mod tests {
 
         println!("✅ App ID (human): {}", app_id);
     }
+
+    #[test]
+    fn test_session_id_new_and_unchecked() {
+        let valid_uuid = "550e8400-e29b-41d4-a716-446655440000";
+        let invalid_uuid = "not-a-uuid";
+
+        // Valid construction
+        let session_id = SessionId::new(valid_uuid).unwrap();
+        assert_eq!(session_id.as_str(), valid_uuid);
+        assert_eq!(session_id.to_string(), valid_uuid);
+
+        // Invalid construction should fail
+        assert!(SessionId::new(invalid_uuid).is_err());
+
+        // Unchecked construction should always work (for migration)
+        let unchecked_session_id = SessionId::new_unchecked(invalid_uuid);
+        assert_eq!(unchecked_session_id.as_str(), invalid_uuid);
+    }
+
+    #[test]
+    fn test_connection_id_new_and_unchecked() {
+        let valid_uuid = "123e4567-e89b-12d3-a456-426614174000";
+        let invalid_uuid = "invalid-connection-id";
+
+        // Valid construction
+        let connection_id = ConnectionId::new(valid_uuid).unwrap();
+        assert_eq!(connection_id.as_str(), valid_uuid);
+        assert_eq!(connection_id.into_string(), valid_uuid);
+
+        // Invalid construction should fail
+        assert!(ConnectionId::new(invalid_uuid).is_err());
+
+        // Unchecked construction should always work (for migration)
+        let unchecked_connection_id = ConnectionId::new_unchecked(invalid_uuid);
+        assert_eq!(unchecked_connection_id.as_str(), invalid_uuid);
+    }
+
+    #[test]
+    fn test_session_id_and_connection_id_are_different_types() {
+        let uuid_str = "550e8400-e29b-41d4-a716-446655440000";
+        let session_id = SessionId::new(uuid_str).unwrap();
+        let connection_id = ConnectionId::new(uuid_str).unwrap();
+
+        // These are different types, so this wouldn't compile:
+        // assert_eq!(session_id, connection_id); // ← This would be a compilation error!
+
+        // But their string representations are the same
+        assert_eq!(session_id.as_str(), connection_id.as_str());
+    }
+
+    #[test]
+    fn test_session_id_serialization() {
+        let session_id = SessionId::new("550e8400-e29b-41d4-a716-446655440000").unwrap();
+
+        // Should serialize to just the string value (transparent)
+        let serialized = serde_json::to_string(&session_id).unwrap();
+        assert_eq!(serialized, "\"550e8400-e29b-41d4-a716-446655440000\"");
+
+        // Should deserialize back correctly
+        let deserialized: SessionId = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.as_str(), session_id.as_str());
+    }
+
+    #[test]
+    fn test_connection_id_serialization() {
+        let connection_id = ConnectionId::new("123e4567-e89b-12d3-a456-426614174000").unwrap();
+
+        // Should serialize to just the string value (transparent)
+        let serialized = serde_json::to_string(&connection_id).unwrap();
+        assert_eq!(serialized, "\"123e4567-e89b-12d3-a456-426614174000\"");
+
+        // Should deserialize back correctly
+        let deserialized: ConnectionId = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.as_str(), connection_id.as_str());
+    }
+
+    #[test]
+    fn test_session_and_connection_id_conversions() {
+        let uuid_str = "550e8400-e29b-41d4-a716-446655440000";
+
+        // Test SessionId conversions
+        let session_id = SessionId::new(uuid_str).unwrap();
+        assert_eq!(session_id.as_str(), uuid_str);
+        assert_eq!(session_id.into_string(), uuid_str);
+
+        // Test ConnectionId conversions
+        let connection_id = ConnectionId::new(uuid_str).unwrap();
+        assert_eq!(connection_id.as_str(), uuid_str);
+        assert_eq!(connection_id.into_string(), uuid_str);
+    }
+
+    #[test]
+    fn test_identifier_error_display() {
+        assert_eq!(
+            IdentifierError::Empty.to_string(),
+            "Identifier cannot be empty"
+        );
+        assert_eq!(
+            IdentifierError::InvalidUuid("bad-uuid".to_string()).to_string(),
+            "Invalid UUID format: bad-uuid"
+        );
+        assert_eq!(
+            IdentifierError::InvalidAppId("bad-app".to_string()).to_string(),
+            "Invalid app ID format: bad-app"
+        );
+    }
 }

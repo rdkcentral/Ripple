@@ -51,6 +51,7 @@ use ripple_sdk::{
         net::{TcpListener, TcpStream},
         sync::{mpsc, oneshot},
     },
+    types::{ConnectionId, SessionId},
     utils::channel_utils::oneshot_send_and_log,
     uuid::Uuid,
 };
@@ -339,7 +340,7 @@ impl FireboltWs {
         let connection_id_c = connection_id.clone();
 
         let msg = FireboltGatewayCommand::RegisterSession {
-            session_id: connection_id.clone(),
+            session_id: SessionId::new_unchecked(connection_id.clone()),
             session: session.clone(),
         };
         if let Err(e) = client.send_gateway_command(msg) {
@@ -462,8 +463,8 @@ impl FireboltWs {
         }
         debug!("SESSION DEBUG Unregistering {}", connection_id);
         let msg = FireboltGatewayCommand::UnregisterSession {
-            session_id: identity.session_id.clone(),
-            cid: connection_id,
+            session_id: SessionId::new_unchecked(identity.session_id.clone()),
+            cid: ConnectionId::new_unchecked(connection_id),
         };
         if let Err(e) = client.send_gateway_command(msg) {
             error!("Error Unregistering {:?}", e);
