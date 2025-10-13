@@ -283,6 +283,7 @@ mod tests {
     #[rstest]
     #[case("STANDBY", PowerState::Standby)]
     #[case("ON", PowerState::On)]
+    #[case("LIGHT_SLEEP", PowerState::LightSleep)]
     fn test_power_state_from_str(#[case] s: &str, #[case] expected: PowerState) {
         assert_eq!(PowerState::from_str(s), Ok(expected));
     }
