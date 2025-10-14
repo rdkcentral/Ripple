@@ -1078,7 +1078,7 @@ impl DelegatedLauncherHandler {
 
         self.platform_state
             .session_state
-            .add_pending_session(app_id.clone(), Some(pending_session_info.clone()));
+            .add_pending_session_legacy(app_id.clone(), Some(pending_session_info.clone()));
 
         let result =
             PermissionHandler::fetch_permission_for_app_session(&self.platform_state, &app_id)
@@ -1280,8 +1280,10 @@ impl DelegatedLauncherHandler {
         }
     }
 
-    pub async fn emit_completed(platform_state: &PlatformState, app_id: &String) {
-        platform_state.session_state.clear_pending_session(app_id);
+    pub async fn emit_completed(platform_state: &PlatformState, app_id: &str) {
+        platform_state
+            .session_state
+            .clear_pending_session_legacy(app_id);
         let app = match platform_state.app_manager_state.get(app_id) {
             Some(app) => app,
             None => return,
@@ -1296,7 +1298,9 @@ impl DelegatedLauncherHandler {
     }
 
     pub async fn emit_cancelled(platform_state: &PlatformState, app_id: &String) {
-        platform_state.session_state.clear_pending_session(app_id);
+        platform_state
+            .session_state
+            .clear_pending_session_legacy(app_id);
         AppEvents::emit(
             platform_state,
             LCM_EVENT_ON_SESSION_TRANSITION_CANCELED,

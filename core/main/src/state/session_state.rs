@@ -27,7 +27,7 @@ use ripple_sdk::{
         session::{AccountSession, ProvisionRequest},
     },
     tokio::sync::mpsc::Sender,
-    types::{ConnectionId, SessionId}, // Import our newtypes for type-safe session identifiers
+    types::{AppId, ConnectionId, SessionId}, // Import our newtypes for type-safe session identifiers
     utils::error::RippleError,
 };
 
@@ -83,7 +83,7 @@ impl Session {
 pub struct SessionState {
     session_map: Arc<RwLock<HashMap<ConnectionId, Session>>>,
     account_session: Arc<RwLock<Option<AccountSession>>>,
-    pending_sessions: Arc<RwLock<HashMap<String, Option<PendingSessionInfo>>>>,
+    pending_sessions: Arc<RwLock<HashMap<AppId, Option<PendingSessionInfo>>>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -201,7 +201,7 @@ impl SessionState {
         self.get_session_for_connection_id(&connection_id)
     }
 
-    pub fn add_pending_session(&self, app_id: String, info: Option<PendingSessionInfo>) {
+    pub fn add_pending_session(&self, app_id: AppId, info: Option<PendingSessionInfo>) {
         let mut pending_sessions = self.pending_sessions.write().unwrap();
         if info.is_none() && pending_sessions.get(&app_id).is_some() {
             return;
@@ -209,7 +209,18 @@ impl SessionState {
         pending_sessions.insert(app_id, info);
     }
 
-    pub fn clear_pending_session(&self, app_id: &String) {
+    pub fn clear_pending_session(&self, app_id: &AppId) {
         self.pending_sessions.write().unwrap().remove(app_id);
+    }
+
+    // Legacy compatibility methods for pending sessions - TODO: Remove once all callers are updated
+    pub fn add_pending_session_legacy(&self, app_id: String, info: Option<PendingSessionInfo>) {
+        let app_id_typed = AppId::new_unchecked(app_id);
+        self.add_pending_session(app_id_typed, info);
+    }
+
+    pub fn clear_pending_session_legacy(&self, app_id: &str) {
+        let app_id_typed = AppId::new_unchecked(app_id.to_owned());
+        self.clear_pending_session(&app_id_typed);
     }
 }
