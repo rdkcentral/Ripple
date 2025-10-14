@@ -31,8 +31,17 @@ pub mod state;
 pub mod utils;
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
+#[cfg(feature = "console")]
+fn init_console() {
+    console_subscriber::init();
+    println!("Tokio Console enabled - connect with 'tokio-console' command");
+}
+
 #[tokio::main(worker_threads = 2)]
 async fn main() {
+    #[cfg(feature = "console")]
+    init_console();
+
     // Init logger
     if let Err(e) = init_and_configure_logger(SEMVER_LIGHTWEIGHT, "gateway".into(), None) {
         println!("{:?} logger init error", e);

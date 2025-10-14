@@ -44,6 +44,7 @@ contract_tests = [
     "websocket_contract_tests",
 ]
 tdk=[]
+console = ["console-subscriber"]
 [dependencies]
 base64.workspace = true
 ripple_sdk = { workspace = true, features = ["full"] }
@@ -69,6 +70,7 @@ jaq-core = "1.5.0"
 jaq-std = { version = "1.5.1", default-features = false }
 strum = { version = "0.24", default-features = false }
 strum_macros = "0.24"
+console-subscriber = { version = "0.1", optional = true }
 
 # openrpc_validator is optional and not part of the default workspace
 # Only included when openrpc_validation feature is enabled
