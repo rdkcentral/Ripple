@@ -15,8 +15,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::f64::consts::E;
-
 use crate::state::cap::cap_state::CapState;
 use crate::state::platform_state::PlatformState;
 use crate::tokio;
