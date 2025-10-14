@@ -30,7 +30,6 @@ use ripple_sdk::{
         device_user_grants_data::GrantLifespan,
     },
     api::firebolt::fb_capabilities::{CapEvent, CapabilityRole, FireboltCap, FireboltPermission},
-    api::session::AccountSessionRequest,
     async_trait::async_trait,
     framework::bootstrap::Bootstep,
     framework::RippleResponse,
