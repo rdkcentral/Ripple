@@ -31,10 +31,21 @@ pub mod state;
 pub mod utils;
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
-#[link_section = ".data"]
+use std::os::raw::c_char;
+
+// 1) Wrap the pointer so we can mark it Sync.
+#[repr(transparent)]
+pub struct ConfPtr(*const c_char);
+unsafe impl Sync for ConfPtr {} // ok: points to immutable static bytes
+
+// 2) The actual bytes (null-terminated). These are immutable and live forever.
+static MALLOC_CONF_BYTES: &[u8] = b"background_thread:true,dirty_decay_ms:1000,\
+muzzy_decay_ms:1000,percpu_arena:disabled,narenas:4,metadata_thp:never,lg_tcache_max:16\0";
+
+// 3) Export the symbol jemalloc looks for. Keep it from being stripped.
 #[no_mangle]
-pub static malloc_conf: &[u8] =
-    b"background_thread:true,dirty_decay_ms:1000,muzzy_decay_ms:1000,abort:false\0";
+#[used]
+pub static malloc_conf: ConfPtr = ConfPtr(MALLOC_CONF_BYTES.as_ptr() as *const c_char);
 
 use tikv_jemallocator::Jemalloc;
 
