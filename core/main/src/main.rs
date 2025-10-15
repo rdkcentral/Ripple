@@ -31,6 +31,16 @@ pub mod state;
 pub mod utils;
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
+#[link_section = ".data"]
+#[no_mangle]
+pub static malloc_conf: &[u8] = b"background_thread:true,dirty_decay_ms:1000,muzzy_decay_ms:1000,abort:false\0";
+
+use tikv_jemallocator::Jemalloc;
+
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
+
+
 #[tokio::main(worker_threads = 2)]
 async fn main() {
     // Init logger
