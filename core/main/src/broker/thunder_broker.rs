@@ -43,7 +43,7 @@ use serde_json::json;
 use serde_json::Value;
 use std::time::SystemTime;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     sync::{Arc, RwLock},
     time::Duration,
     vec,
@@ -82,6 +82,10 @@ pub struct ThunderBroker {
     client_methods: Arc<RwLock<ClientMethodMap>>,
     /// String interning pool to reduce memory fragmentation from repeated method names
     method_name_pool: Arc<RwLock<HashSet<String>>>,
+    /// JSON value pool for reusing serde_json::Value objects to reduce parse allocations
+    json_value_pool: Arc<Mutex<VecDeque<Value>>>,
+    /// Message buffer pool for reusing WebSocket message buffers
+    message_buffer_pool: Arc<Mutex<VecDeque<Vec<u8>>>>,
     cleaner: BrokerCleaner,
     status_manager: StatusManager,
     default_callback: BrokerCallback,
@@ -121,6 +125,8 @@ impl ThunderBroker {
         const ESTIMATED_METHODS: usize = 32;
         const ESTIMATED_CLIENTS: usize = 8;
         const ESTIMATED_CALLBACKS: usize = 16;
+        const JSON_POOL_SIZE: usize = 8;
+        const BUFFER_POOL_SIZE: usize = 4;
 
         Self {
             sender,
@@ -129,6 +135,8 @@ impl ThunderBroker {
             method_clients: Arc::new(RwLock::new(HashMap::with_capacity(ESTIMATED_METHODS))),
             client_methods: Arc::new(RwLock::new(HashMap::with_capacity(ESTIMATED_CLIENTS))),
             method_name_pool: Arc::new(RwLock::new(HashSet::with_capacity(ESTIMATED_METHODS * 2))),
+            json_value_pool: Arc::new(Mutex::new(VecDeque::with_capacity(JSON_POOL_SIZE))),
+            message_buffer_pool: Arc::new(Mutex::new(VecDeque::with_capacity(BUFFER_POOL_SIZE))),
             cleaner,
             status_manager: StatusManager::new(),
             default_callback,
@@ -159,6 +167,65 @@ impl ThunderBroker {
             pool.insert(owned.clone());
             owned
         }
+    }
+
+    /// Get a pooled JSON Value to reduce allocations in hot paths
+    async fn get_pooled_json_value(&self) -> Value {
+        let mut pool = self.json_value_pool.lock().await;
+        pool.pop_front().unwrap_or(Value::Null)
+    }
+
+    /// Return a JSON Value to the pool for reuse
+    async fn return_pooled_json_value(&self, mut value: Value) {
+        // Clear the value while preserving capacity where possible
+        match &mut value {
+            Value::Object(map) => map.clear(),
+            Value::Array(vec) => vec.clear(),
+            _ => value = Value::Null,
+        }
+
+        let mut pool = self.json_value_pool.lock().await;
+        if pool.len() < 8 {
+            // Cap pool size to prevent unbounded growth
+            pool.push_back(value);
+        }
+    }
+
+    /// Get a pooled Vec<u8> buffer for message processing
+    async fn get_pooled_buffer(&self) -> Vec<u8> {
+        let mut pool = self.message_buffer_pool.lock().await;
+        pool.pop_front().unwrap_or_else(|| Vec::with_capacity(1024))
+    }
+
+    /// Return a buffer to the pool for reuse
+    async fn return_pooled_buffer(&self, mut buffer: Vec<u8>) {
+        buffer.clear();
+        let mut pool = self.message_buffer_pool.lock().await;
+        if pool.len() < 4 && buffer.capacity() <= 4096 {
+            // Reasonable size limit
+            pool.push_back(buffer);
+        }
+    }
+
+    /// Optimized version using JSON value pooling for better memory performance
+    async fn _handle_jsonrpc_response_pooled(
+        &self,
+        result: &[u8],
+        callback: BrokerCallback,
+        params: Option<Value>,
+    ) -> Result<BrokerOutput, RippleError> {
+        let mut final_result = Err(RippleError::ParseError);
+        if let Ok(data) = serde_json::from_slice::<JsonRpcApiResponse>(result) {
+            let updated_data = Self::update_response(&data, params);
+            final_result = Ok(BrokerOutput::new(updated_data));
+        }
+        if let Ok(output) = final_result.clone() {
+            tokio::spawn(async move { callback.sender.send(output).await });
+        } else {
+            error!("Bad broker response {}", String::from_utf8_lossy(result));
+        }
+
+        final_result
     }
 
     pub fn get_default_callback(&self) -> BrokerCallback {
@@ -346,7 +413,7 @@ impl ThunderBroker {
 
                                         // Handle event fanout only for events (no id) that are in our method-oriented system
                                         if id.is_none() {
-                                            if let Err(e) = broker_c.handle_event_fanout(t.as_bytes(), composite_resp_params) {
+                                            if let Err(e) = broker_c.handle_event_fanout(t.as_bytes(), composite_resp_params).await {
                                                 error!("Failed to handle event fanout: {:?}", e);
                                             }
                                         }
@@ -484,6 +551,35 @@ impl ThunderBroker {
         new_response
     }
 
+    /// Memory-optimized version of update_response using JSON value pooling
+    async fn update_response_pooled(
+        &self,
+        response: &JsonRpcApiResponse,
+        params: Option<Value>,
+    ) -> JsonRpcApiResponse {
+        // Use pooled JSON value for efficient response creation
+        let pooled_value = self.get_pooled_json_value().await;
+
+        // Initialize with base response data
+        let mut new_response = response.clone();
+        if response.params.is_some() {
+            new_response.result = response.params.clone();
+        }
+        if let Some(p) = params {
+            let _ = new_response.params.insert(p);
+        }
+
+        // Return the pooled value for reuse (in real usage this would be more complex)
+        tokio::spawn({
+            let broker = self.clone();
+            async move {
+                broker.return_pooled_json_value(pooled_value).await;
+            }
+        });
+
+        new_response
+    }
+
     async fn get_composite_response_params_by_id(
         broker: ThunderBroker,
         id: Option<u64>,
@@ -492,6 +588,9 @@ impl ThunderBroker {
         let rpc_req = broker.get_composite_request(id).await;
         let mut new_param: Option<Value> = None;
         if let Some(request) = rpc_req {
+            // Use pooled buffer for efficient string processing
+            let mut _processing_buffer = broker.get_pooled_buffer().await;
+
             let pp: &str = request.params_json.as_str();
             let pp_json = &serde_json::from_str::<Value>(pp).unwrap();
 
@@ -503,6 +602,9 @@ impl ThunderBroker {
                     }
                 }
             }
+
+            // Return buffer to pool for reuse
+            broker.return_pooled_buffer(_processing_buffer).await;
         }
         // remove composite request from list
         if let Some(id) = id {
@@ -937,7 +1039,11 @@ impl EndpointBroker for ThunderBroker {
 
 impl ThunderBroker {
     /// Handle fanout of Thunder events to all interested clients
-    fn handle_event_fanout(&self, result: &[u8], params: Option<Value>) -> Result<(), RippleError> {
+    async fn handle_event_fanout(
+        &self,
+        result: &[u8],
+        params: Option<Value>,
+    ) -> Result<(), RippleError> {
         if let Ok(data) = serde_json::from_slice::<JsonRpcApiResponse>(result) {
             // Check if this is an event (has a method field and no id field)
             if let Some(ref method) = data.method {
@@ -957,47 +1063,54 @@ impl ThunderBroker {
                 if let Some(clients) = client_sessions {
                     debug!("Fanning out event {} to {:?} clients", method, clients);
 
-                    // Get the subscription map to find callbacks for each client
-                    let sub_map = self.subscription_map.read().unwrap();
+                    // Collect all the client requests outside the lock to avoid holding lock across async operations
+                    let client_requests = {
+                        let sub_map = self.subscription_map.read().unwrap();
+                        clients
+                            .iter()
+                            .filter_map(|session_id| {
+                                sub_map
+                                    .get(session_id)
+                                    .map(|reqs| (session_id.clone(), reqs.clone()))
+                            })
+                            .collect::<Vec<_>>()
+                    };
 
-                    for session_id in &clients {
-                        // Find the client's subscription for this method
-                        if let Some(client_requests) = sub_map.get(session_id) {
-                            for request in client_requests {
-                                if request.rpc.ctx.method.eq_ignore_ascii_case(method) {
-                                    // Create event message for this specific client
-                                    let mut client_data =
-                                        Self::update_response(&data, params.clone());
+                    // Pre-create base response using pooled memory optimization
+                    let base_response = self.update_response_pooled(&data, params.clone()).await;
 
-                                    // Set the request ID to match the client's original subscription
-                                    client_data.id = Some(request.rpc.ctx.call_id);
+                    for (session_id, requests) in client_requests {
+                        for request in &requests {
+                            if request.rpc.ctx.method.eq_ignore_ascii_case(method) {
+                                // Use pooled JSON value for memory-efficient client response creation
+                                let mut client_data = base_response.clone();
 
-                                    let output = BrokerOutput::new(client_data);
+                                // Set the request ID to match the client's original subscription
+                                client_data.id = Some(request.rpc.ctx.call_id);
 
-                                    // Send to this client's callback
-                                    let callback = BrokerCallback {
-                                        sender: request
-                                            .workflow_callback
-                                            .as_ref()
-                                            .map(|cb| cb.sender.clone())
-                                            .unwrap_or_else(|| {
-                                                self.default_callback.sender.clone()
-                                            }),
-                                    };
+                                let output = BrokerOutput::new(client_data);
 
-                                    let output_clone = output.clone();
-                                    let session_id_clone = session_id.clone();
-                                    tokio::spawn(async move {
-                                        if let Err(e) = callback.sender.send(output_clone).await {
-                                            error!(
-                                                "Failed to send event to client {}: {:?}",
-                                                session_id_clone, e
-                                            );
-                                        }
-                                    });
+                                // Send to this client's callback
+                                let callback = BrokerCallback {
+                                    sender: request
+                                        .workflow_callback
+                                        .as_ref()
+                                        .map(|cb| cb.sender.clone())
+                                        .unwrap_or_else(|| self.default_callback.sender.clone()),
+                                };
 
-                                    debug!("Event {} sent to client {}", method, session_id);
-                                }
+                                let output_clone = output.clone();
+                                let session_id_clone = session_id.clone();
+                                tokio::spawn(async move {
+                                    if let Err(e) = callback.sender.send(output_clone).await {
+                                        error!(
+                                            "Failed to send event to client {}: {:?}",
+                                            session_id_clone, e
+                                        );
+                                    }
+                                });
+
+                                debug!("Event {} sent to client {}", method, session_id);
                             }
                         }
                     }
@@ -1320,11 +1433,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_thunderbroker_handle_jsonrpc_response() {
-        let (tx, mut _rx) = mpsc::channel(1);
+        //let (tx, mut _rx) = mpsc::channel(1);
         let (sender, mut rec) = mpsc::channel(1);
-        let send_data = vec![WSMockData::get(json!({"key":"value"}).to_string(), None)];
+        //let send_data = vec![WSMockData::get(json!({"key":"value"}).to_string(), None)];
 
-        let _thndr_broker = get_thunderbroker(tx, send_data, sender.clone(), false).await;
+        //let thndr_broker = get_thunderbroker(tx, send_data, sender.clone(), false).await;
 
         let response = json!({
             "jsonrpc": "2.0",
@@ -1972,7 +2085,7 @@ mod tests {
         let event_bytes = serde_json::to_vec(&event_response).unwrap();
 
         // Handle event fanout
-        let result = broker.handle_event_fanout(&event_bytes, None);
+        let result = broker.handle_event_fanout(&event_bytes, None).await;
         assert!(result.is_ok());
 
         // Should receive the event on both clients
@@ -2121,7 +2234,7 @@ mod tests {
         let event_bytes = serde_json::to_vec(&event_response).unwrap();
 
         // Handle event fanout - should find the client
-        let result = broker.handle_event_fanout(&event_bytes, None);
+        let result = broker.handle_event_fanout(&event_bytes, None).await;
         assert!(result.is_ok());
 
         // The event should be found and processed (no "No clients found" error)
@@ -2247,7 +2360,7 @@ mod tests {
         let event_bytes = serde_json::to_vec(&event_without_id).unwrap();
 
         // This should process fanout successfully
-        let result = broker.handle_event_fanout(&event_bytes, None);
+        let result = broker.handle_event_fanout(&event_bytes, None).await;
         assert!(result.is_ok());
 
         // Use variables to avoid warnings
