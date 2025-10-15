@@ -582,18 +582,14 @@ impl ThunderBroker {
                 );
 
                 // Add client to method's client list if not already present
-                let clients = method_clients
-                    .entry(event_method_key.clone())
-                    .or_default();
+                let clients = method_clients.entry(event_method_key.clone()).or_default();
                 if !clients.contains(session_id) {
                     clients.push(session_id.clone());
                     sub_state.client_count += 1;
                 }
 
                 // Add method to client's method list if not already present
-                let methods = client_methods
-                    .entry(session_id.clone())
-                    .or_default();
+                let methods = client_methods.entry(session_id.clone()).or_default();
                 if !methods.contains(&event_method_key) {
                     methods.push(event_method_key.clone());
                 }
@@ -615,9 +611,7 @@ impl ThunderBroker {
                 method_clients.insert(event_method_key.clone(), vec![session_id.clone()]);
 
                 // Add method to client's method list
-                let methods = client_methods
-                    .entry(session_id.clone())
-                    .or_default();
+                let methods = client_methods.entry(session_id.clone()).or_default();
                 methods.push(event_method_key.clone());
 
                 // Mark that we need to create a Thunder subscription
