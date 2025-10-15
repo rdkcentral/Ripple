@@ -131,15 +131,15 @@ impl WebSocketUtils {
                 return Err(RippleError::InvalidInput);
             }
         }
-        let url = match url::Url::parse(&url_path) {
-            Ok(parsed_url) => parsed_url,
-            Err(_) => return Err(RippleError::InvalidInput),
-        };
+
         let tcp_port = Self::extract_tcp_port(endpoint)?;
 
-        info!("Url host str {}", url.host_str().unwrap());
-
         let timeout_duration = config.fail_after.map(|f| Duration::from_secs(f as u64));
+
+        info!(
+            "connecting to websocket_server {} with timeout {:?} and retry {:?}",
+            url_path, timeout_duration, retry_every
+        );
         if let Some(duration) = timeout_duration {
             tokio::time::timeout(duration, async {
                 Self::handshake(config, retry_every, url_path, tcp_port).await
@@ -214,6 +214,10 @@ impl WebSocketUtils {
                     break Ok(v);
                 }
                 Err(e) => {
+                    error!(
+                        "Failed to connect to WebSocket at {}:{} {:?}",
+                        url_path, tcp_port, e
+                    );
                     if let RippleError::Permission(
                         crate::api::firebolt::fb_capabilities::DenyReason::Unpermitted,
                     ) = e

@@ -39,6 +39,7 @@ use serde_json::Value;
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc, oneshot};
 use tokio::sync::{mpsc::Sender as MSender, oneshot::Sender as OSender};
+use tokio::time::sleep;
 use tokio_tungstenite::tungstenite::Message;
 use uuid::Uuid;
 
@@ -174,7 +175,8 @@ impl ServiceClient {
             debug!("Connecting to WebSocket at {}", path);
             Self::connect_websocket(self, &path, &mut outbound_service_rx, &mut outbound_extn_rx)
                 .await;
-            debug!("Initialize Ended Abruptly");
+            error!("WebSocket connection failed,sleeping");
+            sleep(std::time::Duration::from_secs(15)).await;
         }
     }
 
@@ -184,7 +186,11 @@ impl ServiceClient {
         outbound_service_rx: &mut mpsc::Receiver<ServiceMessage>,
         outbound_extn_rx: &mut Option<mpsc::Receiver<ApiMessage>>,
     ) {
-        if let Ok((mut ws_tx, mut ws_rx)) = WebSocketUtils::get_ws_stream(path, None).await {
+        debug!("Attempting WebSocket connection to: {}", path);
+
+        let attempt = WebSocketUtils::get_ws_stream(path, None).await;
+        if let Ok((mut ws_tx, mut ws_rx)) = attempt {
+            info!("WebSocket connection established successfully to: {}", path);
             let handle_ws_message = |msg: Message| {
                 if let Message::Text(message) = msg.clone() {
                     // Service message
@@ -283,11 +289,16 @@ impl ServiceClient {
                             warn!("Received extension message but no extn_client present");
                         }
                     };
-                } else if let Message::Close(_) = msg {
+                } else if let Message::Close(closed) = msg {
+                    warn!(
+                        "WebSocket Close message received: close_frame={:?}, reason={:?}",
+                        closed,
+                        closed.as_ref().map(|f| &f.reason)
+                    );
                     info!("Received Close message, exiting initialize");
                     return false;
                 } else {
-                    warn!("Received unexpected message: {:?}", msg);
+                    warn!("Received unexpected message type: {:?}", msg);
                 }
                 true
             };
@@ -301,12 +312,12 @@ impl ServiceClient {
                         match value {
                             Ok(msg) => {
                                 if !handle_ws_message(msg) {
-                                     error!("handle_ws_message failed");
+                                     error!("handle_ws_message failed, breaking WebSocket loop");
                                      break;
                                 }
                             }
                             Err(e) => {
-                                error!("Service Websocket error on read {:?}", e);
+                                error!("Service Websocket error on read {:?}, breaking WebSocket loop", e);
                                 break;
                             }
                         }
@@ -318,16 +329,34 @@ impl ServiceClient {
                         }
                     }, if outbound_extn_rx.is_some() => {
                         trace!("IEC send: {:?}", request.jsonrpc_msg);
-                        let _feed = ws_tx.feed(Message::Text(request.jsonrpc_msg)).await;
-                        let _flush = ws_tx.flush().await;
+                        if let Err(e) = ws_tx.feed(Message::Text(request.jsonrpc_msg)).await {
+                            error!("Failed to feed extension message to WebSocket: {:?}", e);
+                            break;
+                        }
+                        if let Err(e) = ws_tx.flush().await {
+                            error!("Failed to flush extension message to WebSocket: {:?}", e);
+                            break;
+                        }
                     }
                     Some(request) = outbound_service_rx.recv() => {
                         trace!("Service Message send: {:?}", request);
-                        let _feed = ws_tx.feed(Message::Text(request.into())).await;
-                        let _flush = ws_tx.flush().await;
+                        if let Err(e) = ws_tx.feed(Message::Text(request.into())).await {
+                            error!("Failed to feed service message to WebSocket: {:?}, breaking WebSocket loop", e);
+                            break;
+                        }
+                        if let Err(e) = ws_tx.flush().await {
+                            error!("Failed to flush service message to WebSocket: {:?}, breaking WebSocket loop", e);
+                            break;
+                        }
                     }
                 }
             }
+            warn!("WebSocket message loop has ended, connection will be closed");
+        } else {
+            error!(
+                "Failed to establish WebSocket connection to: {}. Err: {:?}",
+                path, attempt
+            );
         }
     }
 

@@ -36,7 +36,15 @@ impl ServiceRegistry {
     ) -> Result<(), RippleError> {
         let old_tx = {
             let mut registry = self.service_registry.lock().await;
-            let old_tx = registry.get(&service_id).map(|info| info.tx.clone());
+            let old_tx = registry.get(&service_id).and_then(|existing_info| {
+                // Only close the old connection if it's a different connection
+                if existing_info.connection_id != info.connection_id {
+                    Some(existing_info.tx.clone())
+                } else {
+                    // Same connection, no need to close
+                    None
+                }
+            });
             // insert the new service info
             registry.insert(service_id, info);
             old_tx

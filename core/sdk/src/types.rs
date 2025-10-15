@@ -190,7 +190,18 @@ impl SessionId {
     /// Creates a SessionId without validation (for migration/legacy support)
     /// Use sparingly and only during migration period
     pub fn new_unchecked(id: impl Into<String>) -> Self {
-        Self(id.into())
+        let id_str = id.into();
+
+        // Log validation errors to help identify problematic usage during migration
+        if let Err(err) = validate_uuid(&id_str) {
+            log::warn!(
+                "SessionId::new_unchecked used with invalid UUID: {} (error: {})",
+                id_str,
+                err
+            );
+        }
+
+        Self(id_str)
     }
 
     pub fn as_str(&self) -> &str {
@@ -240,8 +251,20 @@ impl ConnectionId {
     }
 
     /// Creates a ConnectionId without validation (for migration/legacy support)
+    /// Use sparingly and only during migration period
     pub fn new_unchecked(id: impl Into<String>) -> Self {
-        Self(id.into())
+        let id_str = id.into();
+
+        // Log validation errors to help identify problematic usage during migration
+        if let Err(err) = validate_uuid(&id_str) {
+            log::warn!(
+                "ConnectionId::new_unchecked used with invalid UUID: {} (error: {})",
+                id_str,
+                err
+            );
+        }
+
+        Self(id_str)
     }
 
     pub fn as_str(&self) -> &str {
@@ -292,8 +315,20 @@ impl AppId {
     }
 
     /// Creates an AppId without validation (for migration/legacy support)
+    /// Use sparingly and only during migration period
     pub fn new_unchecked(id: impl Into<String>) -> Self {
-        Self(id.into())
+        let id_str = id.into();
+
+        // Log validation errors to help identify problematic usage during migration
+        if let Err(err) = validate_app_id(&id_str) {
+            log::warn!(
+                "AppId::new_unchecked used with invalid app ID: {} (error: {})",
+                id_str,
+                err
+            );
+        }
+
+        Self(id_str)
     }
 
     pub fn as_str(&self) -> &str {
@@ -343,8 +378,20 @@ impl AppInstanceId {
     }
 
     /// Creates an AppInstanceId without validation (for migration/legacy support)
+    /// Use sparingly and only during migration period
     pub fn new_unchecked(id: impl Into<String>) -> Self {
-        Self(id.into())
+        let id_str = id.into();
+
+        // Log validation errors to help identify problematic usage during migration
+        if let Err(err) = validate_uuid(&id_str) {
+            log::warn!(
+                "AppInstanceId::new_unchecked used with invalid UUID: {} (error: {})",
+                id_str,
+                err
+            );
+        }
+
+        Self(id_str)
     }
 
     pub fn as_str(&self) -> &str {
@@ -394,8 +441,20 @@ impl RequestId {
     }
 
     /// Creates a RequestId without validation (for migration/legacy support)
+    /// Use sparingly and only during migration period
     pub fn new_unchecked(id: impl Into<String>) -> Self {
-        Self(id.into())
+        let id_str = id.into();
+
+        // Log validation errors to help identify problematic usage during migration
+        if let Err(err) = validate_uuid(&id_str) {
+            log::warn!(
+                "RequestId::new_unchecked used with invalid UUID: {} (error: {})",
+                id_str,
+                err
+            );
+        }
+
+        Self(id_str)
     }
 
     pub fn as_str(&self) -> &str {
@@ -445,8 +504,20 @@ impl DeviceSessionId {
     }
 
     /// Creates a DeviceSessionId without validation (for migration/legacy support)
+    /// Use sparingly and only during migration period
     pub fn new_unchecked(id: impl Into<String>) -> Self {
-        Self(id.into())
+        let id_str = id.into();
+
+        // Log validation errors to help identify problematic usage during migration
+        if let Err(err) = validate_uuid(&id_str) {
+            log::warn!(
+                "DeviceSessionId::new_unchecked used with invalid UUID: {} (error: {})",
+                id_str,
+                err
+            );
+        }
+
+        Self(id_str)
     }
 
     pub fn as_str(&self) -> &str {

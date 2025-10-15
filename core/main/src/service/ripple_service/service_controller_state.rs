@@ -18,6 +18,7 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use futures::{stream::SplitStream, SinkExt, StreamExt};
 use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
+use ripple_sdk::log::debug;
 use ripple_sdk::{
     api::{gateway::rpc_gateway_api::ApiMessage, manifest::extn_manifest::ExtnSymbol},
     extn::{
@@ -409,6 +410,7 @@ impl ServiceControllerState {
                     let req_text = msg.to_text().unwrap().to_string();
 
                     if let Ok(sm) = serde_json::from_str::<ServiceMessage>(&req_text) {
+                        debug!("processing service_message:{}", sm);
                         Self::process_inbound_service_message(
                             state,
                             connection_id,
@@ -429,7 +431,9 @@ impl ServiceControllerState {
                         .await;
                     }
                 }
-                Ok(_) => {}
+                Ok(ok) => {
+                    debug!("non service message received on websocket: {:?}", ok);
+                }
                 Err(e) => {
                     error!(
                         "WebSocket error for service connection_id={}: {:?}",
