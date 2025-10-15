@@ -39,13 +39,14 @@ pub struct ConfPtr(*const c_char);
 unsafe impl Sync for ConfPtr {} // ok: points to immutable static bytes
 
 // 2) The actual bytes (null-terminated). These are immutable and live forever.
-static MALLOC_CONF_BYTES: &[u8] = b"background_thread:true,dirty_decay_ms:1000,\
-muzzy_decay_ms:1000,percpu_arena:disabled,narenas:4,metadata_thp:never,lg_tcache_max:16\0";
+//static MALLOC_CONF_BYTES: &[u8] = b"background_thread:true,dirty_decay_ms:1000,\
+//muzzy_decay_ms:1000,percpu_arena:disabled,narenas:4,metadata_thp:never,lg_tcache_max:16\0";
+static SQUEEZE_HARD: &[u8] = b"background_thread:true,dirty_decay_ms:500,muzzy_decay_ms:500,percpu_arena:disabled,narenas:1,metadata_thp:never,lg_tcache_max:16\0";
 
 // 3) Export the symbol jemalloc looks for. Keep it from being stripped.
 #[no_mangle]
 #[used]
-pub static malloc_conf: ConfPtr = ConfPtr(MALLOC_CONF_BYTES.as_ptr() as *const c_char);
+pub static malloc_conf: ConfPtr = ConfPtr(SQUEEZE_HARD.as_ptr() as *const c_char);
 
 use tikv_jemallocator::Jemalloc;
 
