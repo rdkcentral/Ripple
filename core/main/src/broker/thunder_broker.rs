@@ -43,7 +43,7 @@ use serde_json::json;
 use serde_json::Value;
 use std::time::SystemTime;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, RwLock},
     time::Duration,
     vec,
@@ -80,6 +80,8 @@ pub struct ThunderBroker {
     method_clients: Arc<RwLock<MethodClientMap>>,
     /// Map of client connection -> list of subscribed methods (for cleanup)
     client_methods: Arc<RwLock<ClientMethodMap>>,
+    /// String interning pool to reduce memory fragmentation from repeated method names
+    method_name_pool: Arc<RwLock<HashSet<String>>>,
     cleaner: BrokerCleaner,
     status_manager: StatusManager,
     default_callback: BrokerCallback,
@@ -111,18 +113,30 @@ impl ThunderBroker {
         cleaner: BrokerCleaner,
         default_callback: BrokerCallback,
     ) -> Self {
+        // Pre-allocate HashMaps with estimated capacities to reduce fragmentation
+        // Based on typical embedded device usage patterns:
+        // - ~32 unique methods (firebolt events + thunder methods)
+        // - ~8 concurrent client connections maximum
+        // - ~16 callbacks and composite requests at peak
+        const ESTIMATED_METHODS: usize = 32;
+        const ESTIMATED_CLIENTS: usize = 8;
+        const ESTIMATED_CALLBACKS: usize = 16;
+
         Self {
             sender,
             subscription_map,
-            method_subscriptions: Arc::new(RwLock::new(HashMap::new())),
-            method_clients: Arc::new(RwLock::new(HashMap::new())),
-            client_methods: Arc::new(RwLock::new(HashMap::new())),
+            method_subscriptions: Arc::new(RwLock::new(HashMap::with_capacity(ESTIMATED_METHODS))),
+            method_clients: Arc::new(RwLock::new(HashMap::with_capacity(ESTIMATED_METHODS))),
+            client_methods: Arc::new(RwLock::new(HashMap::with_capacity(ESTIMATED_CLIENTS))),
+            method_name_pool: Arc::new(RwLock::new(HashSet::with_capacity(ESTIMATED_METHODS * 2))),
             cleaner,
             status_manager: StatusManager::new(),
             default_callback,
             data_migrator: None,
-            custom_callback_list: Arc::new(Mutex::new(HashMap::new())),
-            composite_request_list: Arc::new(Mutex::new(HashMap::new())),
+            custom_callback_list: Arc::new(Mutex::new(HashMap::with_capacity(ESTIMATED_CALLBACKS))),
+            composite_request_list: Arc::new(Mutex::new(HashMap::with_capacity(
+                ESTIMATED_CALLBACKS,
+            ))),
             composite_request_purge_started: Arc::new(Mutex::new(false)),
         }
     }
@@ -130,6 +144,21 @@ impl ThunderBroker {
     fn with_data_migtator(mut self) -> Self {
         self.data_migrator = UserDataMigrator::create();
         self
+    }
+
+    /// Intern a string to reduce memory fragmentation from repeated allocations
+    /// Returns a reference to the interned string that can be safely cloned
+    fn intern_string(&self, s: &str) -> String {
+        let mut pool = self.method_name_pool.write().unwrap();
+        if let Some(interned) = pool.get(s) {
+            // Return existing interned string
+            interned.clone()
+        } else {
+            // Insert new string and return it
+            let owned = s.to_string();
+            pool.insert(owned.clone());
+            owned
+        }
     }
 
     pub fn get_default_callback(&self) -> BrokerCallback {
@@ -556,13 +585,14 @@ impl ThunderBroker {
         };
 
         // The method key for our subscription maps should match what Thunder sends in events
-        let event_method_key = format!("{}.{}", call_id, thunder_method);
+        let event_method_key = self.intern_string(&format!("{}.{}", call_id, thunder_method));
+        // Intern session_id to reduce string duplication
+        let interned_session_id = self.intern_string(session_id);
 
         debug!(
             "Method-oriented subscription: session={}, firebolt_method={}, thunder_event_method={}, listen={}",
-            session_id, firebolt_method, event_method_key, listen
+            interned_session_id, firebolt_method, event_method_key, listen
         );
-
         let mut method_subscriptions = self.method_subscriptions.write().unwrap();
         let mut method_clients = self.method_clients.write().unwrap();
         let mut client_methods = self.client_methods.write().unwrap();
@@ -578,18 +608,28 @@ impl ThunderBroker {
                 // Thunder subscription exists, just add this client to the fanout list
                 debug!(
                     "Thunder subscription exists for method {}, adding client {}",
-                    event_method_key, session_id
+                    event_method_key, interned_session_id
                 );
 
                 // Add client to method's client list if not already present
-                let clients = method_clients.entry(event_method_key.clone()).or_default();
-                if !clients.contains(session_id) {
-                    clients.push(session_id.clone());
+                let clients = method_clients
+                    .entry(event_method_key.clone())
+                    .or_insert_with(|| {
+                        // Pre-allocate Vec capacity for typical embedded usage: ~4 clients per method
+                        Vec::with_capacity(4)
+                    });
+                if !clients.contains(&interned_session_id) {
+                    clients.push(interned_session_id.clone());
                     sub_state.client_count += 1;
                 }
 
                 // Add method to client's method list if not already present
-                let methods = client_methods.entry(session_id.clone()).or_default();
+                let methods = client_methods
+                    .entry(interned_session_id.clone())
+                    .or_insert_with(|| {
+                        // Pre-allocate Vec capacity for typical client subscriptions: ~8 methods per client
+                        Vec::with_capacity(8)
+                    });
                 if !methods.contains(&event_method_key) {
                     methods.push(event_method_key.clone());
                 }
@@ -597,7 +637,7 @@ impl ThunderBroker {
                 // No Thunder subscription exists, need to create one
                 debug!(
                     "Creating new Thunder subscription for method {}, client {}",
-                    event_method_key, session_id
+                    event_method_key, interned_session_id
                 );
 
                 // Create new subscription state
@@ -607,11 +647,19 @@ impl ThunderBroker {
                 };
                 method_subscriptions.insert(event_method_key.clone(), sub_state);
 
-                // Add client to method's client list
-                method_clients.insert(event_method_key.clone(), vec![session_id.clone()]);
+                // Add client to method's client list with pre-allocated capacity
+                method_clients.insert(event_method_key.clone(), {
+                    let mut clients = Vec::with_capacity(4); // Typical 4 clients per method
+                    clients.push(session_id.clone());
+                    clients
+                });
 
                 // Add method to client's method list
-                let methods = client_methods.entry(session_id.clone()).or_default();
+                let methods = client_methods
+                    .entry(interned_session_id.clone())
+                    .or_insert_with(|| {
+                        Vec::with_capacity(8) // Typical 8 methods per client
+                    });
                 methods.push(event_method_key.clone());
 
                 // Mark that we need to create a Thunder subscription
@@ -621,12 +669,12 @@ impl ThunderBroker {
             // Client wants to unsubscribe
             debug!(
                 "Unsubscribing client {} from method {}",
-                session_id, event_method_key
+                interned_session_id, event_method_key
             );
 
             // Remove client from method's client list
             if let Some(clients) = method_clients.get_mut(&event_method_key) {
-                clients.retain(|client| client != session_id);
+                clients.retain(|client| client != &interned_session_id);
 
                 // Update subscription state
                 if let Some(sub_state) = method_subscriptions.get_mut(&event_method_key) {
@@ -646,7 +694,7 @@ impl ThunderBroker {
             }
 
             // Remove method from client's method list
-            if let Some(methods) = client_methods.get_mut(session_id) {
+            if let Some(methods) = client_methods.get_mut(&interned_session_id) {
                 methods.retain(|m| m != &event_method_key);
 
                 // Keep client entry even if they have no methods for test consistency
