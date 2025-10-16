@@ -92,8 +92,8 @@ const MIGRATED_APPS_DIR_NAME: &str = "apps";
 
 #[derive(Debug, Clone)]
 pub struct App {
-    pub initial_session: AppSession,
-    pub current_session: AppSession,
+    pub initial_session: Box<AppSession>,
+    pub current_session: Box<AppSession>,
     pub session_id: String,
     pub state: LifecycleState,
     pub loaded_session_id: String,
@@ -330,7 +330,7 @@ impl AppManagerState {
     fn set_session(&self, app_id: &str, session: AppSession) {
         let mut apps = self.apps.write().unwrap();
         if let Some(app) = apps.get_mut(app_id) {
-            app.current_session = session
+            app.current_session = Box::new(session)
         }
     }
 
@@ -1173,8 +1173,8 @@ impl DelegatedLauncherHandler {
         );
 
         let app = App {
-            initial_session: session.clone(),
-            current_session: session.clone(),
+            initial_session: Box::new(session.clone()),
+            current_session: Box::new(session.clone()),
             session_id: session_id.clone(),
             loaded_session_id: loaded_session_id.clone(),
             active_session_id: active_session_id.clone(),
