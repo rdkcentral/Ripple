@@ -43,7 +43,7 @@ use serde_json::json;
 use serde_json::Value;
 use std::time::SystemTime;
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::HashMap,
     sync::{Arc, RwLock},
     time::Duration,
     vec,
@@ -80,12 +80,6 @@ pub struct ThunderBroker {
     method_clients: Arc<RwLock<MethodClientMap>>,
     /// Map of client connection -> list of subscribed methods (for cleanup)
     client_methods: Arc<RwLock<ClientMethodMap>>,
-    /// String interning pool to reduce memory fragmentation from repeated method names
-    method_name_pool: Arc<RwLock<HashSet<String>>>,
-    /// JSON value pool for reusing serde_json::Value objects to reduce parse allocations
-    json_value_pool: Arc<Mutex<VecDeque<Value>>>,
-    /// Message buffer pool for reusing WebSocket message buffers
-    message_buffer_pool: Arc<Mutex<VecDeque<Vec<u8>>>>,
     cleaner: BrokerCleaner,
     status_manager: StatusManager,
     default_callback: BrokerCallback,
@@ -117,34 +111,20 @@ impl ThunderBroker {
         cleaner: BrokerCleaner,
         default_callback: BrokerCallback,
     ) -> Self {
-        // Pre-allocate HashMaps with estimated capacities to reduce fragmentation
-        // Based on typical embedded device usage patterns:
-        // - ~32 unique methods (firebolt events + thunder methods)
-        // - ~8 concurrent client connections maximum
-        // - ~16 callbacks and composite requests at peak
-        const ESTIMATED_METHODS: usize = 32;
-        const ESTIMATED_CLIENTS: usize = 8;
-        const ESTIMATED_CALLBACKS: usize = 16;
-        const JSON_POOL_SIZE: usize = 8;
-        const BUFFER_POOL_SIZE: usize = 4;
-
+        debug!("ThunderBroker::new() - Nuclear option: Simple HashMap::new() initialization with no pre-allocation or memory pools");
+        // Simple initialization - let Rust grow collections as needed for minimal memory footprint
         Self {
             sender,
             subscription_map,
-            method_subscriptions: Arc::new(RwLock::new(HashMap::with_capacity(ESTIMATED_METHODS))),
-            method_clients: Arc::new(RwLock::new(HashMap::with_capacity(ESTIMATED_METHODS))),
-            client_methods: Arc::new(RwLock::new(HashMap::with_capacity(ESTIMATED_CLIENTS))),
-            method_name_pool: Arc::new(RwLock::new(HashSet::with_capacity(ESTIMATED_METHODS * 2))),
-            json_value_pool: Arc::new(Mutex::new(VecDeque::with_capacity(JSON_POOL_SIZE))),
-            message_buffer_pool: Arc::new(Mutex::new(VecDeque::with_capacity(BUFFER_POOL_SIZE))),
+            method_subscriptions: Arc::new(RwLock::new(HashMap::new())),
+            method_clients: Arc::new(RwLock::new(HashMap::new())),
+            client_methods: Arc::new(RwLock::new(HashMap::new())),
             cleaner,
             status_manager: StatusManager::new(),
             default_callback,
             data_migrator: None,
-            custom_callback_list: Arc::new(Mutex::new(HashMap::with_capacity(ESTIMATED_CALLBACKS))),
-            composite_request_list: Arc::new(Mutex::new(HashMap::with_capacity(
-                ESTIMATED_CALLBACKS,
-            ))),
+            custom_callback_list: Arc::new(Mutex::new(HashMap::new())),
+            composite_request_list: Arc::new(Mutex::new(HashMap::new())),
             composite_request_purge_started: Arc::new(Mutex::new(false)),
         }
     }
@@ -152,80 +132,6 @@ impl ThunderBroker {
     fn with_data_migtator(mut self) -> Self {
         self.data_migrator = UserDataMigrator::create();
         self
-    }
-
-    /// Intern a string to reduce memory fragmentation from repeated allocations
-    /// Returns a reference to the interned string that can be safely cloned
-    fn intern_string(&self, s: &str) -> String {
-        let mut pool = self.method_name_pool.write().unwrap();
-        if let Some(interned) = pool.get(s) {
-            // Return existing interned string
-            interned.clone()
-        } else {
-            // Insert new string and return it
-            let owned = s.to_string();
-            pool.insert(owned.clone());
-            owned
-        }
-    }
-
-    /// Get a pooled JSON Value to reduce allocations in hot paths
-    async fn get_pooled_json_value(&self) -> Value {
-        let mut pool = self.json_value_pool.lock().await;
-        pool.pop_front().unwrap_or(Value::Null)
-    }
-
-    /// Return a JSON Value to the pool for reuse
-    async fn return_pooled_json_value(&self, mut value: Value) {
-        // Clear the value while preserving capacity where possible
-        match &mut value {
-            Value::Object(map) => map.clear(),
-            Value::Array(vec) => vec.clear(),
-            _ => value = Value::Null,
-        }
-
-        let mut pool = self.json_value_pool.lock().await;
-        if pool.len() < 8 {
-            // Cap pool size to prevent unbounded growth
-            pool.push_back(value);
-        }
-    }
-
-    /// Get a pooled Vec<u8> buffer for message processing
-    async fn get_pooled_buffer(&self) -> Vec<u8> {
-        let mut pool = self.message_buffer_pool.lock().await;
-        pool.pop_front().unwrap_or_else(|| Vec::with_capacity(1024))
-    }
-
-    /// Return a buffer to the pool for reuse
-    async fn return_pooled_buffer(&self, mut buffer: Vec<u8>) {
-        buffer.clear();
-        let mut pool = self.message_buffer_pool.lock().await;
-        if pool.len() < 4 && buffer.capacity() <= 4096 {
-            // Reasonable size limit
-            pool.push_back(buffer);
-        }
-    }
-
-    /// Optimized version using JSON value pooling for better memory performance
-    async fn _handle_jsonrpc_response_pooled(
-        &self,
-        result: &[u8],
-        callback: BrokerCallback,
-        params: Option<Value>,
-    ) -> Result<BrokerOutput, RippleError> {
-        let mut final_result = Err(RippleError::ParseError);
-        if let Ok(data) = serde_json::from_slice::<JsonRpcApiResponse>(result) {
-            let updated_data = Self::update_response(&data, params);
-            final_result = Ok(BrokerOutput::new(updated_data));
-        }
-        if let Ok(output) = final_result.clone() {
-            tokio::spawn(async move { callback.sender.send(output).await });
-        } else {
-            error!("Bad broker response {}", String::from_utf8_lossy(result));
-        }
-
-        final_result
     }
 
     pub fn get_default_callback(&self) -> BrokerCallback {
@@ -551,35 +457,6 @@ impl ThunderBroker {
         new_response
     }
 
-    /// Memory-optimized version of update_response using JSON value pooling
-    async fn update_response_pooled(
-        &self,
-        response: &JsonRpcApiResponse,
-        params: Option<Value>,
-    ) -> JsonRpcApiResponse {
-        // Use pooled JSON value for efficient response creation
-        let pooled_value = self.get_pooled_json_value().await;
-
-        // Initialize with base response data
-        let mut new_response = response.clone();
-        if response.params.is_some() {
-            new_response.result = response.params.clone();
-        }
-        if let Some(p) = params {
-            let _ = new_response.params.insert(p);
-        }
-
-        // Return the pooled value for reuse (in real usage this would be more complex)
-        tokio::spawn({
-            let broker = self.clone();
-            async move {
-                broker.return_pooled_json_value(pooled_value).await;
-            }
-        });
-
-        new_response
-    }
-
     async fn get_composite_response_params_by_id(
         broker: ThunderBroker,
         id: Option<u64>,
@@ -588,9 +465,6 @@ impl ThunderBroker {
         let rpc_req = broker.get_composite_request(id).await;
         let mut new_param: Option<Value> = None;
         if let Some(request) = rpc_req {
-            // Use pooled buffer for efficient string processing
-            let mut _processing_buffer = broker.get_pooled_buffer().await;
-
             let pp: &str = request.params_json.as_str();
             let pp_json = &serde_json::from_str::<Value>(pp).unwrap();
 
@@ -602,9 +476,6 @@ impl ThunderBroker {
                     }
                 }
             }
-
-            // Return buffer to pool for reuse
-            broker.return_pooled_buffer(_processing_buffer).await;
         }
         // remove composite request from list
         if let Some(id) = id {
@@ -687,13 +558,13 @@ impl ThunderBroker {
         };
 
         // The method key for our subscription maps should match what Thunder sends in events
-        let event_method_key = self.intern_string(&format!("{}.{}", call_id, thunder_method));
-        // Intern session_id to reduce string duplication
-        let interned_session_id = self.intern_string(session_id);
+        let event_method_key = format!("{}.{}", call_id, thunder_method);
+        // Use session_id directly without interning
+        let session_id_str = session_id.to_string();
 
         debug!(
             "Method-oriented subscription: session={}, firebolt_method={}, thunder_event_method={}, listen={}",
-            interned_session_id, firebolt_method, event_method_key, listen
+            session_id_str, firebolt_method, event_method_key, listen
         );
         let mut method_subscriptions = self.method_subscriptions.write().unwrap();
         let mut method_clients = self.method_clients.write().unwrap();
@@ -709,28 +580,32 @@ impl ThunderBroker {
             if let Some(sub_state) = method_subscriptions.get_mut(&event_method_key) {
                 // Thunder subscription exists, just add this client to the fanout list
                 debug!(
-                    "Thunder subscription exists for method {}, adding client {}",
-                    event_method_key, interned_session_id
+                    "SUBSCRIPTION CONSOLIDATION: Thunder subscription exists for method {}, adding client {} (current clients: {})",
+                    event_method_key, session_id_str, sub_state.client_count
                 );
 
                 // Add client to method's client list if not already present
                 let clients = method_clients
                     .entry(event_method_key.clone())
                     .or_insert_with(|| {
-                        // Pre-allocate Vec capacity for typical embedded usage: ~4 clients per method
-                        Vec::with_capacity(4)
+                        debug!("Nuclear option: Creating Vec with basic allocation for clients");
+                        Vec::new()
                     });
-                if !clients.contains(&interned_session_id) {
-                    clients.push(interned_session_id.clone());
+                if !clients.contains(&session_id_str) {
+                    clients.push(session_id_str.clone());
                     sub_state.client_count += 1;
+                    debug!(
+                        "FANOUT EFFICIENCY: Client {} added to method {}, total clients now: {}",
+                        session_id_str, event_method_key, sub_state.client_count
+                    );
                 }
 
                 // Add method to client's method list if not already present
                 let methods = client_methods
-                    .entry(interned_session_id.clone())
+                    .entry(session_id_str.clone())
                     .or_insert_with(|| {
-                        // Pre-allocate Vec capacity for typical client subscriptions: ~8 methods per client
-                        Vec::with_capacity(8)
+                        debug!("Nuclear option: Creating Vec with basic allocation for methods");
+                        Vec::new()
                     });
                 if !methods.contains(&event_method_key) {
                     methods.push(event_method_key.clone());
@@ -738,8 +613,8 @@ impl ThunderBroker {
             } else {
                 // No Thunder subscription exists, need to create one
                 debug!(
-                    "Creating new Thunder subscription for method {}, client {}",
-                    event_method_key, interned_session_id
+                    "THUNDER SUBSCRIPTION: Creating NEW Thunder subscription for method {}, client {} (first subscriber)",
+                    event_method_key, session_id_str
                 );
 
                 // Create new subscription state
@@ -749,18 +624,20 @@ impl ThunderBroker {
                 };
                 method_subscriptions.insert(event_method_key.clone(), sub_state);
 
-                // Add client to method's client list with pre-allocated capacity
+                // Add client to method's client list - nuclear option uses basic allocation
                 method_clients.insert(event_method_key.clone(), {
-                    let mut clients = Vec::with_capacity(4); // Typical 4 clients per method
-                    clients.push(session_id.clone());
-                    clients
+                    debug!("Nuclear option: Creating Vec with basic allocation for clients list");
+                    vec![session_id_str.clone()] // Simple allocation, no pre-capacity
                 });
 
                 // Add method to client's method list
                 let methods = client_methods
-                    .entry(interned_session_id.clone())
+                    .entry(session_id_str.clone())
                     .or_insert_with(|| {
-                        Vec::with_capacity(8) // Typical 8 methods per client
+                        debug!(
+                            "Nuclear option: Creating Vec with basic allocation for client methods"
+                        );
+                        Vec::new() // Simple allocation, no pre-capacity
                     });
                 methods.push(event_method_key.clone());
 
@@ -771,12 +648,12 @@ impl ThunderBroker {
             // Client wants to unsubscribe
             debug!(
                 "Unsubscribing client {} from method {}",
-                interned_session_id, event_method_key
+                session_id_str, event_method_key
             );
 
             // Remove client from method's client list
             if let Some(clients) = method_clients.get_mut(&event_method_key) {
-                clients.retain(|client| client != &interned_session_id);
+                clients.retain(|client| client != &session_id_str);
 
                 // Update subscription state
                 if let Some(sub_state) = method_subscriptions.get_mut(&event_method_key) {
@@ -785,18 +662,23 @@ impl ThunderBroker {
                     // If no more clients, remove Thunder subscription
                     if sub_state.client_count == 0 {
                         debug!(
-                            "No more clients for method {}, removing Thunder subscription",
+                            "THUNDER UNSUBSCRIBE: No more clients for method {}, removing Thunder subscription",
                             event_method_key
                         );
                         existing_request_to_remove = Some(sub_state.thunder_request.clone());
                         method_subscriptions.remove(&event_method_key);
                         method_clients.remove(&event_method_key);
+                    } else {
+                        debug!(
+                            "SUBSCRIPTION CONSOLIDATION: Keeping Thunder subscription for method {} (still has {} clients)",
+                            event_method_key, sub_state.client_count
+                        );
                     }
                 }
             }
 
             // Remove method from client's method list
-            if let Some(methods) = client_methods.get_mut(&interned_session_id) {
+            if let Some(methods) = client_methods.get_mut(&session_id_str) {
                 methods.retain(|m| m != &event_method_key);
 
                 // Keep client entry even if they have no methods for test consistency
@@ -807,6 +689,14 @@ impl ThunderBroker {
         drop(method_subscriptions);
         drop(method_clients);
         drop(client_methods);
+
+        // Log the result of our nuclear option decision
+        if thunder_subscription_to_create.is_some() {
+            debug!("Nuclear option result: Will CREATE new Thunder subscription");
+        }
+        if existing_request_to_remove.is_some() {
+            debug!("Nuclear option result: Will REMOVE Thunder subscription");
+        }
 
         // Return appropriate response for Thunder broker to process
         if listen {
@@ -1052,7 +942,10 @@ impl ThunderBroker {
                     return Ok(());
                 }
 
-                debug!("Handling event fanout for method: {}", method);
+                debug!(
+                    "EVENT FANOUT: Handling event fanout for Thunder method: {}",
+                    method
+                );
 
                 // Get all clients interested in this method
                 let client_sessions = {
@@ -1061,7 +954,12 @@ impl ThunderBroker {
                 };
 
                 if let Some(clients) = client_sessions {
-                    debug!("Fanning out event {} to {:?} clients", method, clients);
+                    debug!(
+                        "FANOUT EFFICIENCY: Event {} fanning out to {} clients: {:?}",
+                        method,
+                        clients.len(),
+                        clients
+                    );
 
                     // Collect all the client requests outside the lock to avoid holding lock across async operations
                     let client_requests = {
@@ -1076,13 +974,15 @@ impl ThunderBroker {
                             .collect::<Vec<_>>()
                     };
 
-                    // Pre-create base response using pooled memory optimization
-                    let base_response = self.update_response_pooled(&data, params.clone()).await;
+                    // Pre-create base response once to reduce JSON processing overhead
+                    debug!("Nuclear option: Creating base response with standard JSON allocation (no pooling)");
+                    let base_response = Self::update_response(&data, params.clone());
 
                     for (session_id, requests) in client_requests {
                         for request in &requests {
                             if request.rpc.ctx.method.eq_ignore_ascii_case(method) {
-                                // Use pooled JSON value for memory-efficient client response creation
+                                // Nuclear option: Standard JSON clone, no pooling overhead
+                                debug!("Nuclear option: Creating client response with standard JSON clone (no buffer pooling)");
                                 let mut client_data = base_response.clone();
 
                                 // Set the request ID to match the client's original subscription
