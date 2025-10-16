@@ -2041,6 +2041,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serial_test",
+ "smallvec",
  "strum 0.24.1",
  "strum_macros 0.24.3",
  "tikv-jemallocator",

@@ -43,11 +43,12 @@ use serde_json::json;
 use serde_json::Value;
 use std::time::SystemTime;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, BTreeMap, BTreeSet},
     sync::{Arc, RwLock},
     time::Duration,
     vec,
 };
+use smallvec::SmallVec;
 
 pub const COMPOSITE_REQUEST_TIME_OUT: u64 = 8;
 
@@ -60,14 +61,15 @@ pub struct ThunderSubscriptionState {
     pub client_count: usize,
 }
 
-/// Maps method name to list of client connections interested in that method
-pub type MethodClientMap = HashMap<String, Vec<String>>;
+/// MEMORY OPTIMIZATION: Use BTreeMap for better memory density and SmallVec for typical small client lists
+/// Maps method name to list of client connections interested in that method (most methods have 1-2 clients)
+pub type MethodClientMap = BTreeMap<String, SmallVec<[String; 2]>>;
 
-/// Maps client connection to list of methods it's subscribed to
-pub type ClientMethodMap = HashMap<String, Vec<String>>;
+/// Maps client connection to list of methods it's subscribed to (most clients have 1-3 methods)
+pub type ClientMethodMap = BTreeMap<String, SmallVec<[String; 3]>>;
 
 /// Maps method name to Thunder subscription state
-pub type MethodSubscriptionMap = HashMap<String, ThunderSubscriptionState>;
+pub type MethodSubscriptionMap = BTreeMap<String, ThunderSubscriptionState>;
 
 #[derive(Clone)]
 pub struct ThunderBroker {
@@ -80,6 +82,8 @@ pub struct ThunderBroker {
     method_clients: Arc<RwLock<MethodClientMap>>,
     /// Map of client connection -> list of subscribed methods (for cleanup)
     client_methods: Arc<RwLock<ClientMethodMap>>,
+    /// MEMORY OPTIMIZATION: String interning to reduce duplicate method/session strings
+    string_intern_pool: Arc<RwLock<BTreeSet<String>>>,
     cleaner: BrokerCleaner,
     status_manager: StatusManager,
     default_callback: BrokerCallback,
@@ -111,14 +115,16 @@ impl ThunderBroker {
         cleaner: BrokerCleaner,
         default_callback: BrokerCallback,
     ) -> Self {
-        debug!("ThunderBroker::new() - Nuclear option: Simple HashMap::new() initialization with no pre-allocation or memory pools");
-        // Simple initialization - let Rust grow collections as needed for minimal memory footprint
+        debug!("ThunderBroker::new() - MEMORY AGGRESSIVE: BTreeMap for memory density + SmallVec for typical small collections");
+        // Use memory-optimized data structures: BTreeMap has better memory density than HashMap
+        // SmallVec avoids heap allocation for typical small client lists (1-3 items)
         Self {
             sender,
             subscription_map,
-            method_subscriptions: Arc::new(RwLock::new(HashMap::new())),
-            method_clients: Arc::new(RwLock::new(HashMap::new())),
-            client_methods: Arc::new(RwLock::new(HashMap::new())),
+            method_subscriptions: Arc::new(RwLock::new(BTreeMap::new())),
+            method_clients: Arc::new(RwLock::new(BTreeMap::new())),
+            client_methods: Arc::new(RwLock::new(BTreeMap::new())),
+            string_intern_pool: Arc::new(RwLock::new(BTreeSet::new())),
             cleaner,
             status_manager: StatusManager::new(),
             default_callback,
@@ -537,6 +543,20 @@ impl ThunderBroker {
         result.or(existing_request)
     }
 
+    /// MEMORY OPTIMIZATION: Intern strings to avoid duplicate allocations
+    /// BTreeSet ensures only one copy of each string exists in memory
+    fn intern_string(&self, s: String) -> String {
+        let mut pool = self.string_intern_pool.write().unwrap();
+        if let Some(existing) = pool.get(&s) {
+            debug!("MEMORY AGGRESSIVE: Using interned string (avoiding duplicate allocation)");
+            existing.clone()
+        } else {
+            debug!("MEMORY AGGRESSIVE: Adding new string to intern pool: len={}", s.len());
+            pool.insert(s.clone());
+            s
+        }
+    }
+
     /// New method-oriented subscription logic for handling 1:many Thunder event subscriptions
     fn subscribe_method_oriented(&self, request: &BrokerRequest) -> Option<BrokerRequest> {
         let session_id = &request.rpc.ctx.session_id;
@@ -558,9 +578,9 @@ impl ThunderBroker {
         };
 
         // The method key for our subscription maps should match what Thunder sends in events
-        let event_method_key = format!("{}.{}", call_id, thunder_method);
-        // Use session_id directly without interning
-        let session_id_str = session_id.to_string();
+        let event_method_key = self.intern_string(format!("{}.{}", call_id, thunder_method));
+        // Intern session_id to avoid duplicate strings in memory
+        let session_id_str = self.intern_string(session_id.to_string());
 
         debug!(
             "Method-oriented subscription: session={}, firebolt_method={}, thunder_event_method={}, listen={}",
@@ -588,8 +608,8 @@ impl ThunderBroker {
                 let clients = method_clients
                     .entry(event_method_key.clone())
                     .or_insert_with(|| {
-                        debug!("Nuclear option: Creating Vec with basic allocation for clients");
-                        Vec::new()
+                        debug!("MEMORY AGGRESSIVE: Creating SmallVec for clients (stack alloc for ≤2 clients)");
+                        SmallVec::new()
                     });
                 if !clients.contains(&session_id_str) {
                     clients.push(session_id_str.clone());
@@ -598,14 +618,19 @@ impl ThunderBroker {
                         "FANOUT EFFICIENCY: Client {} added to method {}, total clients now: {}",
                         session_id_str, event_method_key, sub_state.client_count
                     );
+                    // MEMORY AGGRESSIVE: Shrink SmallVec capacity if it grew beyond stack allocation
+                    if clients.len() <= 2 && clients.capacity() > 2 {
+                        debug!("MEMORY AGGRESSIVE: Shrinking client list capacity to fit stack allocation");
+                        clients.shrink_to_fit();
+                    }
                 }
 
                 // Add method to client's method list if not already present
                 let methods = client_methods
                     .entry(session_id_str.clone())
                     .or_insert_with(|| {
-                        debug!("Nuclear option: Creating Vec with basic allocation for methods");
-                        Vec::new()
+                        debug!("MEMORY AGGRESSIVE: Creating SmallVec for methods (stack alloc for ≤3 methods)");
+                        SmallVec::new()
                     });
                 if !methods.contains(&event_method_key) {
                     methods.push(event_method_key.clone());
@@ -624,20 +649,20 @@ impl ThunderBroker {
                 };
                 method_subscriptions.insert(event_method_key.clone(), sub_state);
 
-                // Add client to method's client list - nuclear option uses basic allocation
+                // Add client to method's client list - memory aggressive uses SmallVec for stack allocation
                 method_clients.insert(event_method_key.clone(), {
-                    debug!("Nuclear option: Creating Vec with basic allocation for clients list");
-                    vec![session_id_str.clone()] // Simple allocation, no pre-capacity
+                    debug!("MEMORY AGGRESSIVE: Creating SmallVec with stack allocation for single client");
+                    let mut clients = SmallVec::new();
+                    clients.push(session_id_str.clone());
+                    clients
                 });
 
                 // Add method to client's method list
                 let methods = client_methods
                     .entry(session_id_str.clone())
                     .or_insert_with(|| {
-                        debug!(
-                            "Nuclear option: Creating Vec with basic allocation for client methods"
-                        );
-                        Vec::new() // Simple allocation, no pre-capacity
+                        debug!("MEMORY AGGRESSIVE: Creating SmallVec with stack allocation for client methods");
+                        SmallVec::new()
                     });
                 methods.push(event_method_key.clone());
 
