@@ -41,14 +41,14 @@ use ripple_sdk::{
 };
 use serde_json::json;
 use serde_json::Value;
+use smallvec::SmallVec;
 use std::time::SystemTime;
 use std::{
-    collections::{HashMap, BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     sync::{Arc, RwLock},
     time::Duration,
     vec,
 };
-use smallvec::SmallVec;
 
 pub const COMPOSITE_REQUEST_TIME_OUT: u64 = 8;
 
@@ -551,7 +551,10 @@ impl ThunderBroker {
             debug!("MEMORY AGGRESSIVE: Using interned string (avoiding duplicate allocation)");
             existing.clone()
         } else {
-            debug!("MEMORY AGGRESSIVE: Adding new string to intern pool: len={}", s.len());
+            debug!(
+                "MEMORY AGGRESSIVE: Adding new string to intern pool: len={}",
+                s.len()
+            );
             pool.insert(s.clone());
             s
         }
