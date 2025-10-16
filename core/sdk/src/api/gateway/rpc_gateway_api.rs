@@ -60,21 +60,17 @@ impl From<CallContext> for AppIdentification {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct CallContext {
-    // Optimize field ordering for better memory alignment
-    // Group String fields first (24 bytes each, 8-byte aligned)
-    pub session_id: String,
-    pub request_id: String,
-    pub app_id: String,
-    pub method: String,
-    pub cid: Option<String>,     // 32 bytes (discriminant + String)
-    pub context: Vec<String>,    // 24 bytes (ptr + cap + len)
-    
-    // u64 field (8 bytes, 8-byte aligned)  
-    pub call_id: u64,
-    
-    // Small fields grouped together (minimize padding)
-    pub protocol: ApiProtocol,   // 1 byte enum
-    pub gateway_secure: bool,    // 1 byte + 6 bytes padding at struct end
+    // Keep the original field order for test compatibility
+    // While this doesn't have optimal memory layout, it maintains backward compatibility
+    pub session_id: String,    // 24 bytes
+    pub request_id: String,    // 24 bytes
+    pub app_id: String,        // 24 bytes
+    pub call_id: u64,          // 8 bytes
+    pub protocol: ApiProtocol, // 1 byte enum
+    pub method: String,        // 24 bytes
+    pub cid: Option<String>,   // 32 bytes (discriminant + String)
+    pub gateway_secure: bool,  // 1 byte
+    pub context: Vec<String>,  // 24 bytes (ptr + cap + len)
 }
 impl From<CallContext> for serde_json::Value {
     fn from(ctx: CallContext) -> Self {
