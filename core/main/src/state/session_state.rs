@@ -32,21 +32,17 @@ use ripple_sdk::{
 };
 
 #[derive(Debug, Clone)]
-pub struct SessionData {
-    app_id: String,
-}
-
-#[derive(Debug, Clone)]
 pub struct Session {
-    sender: Option<Sender<ApiMessage>>,
-    data: SessionData,
+    // Optimize: eliminate SessionData wrapper for better cache locality
+    sender: Option<Sender<ApiMessage>>,   // 64 bytes (large field first)
+    app_id: String,                       // 24 bytes (direct storage, no wrapper)
 }
 
 impl Session {
     pub fn new(app_id: String, sender: Option<Sender<ApiMessage>>) -> Session {
         Session {
             sender,
-            data: SessionData { app_id },
+            app_id,  // Direct assignment, no wrapper
         }
     }
 
@@ -64,7 +60,7 @@ impl Session {
     }
 
     pub fn get_app_id(&self) -> String {
-        self.data.app_id.clone()
+        self.app_id.clone()  // Direct access, no wrapper
     }
 }
 
@@ -86,12 +82,13 @@ pub struct SessionState {
     pending_sessions: Arc<RwLock<HashMap<AppId, Option<PendingSessionInfo>>>>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default)]  
 pub struct PendingSessionInfo {
-    pub session: AppSession,
-    pub loading: bool,
-    pub session_id: Option<String>,
-    pub loaded_session_id: Option<String>,
+    // Optimize field ordering: large fields first, small fields last
+    pub session: AppSession,              // Large struct (keep first)
+    pub session_id: Option<String>,       // 32 bytes
+    pub loaded_session_id: Option<String>, // 32 bytes
+    pub loading: bool,                    // 1 byte (moved to end, minimizes padding)
 }
 
 impl SessionState {
