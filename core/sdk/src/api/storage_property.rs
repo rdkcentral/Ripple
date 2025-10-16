@@ -33,7 +33,6 @@ pub const NAMESPACE_PRIVACY: &str = "Privacy";
 pub const NAMESPACE_DEVICE_NAME: &str = "DeviceName";
 pub const NAMESPACE_LOCALIZATION: &str = "Localization";
 pub const NAMESPACE_ADVERTISING: &str = "Advertising";
-pub const NAMESPACE_AUDIO_DESCRIPTION: &str = "AudioDescription";
 
 pub const KEY_ENABLED: &str = "enabled";
 pub const KEY_FONT_FAMILY: &str = "fontFamily";
