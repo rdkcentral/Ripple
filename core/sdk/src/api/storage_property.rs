@@ -52,7 +52,6 @@ pub const KEY_POSTAL_CODE: &str = "postalCode";
 pub const KEY_LOCALITY: &str = "locality";
 //pub const KEY_COUNTRY_CODE: &str = "countryCode";
 //pub const KEY_LANGUAGE: &str = "language";
-pub const KEY_LOCALE: &str = "locale";
 pub const KEY_LATLON: &str = "latlon";
 pub const KEY_ADDITIONAL_INFO: &str = "additionalInfo";
 pub const KEY_ALLOW_ACR_COLLECTION: &str = "allowACRCollection";
@@ -245,12 +244,6 @@ const PROPERTY_DATA_POSTAL_CODE: PropertyData = PropertyData {
     event_names: Some(&[EVENT_POSTAL_CODE]),
 };
 
-const PROPERTY_DATA_LOCALE: PropertyData = PropertyData {
-    key: KEY_LOCALE,
-    namespace: NAMESPACE_LOCALIZATION,
-    event_names: Some(&[EVENT_LOCALE]),
-};
-
 const PROPERTY_DATA_LATLON: PropertyData = PropertyData {
     key: KEY_LATLON,
     namespace: NAMESPACE_LOCALIZATION,
@@ -406,7 +399,6 @@ pub enum StorageProperty {
     ClosedCaptionsTextAlignVertical,
     Locality,
     PostalCode,
-    Locale,
     LatLon,
     AdditionalInfo,
     AllowAcrCollection,
@@ -480,7 +472,6 @@ impl StorageProperty {
             }
             StorageProperty::Locality => PROPERTY_DATA_LOCALITY,
             StorageProperty::PostalCode => PROPERTY_DATA_POSTAL_CODE,
-            StorageProperty::Locale => PROPERTY_DATA_LOCALE,
             StorageProperty::LatLon => PROPERTY_DATA_LATLON,
             StorageProperty::AdditionalInfo => PROPERTY_DATA_ADDITIONAL_INFO,
             StorageProperty::AllowAcrCollection => PROPERTY_DATA_ALLOW_ACR_COLLECTION,
