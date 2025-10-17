@@ -1407,11 +1407,11 @@ impl BrokerOutputForwarder {
                 .get_api_stats(&rpc_request.ctx.request_id)
             {
                 message.stats = Some(api_stats);
-                if rpc_request.ctx.app_id.eq_ignore_ascii_case("internal") {
-                    platform_state
-                        .metrics
-                        .remove_api_stats(&rpc_request.ctx.request_id);
-                }
+                // MEMORY FIX: Always remove API stats after use to prevent accumulation
+                // Previously only removed for "internal" app_id, causing memory growth
+                platform_state
+                    .metrics
+                    .remove_api_stats(&rpc_request.ctx.request_id);
             }
             if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
                 if let Ok(extn_message) =

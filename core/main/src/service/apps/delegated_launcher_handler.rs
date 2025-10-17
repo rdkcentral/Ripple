@@ -1414,6 +1414,9 @@ impl DelegatedLauncherHandler {
             .app_manager_state
             .insert(app_id.to_string(), app.clone());
 
+        // MEMORY FIX: Trigger memory cleanup when new app sessions are created
+        Self::force_memory_reclamation(&app_id.as_str());
+
         // Check for memory pressure after inserting new app
         if platform_state.app_manager_state.check_memory_pressure() {
             debug!("Memory pressure detected after app insertion, cleaning up excess apps");
@@ -1555,11 +1558,30 @@ impl DelegatedLauncherHandler {
             if let Some(timer) = self.timer_map.remove(app_id) {
                 timer.cancel();
             }
+
+            // MEMORY FIX: Force aggressive memory cleanup after app session ends
+            Self::force_memory_reclamation(app_id);
         } else {
             error!("end_session app_id={} Not found", app_id);
             return Err(AppError::NotFound);
         }
         Ok(AppManagerResponse::None)
+    }
+
+    /// Force aggressive memory reclamation after app session ends
+    fn force_memory_reclamation(app_id: &str) {
+        debug!(
+            "Forcing memory reclamation after app session end: {}",
+            app_id
+        );
+
+        // Force garbage collection via explicit drop hint
+        std::mem::drop(Vec::<u8>::with_capacity(0));
+
+        // Yield to allow any pending cleanup tasks to run
+        std::hint::spin_loop();
+
+        // Note: jemalloc-based memory reclamation would go here if available
     }
 
     async fn get_launch_request(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {

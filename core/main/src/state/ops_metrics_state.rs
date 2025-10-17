@@ -23,7 +23,7 @@ use std::{
 use ripple_sdk::{
     api::observability::metrics_util::ApiStats,
     chrono::{DateTime, Utc},
-    log::{error, warn},
+    log::{debug, error, warn},
 };
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
@@ -93,8 +93,9 @@ impl OpMetricState {
         if let Some(stats) = api_stats_map.get_mut(request_id) {
             stats.stats_ref = stats_ref;
         } else {
-            println!(
-                "update_api_stats_ref: request_id not found: request_id={}",
+            // MEMORY FIX: Don't log missing request_id during cleanup - this is normal
+            debug!(
+                "update_api_stats_ref: request_id not found (likely cleaned up): request_id={}",
                 request_id
             );
         }
@@ -105,8 +106,10 @@ impl OpMetricState {
         if let Some(stats) = api_stats_map.get_mut(request_id) {
             stats.stats.update_stage(stage)
         } else {
-            error!(
-                "update_api_stage: request_id not found: request_id={}",
+            // MEMORY FIX: Don't log error for missing request_id during cleanup
+            // This is normal when API stats are cleaned up before all stages complete
+            debug!(
+                "update_api_stage: request_id not found (likely cleaned up): request_id={}",
                 request_id
             );
             -1
