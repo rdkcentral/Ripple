@@ -42,6 +42,10 @@ impl Bootstep<BootstrapState> for StartAppManagerStep {
             ));
         let mut app_manager =
             DelegatedLauncherHandler::new(state.channels_state, state.platform_state);
+
+        // Start the session cleanup background task
+        app_manager.start_session_cleanup_task();
+
         tokio::spawn(async move {
             app_manager.start().await;
         });

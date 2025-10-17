@@ -19,6 +19,7 @@ use std::{
     collections::HashMap,
     env, fs,
     sync::{Arc, RwLock},
+    time::{Duration, SystemTime},
 };
 
 use ripple_sdk::{
@@ -44,7 +45,10 @@ use ripple_sdk::{
     },
     log::{debug, error, warn},
     serde_json::{self},
-    tokio::sync::{mpsc, oneshot},
+    tokio::{
+        sync::{mpsc, oneshot},
+        task,
+    },
     utils::{error::RippleError, time_utils::Timer},
     uuid::Uuid,
 };
@@ -91,6 +95,25 @@ const APP_ID_TITLE_DIR_NAME: &str = "app_info";
 const MIGRATED_APPS_DIR_NAME: &str = "apps";
 
 #[derive(Debug, Clone)]
+pub struct AppSessionManagementConfig {
+    pub max_concurrent_apps: usize,
+    pub session_timeout_minutes: u64,
+    pub memory_pressure_threshold_mb: usize,
+    pub compression_age_minutes: u64,
+}
+
+impl Default for AppSessionManagementConfig {
+    fn default() -> Self {
+        Self {
+            max_concurrent_apps: 5,
+            session_timeout_minutes: 10,
+            memory_pressure_threshold_mb: 10,
+            compression_age_minutes: 5,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct App {
     pub initial_session: Box<AppSession>,
     pub current_session: Box<AppSession>,
@@ -102,6 +125,7 @@ pub struct App {
     pub app_id: String,
     pub app_metrics_version: Option<String>, // Provided by app via call to Metrics.appInfo
     pub is_app_init_params_invoked: bool,
+    pub last_accessed: SystemTime, // Track when app was last used
 }
 
 #[derive(Debug, Clone)]
@@ -124,6 +148,8 @@ pub struct AppManagerState {
     // This is a map <app_id, app_migrated_state>
     migrated_apps: Arc<RwLock<HashMap<String, Vec<String>>>>,
     migrated_apps_persist_path: String,
+    // Session management configuration
+    session_config: AppSessionManagementConfig,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -189,6 +215,7 @@ impl AppManagerState {
             app_title_persist_path,
             migrated_apps: Arc::new(RwLock::new(persisted_migrated_apps)),
             migrated_apps_persist_path,
+            session_config: AppSessionManagementConfig::default(),
         }
     }
 
@@ -358,6 +385,7 @@ impl AppManagerState {
     }
 
     pub fn get(&self, app_id: &str) -> Option<App> {
+        self.update_app_access_time(app_id);
         self.apps.read().unwrap().get(app_id).cloned()
     }
 
@@ -396,6 +424,84 @@ impl AppManagerState {
             return Ok(());
         }
         Err(AppError::NotFound)
+    }
+
+    // Session management methods
+    pub fn update_app_access_time(&self, app_id: &str) {
+        if let Ok(mut apps) = self.apps.write() {
+            if let Some(app) = apps.get_mut(app_id) {
+                app.last_accessed = SystemTime::now();
+            }
+        }
+    }
+
+    pub fn check_memory_pressure(&self) -> bool {
+        if let Ok(apps) = self.apps.read() {
+            apps.len() > self.session_config.max_concurrent_apps
+        } else {
+            false
+        }
+    }
+
+    pub fn cleanup_old_sessions(&self) {
+        let timeout_duration =
+            Duration::from_secs(self.session_config.session_timeout_minutes * 60);
+        let now = SystemTime::now();
+
+        if let Ok(mut apps) = self.apps.write() {
+            let initial_count = apps.len();
+            apps.retain(|app_id, app| {
+                if let Ok(duration) = now.duration_since(app.last_accessed) {
+                    let should_keep = duration < timeout_duration;
+                    if !should_keep {
+                        debug!(
+                            "Removing old app session: {} (unused for {:?})",
+                            app_id, duration
+                        );
+                    }
+                    should_keep
+                } else {
+                    true // Keep if we can't determine age
+                }
+            });
+
+            let removed_count = initial_count - apps.len();
+            if removed_count > 0 {
+                debug!("Session cleanup removed {} old app sessions", removed_count);
+            }
+        }
+    }
+
+    pub fn cleanup_excess_apps(&self, max_to_keep: usize) {
+        if let Ok(mut apps) = self.apps.write() {
+            if apps.len() <= max_to_keep {
+                return;
+            }
+
+            // Convert to vec, sort by last_accessed (oldest first), keep newest max_to_keep
+            let mut app_list: Vec<_> = apps
+                .iter()
+                .map(|(id, app)| (id.clone(), app.last_accessed))
+                .collect();
+            app_list.sort_by_key(|(_, last_accessed)| *last_accessed);
+
+            let to_remove = apps.len() - max_to_keep;
+            let mut removed_count = 0;
+
+            for (app_id, _) in app_list.iter().take(to_remove) {
+                if apps.remove(app_id).is_some() {
+                    debug!("Removed excess app session: {}", app_id);
+                    removed_count += 1;
+                }
+            }
+
+            if removed_count > 0 {
+                debug!(
+                    "Memory pressure cleanup removed {} excess app sessions",
+                    removed_count
+                );
+            }
+        }
     }
 }
 
@@ -450,6 +556,32 @@ impl DelegatedLauncherHandler {
                 .expect("App Mgr receiver to be available"),
             timer_map: HashMap::new(),
         }
+    }
+
+    pub fn start_session_cleanup_task(&self) {
+        let platform_state = self.platform_state.clone();
+
+        task::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(300)); // 5 minutes
+            loop {
+                interval.tick().await;
+
+                // Perform regular cleanup of old sessions
+                platform_state.app_manager_state.cleanup_old_sessions();
+
+                // Handle memory pressure if needed
+                if platform_state.app_manager_state.check_memory_pressure() {
+                    debug!("Memory pressure detected, cleaning up excess apps");
+                    let max_apps = platform_state
+                        .app_manager_state
+                        .session_config
+                        .max_concurrent_apps;
+                    platform_state
+                        .app_manager_state
+                        .cleanup_excess_apps(max_apps);
+                }
+            }
+        });
     }
 
     #[allow(dead_code)]
@@ -1183,10 +1315,24 @@ impl DelegatedLauncherHandler {
             app_id: app_id.clone(),
             app_metrics_version: None,
             is_app_init_params_invoked: false,
+            last_accessed: SystemTime::now(),
         };
         platform_state
             .app_manager_state
             .insert(app_id.clone(), app.clone());
+
+        // Check for memory pressure after inserting new app
+        if platform_state.app_manager_state.check_memory_pressure() {
+            debug!("Memory pressure detected after app insertion, cleaning up excess apps");
+            let max_apps = platform_state
+                .app_manager_state
+                .session_config
+                .max_concurrent_apps;
+            platform_state
+                .app_manager_state
+                .cleanup_excess_apps(max_apps);
+        }
+
         let sess = Self::to_completed_session(&app);
         if emit_event {
             Self::emit_completed(platform_state, &app_id).await;
