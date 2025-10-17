@@ -185,7 +185,7 @@ impl PermissionHandler {
                     Ok(permissions) => {
                         println!("Response: {:?}", permissions);
                         let mut permission_response = permissions;
-                        return Self::process_permissions(state, app_id, &mut permission_response);
+                        Self::process_permissions(state, app_id, &mut permission_response)
                     }
                     Err(_) => Err(RippleError::InvalidOutput),
                 },
