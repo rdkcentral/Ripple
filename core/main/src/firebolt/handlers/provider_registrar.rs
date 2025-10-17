@@ -160,8 +160,8 @@ impl ProviderRegistrar {
         rpc_module: &mut RpcModule<RpcModuleContext>,
     ) -> bool {
         info!(
-            "register_method: method_name={}, method_type={:?}, rpc_module={:?}",
-            method_name, method_type, rpc_module
+            "register_method: method_name={}, method_type={:?}",
+            method_name, method_type
         );
 
         let result = match method_type {
