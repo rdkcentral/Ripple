@@ -107,7 +107,7 @@ impl Default for AppSessionManagementConfig {
         Self {
             max_concurrent_apps: 5,
             session_timeout_minutes: 10,
-            memory_pressure_threshold_mb: 10,
+            memory_pressure_threshold_mb: 8, // Lowered from 10MB for more aggressive cleanup
             compression_age_minutes: 5,
         }
     }
