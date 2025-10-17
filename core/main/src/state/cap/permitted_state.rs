@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use crate::broker::broker_utils::BrokerUtils;
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
@@ -23,7 +24,7 @@ use std::{
 
 use ripple_sdk::{
     api::{
-        distributor::distributor_permissions::{PermissionRequest, PermissionResponse},
+        distributor::distributor_permissions::{PermissionRequest, PermissionRequestPayload},
         firebolt::{
             fb_capabilities::{
                 DenyReason, DenyReasonWithCap, FireboltCap, FireboltPermission, RoleInfo,
@@ -166,30 +167,29 @@ impl PermissionHandler {
         // This function will always get the permissions from server and update the local cache
         let app_id_alias = Self::get_distributor_alias_for_app_id(state, app_id);
         if let Some(session) = state.session_state.get_account_session() {
-            match state
-                .get_client()
-                .send_extn_request(PermissionRequest {
-                    app_id: app_id_alias,
-                    session,
-                    payload: None,
-                })
-                .await
-                .ok()
+            let request = PermissionRequest {
+                app_id: app_id_alias,
+                session,
+                payload: Some(PermissionRequestPayload::ListFireboltPermissions),
+            };
+
+            let param = serde_json::to_value(request).unwrap();
+            match BrokerUtils::process_internal_main_request(
+                &state.clone(),
+                "eos.getPermissions",
+                Some(param),
+            )
+            .await
             {
-                Some(extn_response) => {
-                    if let Some(permission_response) =
-                        extn_response.payload.extract::<PermissionResponse>()
-                    {
-                        let mut permission_response_copy = permission_response;
-                        return Self::process_permissions(
-                            state,
-                            app_id,
-                            &mut permission_response_copy,
-                        );
+                Ok(response) => match serde_json::from_value::<Vec<FireboltPermission>>(response) {
+                    Ok(permissions) => {
+                        println!("Response: {:?}", permissions);
+                        let mut permission_response = permissions;
+                        return Self::process_permissions(state, app_id, &mut permission_response);
                     }
-                    Err(RippleError::InvalidOutput)
-                }
-                None => Err(RippleError::InvalidOutput),
+                    Err(_) => Err(RippleError::InvalidOutput),
+                },
+                Err(_) => Err(RippleError::InvalidOutput),
             }
         } else {
             Err(RippleError::InvalidOutput)
