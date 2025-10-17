@@ -358,6 +358,11 @@ impl AppManagerState {
     fn set_session(&self, app_id: &str, session: AppSession) {
         let mut apps = self.apps.write().unwrap();
         if let Some(app) = apps.get_mut(app_id) {
+            // Clear any stored intent for this app to prevent memory leaks
+            let mut intents = self.intents.write().unwrap();
+            intents.remove(app_id);
+            drop(intents);
+
             app.current_session = Box::new(session)
         }
     }
@@ -391,6 +396,11 @@ impl AppManagerState {
     }
 
     fn remove(&self, app_id: &str) -> Option<App> {
+        // Clean up stored intents to prevent memory leaks
+        let mut intents = self.intents.write().unwrap();
+        intents.remove(app_id);
+        drop(intents);
+
         let mut apps = self.apps.write().unwrap();
         apps.remove(app_id)
     }
@@ -497,25 +507,34 @@ impl AppManagerState {
         let now = SystemTime::now();
 
         if let Ok(mut apps) = self.apps.write() {
-            let initial_count = apps.len();
-            apps.retain(|app_id, app| {
+            let mut apps_to_remove = Vec::new();
+
+            // Collect apps that need to be removed
+            for (app_id, app) in apps.iter() {
                 if let Ok(duration) = now.duration_since(app.last_accessed) {
-                    let should_keep = duration < timeout_duration;
-                    if !should_keep {
+                    if duration >= timeout_duration {
+                        apps_to_remove.push(app_id.clone());
                         debug!(
                             "Removing old app session: {} (unused for {:?})",
                             app_id, duration
                         );
                     }
-                    should_keep
-                } else {
-                    true // Keep if we can't determine age
                 }
-            });
+            }
 
-            let removed_count = initial_count - apps.len();
-            if removed_count > 0 {
-                debug!("Session cleanup removed {} old app sessions", removed_count);
+            // Clean up intents and remove apps
+            if !apps_to_remove.is_empty() {
+                let mut intents = self.intents.write().unwrap();
+                for app_id in &apps_to_remove {
+                    intents.remove(app_id);
+                    apps.remove(app_id);
+                }
+                drop(intents);
+
+                debug!(
+                    "Session cleanup removed {} old app sessions",
+                    apps_to_remove.len()
+                );
             }
         }
     }
@@ -536,12 +555,16 @@ impl AppManagerState {
             let to_remove = apps.len() - max_to_keep;
             let mut removed_count = 0;
 
+            // Also clean up intents for apps we're removing
+            let mut intents = self.intents.write().unwrap();
             for (app_id, _) in app_list.iter().take(to_remove) {
+                intents.remove(app_id);
                 if apps.remove(app_id).is_some() {
                     debug!("Removed excess app session: {}", app_id);
                     removed_count += 1;
                 }
             }
+            drop(intents);
 
             if removed_count > 0 {
                 debug!(
