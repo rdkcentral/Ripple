@@ -220,16 +220,18 @@ impl RpcRouter {
             req.method = overridden_method;
         }
         LogSignal::new("rpc_router".to_string(), "routing".into(), req.clone());
-        tokio::spawn(async move {
-            let start = Utc::now().timestamp_millis();
-            let resp = resolve_route(&mut state, method_entry, resources, req.clone()).await;
-            if let Ok(msg) = resp {
-                let now = Utc::now().timestamp_millis();
-                let success = !msg.is_error();
-                TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success, &msg);
-                let _ = session.send_json_rpc(msg).await;
-            }
-        });
+
+        // Memory optimization: Avoid per-request task spawning and state cloning
+        // Instead of spawning each request in a separate task with full state clone,
+        // handle routing directly to reduce memory pressure from high call volumes
+        let start = Utc::now().timestamp_millis();
+        let resp = resolve_route(&mut state, method_entry, resources, req.clone()).await;
+        if let Ok(msg) = resp {
+            let now = Utc::now().timestamp_millis();
+            let success = !msg.is_error();
+            TelemetryBuilder::send_fb_tt(&state, req.clone(), now - start, success, &msg);
+            let _ = session.send_json_rpc(msg).await;
+        }
     }
 
     pub async fn route_extn_protocol(
@@ -247,13 +249,13 @@ impl RpcRouter {
             req.clone(),
         )
         .emit_debug();
-        tokio::spawn(async move {
-            let client = platform_state.get_client().get_extn_client();
-            if let Ok(msg) = resolve_route(&mut platform_state, method_entry, resources, req).await
-            {
-                return_extn_response(msg, extn_msg, client);
-            }
-        });
+
+        // Memory optimization: Avoid spawning task for extension protocol routing
+        // to reduce memory pressure from high-volume extension calls
+        let client = platform_state.get_client().get_extn_client();
+        if let Ok(msg) = resolve_route(&mut platform_state, method_entry, resources, req).await {
+            return_extn_response(msg, extn_msg, client);
+        }
     }
 
     pub async fn route_service_protocol(state: &PlatformState, req: RpcRequest) {
