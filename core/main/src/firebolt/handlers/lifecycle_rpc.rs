@@ -36,6 +36,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::CallContext,
     },
     tokio::sync::oneshot,
+    types::AppId,
 };
 
 use crate::broker::broker_utils::BrokerUtils;
@@ -192,7 +193,10 @@ impl LifecycleServer for LifecycleImpl {
         }
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
 
-        let app_request = AppRequest::new(AppMethod::Ready(ctx.app_id), app_resp_tx);
+        let app_request = AppRequest::new(
+            AppMethod::Ready(AppId::new_unchecked(&ctx.app_id)),
+            app_resp_tx,
+        );
         if self
             .platform_state
             .get_client()
@@ -209,7 +213,10 @@ impl LifecycleServer for LifecycleImpl {
     async fn state(&self, ctx: CallContext) -> RpcResult<String> {
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
 
-        let app_request = AppRequest::new(AppMethod::State(ctx.app_id), app_resp_tx);
+        let app_request = AppRequest::new(
+            AppMethod::State(AppId::new_unchecked(&ctx.app_id)),
+            app_resp_tx,
+        );
 
         if self
             .platform_state
@@ -233,8 +240,10 @@ impl LifecycleServer for LifecycleImpl {
     async fn close(&self, ctx: CallContext, request: CloseRequest) -> RpcResult<()> {
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
 
-        let app_request =
-            AppRequest::new(AppMethod::Close(ctx.app_id, request.reason), app_resp_tx);
+        let app_request = AppRequest::new(
+            AppMethod::Close(AppId::new_unchecked(&ctx.app_id), request.reason),
+            app_resp_tx,
+        );
 
         if self
             .platform_state
@@ -252,7 +261,10 @@ impl LifecycleServer for LifecycleImpl {
     async fn finished(&self, ctx: CallContext) -> RpcResult<()> {
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
 
-        let app_request = AppRequest::new(AppMethod::Finished(ctx.app_id), app_resp_tx);
+        let app_request = AppRequest::new(
+            AppMethod::Finished(AppId::new_unchecked(&ctx.app_id)),
+            app_resp_tx,
+        );
         if self
             .platform_state
             .get_client()

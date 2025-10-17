@@ -29,6 +29,7 @@ use ripple_sdk::{
     },
     log::error,
     tokio::sync::{mpsc::Sender, oneshot},
+    types::AppId,
 };
 
 use crate::service::extn::ripple_client::RippleClient;
@@ -75,13 +76,21 @@ impl ExtnRequestProcessor for LifecycleManagementProcessor {
         let (resp_tx, resp_rx) = oneshot::channel::<AppResponse>();
         let method = match request {
             LifecycleManagementRequest::Session(s) => AppMethod::BrowserSession(s.session),
-            LifecycleManagementRequest::SetState(s) => AppMethod::SetState(s.app_id, s.state),
-            LifecycleManagementRequest::Close(app_id, cr) => AppMethod::Close(app_id, cr),
-            LifecycleManagementRequest::Ready(app_id) => AppMethod::Ready(app_id),
-            LifecycleManagementRequest::GetSecondScreenPayload(app_id) => {
-                AppMethod::GetSecondScreenPayload(app_id)
+            LifecycleManagementRequest::SetState(s) => {
+                AppMethod::SetState(AppId::new_unchecked(&s.app_id), s.state)
             }
-            LifecycleManagementRequest::StartPage(app_id) => AppMethod::GetStartPage(app_id),
+            LifecycleManagementRequest::Close(app_id, cr) => {
+                AppMethod::Close(AppId::new_unchecked(&app_id), cr)
+            }
+            LifecycleManagementRequest::Ready(app_id) => {
+                AppMethod::Ready(AppId::new_unchecked(&app_id))
+            }
+            LifecycleManagementRequest::GetSecondScreenPayload(app_id) => {
+                AppMethod::GetSecondScreenPayload(AppId::new_unchecked(&app_id))
+            }
+            LifecycleManagementRequest::StartPage(app_id) => {
+                AppMethod::GetStartPage(AppId::new_unchecked(&app_id))
+            }
         };
         if let Err(e) = state.send_app_request(AppRequest::new(method, resp_tx)) {
             error!("Sending to App manager {:?}", e);

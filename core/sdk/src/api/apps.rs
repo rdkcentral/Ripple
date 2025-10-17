@@ -25,6 +25,7 @@ use uuid::Uuid;
 use crate::{
     extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider, ExtnResponse},
     framework::ripple_contract::RippleContract,
+    types::AppId,
     utils::{channel_utils::oneshot_send_and_log, error::RippleError},
 };
 
@@ -71,12 +72,23 @@ impl AppSession {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AppBasicInfo {
-    pub id: String,
+    pub id: AppId,
     pub catalog: Option<String>,
     pub url: Option<String>,
     pub title: Option<String>,
+}
+
+impl Default for AppBasicInfo {
+    fn default() -> Self {
+        Self {
+            id: AppId::new_unchecked("default_app"), // Safe default for empty/test cases
+            catalog: None,
+            url: None,
+            title: None,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -193,20 +205,20 @@ pub enum AppError {
 #[derive(Debug, Clone)]
 pub enum AppMethod {
     Launch(LaunchRequest),
-    Ready(String),
-    State(String),
-    Close(String, CloseReason),
-    Finished(String),
-    CheckReady(String, u128),
-    CheckFinished(String),
-    GetAppContentCatalog(String),
-    GetViewId(String),
-    GetStartPage(String),
-    GetLaunchRequest(String),
-    SetState(String, LifecycleState),
+    Ready(AppId),
+    State(AppId),
+    Close(AppId, CloseReason),
+    Finished(AppId),
+    CheckReady(AppId, u128),
+    CheckFinished(AppId),
+    GetAppContentCatalog(AppId),
+    GetViewId(AppId),
+    GetStartPage(AppId),
+    GetLaunchRequest(AppId),
+    SetState(AppId, LifecycleState),
     BrowserSession(AppSession),
-    GetSecondScreenPayload(String),
-    GetAppName(String),
+    GetSecondScreenPayload(AppId),
+    GetAppName(AppId),
     NewActiveSession(AppSession),
     NewLoadedSession(AppSession),
 }
@@ -301,7 +313,7 @@ mod tests {
     fn test_update_intent() {
         let mut app = AppSession {
             app: AppBasicInfo {
-                id: "app_id".to_string(),
+                id: AppId::new("app_id").unwrap(),
                 catalog: None,
                 url: None,
                 title: None,
@@ -339,7 +351,7 @@ mod tests {
 
         // Create an instance of AppRequest with the mock sender
         let app_request = AppRequest {
-            method: AppMethod::Ready(String::from("ready")),
+            method: AppMethod::Ready(AppId::new("ready").unwrap()),
             resp_tx: Arc::new(RwLock::new(Some(sender))),
         };
 
@@ -367,7 +379,7 @@ mod tests {
 
         // Create an instance of AppRequest with a None sender
         let app_request = AppRequest {
-            method: AppMethod::Ready(String::from("ready")),
+            method: AppMethod::Ready(AppId::new("ready").unwrap()),
             resp_tx: Arc::new(RwLock::new(None)),
         };
 

@@ -34,6 +34,7 @@ use ripple_sdk::{
     async_trait::async_trait,
     log::error,
     tokio::sync::oneshot,
+    types::AppId,
 };
 
 use crate::{
@@ -132,7 +133,7 @@ impl LifecycleManagementServer for LifecycleManagementImpl {
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
 
         let app_request = AppRequest::new(
-            AppMethod::SetState(request.app_id, request.state),
+            AppMethod::SetState(AppId::new_unchecked(&request.app_id), request.state),
             app_resp_tx,
         );
 
