@@ -33,7 +33,9 @@ include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
 #[cfg(feature = "console")]
 fn init_console() {
-    console_subscriber::init();
+    console_subscriber::ConsoleLayer::builder()
+        .server_addr(([127, 0, 0, 1], 6669))
+        .init();
     println!("Tokio Console enabled - connect with 'tokio-console' command");
 }
 
