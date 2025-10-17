@@ -436,10 +436,57 @@ impl AppManagerState {
     }
 
     pub fn check_memory_pressure(&self) -> bool {
+        // First check app count limit
         if let Ok(apps) = self.apps.read() {
-            apps.len() > self.session_config.max_concurrent_apps
-        } else {
-            false
+            if apps.len() > self.session_config.max_concurrent_apps {
+                debug!(
+                    "Memory pressure detected: app count {} > limit {}",
+                    apps.len(),
+                    self.session_config.max_concurrent_apps
+                );
+                return true;
+            }
+        }
+
+        // Then check actual RSS memory usage
+        match self.get_current_rss_mb() {
+            Ok(rss_mb) => {
+                if rss_mb > self.session_config.memory_pressure_threshold_mb {
+                    debug!(
+                        "Memory pressure detected: RSS {}MB > threshold {}MB",
+                        rss_mb, self.session_config.memory_pressure_threshold_mb
+                    );
+                    true
+                } else {
+                    false
+                }
+            }
+            Err(e) => {
+                warn!("Failed to get RSS memory for pressure check: {}", e);
+                false
+            }
+        }
+    }
+
+    fn get_current_rss_mb(&self) -> Result<usize, Box<dyn std::error::Error>> {
+        #[cfg(target_os = "linux")]
+        {
+            let status = fs::read_to_string("/proc/self/status")?;
+            for line in status.lines() {
+                if line.starts_with("VmRSS:") {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 2 {
+                        let rss_kb: usize = parts[1].parse()?;
+                        return Ok(rss_kb / 1024); // Convert KB to MB
+                    }
+                }
+            }
+            Err("VmRSS not found in /proc/self/status".into())
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            // For non-Linux systems, fall back to app count check only
+            Err("RSS memory checking not implemented for this platform".into())
         }
     }
 
