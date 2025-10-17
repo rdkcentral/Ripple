@@ -93,7 +93,7 @@ impl OpMetricState {
         if let Some(stats) = api_stats_map.get_mut(request_id) {
             stats.stats_ref = stats_ref;
         } else {
-            println!(
+            warn!(
                 "update_api_stats_ref: request_id not found: request_id={}",
                 request_id
             );
@@ -105,7 +105,7 @@ impl OpMetricState {
         if let Some(stats) = api_stats_map.get_mut(request_id) {
             stats.stats.update_stage(stage)
         } else {
-            error!(
+            warn!(
                 "update_api_stage: request_id not found: request_id={}",
                 request_id
             );
