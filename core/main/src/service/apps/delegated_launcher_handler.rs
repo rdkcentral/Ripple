@@ -101,6 +101,11 @@ pub struct AppSessionManagementConfig {
     pub session_timeout_minutes: u64,
     pub memory_pressure_threshold_mb: usize,
     pub compression_age_minutes: u64,
+    // Production-ready additions
+    pub session_cleanup_interval_seconds: u64,
+    pub max_session_validation_failures: u32,
+    pub enable_session_metrics: bool,
+    pub orphaned_session_threshold: usize,
 }
 
 impl Default for AppSessionManagementConfig {
@@ -110,6 +115,55 @@ impl Default for AppSessionManagementConfig {
             session_timeout_minutes: 10,
             memory_pressure_threshold_mb: 8, // Lowered from 10MB for more aggressive cleanup
             compression_age_minutes: 5,
+            // Production defaults
+            session_cleanup_interval_seconds: 300, // 5 minutes
+            max_session_validation_failures: 5,
+            enable_session_metrics: true,
+            orphaned_session_threshold: 10,
+        }
+    }
+}
+
+impl AppSessionManagementConfig {
+    /// Production method: Create configuration from environment or defaults
+    pub fn from_environment() -> Self {
+        Self {
+            max_concurrent_apps: std::env::var("RIPPLE_MAX_CONCURRENT_APPS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(5),
+            session_timeout_minutes: std::env::var("RIPPLE_SESSION_TIMEOUT_MINUTES")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(10),
+            memory_pressure_threshold_mb: std::env::var("RIPPLE_MEMORY_PRESSURE_THRESHOLD_MB")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(8),
+            compression_age_minutes: std::env::var("RIPPLE_COMPRESSION_AGE_MINUTES")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(5),
+            session_cleanup_interval_seconds: std::env::var(
+                "RIPPLE_SESSION_CLEANUP_INTERVAL_SECONDS",
+            )
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(300),
+            max_session_validation_failures: std::env::var(
+                "RIPPLE_MAX_SESSION_VALIDATION_FAILURES",
+            )
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(5),
+            enable_session_metrics: std::env::var("RIPPLE_ENABLE_SESSION_METRICS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(true),
+            orphaned_session_threshold: std::env::var("RIPPLE_ORPHANED_SESSION_THRESHOLD")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(10),
         }
     }
 }
@@ -637,12 +691,18 @@ impl DelegatedLauncherHandler {
             loop {
                 interval.tick().await;
 
-                // Perform regular cleanup of old sessions
+                // 1. Perform regular cleanup of old app sessions
                 platform_state.app_manager_state.cleanup_old_sessions();
 
-                // Handle memory pressure if needed
+                // 2. Clean up stale session state
+                platform_state.session_state.cleanup_stale_sessions(15); // 15 minute threshold
+
+                // 3. Clean up stale provider state
+                crate::service::apps::provider_broker::ProviderBroker::cleanup_stale_provider_state(&platform_state, 15).await;
+
+                // 4. Handle memory pressure if needed
                 if platform_state.app_manager_state.check_memory_pressure() {
-                    debug!("Memory pressure detected, cleaning up excess apps");
+                    debug!("Memory pressure detected, performing comprehensive cleanup");
                     let max_apps = platform_state
                         .app_manager_state
                         .session_config
@@ -650,7 +710,12 @@ impl DelegatedLauncherHandler {
                     platform_state
                         .app_manager_state
                         .cleanup_excess_apps(max_apps);
+
+                    // Additional aggressive cleanup during memory pressure
+                    platform_state.session_state.cleanup_stale_sessions(5); // More aggressive - 5 minute threshold
                 }
+
+                debug!("Periodic cleanup cycle completed");
             }
         });
     }
@@ -1559,13 +1624,79 @@ impl DelegatedLauncherHandler {
                 timer.cancel();
             }
 
-            // MEMORY FIX: Force aggressive memory cleanup after app session ends
-            Self::force_memory_reclamation(app_id);
+            // MEMORY FIX: Comprehensive app state cleanup
+            Self::comprehensive_app_cleanup(&self.platform_state, app_id).await;
         } else {
             error!("end_session app_id={} Not found", app_id);
             return Err(AppError::NotFound);
         }
         Ok(AppManagerResponse::None)
+    }
+
+    /// Comprehensive app cleanup including session state and provider state
+    async fn comprehensive_app_cleanup(platform_state: &PlatformState, app_id: &str) {
+        use std::time::Instant;
+
+        let start_time = Instant::now();
+        debug!("Starting comprehensive app cleanup for: {}", app_id);
+
+        // Production: Get baseline metrics for monitoring
+        if platform_state
+            .app_manager_state
+            .session_config
+            .enable_session_metrics
+        {
+            let metrics_before = platform_state.session_state.get_session_metrics();
+            debug!(
+                "Pre-cleanup metrics for {}: active_sessions={}, pending_sessions={}",
+                app_id, metrics_before.active_sessions, metrics_before.pending_sessions
+            );
+        }
+
+        // 1. Clean up session state with error handling
+        platform_state.session_state.cleanup_app_sessions(app_id);
+
+        // 2. Clean up provider state with error handling
+        if let Err(e) = tokio::time::timeout(
+            std::time::Duration::from_secs(30), // Production timeout
+            crate::service::apps::provider_broker::ProviderBroker::cleanup_app_providers(
+                platform_state,
+                app_id,
+            ),
+        )
+        .await
+        {
+            error!("Provider cleanup timed out for app {}: {:?}", app_id, e);
+        }
+
+        // 3. Force memory reclamation
+        Self::force_memory_reclamation(app_id);
+
+        // 4. Production: Validate cleanup effectiveness
+        if platform_state
+            .app_manager_state
+            .session_config
+            .enable_session_metrics
+        {
+            let metrics_after = platform_state.session_state.get_session_metrics();
+            let validation_issues = platform_state.session_state.validate_session_state();
+
+            if !validation_issues.is_empty() {
+                warn!(
+                    "Session validation issues detected after cleanup for {}: {:?}",
+                    app_id, validation_issues
+                );
+            }
+
+            debug!("Post-cleanup metrics for {}: active_sessions={}, pending_sessions={}, duration={:?}", 
+                   app_id, metrics_after.active_sessions, metrics_after.pending_sessions, start_time.elapsed());
+        }
+
+        debug!(
+            "Completed comprehensive app cleanup for: {} in {:?}",
+            app_id,
+            start_time.elapsed()
+        );
     }
 
     /// Force aggressive memory reclamation after app session ends

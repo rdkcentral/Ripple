@@ -26,6 +26,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::{ApiMessage, CallContext},
         session::{AccountSession, ProvisionRequest},
     },
+    log::{debug, error}, // Add logging imports for production error handling
     tokio::sync::mpsc::Sender,
     types::{AppId, ConnectionId, SessionId}, // Import our newtypes for type-safe session identifiers
     utils::error::RippleError,
@@ -220,4 +221,170 @@ impl SessionState {
         let app_id_typed = AppId::new_unchecked(app_id.to_owned());
         self.clear_pending_session(&app_id_typed);
     }
+
+    /// Memory optimization: Comprehensive session cleanup for app lifecycle events
+    pub fn cleanup_app_sessions(&self, app_id: &str) {
+        // Clean up pending sessions for this app
+        let app_id_typed = AppId::new_unchecked(app_id.to_owned());
+        self.clear_pending_session(&app_id_typed);
+
+        // Find and remove any sessions associated with this app
+        let mut sessions_to_remove = Vec::new();
+        {
+            // Use a timeout-aware lock to prevent deadlocks in production
+            match self.session_map.try_read() {
+                Ok(session_map) => {
+                    for (connection_id, session) in session_map.iter() {
+                        if &session.app_id == app_id {
+                            sessions_to_remove.push(connection_id.clone());
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to acquire read lock for session cleanup: {:?}", e);
+                    return; // Fail gracefully rather than panic
+                }
+            }
+        }
+
+        // Remove identified sessions with proper error handling
+        if !sessions_to_remove.is_empty() {
+            match self.session_map.try_write() {
+                Ok(mut session_map) => {
+                    let mut removed_count = 0;
+                    for connection_id in sessions_to_remove {
+                        if session_map.remove(&connection_id).is_some() {
+                            removed_count += 1;
+                        }
+                    }
+                    if removed_count > 0 {
+                        debug!("Cleaned up {} sessions for app: {}", removed_count, app_id);
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to acquire write lock for session removal: {:?}", e);
+                }
+            }
+        }
+    }
+
+    /// Memory optimization: Clean up stale sessions and pending state
+    pub fn cleanup_stale_sessions(&self, max_age_minutes: u64) {
+        use std::time::{Duration, SystemTime};
+
+        let _cutoff_time = SystemTime::now() - Duration::from_secs(max_age_minutes * 60);
+
+        // Clean up stale active sessions
+        // TODO: Production enhancement - Add proper session timestamps to Session struct
+        // Currently using simplified logic as Session doesn't have last_activity timestamp
+        let mut sessions_to_remove = Vec::new();
+        {
+            match self.session_map.try_read() {
+                Ok(session_map) => {
+                    for (connection_id, session) in session_map.iter() {
+                        // PRODUCTION TODO: Replace this simplified check with proper timestamp comparison
+                        // if session.last_activity < cutoff_time {
+                        //     sessions_to_remove.push(connection_id.clone());
+                        // }
+
+                        // Current simplified logic: remove sessions with empty app_id (likely orphaned)
+                        if session.app_id.is_empty() {
+                            sessions_to_remove.push(connection_id.clone());
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!(
+                        "Failed to acquire read lock for stale session cleanup: {:?}",
+                        e
+                    );
+                    return;
+                }
+            }
+        }
+
+        if !sessions_to_remove.is_empty() {
+            match self.session_map.try_write() {
+                Ok(mut session_map) => {
+                    let mut removed_count = 0;
+                    for connection_id in sessions_to_remove {
+                        if session_map.remove(&connection_id).is_some() {
+                            removed_count += 1;
+                        }
+                    }
+                    if removed_count > 0 {
+                        debug!("Cleaned up {} stale sessions", removed_count);
+                    }
+                }
+                Err(e) => {
+                    error!(
+                        "Failed to acquire write lock for stale session removal: {:?}",
+                        e
+                    );
+                }
+            }
+        }
+    }
+
+    /// Production health check: Get session state metrics for monitoring
+    pub fn get_session_metrics(&self) -> SessionMetrics {
+        let session_count = self.session_map.read().unwrap().len();
+        let pending_count = self.pending_sessions.read().unwrap().len();
+        let has_account_session = self.account_session.read().unwrap().is_some();
+
+        SessionMetrics {
+            active_sessions: session_count,
+            pending_sessions: pending_count,
+            has_account_session,
+        }
+    }
+
+    /// Production validation: Verify session state consistency
+    pub fn validate_session_state(&self) -> Vec<SessionValidationIssue> {
+        let mut issues = Vec::new();
+
+        // Check for excessive session counts that might indicate leaks
+        let session_count = self.session_map.read().unwrap().len();
+        if session_count > 100 {
+            // Configurable threshold
+            issues.push(SessionValidationIssue::ExcessiveSessions(session_count));
+        }
+
+        // Check for sessions with empty app_ids (potential orphans)
+        let session_map = self.session_map.read().unwrap();
+        let empty_app_id_count = session_map
+            .values()
+            .filter(|session| session.app_id.is_empty())
+            .count();
+        if empty_app_id_count > 0 {
+            issues.push(SessionValidationIssue::OrphanedSessions(empty_app_id_count));
+        }
+
+        // Check for excessive pending sessions
+        let pending_count = self.pending_sessions.read().unwrap().len();
+        if pending_count > 20 {
+            // Configurable threshold
+            issues.push(SessionValidationIssue::ExcessivePendingSessions(
+                pending_count,
+            ));
+        }
+
+        issues
+    }
+}
+
+/// Production monitoring: Session state metrics for health checks
+#[derive(Debug, Clone)]
+pub struct SessionMetrics {
+    pub active_sessions: usize,
+    pub pending_sessions: usize,
+    pub has_account_session: bool,
+}
+
+/// Production validation: Issues that can be detected in session state
+#[derive(Debug, Clone)]
+pub enum SessionValidationIssue {
+    ExcessiveSessions(usize),
+    OrphanedSessions(usize),
+    ExcessivePendingSessions(usize),
 }

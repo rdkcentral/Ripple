@@ -434,4 +434,96 @@ impl ProviderBroker {
             warn!("Focus: No active session for request");
         }
     }
+
+    /// Memory optimization: Comprehensive provider state cleanup for app lifecycle
+    pub async fn cleanup_app_providers(pst: &PlatformState, app_id: &str) {
+        // Clean up provider methods registered by this app
+        let mut methods_to_remove = Vec::new();
+        {
+            let provider_methods = pst.provider_broker_state.provider_methods.read().unwrap();
+            for (cap_method, provider_method) in provider_methods.iter() {
+                if provider_method.provider.app_id == app_id {
+                    methods_to_remove.push(cap_method.clone());
+                }
+            }
+        }
+
+        if !methods_to_remove.is_empty() {
+            let mut provider_methods = pst.provider_broker_state.provider_methods.write().unwrap();
+            for cap_method in &methods_to_remove {
+                provider_methods.remove(cap_method);
+            }
+            debug!(
+                "Cleaned up {} provider methods for app: {}",
+                methods_to_remove.len(),
+                app_id
+            );
+        }
+
+        // Clean up active provider sessions involving this app
+        let mut sessions_to_remove = Vec::new();
+        {
+            let active_sessions = pst.provider_broker_state.active_sessions.read().unwrap();
+            for (session_id, session) in active_sessions.iter() {
+                if session.provider.provider.app_id == app_id {
+                    sessions_to_remove.push(session_id.clone());
+                }
+            }
+        }
+
+        if !sessions_to_remove.is_empty() {
+            let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
+            for session_id in &sessions_to_remove {
+                active_sessions.remove(session_id);
+            }
+            debug!(
+                "Cleaned up {} active provider sessions for app: {}",
+                sessions_to_remove.len(),
+                app_id
+            );
+        }
+
+        // Clean up pending requests from this app
+        let mut request_queue = pst.provider_broker_state.request_queue.write().unwrap();
+        let initial_len = request_queue.len();
+        request_queue.retain(|request| request.app_id.as_ref() != Some(&app_id.to_string()));
+        let removed_count = initial_len - request_queue.len();
+
+        if removed_count > 0 {
+            debug!(
+                "Cleaned up {} pending provider requests for app: {}",
+                removed_count, app_id
+            );
+        }
+    }
+
+    /// Memory optimization: Periodic cleanup of stale provider state
+    pub async fn cleanup_stale_provider_state(pst: &PlatformState, _max_age_minutes: u64) {
+        // Clean up orphaned active sessions (sessions without valid providers)
+        let mut sessions_to_remove = Vec::new();
+        {
+            let active_sessions = pst.provider_broker_state.active_sessions.read().unwrap();
+            let provider_methods = pst.provider_broker_state.provider_methods.read().unwrap();
+
+            for (session_id, session) in active_sessions.iter() {
+                let capability = &session._capability;
+                // Check if the provider method still exists
+                let cap_method = format!("{}:{}", capability, "provide"); // Simplified check
+                if !provider_methods.contains_key(&cap_method) {
+                    sessions_to_remove.push(session_id.clone());
+                }
+            }
+        }
+
+        if !sessions_to_remove.is_empty() {
+            let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
+            for session_id in &sessions_to_remove {
+                active_sessions.remove(session_id);
+            }
+            debug!(
+                "Cleaned up {} orphaned provider sessions",
+                sessions_to_remove.len()
+            );
+        }
+    }
 }
