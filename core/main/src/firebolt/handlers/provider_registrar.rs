@@ -154,7 +154,6 @@ impl ProviderRegistrar {
         None
     }
 
-    
     fn register_method(
         method_name: &'static str,
         method_type: MethodType,
