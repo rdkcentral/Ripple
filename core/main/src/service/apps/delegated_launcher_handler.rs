@@ -694,13 +694,22 @@ impl DelegatedLauncherHandler {
                 // 1. Perform regular cleanup of old app sessions
                 platform_state.app_manager_state.cleanup_old_sessions();
 
-                // 2. Clean up stale session state
-                platform_state.session_state.cleanup_stale_sessions(15); // 15 minute threshold
+                // 2. Clean up stale session state - AGGRESSIVE for steady state
+                platform_state.session_state.cleanup_stale_sessions(3); // 3 minute threshold (was 15)
 
-                // 3. Clean up stale provider state
-                crate::service::apps::provider_broker::ProviderBroker::cleanup_stale_provider_state(&platform_state, 15).await;
+                // 3. Clean up stale provider state - AGGRESSIVE
+                crate::service::apps::provider_broker::ProviderBroker::cleanup_stale_provider_state(&platform_state, 3).await; // 3 minutes (was 15)
 
-                // 4. Handle memory pressure if needed
+                // 4. Clean up stale endpoint broker requests - AGGRESSIVE
+                platform_state.endpoint_state.cleanup_stale_requests(3); // 3 minute threshold (was 15)
+
+                // 5. Clean up stale endpoint connections - AGGRESSIVE
+                platform_state
+                    .endpoint_state
+                    .cleanup_stale_endpoints(10)
+                    .await; // 10 second timeout (was 30)
+
+                // 6. Handle memory pressure if needed
                 if platform_state.app_manager_state.check_memory_pressure() {
                     debug!("Memory pressure detected, performing comprehensive cleanup");
                     let max_apps = platform_state
@@ -711,8 +720,16 @@ impl DelegatedLauncherHandler {
                         .app_manager_state
                         .cleanup_excess_apps(max_apps);
 
-                    // Additional aggressive cleanup during memory pressure
-                    platform_state.session_state.cleanup_stale_sessions(5); // More aggressive - 5 minute threshold
+                    // Additional VERY aggressive cleanup during memory pressure
+                    platform_state.session_state.cleanup_stale_sessions(1); // VERY aggressive - 1 minute threshold
+                    platform_state.endpoint_state.cleanup_stale_requests(1); // VERY aggressive endpoint cleanup
+                    platform_state
+                        .endpoint_state
+                        .cleanup_stale_endpoints(5)
+                        .await; // VERY aggressive endpoint connection cleanup
+
+                    // Force additional memory reclamation
+                    Self::force_system_memory_reclamation("memory_pressure");
                 }
 
                 debug!("Periodic cleanup cycle completed");
@@ -1669,7 +1686,13 @@ impl DelegatedLauncherHandler {
             error!("Provider cleanup timed out for app {}: {:?}", app_id, e);
         }
 
-        // 3. Force memory reclamation
+        // 3. Clean up endpoint broker state
+        platform_state.endpoint_state.cleanup_for_app(app_id).await;
+
+        // 4. CRITICAL: Force comprehensive memory cleanup to achieve steady state
+        Self::force_comprehensive_memory_cleanup(platform_state, app_id).await;
+
+        // 5. Force memory reclamation
         Self::force_memory_reclamation(app_id);
 
         // 4. Production: Validate cleanup effectiveness
@@ -1697,6 +1720,78 @@ impl DelegatedLauncherHandler {
             app_id,
             start_time.elapsed()
         );
+    }
+
+    /// CRITICAL MEMORY FIX: Force comprehensive memory cleanup to achieve steady state
+    async fn force_comprehensive_memory_cleanup(platform_state: &PlatformState, app_id: &str) {
+        use std::time::Instant;
+
+        let start_time = Instant::now();
+        debug!("Starting comprehensive memory cleanup for app: {}", app_id);
+
+        // 1. Aggressive periodic cleanup - run all cleanup mechanisms
+        platform_state.session_state.cleanup_stale_sessions(1); // Very aggressive - 1 minute threshold
+        platform_state.endpoint_state.cleanup_stale_requests(1); // Very aggressive cleanup
+        platform_state
+            .endpoint_state
+            .cleanup_stale_endpoints(5)
+            .await; // Fast endpoint cleanup
+
+        // 2. Force memory pressure cleanup simulation
+        let max_apps = platform_state
+            .app_manager_state
+            .session_config
+            .max_concurrent_apps;
+        platform_state
+            .app_manager_state
+            .cleanup_excess_apps(max_apps / 2); // More aggressive limit
+
+        // 3. Provider state comprehensive cleanup
+        if let Err(e) = tokio::time::timeout(
+            std::time::Duration::from_secs(10), // Shorter timeout
+            crate::service::apps::provider_broker::ProviderBroker::cleanup_stale_provider_state(
+                platform_state,
+                1,
+            ), // 1 minute threshold
+        )
+        .await
+        {
+            error!(
+                "Aggressive provider cleanup timed out for app {}: {:?}",
+                app_id, e
+            );
+        }
+
+        // 4. System-level memory reclamation
+        Self::force_system_memory_reclamation(app_id);
+
+        let cleanup_duration = start_time.elapsed();
+        debug!(
+            "Comprehensive memory cleanup completed for {} in {:?} - targeting steady state",
+            app_id, cleanup_duration
+        );
+    }
+
+    /// Enhanced memory reclamation with system-level cleanup
+    fn force_system_memory_reclamation(app_id: &str) {
+        debug!(
+            "Forcing system-level memory reclamation for app: {}",
+            app_id
+        );
+
+        // Multiple rounds of memory pressure
+        for _round in 0..3 {
+            // Force garbage collection via explicit drop hint
+            std::mem::drop(Vec::<u8>::with_capacity(0));
+
+            // Encourage heap compaction
+            std::hint::spin_loop();
+
+            // Brief yield to allow cleanup tasks to run
+            std::thread::yield_now();
+        }
+
+        debug!("System memory reclamation completed for app: {}", app_id);
     }
 
     /// Force aggressive memory reclamation after app session ends

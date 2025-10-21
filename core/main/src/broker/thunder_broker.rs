@@ -567,7 +567,6 @@ impl ThunderBroker {
         let listen = request.rpc.is_listening();
 
         // Extract Thunder method name that will be used in events
-        let call_id = request.rpc.ctx.call_id;
         let (_, thunder_method_opt) = Self::get_callsign_and_method_from_alias(&request.rule.alias);
         let thunder_method = match thunder_method_opt {
             Some(method) => method,
@@ -580,15 +579,11 @@ impl ThunderBroker {
             }
         };
 
-        // The method key for our subscription maps should match what Thunder sends in events
-        let event_method_key = self.intern_string(format!("{}.{}", call_id, thunder_method));
+        // Intern thunder_method to avoid duplicate strings
+        let thunder_method_key = self.intern_string(thunder_method.to_string());
         // Intern session_id to avoid duplicate strings in memory
         let session_id_str = self.intern_string(session_id.to_string());
 
-        debug!(
-            "Method-oriented subscription: session={}, firebolt_method={}, thunder_event_method={}, listen={}",
-            session_id_str, firebolt_method, event_method_key, listen
-        );
         let mut method_subscriptions = self.method_subscriptions.write().unwrap();
         let mut method_clients = self.method_clients.write().unwrap();
         let mut client_methods = self.client_methods.write().unwrap();
@@ -599,12 +594,16 @@ impl ThunderBroker {
         if listen {
             // Client wants to subscribe
 
-            // Check if we already have a Thunder subscription for this method
-            if let Some(sub_state) = method_subscriptions.get_mut(&event_method_key) {
-                // Thunder subscription exists, just add this client to the fanout list
+            // Check if we already have a Thunder subscription for this method (keyed by thunder method name only)
+            if let Some(sub_state) = method_subscriptions.get_mut(&thunder_method_key) {
+                // Thunder subscription exists, reuse its call_id for event routing
+                let existing_call_id = sub_state.thunder_request.rpc.ctx.call_id;
+                let event_method_key =
+                    self.intern_string(format!("{}.{}", existing_call_id, thunder_method_key));
+
                 debug!(
-                    "SUBSCRIPTION CONSOLIDATION: Thunder subscription exists for method {}, adding client {} (current clients: {})",
-                    event_method_key, session_id_str, sub_state.client_count
+                    "SUBSCRIPTION CONSOLIDATION: Thunder subscription exists for method {}, reusing call_id {}, adding client {} (current clients: {})",
+                    thunder_method_key, existing_call_id, session_id_str, sub_state.client_count
                 );
 
                 // Add client to method's client list if not already present
@@ -621,11 +620,6 @@ impl ThunderBroker {
                         "FANOUT EFFICIENCY: Client {} added to method {}, total clients now: {}",
                         session_id_str, event_method_key, sub_state.client_count
                     );
-                    // MEMORY AGGRESSIVE: Shrink SmallVec capacity if it grew beyond stack allocation
-                    if clients.len() <= 2 && clients.capacity() > 2 {
-                        debug!("MEMORY AGGRESSIVE: Shrinking client list capacity to fit stack allocation");
-                        clients.shrink_to_fit();
-                    }
                 }
 
                 // Add method to client's method list if not already present
@@ -638,21 +632,30 @@ impl ThunderBroker {
                 if !methods.contains(&event_method_key) {
                     methods.push(event_method_key.clone());
                 }
-            } else {
-                // No Thunder subscription exists, need to create one
+
                 debug!(
-                    "THUNDER SUBSCRIPTION: Creating NEW Thunder subscription for method {}, client {} (first subscriber)",
-                    event_method_key, session_id_str
+                    "Method-oriented subscription: session={}, firebolt_method={}, thunder_event_method={}, listen={} (reused existing)",
+                    session_id_str, firebolt_method, event_method_key, listen
+                );
+            } else {
+                // No Thunder subscription exists, need to create one using this client's call_id
+                let call_id = request.rpc.ctx.call_id;
+                let event_method_key =
+                    self.intern_string(format!("{}.{}", call_id, thunder_method_key));
+
+                debug!(
+                    "THUNDER SUBSCRIPTION: Creating NEW Thunder subscription for method {}, using call_id {}, client {} (first subscriber)",
+                    thunder_method_key, call_id, session_id_str
                 );
 
-                // Create new subscription state
+                // Create new subscription state (keyed by thunder method name only)
                 let sub_state = ThunderSubscriptionState {
                     thunder_request: request.clone(),
                     client_count: 1,
                 };
-                method_subscriptions.insert(event_method_key.clone(), sub_state);
+                method_subscriptions.insert(thunder_method_key.clone(), sub_state);
 
-                // Add client to method's client list - memory aggressive uses SmallVec for stack allocation
+                // Add client to method's client list (keyed by call_id.method for event routing)
                 method_clients.insert(event_method_key.clone(), {
                     debug!("MEMORY AGGRESSIVE: Creating SmallVec with stack allocation for single client");
                     let mut clients = SmallVec::new();
@@ -671,9 +674,38 @@ impl ThunderBroker {
 
                 // Mark that we need to create a Thunder subscription
                 thunder_subscription_to_create = Some(request.clone());
+
+                debug!(
+                    "Method-oriented subscription: session={}, firebolt_method={}, thunder_event_method={}, listen={} (new subscription)",
+                    session_id_str, firebolt_method, event_method_key, listen
+                );
             }
         } else {
             // Client wants to unsubscribe
+
+            // Need to find the event_method_key that was used when subscribing
+            // It's stored in the client_methods map
+            let event_method_key = if let Some(methods) = client_methods.get(&session_id_str) {
+                // Find the method that matches this thunder method
+                methods
+                    .iter()
+                    .find(|m| m.ends_with(&format!(".{}", thunder_method_key)))
+                    .cloned()
+            } else {
+                None
+            };
+
+            let event_method_key = match event_method_key {
+                Some(key) => key,
+                None => {
+                    debug!(
+                        "Client {} not subscribed to method {}, ignoring unsubscribe",
+                        session_id_str, thunder_method_key
+                    );
+                    return None;
+                }
+            };
+
             debug!(
                 "Unsubscribing client {} from method {}",
                 session_id_str, event_method_key
@@ -683,23 +715,23 @@ impl ThunderBroker {
             if let Some(clients) = method_clients.get_mut(&event_method_key) {
                 clients.retain(|client| client != &session_id_str);
 
-                // Update subscription state
-                if let Some(sub_state) = method_subscriptions.get_mut(&event_method_key) {
+                // Update subscription state (keyed by thunder method name only)
+                if let Some(sub_state) = method_subscriptions.get_mut(&thunder_method_key) {
                     sub_state.client_count = sub_state.client_count.saturating_sub(1);
 
                     // If no more clients, remove Thunder subscription
                     if sub_state.client_count == 0 {
                         debug!(
                             "THUNDER UNSUBSCRIBE: No more clients for method {}, removing Thunder subscription",
-                            event_method_key
+                            thunder_method_key
                         );
                         existing_request_to_remove = Some(sub_state.thunder_request.clone());
-                        method_subscriptions.remove(&event_method_key);
+                        method_subscriptions.remove(&thunder_method_key);
                         method_clients.remove(&event_method_key);
                     } else {
                         debug!(
                             "SUBSCRIPTION CONSOLIDATION: Keeping Thunder subscription for method {} (still has {} clients)",
-                            event_method_key, sub_state.client_count
+                            thunder_method_key, sub_state.client_count
                         );
                     }
                 }
@@ -1008,38 +1040,55 @@ impl ThunderBroker {
 
                     for (session_id, requests) in client_requests {
                         for request in &requests {
-                            if request.rpc.ctx.method.eq_ignore_ascii_case(method) {
-                                // Nuclear option: Standard JSON clone, no pooling overhead
-                                debug!("Nuclear option: Creating client response with standard JSON clone (no buffer pooling)");
-                                let mut client_data = base_response.clone();
+                            // No need to check method equality - we already know this request is for this event
+                            // because it came from method_clients map indexed by the Thunder event method
 
-                                // Set the request ID to match the client's original subscription
-                                client_data.id = Some(request.rpc.ctx.call_id);
+                            // Nuclear option: Standard JSON clone, no pooling overhead
+                            debug!("Nuclear option: Creating client response with standard JSON clone (no buffer pooling)");
+                            let mut client_data = base_response.clone();
 
-                                let output = BrokerOutput::new(client_data);
+                            // IMPORTANT: Do NOT set client_data.id - events should not have an id field
+                            // Events are distinguished from responses by having a method but no id
+                            // Setting an id makes start_forwarder treat this as a response, causing "request not found" errors
 
-                                // Send to this client's callback
-                                let callback = BrokerCallback {
-                                    sender: request
-                                        .workflow_callback
-                                        .as_ref()
-                                        .map(|cb| cb.sender.clone())
-                                        .unwrap_or_else(|| self.default_callback.sender.clone()),
-                                };
-
-                                let output_clone = output.clone();
-                                let session_id_clone = session_id.clone();
-                                tokio::spawn(async move {
-                                    if let Err(e) = callback.sender.send(output_clone).await {
-                                        error!(
-                                            "Failed to send event to client {}: {:?}",
-                                            session_id_clone, e
-                                        );
-                                    }
-                                });
-
-                                debug!("Event {} sent to client {}", method, session_id);
+                            // FIX: Format the method field as "{id}.{firebolt_method}" for proper event dispatch
+                            // The firebolt_method is in request.rpc.ctx.method (e.g., "voiceguidance.onVoiceGuidanceSettingsChanged")
+                            // This allows start_forwarder to correctly identify and route the event by parsing the ID
+                            if let Some(ref mut event_method) = client_data.method {
+                                // Replace the Thunder method with the formatted event string
+                                *event_method = format!(
+                                    "{}.{}",
+                                    request.rpc.ctx.call_id, request.rpc.ctx.method
+                                );
+                                debug!(
+                                    "EVENT FANOUT: Formatted event method for client {} from Thunder method '{}' to '{}'",
+                                    session_id, method, event_method
+                                );
                             }
+
+                            let output = BrokerOutput::new(client_data);
+
+                            // Send to this client's callback
+                            let callback = BrokerCallback {
+                                sender: request
+                                    .workflow_callback
+                                    .as_ref()
+                                    .map(|cb| cb.sender.clone())
+                                    .unwrap_or_else(|| self.default_callback.sender.clone()),
+                            };
+
+                            let output_clone = output.clone();
+                            let session_id_clone = session_id.clone();
+                            tokio::spawn(async move {
+                                if let Err(e) = callback.sender.send(output_clone).await {
+                                    error!(
+                                        "Failed to send event to client {}: {:?}",
+                                        session_id_clone, e
+                                    );
+                                }
+                            });
+
+                            debug!("Event {} sent to client {}", method, session_id);
                         }
                     }
                 } else {
@@ -1767,16 +1816,17 @@ mod tests {
         let method_clients = broker.method_clients.read().unwrap();
         let client_methods = broker.client_methods.read().unwrap();
 
-        // Should have one method subscription using Thunder method format
-        let expected_thunder_method = "100.onspeechcomplete";
+        // Should have one method subscription keyed by Thunder method name only
+        let expected_subscription_key = "onspeechcomplete";
         assert_eq!(method_subscriptions.len(), 1);
-        assert!(method_subscriptions.contains_key(expected_thunder_method));
-        let sub_state = method_subscriptions.get(expected_thunder_method).unwrap();
+        assert!(method_subscriptions.contains_key(expected_subscription_key));
+        let sub_state = method_subscriptions.get(expected_subscription_key).unwrap();
         assert_eq!(sub_state.client_count, 1);
 
-        // Should have one client for this method
+        // Should have one client for this method, keyed by call_id.method for event routing
+        let expected_event_key = "100.onspeechcomplete";
         assert_eq!(method_clients.len(), 1);
-        let clients = method_clients.get(expected_thunder_method).unwrap();
+        let clients = method_clients.get(expected_event_key).unwrap();
         assert_eq!(clients.len(), 1);
         assert_eq!(clients[0], "client1");
 
@@ -1784,7 +1834,7 @@ mod tests {
         assert_eq!(client_methods.len(), 1);
         let methods = client_methods.get("client1").unwrap();
         assert_eq!(methods.len(), 1);
-        assert_eq!(methods[0], expected_thunder_method);
+        assert_eq!(methods[0], expected_event_key);
     }
 
     #[tokio::test]
@@ -1825,14 +1875,15 @@ mod tests {
         let method_clients = broker.method_clients.read().unwrap();
         let client_methods = broker.client_methods.read().unwrap();
 
-        // Should have exactly one method subscription (shared) using Thunder method format
-        let expected_thunder_method = "100.onspeechcomplete";
+        // Should have exactly one method subscription (shared) keyed by Thunder method name only
+        let expected_subscription_key = "onspeechcomplete";
         assert_eq!(method_subscriptions.len(), 1);
-        let sub_state = method_subscriptions.get(expected_thunder_method).unwrap();
+        let sub_state = method_subscriptions.get(expected_subscription_key).unwrap();
         assert_eq!(sub_state.client_count, 2);
 
-        // Should have two clients for this method
-        let clients = method_clients.get(expected_thunder_method).unwrap();
+        // Should have two clients for this method, keyed by call_id.method for event routing
+        let expected_event_key = "100.onspeechcomplete";
+        let clients = method_clients.get(expected_event_key).unwrap();
         assert_eq!(clients.len(), 2);
         assert!(clients.contains(&"client1".to_string()));
         assert!(clients.contains(&"client2".to_string()));
@@ -1843,8 +1894,8 @@ mod tests {
         let methods2 = client_methods.get("client2").unwrap();
         assert_eq!(methods1.len(), 1);
         assert_eq!(methods2.len(), 1);
-        assert_eq!(methods1[0], expected_thunder_method);
-        assert_eq!(methods2[0], expected_thunder_method);
+        assert_eq!(methods1[0], expected_event_key);
+        assert_eq!(methods2[0], expected_event_key);
     }
 
     #[tokio::test]
@@ -1939,14 +1990,16 @@ mod tests {
         let method_clients = broker.method_clients.read().unwrap();
         let client_methods = broker.client_methods.read().unwrap();
 
-        // Should still have method subscription with count 1 using Thunder method format
-        let expected_thunder_method = "100.onspeechcomplete";
+        // Should still have method subscription with count 1, keyed by Thunder method name only
+        let expected_subscription_key = "onspeechcomplete";
+        let expected_event_key = "100.onspeechcomplete";
+        
         assert_eq!(method_subscriptions.len(), 1);
-        let sub_state = method_subscriptions.get(expected_thunder_method).unwrap();
+        let sub_state = method_subscriptions.get(expected_subscription_key).unwrap();
         assert_eq!(sub_state.client_count, 1);
 
-        // Should have only client2 in the method's client list
-        let clients = method_clients.get(expected_thunder_method).unwrap();
+        // Should have only client2 in the method's client list (keyed by event format)
+        let clients = method_clients.get(expected_event_key).unwrap();
         assert_eq!(clients.len(), 1);
         assert_eq!(clients[0], "client2");
 
@@ -2063,28 +2116,31 @@ mod tests {
         let method_clients = broker.method_clients.read().unwrap();
         let client_methods = broker.client_methods.read().unwrap();
 
-        // Should have two method subscriptions using Thunder method format
-        let expected_thunder_method1 = "100.onspeechcomplete";
-        let expected_thunder_method2 = "200.onplaybackcomplete";
+        // Should have two method subscriptions keyed by Thunder method names only
+        let expected_subscription_key1 = "onspeechcomplete";
+        let expected_subscription_key2 = "onplaybackcomplete";
+        let expected_event_key1 = "100.onspeechcomplete";
+        let expected_event_key2 = "200.onplaybackcomplete";
+        
         assert_eq!(method_subscriptions.len(), 2);
-        assert!(method_subscriptions.contains_key(expected_thunder_method1));
-        assert!(method_subscriptions.contains_key(expected_thunder_method2));
+        assert!(method_subscriptions.contains_key(expected_subscription_key1));
+        assert!(method_subscriptions.contains_key(expected_subscription_key2));
 
-        // Each method should have one client
+        // Each method should have one client, keyed by call_id.method for event routing
         assert_eq!(method_clients.len(), 2);
-        let clients1 = method_clients.get(expected_thunder_method1).unwrap();
-        let clients2 = method_clients.get(expected_thunder_method2).unwrap();
+        let clients1 = method_clients.get(expected_event_key1).unwrap();
+        let clients2 = method_clients.get(expected_event_key2).unwrap();
         assert_eq!(clients1.len(), 1);
         assert_eq!(clients2.len(), 1);
         assert_eq!(clients1[0], "client1");
         assert_eq!(clients2[0], "client1");
 
-        // Client should have two methods
+        // Client should have two methods (keyed by event format for routing)
         assert_eq!(client_methods.len(), 1);
         let methods = client_methods.get("client1").unwrap();
         assert_eq!(methods.len(), 2);
-        assert!(methods.contains(&expected_thunder_method1.to_string()));
-        assert!(methods.contains(&expected_thunder_method2.to_string()));
+        assert!(methods.contains(&expected_event_key1.to_string()));
+        assert!(methods.contains(&expected_event_key2.to_string()));
     }
 
     #[tokio::test]
@@ -2105,24 +2161,27 @@ mod tests {
         let thunder_request = broker.subscribe_method_oriented(&request);
         assert!(thunder_request.is_some());
 
-        // The subscription should be stored using the Thunder event method format: "100.onvoicechanged"
+        // The subscription should be stored using Thunder method name only, event routing uses call_id.method
         let method_subscriptions = broker.method_subscriptions.read().unwrap();
         let method_clients = broker.method_clients.read().unwrap();
 
-        // Should use Thunder event method format as key
-        let expected_thunder_method = "100.onvoicechanged";
-        assert!(method_subscriptions.contains_key(expected_thunder_method));
-        assert!(method_clients.contains_key(expected_thunder_method));
+        // Subscriptions keyed by Thunder method name only
+        let expected_subscription_key = "onvoicechanged";
+        // Event routing keyed by call_id.method
+        let expected_event_key = "100.onvoicechanged";
+        
+        assert!(method_subscriptions.contains_key(expected_subscription_key));
+        assert!(method_clients.contains_key(expected_event_key));
 
         // Should NOT be stored using Firebolt method name
         assert!(!method_subscriptions.contains_key("texttospeech.onVoicechanged"));
         assert!(!method_clients.contains_key("texttospeech.onVoicechanged"));
 
         // Verify client count and client mapping
-        let sub_state = method_subscriptions.get(expected_thunder_method).unwrap();
+        let sub_state = method_subscriptions.get(expected_subscription_key).unwrap();
         assert_eq!(sub_state.client_count, 1);
 
-        let clients = method_clients.get(expected_thunder_method).unwrap();
+        let clients = method_clients.get(expected_event_key).unwrap();
         assert_eq!(clients.len(), 1);
         assert_eq!(clients[0], "client1");
     }
@@ -2174,7 +2233,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_multiple_call_ids_same_thunder_method() {
-        // Test that different call IDs for the same Thunder method are treated separately
+        // Test that different call IDs for the same Thunder method share subscription (consolidation)
         let (broker, _rx) = create_test_thunder_broker();
 
         // Create two requests with different call IDs but same Thunder method
@@ -2190,7 +2249,7 @@ mod tests {
             "texttospeech.onVoicechanged",
             "org.rdk.TextToSpeech.onvoicechanged",
             "client2",
-            200, // Different call ID
+            200, // Different call ID - should be ignored, reuse first client's call_id
             true,
         );
 
@@ -2198,21 +2257,27 @@ mod tests {
         let thunder_request1 = broker.subscribe_method_oriented(&request1);
         let thunder_request2 = broker.subscribe_method_oriented(&request2);
 
-        // Should create separate Thunder subscriptions (different call IDs)
+        // First should create Thunder subscription, second should return None (consolidation)
         assert!(thunder_request1.is_some());
-        assert!(thunder_request2.is_some());
+        assert!(thunder_request2.is_none()); // Reuses existing subscription
 
-        // Verify separate method subscriptions
+        // Verify single shared method subscription keyed by Thunder method name only
         let method_subscriptions = broker.method_subscriptions.read().unwrap();
-        assert_eq!(method_subscriptions.len(), 2);
-        assert!(method_subscriptions.contains_key("100.onvoicechanged"));
-        assert!(method_subscriptions.contains_key("200.onvoicechanged"));
+        assert_eq!(method_subscriptions.len(), 1);
+        assert!(method_subscriptions.contains_key("onvoicechanged"));
+        
+        let sub_state = method_subscriptions.get("onvoicechanged").unwrap();
+        assert_eq!(sub_state.client_count, 2);
 
-        // Each should have one client
-        let sub_state1 = method_subscriptions.get("100.onvoicechanged").unwrap();
-        let sub_state2 = method_subscriptions.get("200.onvoicechanged").unwrap();
-        assert_eq!(sub_state1.client_count, 1);
-        assert_eq!(sub_state2.client_count, 1);
+        // Both clients should be in method_clients under first client's call_id
+        let method_clients = broker.method_clients.read().unwrap();
+        assert_eq!(method_clients.len(), 1);
+        assert!(method_clients.contains_key("100.onvoicechanged")); // First client's call_id used
+        
+        let clients = method_clients.get("100.onvoicechanged").unwrap();
+        assert_eq!(clients.len(), 2);
+        assert!(clients.contains(&"client1".to_string()));
+        assert!(clients.contains(&"client2".to_string()));
     }
 
     #[tokio::test]
