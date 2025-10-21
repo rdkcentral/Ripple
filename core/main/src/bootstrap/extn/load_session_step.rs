@@ -15,13 +15,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use crate::state::bootstrap_state::BootstrapState;
 use crate::state::cap::cap_state::CapState;
 use crate::state::platform_state::PlatformState;
 use crate::tokio;
 use crate::tokio::sync::mpsc;
+use crate::{broker::broker_utils::BrokerUtils, state::bootstrap_state::BootstrapState};
 use jsonrpsee::core::RpcResult;
 
+use ripple_sdk::api::session::AccountSession;
 use ripple_sdk::{
     api::context::{ActivationStatus, RippleContext, RippleContextUpdateType},
     api::device::{
@@ -29,7 +30,6 @@ use ripple_sdk::{
         device_user_grants_data::GrantLifespan,
     },
     api::firebolt::fb_capabilities::{CapEvent, CapabilityRole, FireboltCap, FireboltPermission},
-    api::session::AccountSessionRequest,
     async_trait::async_trait,
     framework::bootstrap::Bootstep,
     framework::RippleResponse,
@@ -163,17 +163,22 @@ async fn check_account_session_token(state: &PlatformState) -> bool {
     let mut token_available = false;
     let mut event = CapEvent::OnUnavailable;
 
-    if let Ok(response) = state
-        .get_client()
-        .send_extn_request(AccountSessionRequest::Get)
-        .await
-    {
-        if let Some(session) = response.payload.extract() {
-            state.session_state.insert_account_session(session);
-            event = CapEvent::OnAvailable;
-            token_available = true;
+    match BrokerUtils::process_internal_main_request(state, "eos.getAccountSession", None).await {
+        Ok(response) => match serde_json::from_value::<AccountSession>(response) {
+            Ok(session) => {
+                state.session_state.insert_account_session(session);
+                event = CapEvent::OnAvailable;
+                token_available = true;
+            }
+            Err(e) => {
+                error!("Failed to parse AccountSession from response: {:?}", e);
+            }
+        },
+        Err(e) => {
+            error!("Failed to get account session: {:?}", e);
         }
     }
+
     CapState::emit(
         state,
         &event,
