@@ -23,7 +23,7 @@ use std::{
 use ripple_sdk::{
     api::observability::metrics_util::ApiStats,
     chrono::{DateTime, Utc},
-    log::{debug, error, warn},
+    log::{debug, warn},
 };
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));

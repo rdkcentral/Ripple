@@ -1497,7 +1497,7 @@ impl DelegatedLauncherHandler {
             .insert(app_id.to_string(), app.clone());
 
         // MEMORY FIX: Trigger memory cleanup when new app sessions are created
-        Self::force_memory_reclamation(&app_id.as_str());
+        Self::force_memory_reclamation(app_id.as_str());
 
         // Check for memory pressure after inserting new app
         if platform_state.app_manager_state.check_memory_pressure() {

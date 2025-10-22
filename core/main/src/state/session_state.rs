@@ -235,7 +235,7 @@ impl SessionState {
             match self.session_map.try_read() {
                 Ok(session_map) => {
                     for (connection_id, session) in session_map.iter() {
-                        if &session.app_id == app_id {
+                        if session.app_id == app_id {
                             sessions_to_remove.push(connection_id.clone());
                         }
                     }

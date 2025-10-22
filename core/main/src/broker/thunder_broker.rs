@@ -1007,10 +1007,27 @@ impl ThunderBroker {
                     method
                 );
 
+                // DEBUG: Log all keys in method_clients for comparison
+                {
+                    let method_clients = self.method_clients.read().unwrap();
+                    let all_keys: Vec<String> = method_clients.keys().cloned().collect();
+                    debug!(
+                        "DEBUG KEY LOOKUP: Incoming event method='{}', all method_clients keys: {:?}",
+                        method, all_keys
+                    );
+                }
+
                 // Get all clients interested in this method
                 let client_sessions = {
                     let method_clients = self.method_clients.read().unwrap();
-                    method_clients.get(method).cloned()
+                    let result = method_clients.get(method).cloned();
+                    if result.is_none() {
+                        debug!(
+                            "DEBUG KEY MISMATCH: No clients found for method '{}'. This means the event key doesn't match any subscription key.",
+                            method
+                        );
+                    }
+                    result
                 };
 
                 if let Some(clients) = client_sessions {
@@ -1038,10 +1055,34 @@ impl ThunderBroker {
                     debug!("Nuclear option: Creating base response with standard JSON allocation (no pooling)");
                     let base_response = Self::update_response(&data, params.clone());
 
+                    // Extract the Thunder method name from the incoming event (strip call_id prefix)
+                    // The method comes in as "20.onvoicechanged", we need just "onvoicechanged"
+                    let thunder_method_name = if let Some(dot_pos) = method.find('.') {
+                        &method[dot_pos + 1..]
+                    } else {
+                        method
+                    };
+
                     for (session_id, requests) in client_requests {
                         for request in &requests {
-                            // No need to check method equality - we already know this request is for this event
-                            // because it came from method_clients map indexed by the Thunder event method
+                            // Filter: Only send events to subscriptions that match this Thunder method
+                            // The rule.alias is like "org.rdk.TextToSpeech.onvoicechanged"
+                            // Extract the method name and compare (case-insensitive)
+                            let request_method_name = request
+                                .rule
+                                .alias
+                                .split('.')
+                                .last()
+                                .unwrap_or("")
+                                .to_lowercase();
+
+                            if request_method_name != thunder_method_name.to_lowercase() {
+                                debug!(
+                                    "FANOUT FILTER: Skipping request with method {} (doesn't match event {})",
+                                    request.rpc.ctx.method, thunder_method_name
+                                );
+                                continue;
+                            }
 
                             // Nuclear option: Standard JSON clone, no pooling overhead
                             debug!("Nuclear option: Creating client response with standard JSON clone (no buffer pooling)");
@@ -1068,23 +1109,19 @@ impl ThunderBroker {
 
                             let output = BrokerOutput::new(client_data);
 
-                            // Send to this client's callback
-                            let callback = BrokerCallback {
-                                sender: request
-                                    .workflow_callback
-                                    .as_ref()
-                                    .map(|cb| cb.sender.clone())
-                                    .unwrap_or_else(|| self.default_callback.sender.clone()),
-                            };
-
+                            // Send events through telemetry_response_listeners
+                            // These are the channels that route back to the client websocket
+                            let listeners = request.telemetry_response_listeners.clone();
                             let output_clone = output.clone();
                             let session_id_clone = session_id.clone();
                             tokio::spawn(async move {
-                                if let Err(e) = callback.sender.send(output_clone).await {
-                                    error!(
-                                        "Failed to send event to client {}: {:?}",
-                                        session_id_clone, e
-                                    );
+                                for listener in &listeners {
+                                    if let Err(e) = listener.try_send(output_clone.clone()) {
+                                        debug!(
+                                            "Event send to client {} via telemetry listener failed (channel may be closed): {:?}",
+                                            session_id_clone, e
+                                        );
+                                    }
                                 }
                             });
 
@@ -1993,7 +2030,7 @@ mod tests {
         // Should still have method subscription with count 1, keyed by Thunder method name only
         let expected_subscription_key = "onspeechcomplete";
         let expected_event_key = "100.onspeechcomplete";
-        
+
         assert_eq!(method_subscriptions.len(), 1);
         let sub_state = method_subscriptions.get(expected_subscription_key).unwrap();
         assert_eq!(sub_state.client_count, 1);
@@ -2121,7 +2158,7 @@ mod tests {
         let expected_subscription_key2 = "onplaybackcomplete";
         let expected_event_key1 = "100.onspeechcomplete";
         let expected_event_key2 = "200.onplaybackcomplete";
-        
+
         assert_eq!(method_subscriptions.len(), 2);
         assert!(method_subscriptions.contains_key(expected_subscription_key1));
         assert!(method_subscriptions.contains_key(expected_subscription_key2));
@@ -2169,7 +2206,7 @@ mod tests {
         let expected_subscription_key = "onvoicechanged";
         // Event routing keyed by call_id.method
         let expected_event_key = "100.onvoicechanged";
-        
+
         assert!(method_subscriptions.contains_key(expected_subscription_key));
         assert!(method_clients.contains_key(expected_event_key));
 
@@ -2265,7 +2302,7 @@ mod tests {
         let method_subscriptions = broker.method_subscriptions.read().unwrap();
         assert_eq!(method_subscriptions.len(), 1);
         assert!(method_subscriptions.contains_key("onvoicechanged"));
-        
+
         let sub_state = method_subscriptions.get("onvoicechanged").unwrap();
         assert_eq!(sub_state.client_count, 2);
 
@@ -2273,7 +2310,7 @@ mod tests {
         let method_clients = broker.method_clients.read().unwrap();
         assert_eq!(method_clients.len(), 1);
         assert!(method_clients.contains_key("100.onvoicechanged")); // First client's call_id used
-        
+
         let clients = method_clients.get("100.onvoicechanged").unwrap();
         assert_eq!(clients.len(), 2);
         assert!(clients.contains(&"client1".to_string()));
