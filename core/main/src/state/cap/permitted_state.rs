@@ -183,7 +183,7 @@ impl PermissionHandler {
             {
                 Ok(response) => match serde_json::from_value::<Vec<FireboltPermission>>(response) {
                     Ok(permissions) => {
-                        println!("Response: {:?}", permissions);
+                        debug!("Response: {:?}", permissions);
                         let mut permission_response = permissions;
                         Self::process_permissions(state, app_id, &mut permission_response)
                     }
