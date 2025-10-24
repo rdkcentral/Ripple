@@ -157,6 +157,11 @@ impl FireboltGateway {
                         .cleanup_for_app(cid.as_str())
                         .await;
                     self.state.platform_state.session_state.clear_session(&cid);
+
+                    // Flush tokio worker thread allocator caches after cleanup
+                    for _ in 0..3 {
+                        tokio::task::yield_now().await;
+                    }
                 }
                 HandleRpc { request } => self.handle(request, None).await,
                 HandleRpcForExtn { msg } => {

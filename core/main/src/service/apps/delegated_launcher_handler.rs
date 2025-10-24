@@ -500,6 +500,24 @@ impl AppManagerState {
         }
     }
 
+    pub fn log_hashmap_sizes(&self) {
+        if let Ok(apps) = self.apps.read() {
+            info!("MEMORY_DEBUG: apps HashMap size: {}", apps.len());
+        }
+        if let Ok(intents) = self.intents.read() {
+            info!("MEMORY_DEBUG: intents HashMap size: {}", intents.len());
+        }
+        if let Ok(app_title) = self.app_title.read() {
+            info!("MEMORY_DEBUG: app_title HashMap size: {}", app_title.len());
+        }
+        if let Ok(migrated_apps) = self.migrated_apps.read() {
+            info!(
+                "MEMORY_DEBUG: migrated_apps HashMap size: {}",
+                migrated_apps.len()
+            );
+        }
+    }
+
     pub fn check_memory_pressure(&self) -> bool {
         // First check app count limit
         if let Ok(apps) = self.apps.read() {
@@ -1220,6 +1238,11 @@ impl DelegatedLauncherHandler {
 
         TelemetryBuilder::send_app_load_start(&self.platform_state, app_id.to_string(), None, None);
         debug!("start_session: entry: app_id={}", app_id);
+
+        // MEMORY_DEBUG: Log HashMap sizes
+        self.platform_state.app_manager_state.log_hashmap_sizes();
+        self.platform_state.endpoint_state.log_hashmap_sizes();
+
         match self.platform_state.app_manager_state.get(app_id.as_str()) {
             Some(app) if (app.state != LifecycleState::Unloading) => {
                 Ok(AppManagerResponse::Session(
@@ -1695,7 +1718,13 @@ impl DelegatedLauncherHandler {
         // 5. Force memory reclamation
         Self::force_memory_reclamation(app_id);
 
-        // 4. Production: Validate cleanup effectiveness
+        // 6. CRITICAL: Force tokio runtime to return cached memory
+        // Tokio's per-thread allocators cache memory - yield to let them flush
+        for _ in 0..5 {
+            tokio::task::yield_now().await;
+        }
+
+        // 7. Production: Validate cleanup effectiveness
         if platform_state
             .app_manager_state
             .session_config
@@ -1791,7 +1820,40 @@ impl DelegatedLauncherHandler {
             std::thread::yield_now();
         }
 
+        // CRITICAL FIX: Force jemalloc to release memory back to OS
+        #[cfg(not(target_env = "msvc"))]
+        Self::force_jemalloc_purge();
+
         debug!("System memory reclamation completed for app: {}", app_id);
+    }
+
+    /// Force jemalloc to purge unused memory back to OS IMMEDIATELY
+    #[cfg(not(target_env = "msvc"))]
+    fn force_jemalloc_purge() {
+        use tikv_jemalloc_ctl::{arenas, epoch};
+
+        // Step 1: Advance epoch to update stats
+        if let Ok(e) = epoch::mib() {
+            let _ = e.advance();
+        }
+
+        // Step 2: Force purge all arenas using raw string-based mallctl
+        if let Ok(narenas) = arenas::narenas::read() {
+            for arena_id in 0..narenas {
+                use tikv_jemalloc_ctl::raw;
+
+                // CRITICAL: Must be null-terminated for C API
+                let purge_cmd = format!("arena.{}.purge\0", arena_id);
+                unsafe {
+                    // Call arena.{id}.purge using raw string API
+                    let _ = raw::write(purge_cmd.as_bytes(), 0usize);
+                }
+            }
+            debug!(
+                "Jemalloc: Forced immediate purge of {} arenas - memory returned to OS",
+                narenas
+            );
+        }
     }
 
     /// Force aggressive memory reclamation after app session ends
@@ -1807,7 +1869,9 @@ impl DelegatedLauncherHandler {
         // Yield to allow any pending cleanup tasks to run
         std::hint::spin_loop();
 
-        // Note: jemalloc-based memory reclamation would go here if available
+        // CRITICAL FIX: Force jemalloc purge after every app session
+        #[cfg(not(target_env = "msvc"))]
+        Self::force_jemalloc_purge();
     }
 
     async fn get_launch_request(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {

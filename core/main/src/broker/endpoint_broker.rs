@@ -536,6 +536,28 @@ impl EndpointBrokerState {
     pub fn has_rule(&self, rule: &str) -> bool {
         self.rule_engine.read().unwrap().has_rule(rule)
     }
+
+    pub fn log_hashmap_sizes(&self) {
+        if let Ok(request_map) = self.request_map.read() {
+            info!(
+                "MEMORY_DEBUG: broker request_map size: {}",
+                request_map.len()
+            );
+        }
+        if let Ok(extension_map) = self.extension_request_map.read() {
+            info!(
+                "MEMORY_DEBUG: broker extension_request_map size: {}",
+                extension_map.len()
+            );
+        }
+        if let Ok(endpoint_map) = self.endpoint_map.read() {
+            info!(
+                "MEMORY_DEBUG: broker endpoint_map size: {}",
+                endpoint_map.len()
+            );
+        }
+    }
+
     #[cfg(not(test))]
     fn reconnect_thread(&self, mut rx: Receiver<BrokerConnectRequest>, client: RippleClient) {
         use crate::firebolt::firebolt_gateway::FireboltGatewayCommand;

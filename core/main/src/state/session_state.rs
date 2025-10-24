@@ -16,7 +16,7 @@
 //
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, RwLock},
 };
 
@@ -81,6 +81,8 @@ pub struct SessionState {
     session_map: Arc<RwLock<HashMap<ConnectionId, Session>>>,
     account_session: Arc<RwLock<Option<AccountSession>>>,
     pending_sessions: Arc<RwLock<HashMap<AppId, Option<PendingSessionInfo>>>>,
+    // Secondary index: AppId -> Set of ConnectionIds for O(1) lookup by app
+    app_sessions_index: Arc<RwLock<HashMap<AppId, HashSet<ConnectionId>>>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -143,8 +145,25 @@ impl SessionState {
     }
 
     pub fn add_session(&self, id: ConnectionId, session: Session) {
+        let app_id = AppId::new_unchecked(session.app_id.clone());
+
+        // Add to primary session map
         let mut session_state = self.session_map.write().unwrap();
-        session_state.insert(id, session);
+        session_state.insert(id.clone(), session);
+
+        // Update secondary index: add this ConnectionId to the app's set
+        let mut app_index = self.app_sessions_index.write().unwrap();
+        app_index
+            .entry(app_id.clone())
+            .or_default()
+            .insert(id.clone());
+
+        debug!(
+            "Added session for app {} (connection {}), index now has {} connections for this app",
+            app_id.as_str(),
+            id.as_str(),
+            app_index.get(&app_id).map(|s| s.len()).unwrap_or(0)
+        );
     }
 
     // Legacy compatibility method - TODO: Remove once all callers are updated
@@ -154,8 +173,40 @@ impl SessionState {
     }
 
     pub fn clear_session(&self, id: &ConnectionId) {
+        // Remove from primary session map and get the app_id
         let mut session_state = self.session_map.write().unwrap();
-        session_state.remove(id);
+        if let Some(session) = session_state.remove(id) {
+            debug!(
+                "Cleared session for app {} (connection {}), {} total sessions remain",
+                session.app_id,
+                id.as_str(),
+                session_state.len()
+            );
+            // Update secondary index: remove this ConnectionId from the app's set
+            let app_id = AppId::new_unchecked(session.app_id);
+            let mut app_index = self.app_sessions_index.write().unwrap();
+            if let Some(connections) = app_index.get_mut(&app_id) {
+                connections.remove(id);
+                debug!(
+                    "  Removed from app index, {} connections remain for app {}",
+                    connections.len(),
+                    app_id.as_str()
+                );
+                // Clean up empty sets to avoid memory bloat
+                if connections.is_empty() {
+                    app_index.remove(&app_id);
+                    debug!(
+                        "  App {} removed from index (no connections remain)",
+                        app_id.as_str()
+                    );
+                }
+            }
+        } else {
+            debug!(
+                "clear_session: Connection {} not found in session map",
+                id.as_str()
+            );
+        }
     }
 
     // Legacy compatibility method - TODO: Remove once all callers are updated
@@ -223,48 +274,85 @@ impl SessionState {
     }
 
     /// Memory optimization: Comprehensive session cleanup for app lifecycle events
+    /// LEVERAGE: Uses secondary index for O(1) lookup instead of O(n) linear scan
     pub fn cleanup_app_sessions(&self, app_id: &str) {
         // Clean up pending sessions for this app
         let app_id_typed = AppId::new_unchecked(app_id.to_owned());
         self.clear_pending_session(&app_id_typed);
 
-        // Find and remove any sessions associated with this app
-        let mut sessions_to_remove = Vec::new();
-        {
-            // Use a timeout-aware lock to prevent deadlocks in production
-            match self.session_map.try_read() {
-                Ok(session_map) => {
-                    for (connection_id, session) in session_map.iter() {
-                        if session.app_id == app_id {
-                            sessions_to_remove.push(connection_id.clone());
-                        }
-                    }
-                }
-                Err(e) => {
-                    error!("Failed to acquire read lock for session cleanup: {:?}", e);
-                    return; // Fail gracefully rather than panic
-                }
+        // DEBUG: Log what's in the index
+        if let Ok(app_index) = self.app_sessions_index.try_read() {
+            debug!(
+                "cleanup_app_sessions({}) - Index contents: {} apps total",
+                app_id,
+                app_index.len()
+            );
+            for (aid, conns) in app_index.iter() {
+                debug!("  App '{}': {} connections", aid.as_str(), conns.len());
             }
         }
 
-        // Remove identified sessions with proper error handling
-        if !sessions_to_remove.is_empty() {
-            match self.session_map.try_write() {
-                Ok(mut session_map) => {
-                    let mut removed_count = 0;
-                    for connection_id in sessions_to_remove {
-                        if session_map.remove(&connection_id).is_some() {
-                            removed_count += 1;
+        // OPTIMIZATION: Use secondary index for instant lookup of all ConnectionIds for this app
+        let sessions_to_remove: Vec<ConnectionId> = {
+            // Short-lived read lock on index only
+            match self.app_sessions_index.try_read() {
+                Ok(app_index) => {
+                    let connections = app_index
+                        .get(&app_id_typed)
+                        .map(|connections| connections.iter().cloned().collect())
+                        .unwrap_or_default();
+                    debug!(
+                        "Index lookup for app {}: found {} connections to remove",
+                        app_id,
+                        if let Some(set) = app_index.get(&app_id_typed) {
+                            set.len()
+                        } else {
+                            0
                         }
-                    }
-                    if removed_count > 0 {
-                        debug!("Cleaned up {} sessions for app: {}", removed_count, app_id);
-                    }
+                    );
+                    connections
                 }
                 Err(e) => {
-                    error!("Failed to acquire write lock for session removal: {:?}", e);
+                    error!(
+                        "Failed to acquire read lock on app_sessions_index for cleanup: {:?}",
+                        e
+                    );
+                    return;
                 }
             }
+        };
+
+        debug!(
+            "Attempting to cleanup {} sessions for app: {}",
+            sessions_to_remove.len(),
+            app_id
+        );
+
+        // Remove identified sessions - use blocking write since we need this to succeed
+        if !sessions_to_remove.is_empty() {
+            let mut session_map = self.session_map.write().unwrap();
+            let mut app_index = self.app_sessions_index.write().unwrap();
+
+            let mut removed_count = 0;
+            for connection_id in &sessions_to_remove {
+                if session_map.remove(connection_id).is_some() {
+                    removed_count += 1;
+                }
+            }
+
+            // Clean up the index entry for this app
+            app_index.remove(&app_id_typed);
+
+            if removed_count > 0 {
+                debug!(
+                    "Cleaned up {} sessions for app: {} (index-accelerated)",
+                    removed_count, app_id
+                );
+            } else {
+                debug!("No sessions actually removed for app: {} (found {} to remove but all already gone)", app_id, sessions_to_remove.len());
+            }
+        } else {
+            debug!("No sessions found in index for app: {}", app_id);
         }
     }
 

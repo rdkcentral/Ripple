@@ -74,7 +74,7 @@ impl EventManagementUtility {
     }
 
     pub async fn advertising_policy_event_decorator(
-        platform_state: PlatformState,
+        mut platform_state: PlatformState,
         ctx: CallContext,
         value: Option<Value>,
     ) -> Result<Option<Value>, RippleError> {
@@ -108,6 +108,10 @@ impl EventManagementUtility {
         } else {
             None
         };
+
+        // MEMORY FIX: Clean up api_stats after internal request completes
+        platform_state.metrics.remove_api_stats(&ctx.request_id);
+
         Ok(policy)
     }
 }
