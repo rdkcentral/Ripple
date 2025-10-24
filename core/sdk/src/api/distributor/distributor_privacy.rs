@@ -194,75 +194,6 @@ impl From<PrivacySettings> for PrivacySettingsData {
         }
     }
 }
-
-//impl ExtnPayloadProvider for PrivacySettingsStoreRequest {
-//    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-//        match payload {
-//            ExtnPayload::Request(ExtnRequest::PrivacySettingsStore(storage_request)) => {
-//                Some(storage_request)
-//            }
-//            _ => None,
-//        }
-//    }
-//
-//    fn get_extn_payload(&self) -> ExtnPayload {
-//        ExtnPayload::Request(ExtnRequest::PrivacySettingsStore(self.clone()))
-//    }
-//
-//    fn contract() -> RippleContract {
-//        RippleContract::Storage(StorageAdjective::PrivacyLocal)
-//    }
-//}
-
-//
-// COMMENTED OUT: Extension payload implementations for PrivacySettings
-// These create storage contract dependencies. PrivacySettings is now used directly as RPC response types.
-//
-
-// impl ExtnPayloadProvider for PrivacySettings {
-//     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-//         if let ExtnPayload::Response(ExtnResponse::Value(v)) = payload {
-//             if let Ok(v) = serde_json::from_value(v) {
-//                 return Some(v);
-//             }
-//         }
-//
-//         None
-//     }
-//
-//     fn get_extn_payload(&self) -> ExtnPayload {
-//         ExtnPayload::Response(ExtnResponse::Value(
-//             serde_json::to_value(self.clone()).unwrap(),
-//         ))
-//     }
-//
-//     fn contract() -> crate::framework::ripple_contract::RippleContract {
-//         RippleContract::Storage(StorageAdjective::PrivacyCloud)
-//     }
-// }
-
-//impl ExtnPayloadProvider for PrivacySettingsData {
-//    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-//        if let ExtnPayload::Request(ExtnRequest::PrivacySettingsStore(
-//            PrivacySettingsStoreRequest::SetAllPrivacySettings(settings),
-//        )) = payload
-//        {
-//            return Some(settings);
-//        }
-//        None
-//    }
-//
-//    fn get_extn_payload(&self) -> ExtnPayload {
-//        ExtnPayload::Request(ExtnRequest::PrivacySettingsStore(
-//            PrivacySettingsStoreRequest::SetAllPrivacySettings(self.clone()),
-//        ))
-//    }
-//
-//    fn contract() -> crate::framework::ripple_contract::RippleContract {
-//        RippleContract::Storage(StorageAdjective::PrivacyLocal)
-//    }
-//}
-
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentListenRequest {
@@ -283,44 +214,6 @@ pub struct SetPropertyParams {
     pub value: bool,
     pub dist_session: AccountSession,
 }
-
-//
-//#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-//pub enum PrivacyCloudRequest {
-//    GetProperty(GetPropertyParams),
-//    GetProperties(AccountSession),
-//    SetProperty(SetPropertyParams),
-//    GetPartnerExclusions(AccountSession),
-//}
-//
-//impl PrivacyCloudRequest {
-//    pub fn get_session(&self) -> AccountSession {
-//        match self {
-//            PrivacyCloudRequest::GetProperty(params) => params.dist_session.clone(),
-//            PrivacyCloudRequest::GetProperties(session) => session.clone(),
-//            PrivacyCloudRequest::SetProperty(params) => params.dist_session.clone(),
-//            PrivacyCloudRequest::GetPartnerExclusions(session) => session.clone(),
-//        }
-//    }
-//}
-//
-//impl ExtnPayloadProvider for PrivacyCloudRequest {
-//    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-//        if let ExtnPayload::Request(ExtnRequest::PrivacySettings(p)) = payload {
-//            return Some(p);
-//        }
-//
-//        None
-//    }
-//
-//    fn get_extn_payload(&self) -> ExtnPayload {
-//        ExtnPayload::Request(ExtnRequest::PrivacySettings(self.clone()))
-//    }
-//
-//    fn contract() -> crate::framework::ripple_contract::RippleContract {
-//        RippleContract::Storage(StorageAdjective::PrivacyCloud)
-//    }
-//}
 
 #[derive(Debug, PartialEq, Default, Serialize, Deserialize, Clone)]
 pub struct ExclusionPolicyData {
@@ -345,33 +238,6 @@ pub struct ExclusionPolicy {
     pub unentitled_personalization: Option<ExclusionPolicyData>,
     pub watch_history: Option<ExclusionPolicyData>,
 }
-
-//
-// COMMENTED OUT: Extension payload implementations for ExclusionPolicy
-// These create storage contract dependencies. ExclusionPolicy is now used directly as RPC response types.
-//
-
-// impl ExtnPayloadProvider for ExclusionPolicy {
-//     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-//         if let ExtnPayload::Response(ExtnResponse::Value(v)) = payload {
-//             if let Ok(v) = serde_json::from_value(v) {
-//                 return Some(v);
-//             }
-//         }
-//
-//         None
-//     }
-//
-//     fn get_extn_payload(&self) -> ExtnPayload {
-//         ExtnPayload::Response(ExtnResponse::Value(
-//             serde_json::to_value(self.clone()).unwrap(),
-//         ))
-//     }
-//
-//     fn contract() -> crate::framework::ripple_contract::RippleContract {
-//         RippleContract::Storage(StorageAdjective::PrivacyCloud)
-//     }
-// }
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 pub enum DataEventType {

@@ -17,17 +17,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    api::{
-        firebolt::fb_capabilities::FireboltPermission,
-        session::AccountSession,
-        // Removed StorageAdjective import - not needed for RPC-only functionality
-        // storage_property::StorageAdjective,
-        usergrant_entry::UserGrantInfo,
-    },
-    // Removed extension message imports - using direct RPC calls now
-    // extn::extn_client_message::{ExtnPayload, ExtnPayloadProvider, ExtnRequest},
-    // framework::ripple_contract::RippleContract,
+use crate::api::{
+    firebolt::fb_capabilities::FireboltPermission, session::AccountSession,
+    usergrant_entry::UserGrantInfo,
 };
 
 #[derive(Clone, PartialEq, Debug, Deserialize, Serialize)]
@@ -41,34 +33,6 @@ pub struct UserGrantsCloudSetParams {
     pub account_session: AccountSession,
     pub user_grant_info: UserGrantInfo,
 }
-//
-// OBSOLETE EXTENSION REQUEST INFRASTRUCTURE - REPLACED WITH DIRECT RPC CALLS
-// The structs above (UserGrantsCloudGetParams, UserGrantsCloudSetParams) are still used by RPC handlers
-// but the extension request processing below has been replaced with direct eos-distributor RPC calls
-//
-
-// #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-// pub enum UserGrantsCloudStoreRequest {
-//     GetCloudUserGrants(UserGrantsCloudGetParams),
-//     SetCloudUserGrants(UserGrantsCloudSetParams),
-// }
-
-// impl ExtnPayloadProvider for UserGrantsCloudStoreRequest {
-//     fn get_extn_payload(&self) -> ExtnPayload {
-//         ExtnPayload::Request(ExtnRequest::UserGrantsCloudStore(self.clone()))
-//     }
-
-//     fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-//         if let ExtnPayload::Request(ExtnRequest::UserGrantsCloudStore(r)) = payload {
-//             return Some(r);
-//         }
-//         None
-//     }
-
-//     fn contract() -> RippleContract {
-//         RippleContract::Storage(StorageAdjective::UsergrantCloud)
-//     }
-// }
 
 pub type UserGrants = Vec<UserGrantInfo>;
 
