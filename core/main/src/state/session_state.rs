@@ -476,3 +476,6 @@ pub enum SessionValidationIssue {
     OrphanedSessions(usize),
     ExcessivePendingSessions(usize),
 }
+
+// TODO: Add unit tests for session_state O(1) cleanup functionality
+// Tests need to be updated to match the actual API signatures (ConnectionId::new_unchecked, non-async cleanup)

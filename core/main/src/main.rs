@@ -40,9 +40,12 @@ pub struct ConfPtr(*const c_char);
 unsafe impl Sync for ConfPtr {}
 
 // CRITICAL: Aggressive decay for steady-state memory (return memory to OS quickly)
-// narenas:2 limits arena count to minimize fragmentation on embedded platforms
+// narenas:1 limits arena count to 2 total (1 explicit + automatic arena 0) for minimal fragmentation
+// dirty_decay_ms:100 returns memory faster than 250ms (embedded platform optimization)
+// muzzy_decay_ms:100 matches dirty decay for consistency
+// lg_tcache_max:12 reduces thread cache from 16KB to 4KB per thread (2 worker threads = 8KB total)
 static STEADY_STATE_CONFIG: &[u8] =
-    b"narenas:2,background_thread:true,dirty_decay_ms:250,muzzy_decay_ms:250,lg_tcache_max:14\0";
+    b"narenas:1,background_thread:true,dirty_decay_ms:100,muzzy_decay_ms:100,lg_tcache_max:12\0";
 
 #[no_mangle]
 #[used]
