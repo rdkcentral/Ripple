@@ -44,8 +44,9 @@ unsafe impl Sync for ConfPtr {}
 // dirty_decay_ms:100 returns memory faster than 250ms (embedded platform optimization)
 // muzzy_decay_ms:100 matches dirty decay for consistency
 // lg_tcache_max:12 reduces thread cache from 16KB to 4KB per thread (2 worker threads = 8KB total)
+// retain:false disables jemalloc's internal extent retention (forces OS return on decay)
 static STEADY_STATE_CONFIG: &[u8] =
-    b"narenas:1,background_thread:true,dirty_decay_ms:100,muzzy_decay_ms:100,lg_tcache_max:12\0";
+    b"narenas:1,background_thread:true,dirty_decay_ms:100,muzzy_decay_ms:100,lg_tcache_max:12,retain:false\0";
 
 #[no_mangle]
 #[used]

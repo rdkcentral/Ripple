@@ -39,17 +39,16 @@ use super::{
 
 /// Spawn a background task that periodically purges jemalloc arenas and flushes tokio caches
 /// This is critical for embedded platforms where sustained traffic causes linear memory growth
+/// Combined with retain:false config, this should force actual memory return to OS via munmap
 fn spawn_periodic_memory_maintenance() {
     tokio::spawn(async {
         // 15-second interval balances aggressive memory return with minimal CPU overhead
         // For high-traffic scenarios (50+ ops/min), this prevents accumulation between purges
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(15));
-        let mut cycle_count = 0u32;
         loop {
             interval.tick().await;
-            cycle_count += 1;
 
-            // Force jemalloc to purge dirty pages back to OS
+            // Force jemalloc to purge dirty pages and decay them back to OS
             use tikv_jemalloc_ctl::{arenas, epoch};
 
             // Update stats epoch
@@ -57,70 +56,26 @@ fn spawn_periodic_memory_maintenance() {
                 let _ = e.advance();
             }
 
-            // Get current RSS from /proc/self/statm to determine strategy
-            // statm format: size resident shared text lib data dt
-            // We want resident (field 2) which is in pages
-            let current_rss_mb = std::fs::read_to_string("/proc/self/statm")
-                .ok()
-                .and_then(|s| {
-                    s.split_whitespace()
-                        .nth(1)
-                        .and_then(|rss_pages| rss_pages.parse::<usize>().ok())
-                        .map(|pages| (pages * 4096) / (1024 * 1024)) // pages to MB
-                })
-                .unwrap_or(0);
-
-            // CONDITIONAL STRATEGY:
-            // - Normal operation (RSS < 12MB): purge+decay (lightweight, ~50µs)
-            // - Memory pressure (RSS >= 12MB): arena.reset every 4th cycle (nuclear, ~5-50ms)
-            // This balances aggressive reclaim with performance - reset happens max once per minute
-            let use_nuclear_option = current_rss_mb >= 12 && cycle_count % 4 == 0;
-
+            // Purge all arenas AND force dirty/muzzy pages back to OS
+            // With retain:false, this should trigger actual munmap() instead of just madvise()
             if let Ok(narenas) = arenas::narenas::read() {
-                if use_nuclear_option {
-                    // NUCLEAR: Reset non-default arenas to force kernel to release pages
-                    // This is expensive (blocks allocations, destroys caches) but necessary
-                    // when kernel ignores MADV_DONTNEED from arena.decay
-                    for arena_id in 0..narenas {
-                        if arena_id > 0 {
-                            let reset_cmd = format!("arena.{}.reset\0", arena_id);
-                            unsafe {
-                                let _ = tikv_jemalloc_ctl::raw::write(reset_cmd.as_bytes(), 0usize);
-                            }
-                        } else {
-                            // Arena 0 still gets purge+decay (reset might break internal state)
-                            let purge_cmd = format!("arena.{}.purge\0", arena_id);
-                            unsafe {
-                                let _ = tikv_jemalloc_ctl::raw::write(purge_cmd.as_bytes(), 0usize);
-                            }
-                            let decay_cmd = format!("arena.{}.decay\0", arena_id);
-                            unsafe {
-                                let _ = tikv_jemalloc_ctl::raw::write(decay_cmd.as_bytes(), 0usize);
-                            }
-                        }
+                for arena_id in 0..narenas {
+                    // First purge dirty pages to muzzy
+                    let purge_cmd = format!("arena.{}.purge\0", arena_id);
+                    unsafe {
+                        let _ = tikv_jemalloc_ctl::raw::write(purge_cmd.as_bytes(), 0usize);
                     }
-                    debug!(
-                        "NUCLEAR memory reclaim (RSS {}MB): reset {} arenas",
-                        current_rss_mb,
-                        narenas - 1
-                    );
-                } else {
-                    // NORMAL: Lightweight purge+decay for all arenas
-                    for arena_id in 0..narenas {
-                        let purge_cmd = format!("arena.{}.purge\0", arena_id);
-                        unsafe {
-                            let _ = tikv_jemalloc_ctl::raw::write(purge_cmd.as_bytes(), 0usize);
-                        }
-                        let decay_cmd = format!("arena.{}.decay\0", arena_id);
-                        unsafe {
-                            let _ = tikv_jemalloc_ctl::raw::write(decay_cmd.as_bytes(), 0usize);
-                        }
+
+                    // Then decay both dirty and muzzy pages immediately (forces memory return)
+                    let decay_cmd = format!("arena.{}.decay\0", arena_id);
+                    unsafe {
+                        let _ = tikv_jemalloc_ctl::raw::write(decay_cmd.as_bytes(), 0usize);
                     }
-                    debug!(
-                        "Periodic memory maintenance (RSS {}MB): purged+decayed {} arenas",
-                        current_rss_mb, narenas
-                    );
                 }
+                debug!(
+                    "Periodic memory maintenance: purged and decayed {} arenas",
+                    narenas
+                );
             }
 
             // Flush tokio worker thread allocator caches
