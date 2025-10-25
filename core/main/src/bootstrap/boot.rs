@@ -55,16 +55,25 @@ fn spawn_periodic_memory_maintenance() {
                 let _ = e.advance();
             }
 
-            // Purge all arenas
+            // Purge all arenas AND force dirty/muzzy pages back to OS
             if let Ok(narenas) = arenas::narenas::read() {
                 for arena_id in 0..narenas {
-                    // CRITICAL: Must be null-terminated for C API
+                    // First purge dirty pages to muzzy
                     let purge_cmd = format!("arena.{}.purge\0", arena_id);
                     unsafe {
                         let _ = tikv_jemalloc_ctl::raw::write(purge_cmd.as_bytes(), 0usize);
                     }
+
+                    // Then decay both dirty and muzzy pages immediately (forces MADV_DONTNEED)
+                    let decay_cmd = format!("arena.{}.decay\0", arena_id);
+                    unsafe {
+                        let _ = tikv_jemalloc_ctl::raw::write(decay_cmd.as_bytes(), 0usize);
+                    }
                 }
-                debug!("Periodic memory maintenance: purged {} arenas", narenas);
+                debug!(
+                    "Periodic memory maintenance: purged and decayed {} arenas",
+                    narenas
+                );
             }
 
             // Flush tokio worker thread allocator caches

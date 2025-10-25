@@ -1837,20 +1837,25 @@ impl DelegatedLauncherHandler {
             let _ = e.advance();
         }
 
-        // Step 2: Force purge all arenas using raw string-based mallctl
+        // Step 2: Force purge AND decay all arenas to return memory to OS
         if let Ok(narenas) = arenas::narenas::read() {
             for arena_id in 0..narenas {
                 use tikv_jemalloc_ctl::raw;
 
-                // CRITICAL: Must be null-terminated for C API
+                // First purge dirty pages to muzzy
                 let purge_cmd = format!("arena.{}.purge\0", arena_id);
                 unsafe {
-                    // Call arena.{id}.purge using raw string API
                     let _ = raw::write(purge_cmd.as_bytes(), 0usize);
+                }
+
+                // Then decay both dirty and muzzy pages immediately (forces MADV_DONTNEED)
+                let decay_cmd = format!("arena.{}.decay\0", arena_id);
+                unsafe {
+                    let _ = raw::write(decay_cmd.as_bytes(), 0usize);
                 }
             }
             debug!(
-                "Jemalloc: Forced immediate purge of {} arenas - memory returned to OS",
+                "Jemalloc: Forced immediate purge+decay of {} arenas - memory returned to OS",
                 narenas
             );
         }
