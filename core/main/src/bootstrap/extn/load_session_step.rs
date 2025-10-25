@@ -163,7 +163,9 @@ async fn check_account_session_token(state: &PlatformState) -> bool {
     let mut token_available = false;
     let mut event = CapEvent::OnUnavailable;
 
-    match BrokerUtils::process_internal_main_request(state, "eos.getAccountSession", None).await {
+    match BrokerUtils::process_internal_main_request(state, "distributor.getAccountSession", None)
+        .await
+    {
         Ok(response) => match serde_json::from_value::<AccountSession>(response) {
             Ok(session) => {
                 state.session_state.insert_account_session(session);

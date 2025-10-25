@@ -176,7 +176,7 @@ impl PermissionHandler {
             let param = serde_json::to_value(request).unwrap();
             match BrokerUtils::process_internal_main_request(
                 &state.clone(),
-                "eos.getPermissions",
+                "distributor.getPermissions",
                 Some(param),
             )
             .await
