@@ -30,6 +30,7 @@ use ripple_sdk::{
     extn::extn_client_message::{ExtnEvent, ExtnMessage},
     framework::RippleResponse,
     log::{debug, error, info, trace},
+    runtime::task_registry::TASKS,
     service::service_message::{
         Id as ServiceMessageId, JsonRpcMessage as ServiceJsonRpcMessage,
         JsonRpcSuccess as ServiceJsonRpcSuccess, ServiceMessage,
@@ -38,8 +39,9 @@ use ripple_sdk::{
         self,
         sync::mpsc::{self, Receiver, Sender},
     },
-    tokio_tungstenite::tungstenite::Message,
+    tokio_tungstenite::tungstenite::{http::request, Message},
     utils::error::RippleError,
+    RequestId,
 };
 use serde_json::{json, Value};
 use std::{
@@ -1077,7 +1079,8 @@ impl EndpointBrokerState {
                     info!("Sending unlisten json rpc response to endpoint {:?}", data);
 
                     if let Some(thunder) = self.get_sender("thunder") {
-                        tokio::spawn(async move {
+                        let request_id = RequestId::new_unchecked(data.rpc.ctx.request_id.clone());
+                        TASKS.spawn_for(&request_id, async move {
                             match thunder.send(data.clone()).await {
                                 Ok(_) => {
                                     broker_callback
@@ -1105,7 +1108,10 @@ impl EndpointBrokerState {
                         params: request.rpc.get_params(),
                     };
                     let request_for_spawn = request.clone();
-                    tokio::spawn(async move { endpoint.send_request(request_for_spawn).await });
+                    let request_id = RequestId::new_unchecked(request.rpc.ctx.request_id.clone());
+                    TASKS.spawn_for(&request_id, async move {
+                        endpoint.send_request(request_for_spawn).await;
+                    });
 
                     Ok(RenderedRequest::ProviderJsonRpc(data))
                 }
@@ -1117,7 +1123,9 @@ impl EndpointBrokerState {
                             .try_send(BrokerOutput::new(json_rpc_api_response))
                         {
                             error!("Error sending RenderedRequest provider json rpc response to broker {:?}", err);
+                            drop(err);
                         }
+                        return;
                     });
                     Ok(response)
                 }

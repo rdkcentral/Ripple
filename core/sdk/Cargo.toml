@@ -75,6 +75,11 @@ futures-util = { version = "0.3.28", features = ["sink", "std"], default-feature
 mock_app_gw = { path = "src/service/mock_app_gw", optional = true}
 sysinfo = {version = "0.30", optional = true }
 
+
+tokio-util = "0.7.16"
+once_cell = "1.21.3"
+dashmap = "6.1.0"
+
 [dev-dependencies]
 ripple_sdk = { path = ".", features=["tdk"]}
 rstest = "0.18.0"

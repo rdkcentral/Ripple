@@ -68,3 +68,5 @@ pub type AppInstanceId = String;
 pub type RequestId = String;
 #[cfg(not(feature = "rpc"))]
 pub type DeviceSessionId = String;
+
+pub mod runtime;

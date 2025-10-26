@@ -23,7 +23,7 @@ use jsonrpsee::{
         resource_limiting::Resources,
         rpc_module::{MethodCallback, MethodKind, Methods},
     },
-    types::{error::ErrorCode, Id, Params},
+    types::{error::ErrorCode, request, Id, Params},
 };
 use ripple_sdk::{
     api::{
@@ -33,6 +33,7 @@ use ripple_sdk::{
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
     log::{debug, error, info},
+    runtime::task_registry::TASKS,
     service::service_message::{
         Id as ServiceMessageId, JsonRpcError, JsonRpcErrorDetails,
         JsonRpcMessage as ServiceJsonRpcMessage, JsonRpcSuccess as ServiceJsonRpcSuccess,
@@ -41,6 +42,7 @@ use ripple_sdk::{
     tokio,
     tokio_tungstenite::tungstenite::Message,
     utils::error::RippleError,
+    RequestId,
 };
 use std::sync::{Arc, RwLock};
 
@@ -103,7 +105,8 @@ async fn resolve_route(
     let sink = MethodSink::new_with_limit(sink_tx, 1024 * 1024, 100 * 1024);
     let method_name = request_c.method.clone();
 
-    tokio::spawn(async move {
+    let request_id = RequestId::new_unchecked(req.clone().ctx.request_id);
+    TASKS.spawn_for(&request_id, async move {
         let params_json = request_c.params_json.as_ref();
         let params = Params::new(Some(params_json));
 
@@ -265,11 +268,13 @@ impl RpcRouter {
         let mut platform_state = state.clone();
         LogSignal::new(
             "rpc_router".to_string(),
-            "route_extn_protocol".into(),
+            "route_service_protocol".into(),
             req.clone(),
         )
         .emit_debug();
-        tokio::spawn(async move {
+        let request_id: RequestId = req.clone().into();
+
+        TASKS.spawn_for(&request_id, async move {
             if let Ok(msg) =
                 resolve_route(&mut platform_state, method_entry, resources, req.clone()).await
             {

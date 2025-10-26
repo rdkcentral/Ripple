@@ -16,6 +16,7 @@
 //
 
 use jsonrpsee::{core::server::rpc_module::Methods, types::TwoPointZero};
+use ripple_sdk::RequestId;
 use ripple_sdk::{
     api::{
         firebolt::{
@@ -30,9 +31,10 @@ use ripple_sdk::{
         },
         observability::{log_signal::LogSignal, metrics_util::ApiStats},
     },
-    chrono::Utc,
+    chrono::{Duration, Utc},
     extn::extn_client_message::ExtnMessage,
-    log::{error, info, trace, warn},
+    log::{debug, error, info, trace, warn},
+    runtime::task_registry::{FinishOnDrop, TASKS},
     serde_json::{self, Value},
     service::service_message::{JsonRpcMessage as JsonRpcServiceMessage, ServiceMessage},
     tokio::{self, runtime::Handle, sync::mpsc::Sender},
@@ -40,6 +42,7 @@ use ripple_sdk::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use crate::{
     broker::endpoint_broker::BrokerOutput,
@@ -157,11 +160,6 @@ impl FireboltGateway {
                         .cleanup_for_app(cid.as_str())
                         .await;
                     self.state.platform_state.session_state.clear_session(&cid);
-
-                    // Flush tokio worker thread allocator caches after cleanup
-                    for _ in 0..3 {
-                        tokio::task::yield_now().await;
-                    }
                 }
                 HandleRpc { request } => self.handle(request, None).await,
                 HandleRpcForExtn { msg } => {
@@ -307,7 +305,6 @@ impl FireboltGateway {
             }
         }
         let mut platform_state = self.state.platform_state.clone();
-
         /*
          * The reason for spawning a new thread is that when request-1 comes, and it waits for
          * user grant. The response from user grant, (eg ChallengeResponse) comes as rpc which
@@ -332,7 +329,11 @@ impl FireboltGateway {
 
         let open_rpc_state = self.state.platform_state.open_rpc_state.clone();
 
-        tokio::spawn(async move {
+        let request_id = RequestId::new_unchecked(request.ctx.request_id.clone()); // your RequestId
+        debug!("before spawn");
+        TASKS.spawn_for(&request_id.clone(), async move {
+            debug!("inside spawn");
+            //let janitor = FinishOnDrop::new(request_id.clone());
             capture_stage(&platform_state.metrics, &request_c, "context_ready");
             // Validate incoming request parameters.
             if let Err(error_string) = validate_request(open_rpc_state, &request_c, fail_open) {
@@ -424,6 +425,7 @@ impl FireboltGateway {
                                     // if the websocket disconnects before the session is recieved this leads to an error
                                     RpcRouter::route(platform_state.clone(), request_c, session)
                                         .await;
+                                    //drop(janitor);
                                 } else {
                                     error!("session is missing request is not forwarded for request {:?}", request_c.ctx);
                                 }
@@ -436,7 +438,7 @@ impl FireboltGateway {
                     // log firebolt response message in RDKTelemetry 1.0 friendly format
 
                     error!(
-                        "Failed gateway present error {:?} {:?}",
+                        "Failed gateway present error {:?} {:?}. will cleanup",
                         request, deny_reason
                     );
 
@@ -460,6 +462,8 @@ impl FireboltGateway {
                     .emit_debug();
 
                     send_json_rpc_error(&mut platform_state, &request, json_rpc_error).await;
+                    debug!("dropping spawn janitor");
+                    //drop(janitor);
                 }
             }
         });

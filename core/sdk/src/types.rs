@@ -31,6 +31,8 @@
 use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt, hash::Hash, str::FromStr};
 
+use crate::api::gateway::rpc_gateway_api::RpcRequest;
+
 /// Validation errors for identifier types
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IdentifierError {
@@ -210,6 +212,12 @@ impl SessionId {
 
     pub fn into_string(self) -> String {
         self.0
+    }
+}
+
+impl From<RpcRequest> for RequestId {
+    fn from(value: RpcRequest) -> Self {
+        Self::new_unchecked(value.ctx.request_id)
     }
 }
 
