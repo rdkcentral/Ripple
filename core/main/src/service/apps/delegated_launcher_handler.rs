@@ -47,7 +47,6 @@ use ripple_sdk::{
     serde_json::{self},
     tokio::{
         sync::{mpsc, oneshot},
-        task,
     },
     types::AppId,
     utils::{error::RippleError, time_utils::Timer},
@@ -699,60 +698,6 @@ impl DelegatedLauncherHandler {
                 .expect("App Mgr receiver to be available"),
             timer_map: HashMap::new(),
         }
-    }
-
-    pub fn start_session_cleanup_task(&self) {
-        let platform_state = self.platform_state.clone();
-
-        task::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_secs(300)); // 5 minutes
-            loop {
-                interval.tick().await;
-
-                // 1. Perform regular cleanup of old app sessions
-                platform_state.app_manager_state.cleanup_old_sessions();
-
-                // 2. Clean up stale session state - AGGRESSIVE for steady state
-                platform_state.session_state.cleanup_stale_sessions(3); // 3 minute threshold (was 15)
-
-                // 3. Clean up stale provider state - AGGRESSIVE
-                crate::service::apps::provider_broker::ProviderBroker::cleanup_stale_provider_state(&platform_state, 3).await; // 3 minutes (was 15)
-
-                // 4. Clean up stale endpoint broker requests - AGGRESSIVE
-                platform_state.endpoint_state.cleanup_stale_requests(3); // 3 minute threshold (was 15)
-
-                // 5. Clean up stale endpoint connections - AGGRESSIVE
-                platform_state
-                    .endpoint_state
-                    .cleanup_stale_endpoints(10)
-                    .await; // 10 second timeout (was 30)
-
-                // 6. Handle memory pressure if needed
-                if platform_state.app_manager_state.check_memory_pressure() {
-                    debug!("Memory pressure detected, performing comprehensive cleanup");
-                    let max_apps = platform_state
-                        .app_manager_state
-                        .session_config
-                        .max_concurrent_apps;
-                    platform_state
-                        .app_manager_state
-                        .cleanup_excess_apps(max_apps);
-
-                    // Additional VERY aggressive cleanup during memory pressure
-                    platform_state.session_state.cleanup_stale_sessions(1); // VERY aggressive - 1 minute threshold
-                    platform_state.endpoint_state.cleanup_stale_requests(1); // VERY aggressive endpoint cleanup
-                    platform_state
-                        .endpoint_state
-                        .cleanup_stale_endpoints(5)
-                        .await; // VERY aggressive endpoint connection cleanup
-
-                    // Force additional memory reclamation
-                    Self::force_system_memory_reclamation("memory_pressure");
-                }
-
-                debug!("Periodic cleanup cycle completed");
-            }
-        });
     }
 
     #[allow(dead_code)]
@@ -1663,9 +1608,6 @@ impl DelegatedLauncherHandler {
             if let Some(timer) = self.timer_map.remove(app_id) {
                 timer.cancel();
             }
-
-            // MEMORY FIX: Comprehensive app state cleanup
-            Self::comprehensive_app_cleanup(&self.platform_state, app_id).await;
         } else {
             error!("end_session app_id={} Not found", app_id);
             return Err(AppError::NotFound);
@@ -1673,159 +1615,6 @@ impl DelegatedLauncherHandler {
         Ok(AppManagerResponse::None)
     }
 
-    /// Comprehensive app cleanup including session state and provider state
-    async fn comprehensive_app_cleanup(platform_state: &PlatformState, app_id: &str) {
-        use std::time::Instant;
-
-        let start_time = Instant::now();
-        debug!("Starting comprehensive app cleanup for: {}", app_id);
-
-        // Production: Get baseline metrics for monitoring
-        if platform_state
-            .app_manager_state
-            .session_config
-            .enable_session_metrics
-        {
-            let metrics_before = platform_state.session_state.get_session_metrics();
-            debug!(
-                "Pre-cleanup metrics for {}: active_sessions={}, pending_sessions={}",
-                app_id, metrics_before.active_sessions, metrics_before.pending_sessions
-            );
-        }
-
-        // 1. Clean up session state with error handling
-        platform_state.session_state.cleanup_app_sessions(app_id);
-
-        // 2. Clean up provider state with error handling
-        if let Err(e) = tokio::time::timeout(
-            std::time::Duration::from_secs(30), // Production timeout
-            crate::service::apps::provider_broker::ProviderBroker::cleanup_app_providers(
-                platform_state,
-                app_id,
-            ),
-        )
-        .await
-        {
-            error!("Provider cleanup timed out for app {}: {:?}", app_id, e);
-        }
-
-        // 3. Clean up endpoint broker state
-        platform_state.endpoint_state.cleanup_for_app(app_id).await;
-
-        // 4. CRITICAL: Force comprehensive memory cleanup to achieve steady state
-        Self::force_comprehensive_memory_cleanup(platform_state, app_id).await;
-
-        // 5. Force memory reclamation
-        Self::force_memory_reclamation(app_id);
-
-        // 6. CRITICAL: Force tokio runtime to return cached memory
-        // Tokio's per-thread allocators cache memory - yield to let them flush
-        for _ in 0..5 {
-            tokio::task::yield_now().await;
-        }
-
-        // 7. Production: Validate cleanup effectiveness
-        if platform_state
-            .app_manager_state
-            .session_config
-            .enable_session_metrics
-        {
-            let metrics_after = platform_state.session_state.get_session_metrics();
-            let validation_issues = platform_state.session_state.validate_session_state();
-
-            if !validation_issues.is_empty() {
-                warn!(
-                    "Session validation issues detected after cleanup for {}: {:?}",
-                    app_id, validation_issues
-                );
-            }
-
-            debug!("Post-cleanup metrics for {}: active_sessions={}, pending_sessions={}, duration={:?}", 
-                   app_id, metrics_after.active_sessions, metrics_after.pending_sessions, start_time.elapsed());
-        }
-
-        debug!(
-            "Completed comprehensive app cleanup for: {} in {:?}",
-            app_id,
-            start_time.elapsed()
-        );
-    }
-
-    /// CRITICAL MEMORY FIX: Force comprehensive memory cleanup to achieve steady state
-    async fn force_comprehensive_memory_cleanup(platform_state: &PlatformState, app_id: &str) {
-        use std::time::Instant;
-
-        let start_time = Instant::now();
-        debug!("Starting comprehensive memory cleanup for app: {}", app_id);
-
-        // 1. Aggressive periodic cleanup - run all cleanup mechanisms
-        platform_state.session_state.cleanup_stale_sessions(1); // Very aggressive - 1 minute threshold
-        platform_state.endpoint_state.cleanup_stale_requests(1); // Very aggressive cleanup
-        platform_state
-            .endpoint_state
-            .cleanup_stale_endpoints(5)
-            .await; // Fast endpoint cleanup
-
-        // 2. Force memory pressure cleanup simulation
-        let max_apps = platform_state
-            .app_manager_state
-            .session_config
-            .max_concurrent_apps;
-        platform_state
-            .app_manager_state
-            .cleanup_excess_apps(max_apps / 2); // More aggressive limit
-
-        // 3. Provider state comprehensive cleanup
-        if let Err(e) = tokio::time::timeout(
-            std::time::Duration::from_secs(10), // Shorter timeout
-            crate::service::apps::provider_broker::ProviderBroker::cleanup_stale_provider_state(
-                platform_state,
-                1,
-            ), // 1 minute threshold
-        )
-        .await
-        {
-            error!(
-                "Aggressive provider cleanup timed out for app {}: {:?}",
-                app_id, e
-            );
-        }
-
-        // 4. System-level memory reclamation
-        Self::force_system_memory_reclamation(app_id);
-
-        let cleanup_duration = start_time.elapsed();
-        debug!(
-            "Comprehensive memory cleanup completed for {} in {:?} - targeting steady state",
-            app_id, cleanup_duration
-        );
-    }
-
-    /// Enhanced memory reclamation with system-level cleanup
-    fn force_system_memory_reclamation(app_id: &str) {
-        debug!(
-            "Forcing system-level memory reclamation for app: {}",
-            app_id
-        );
-
-        // Multiple rounds of memory pressure
-        for _round in 0..3 {
-            // Force garbage collection via explicit drop hint
-            std::mem::drop(Vec::<u8>::with_capacity(0));
-
-            // Encourage heap compaction
-            std::hint::spin_loop();
-
-            // Brief yield to allow cleanup tasks to run
-            std::thread::yield_now();
-        }
-
-        // CRITICAL FIX: Force jemalloc to release memory back to OS
-        #[cfg(not(target_env = "msvc"))]
-        Self::force_jemalloc_purge();
-
-        debug!("System memory reclamation completed for app: {}", app_id);
-    }
 
     /// Force jemalloc to purge unused memory back to OS IMMEDIATELY
     #[cfg(not(target_env = "msvc"))]
