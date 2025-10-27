@@ -45,9 +45,7 @@ use ripple_sdk::{
     },
     log::{debug, error, warn},
     serde_json::{self},
-    tokio::{
-        sync::{mpsc, oneshot},
-    },
+    tokio::sync::{mpsc, oneshot},
     types::AppId,
     utils::{error::RippleError, time_utils::Timer},
     uuid::Uuid,
@@ -1614,7 +1612,6 @@ impl DelegatedLauncherHandler {
         }
         Ok(AppManagerResponse::None)
     }
-
 
     /// Force jemalloc to purge unused memory back to OS IMMEDIATELY
     #[cfg(not(target_env = "msvc"))]
