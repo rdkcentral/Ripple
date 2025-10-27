@@ -539,19 +539,19 @@ impl EndpointBrokerState {
 
     pub fn log_hashmap_sizes(&self) {
         if let Ok(request_map) = self.request_map.read() {
-            info!(
+            debug!(
                 "MEMORY_DEBUG: broker request_map size: {}",
                 request_map.len()
             );
         }
         if let Ok(extension_map) = self.extension_request_map.read() {
-            info!(
+            debug!(
                 "MEMORY_DEBUG: broker extension_request_map size: {}",
                 extension_map.len()
             );
         }
         if let Ok(endpoint_map) = self.endpoint_map.read() {
-            info!(
+            debug!(
                 "MEMORY_DEBUG: broker endpoint_map size: {}",
                 endpoint_map.len()
             );
@@ -1145,9 +1145,6 @@ impl EndpointBrokerState {
 
     // Method to cleanup all subscription on App termination
     pub async fn cleanup_for_app(&self, app_id: &str) {
-        // MEMORY FIX: Clean up request maps for this app_id
-        self.cleanup_app_request_maps(app_id);
-
         let cleaners = { self.cleaner_list.read().unwrap().clone() };
 
         for cleaner in cleaners {
@@ -1155,118 +1152,6 @@ impl EndpointBrokerState {
             for now, just eat the error - the return type was mainly added to prepare for future refactoring/testability
             */
             let _ = cleaner.cleanup_session(app_id).await;
-        }
-    }
-
-    /// Memory optimization: Clean up request maps for specific app
-    fn cleanup_app_request_maps(&self, app_id: &str) {
-        // Clean up request_map entries for this app
-        let mut removed_requests = 0;
-        {
-            let mut request_map = self.request_map.write().unwrap();
-            let keys_to_remove: Vec<u64> = request_map
-                .iter()
-                .filter(|(_, request)| request.rpc.ctx.app_id.eq_ignore_ascii_case(app_id))
-                .map(|(key, _)| *key)
-                .collect();
-
-            for key in keys_to_remove {
-                request_map.remove(&key);
-                removed_requests += 1;
-            }
-        }
-
-        // Clean up extension_request_map entries for this app
-        let mut removed_extensions = 0;
-        {
-            let mut extension_map = self.extension_request_map.write().unwrap();
-            // Find extensions by matching keys with request_map
-            let keys_to_remove: Vec<u64> = {
-                let request_map = self.request_map.read().unwrap();
-                extension_map
-                    .keys()
-                    .filter(|&&key| {
-                        if let Some(request) = request_map.get(&key) {
-                            request.rpc.ctx.app_id.eq_ignore_ascii_case(app_id)
-                        } else {
-                            false
-                        }
-                    })
-                    .copied()
-                    .collect()
-            };
-
-            for key in keys_to_remove {
-                extension_map.remove(&key);
-                removed_extensions += 1;
-            }
-        }
-
-        if removed_requests > 0 || removed_extensions > 0 {
-            debug!(
-                "Cleaned up {} request map entries and {} extension map entries for app: {}",
-                removed_requests, removed_extensions, app_id
-            );
-        }
-    }
-
-    /// Memory optimization: Periodic cleanup of stale/orphaned requests
-    pub fn cleanup_stale_requests(&self, max_age_minutes: u64) {
-        use std::time::{SystemTime, UNIX_EPOCH};
-
-        let current_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        let max_age_seconds = max_age_minutes * 60;
-
-        // Clean up old request_map entries
-        let mut removed_requests = 0;
-        {
-            let mut request_map = self.request_map.write().unwrap();
-            let keys_to_remove: Vec<u64> = request_map
-                .iter()
-                .filter(|(_, request)| {
-                    // Remove requests older than max_age if they don't have recent activity
-                    // For now, use a simple heuristic based on call_id (generated sequentially)
-                    // In production, we'd want proper timestamps
-                    let request_id = request.rpc.ctx.call_id;
-                    let estimated_age = current_time.saturating_sub(request_id);
-                    estimated_age > max_age_seconds
-                })
-                .map(|(key, _)| *key)
-                .collect();
-
-            for key in keys_to_remove {
-                request_map.remove(&key);
-                removed_requests += 1;
-            }
-        }
-
-        // Clean up old extension_request_map entries
-        let mut removed_extensions = 0;
-        {
-            let mut extension_map = self.extension_request_map.write().unwrap();
-            let keys_to_remove: Vec<u64> = extension_map
-                .keys()
-                .filter(|&&key| {
-                    let estimated_age = current_time.saturating_sub(key);
-                    estimated_age > max_age_seconds
-                })
-                .copied()
-                .collect();
-
-            for key in keys_to_remove {
-                extension_map.remove(&key);
-                removed_extensions += 1;
-            }
-        }
-
-        if removed_requests > 0 || removed_extensions > 0 {
-            debug!(
-                "Stale cleanup: Removed {} request map entries and {} extension map entries (older than {} minutes)",
-                removed_requests, removed_extensions, max_age_minutes
-            );
         }
     }
 
@@ -1282,60 +1167,6 @@ impl EndpointBrokerState {
             extension_map_size,
             endpoint_map_size,
             cleaner_list_size,
-        }
-    }
-
-    /// Memory optimization: Clean up unresponsive endpoint connections
-    pub async fn cleanup_stale_endpoints(&self, _health_check_timeout_seconds: u64) {
-        let mut endpoints_to_remove = Vec::new();
-
-        // Check endpoint health by attempting to send a test message
-        {
-            let endpoint_map = self.endpoint_map.read().unwrap();
-            for (endpoint_key, sender) in endpoint_map.iter() {
-                // For production, we'd send actual health check requests
-                // For now, check if the sender channel is closed
-                if sender.sender.is_closed() {
-                    endpoints_to_remove.push(endpoint_key.clone());
-                }
-            }
-        }
-
-        // Remove unhealthy endpoints
-        if !endpoints_to_remove.is_empty() {
-            let mut endpoint_map = self.endpoint_map.write().unwrap();
-            for endpoint_key in &endpoints_to_remove {
-                endpoint_map.remove(endpoint_key);
-            }
-            debug!(
-                "Cleaned up {} stale endpoint connections: {:?}",
-                endpoints_to_remove.len(),
-                endpoints_to_remove
-            );
-        }
-    }
-
-    /// Memory optimization: Validate endpoint map integrity and clean up orphaned entries
-    pub fn validate_endpoint_map(&self) -> EndpointValidationResult {
-        let endpoint_map = self.endpoint_map.read().unwrap();
-        let mut issues = Vec::new();
-        let mut healthy_endpoints = 0;
-        let mut closed_channels = 0;
-
-        for (endpoint_key, sender) in endpoint_map.iter() {
-            if sender.sender.is_closed() {
-                issues.push(EndpointValidationIssue::ClosedChannel(endpoint_key.clone()));
-                closed_channels += 1;
-            } else {
-                healthy_endpoints += 1;
-            }
-        }
-
-        EndpointValidationResult {
-            total_endpoints: endpoint_map.len(),
-            healthy_endpoints,
-            closed_channels,
-            issues,
         }
     }
 }
