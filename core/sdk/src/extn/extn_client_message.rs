@@ -479,7 +479,7 @@ impl ExtnPayloadProvider for ExtnRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Internal
+        RippleContract::RippleContext
     }
 }
 
@@ -521,7 +521,7 @@ impl ExtnPayloadProvider for ExtnResponse {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Internal
+        RippleContract::RippleContext
     }
 }
 
@@ -551,7 +551,7 @@ impl ExtnPayloadProvider for ExtnEvent {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Internal
+        RippleContract::RippleContext
     }
 }
 
@@ -675,7 +675,7 @@ mod tests {
         let original_message = ExtnMessage {
             id: "test_id".to_string(),
             requestor: ExtnId::get_main_target("main".into()),
-            target: RippleContract::Internal,
+            target: RippleContract::RippleContext,
             target_id: Some(ExtnId::get_main_target("main".into())),
             payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
             ts: Some(1234567890),
@@ -690,7 +690,7 @@ mod tests {
             ack_message.requestor,
             ExtnId::get_main_target("main".into())
         );
-        assert_eq!(ack_message.target, RippleContract::Internal);
+        assert_eq!(ack_message.target, RippleContract::RippleContext);
         assert_eq!(
             ack_message.target_id,
             Some(ExtnId::get_main_target("main".into()))
@@ -726,7 +726,7 @@ mod tests {
 
     #[test]
     fn test_contract() {
-        let expected_contract = RippleContract::Internal;
+        let expected_contract = RippleContract::RippleContext;
         assert_eq!(ExtnEvent::contract(), expected_contract);
     }
 
@@ -736,7 +736,7 @@ mod tests {
         let original_message = ExtnMessage {
             id: "test_id".to_string(),
             requestor: ExtnId::get_main_target("main".into()),
-            target: RippleContract::Internal,
+            target: RippleContract::RippleContext,
             target_id: Some(ExtnId::get_main_target("main".into())),
             payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
             ts: Some(1234567890),
@@ -753,7 +753,7 @@ mod tests {
         let original_message = ExtnMessage {
             id: "test_id".to_string(),
             requestor: ExtnId::get_main_target("main".into()),
-            target: RippleContract::Internal,
+            target: RippleContract::RippleContext,
             target_id: Some(ExtnId::get_main_target("main".into())),
             payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
             ts: Some(1234567890),
@@ -765,7 +765,7 @@ mod tests {
         assert!(tried_message.payload.is_request());
         assert!(tried_message.id.eq_ignore_ascii_case("test_id"));
         assert!(tried_message.requestor == ExtnId::get_main_target("main".into()));
-        assert!(tried_message.target == RippleContract::Internal);
+        assert!(tried_message.target == RippleContract::RippleContext);
         assert!(tried_message.target_id == Some(ExtnId::get_main_target("main".into())));
         assert!(
             tried_message.payload == ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName))

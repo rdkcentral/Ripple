@@ -135,7 +135,7 @@ mod tests {
         let ready_message = ExtnMessage {
             id: "test_id".to_string(),
             requestor: ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
-            target: RippleContract::Internal,
+            target: RippleContract::RippleContext,
             target_id: Some(ExtnId::get_main_target("main".into())),
             payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
             ts: Some(1234567890),
@@ -184,7 +184,7 @@ mod tests {
         let invalid_message = ExtnMessage {
             id: "test_id".to_string(),
             requestor: ExtnId::new_channel(ExtnClassId::Device, "other".to_string()),
-            target: RippleContract::Internal,
+            target: RippleContract::RippleContext,
             target_id: Some(ExtnId::get_main_target("main".into())),
             payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
             ts: Some(1234567890),
@@ -238,7 +238,7 @@ mod tests {
         let ready_message = ExtnMessage {
             id: "test_id".to_string(),
             requestor: ExtnId::new_channel(ExtnClassId::Device, "other".to_string()),
-            target: RippleContract::Internal,
+            target: RippleContract::RippleContext,
             target_id: Some(ExtnId::get_main_target("main".into())),
             payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
             ts: Some(1234567890),
@@ -274,7 +274,7 @@ mod tests {
         let invalid_message = ExtnMessage {
             id: "test_id".to_string(),
             requestor: ExtnId::new_channel(ExtnClassId::Device, "info".to_string()),
-            target: RippleContract::Internal,
+            target: RippleContract::RippleContext,
             target_id: Some(ExtnId::get_main_target("main".into())),
             payload: ExtnPayload::Request(ExtnRequest::Config(Config::DefaultName)),
             ts: Some(1234567890),

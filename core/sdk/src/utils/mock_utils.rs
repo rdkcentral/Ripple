@@ -243,7 +243,7 @@ impl ExtnPayloadProvider for MockEvent {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Internal
+        RippleContract::RippleContext
     }
 }
 
@@ -275,7 +275,7 @@ impl ExtnPayloadProvider for MockRequest {
     }
 
     fn contract() -> RippleContract {
-        RippleContract::Internal
+        RippleContract::RippleContext
     }
 }
 
@@ -287,7 +287,7 @@ pub fn get_mock_message(payload_type: PayloadType) -> ExtnMessage {
     ExtnMessage {
         id: "test_id".to_string(),
         requestor: ExtnId::get_main_target("main".into()),
-        target: RippleContract::Internal,
+        target: RippleContract::RippleContext,
         target_id: Some(ExtnId::get_main_target("main".into())),
         payload: match payload_type {
             PayloadType::Event => get_mock_event_payload(),
@@ -305,7 +305,7 @@ pub fn get_mock_request_payload() -> ExtnPayload {
     ExtnPayload::Request(ExtnRequest::Extn(
         serde_json::to_value(MockRequest {
             app_id: "test_app_id".to_string(),
-            contract: RippleContract::Internal,
+            contract: RippleContract::RippleContext,
             expected_response: Some(ExtnResponse::Boolean(true)),
         })
         .unwrap(),
@@ -330,7 +330,7 @@ pub fn get_mock_event() -> MockEvent {
 pub fn get_mock_request() -> MockRequest {
     MockRequest {
         app_id: "test_app_id".to_string(),
-        contract: RippleContract::Internal,
+        contract: RippleContract::RippleContext,
         expected_response: Some(ExtnResponse::Boolean(true)),
     }
 }

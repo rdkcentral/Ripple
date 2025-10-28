@@ -38,10 +38,6 @@ use serde_json::Value;
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum RippleContract {
-    /// Used by Main application to provide internal contracts for Extensions
-    #[default]
-    Internal,
-
     /// Provided by the platform to handle launching and managing applications.
     /// Used by [crate::api::firebolt::fb_lifecycle_management::LifecycleManagementEventRequest]
     Launcher,
@@ -94,6 +90,8 @@ pub enum RippleContract {
     /// Distributor gets the ability to configure and customize the generation of
     /// the Session information based on their policies. Used by [crate::api::session::AccountSession]
     Session(SessionAdjective),
+    /// Internal platform context for message passing between Main and Extensions
+    #[default]
     RippleContext,
     ExtnProvider(ExtnProviderAdjective),
     // Runtime ability for a given distributor to turn off a certian feature
