@@ -23,6 +23,7 @@ use std::{
 };
 
 use crate::{
+    broker::broker_utils::BrokerUtils,
     firebolt::{firebolt_gatekeeper::FireboltGatekeeper, handlers::privacy_rpc::PrivacyImpl},
     state::{cap::cap_state::CapState, platform_state::PlatformState},
 };
@@ -1185,10 +1186,28 @@ impl GrantPolicyEnforcer {
             };
             let request =
                 UserGrantsCloudStoreRequest::SetCloudUserGrants(usergrants_cloud_set_params);
-            let resp = platform_state.get_client().send_extn_request(request).await;
-            if resp.is_err() {
-                error!("Unable to sync usergrants to cloud. Unable to send request to extn");
+            let params = serde_json::to_value(request).unwrap();
+            match BrokerUtils::process_internal_main_request(
+                &platform_state,
+                "distributor.setCloudUserGrants",
+                Some(params),
+            )
+            .await
+            {
+                Ok(_) => {
+                    debug!("Successfully synced usergrants to cloud.");
+                }
+                Err(err) => {
+                    error!("Unable to sync usergrants to cloud. Error: {:?}", err);
+                }
             }
+
+            // let request =
+            //     UserGrantsCloudStoreRequest::SetCloudUserGrants(usergrants_cloud_set_params);
+            // let resp = platform_state.get_client().send_extn_request(request).await;
+            // if resp.is_err() {
+            //     error!("Unable to sync usergrants to cloud. Unable to send request to extn");
+            // }
         }
     }
 

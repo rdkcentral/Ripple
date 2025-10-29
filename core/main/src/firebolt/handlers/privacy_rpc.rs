@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use crate::broker::broker_utils::BrokerUtils;
 use crate::processor::storage::storage_manager::StorageManager;
 use crate::service::apps::app_events::AppEventDecorator;
 use crate::{
@@ -26,6 +27,7 @@ use jsonrpsee::{
     proc_macros::rpc,
     RpcModule,
 };
+use ripple_sdk::api::distributor::distributor_privacy::PrivacyResponse;
 use ripple_sdk::utils::rpc_utils::rpc_error_with_code_result;
 use ripple_sdk::{
     api::{
@@ -61,6 +63,7 @@ use ripple_sdk::{
     log::{debug, error},
     serde_json::{from_value, json},
 };
+use serde_json::Value;
 
 use super::advertising_rpc::ScopeOption;
 use super::capabilities_rpc::is_granted;
@@ -607,14 +610,29 @@ impl PrivacyImpl {
                         setting,
                         dist_session,
                     });
-                    if let Ok(resp) = platform_state.get_client().send_extn_request(request).await {
-                        if let Some(ExtnResponse::Boolean(b)) = resp.payload.extract() {
-                            return Ok(b);
+                    let params = serde_json::to_value(request).unwrap();
+                    match BrokerUtils::process_internal_main_request(
+                        platform_state,
+                        "distributor.getPrivacyCloudProperty",
+                        Some(params),
+                    )
+                    .await
+                    {
+                        Ok(value) => {
+                            if let Value::Bool(enabled) = value {
+                                return Ok(enabled);
+                            }
+                            Err(jsonrpsee::core::Error::Custom(String::from(
+                                "get_privacy_cloud_property: Unexpected value type",
+                            )))
+                        }
+                        Err(e) => {
+                            error!("Error in getting privacy cloud property: {:?}", e);
+                            Err(jsonrpsee::core::Error::Custom(String::from(
+                                "get_privacy_cloud_property: Privacy cloud is not available",
+                            )))
                         }
                     }
-                    Err(jsonrpsee::core::Error::Custom(String::from(
-                        "PrivacySettingsStorageType::Cloud: Not Available",
-                    )))
                 } else {
                     Err(jsonrpsee::core::Error::Custom(String::from(
                         "Account session is not available",
@@ -666,22 +684,44 @@ impl PrivacyImpl {
                             value,
                             dist_session,
                         });
-                        let result = platform_state.get_client().send_extn_request(request).await;
-                        if PrivacySettingsStorageType::Sync == privacy_settings_storage_type
-                            && result.is_ok()
+                        match BrokerUtils::process_internal_main_request(
+                            platform_state,
+                            "distributor.setProperty",
+                            Some(serde_json::to_value(request).unwrap()),
+                        )
+                        .await
                         {
-                            let _ = StorageManager::set_bool(platform_state, property, value, None)
-                                .await;
+                            Ok(_) => {
+                                if PrivacySettingsStorageType::Sync == privacy_settings_storage_type
+                                {
+                                    debug!("syncing privacy setting to local storage");
+                                    let _ = StorageManager::set_bool(
+                                        platform_state,
+                                        property,
+                                        value,
+                                        None,
+                                    )
+                                    .await;
+                                }
+                                return Ok(());
+                            }
+                            Err(e) => {
+                                error!("Error in setting privacy cloud property: {:?}", e);
+                                return Err(jsonrpsee::core::Error::Custom(String::from(
+                                    "set_privacy_cloud_property: Privacy cloud is not available",
+                                )));
+                            }
                         }
-                        if result.is_ok() {
-                            return Ok(());
-                        }
+                    } else {
+                        return Err(jsonrpsee::core::Error::Custom(
+                            "Property is not a privacy setting".to_owned(),
+                        ));
                     }
+                } else {
+                    return Err(jsonrpsee::core::Error::Custom(
+                        "Account session is not available".to_owned(),
+                    ));
                 }
-                Err(jsonrpsee::core::Error::Custom(String::from(&format!(
-                    "{:?}: Not Available",
-                    privacy_settings_storage_type
-                ))))
             }
         }
     }
@@ -1178,9 +1218,30 @@ impl PrivacyServer for PrivacyImpl {
             PrivacySettingsStorageType::Cloud => {
                 if let Some(dist_session) = self.state.session_state.get_account_session() {
                     let request = PrivacyCloudRequest::GetProperties(dist_session);
-                    if let Ok(resp) = self.state.get_client().send_extn_request(request).await {
-                        if let Some(b) = resp.payload.extract() {
-                            return Ok(b);
+                    let params = serde_json::to_value(request).unwrap();
+                    match BrokerUtils::process_internal_main_request(
+                        &self.state,
+                        "distributor.getPrivacyCloudProperties",
+                        Some(params),
+                    )
+                    .await
+                    {
+                        Ok(response) => match serde_json::from_value::<PrivacyResponse>(response) {
+                            Ok(privacy_response) => match privacy_response {
+                                PrivacyResponse::Settings(s) => {
+                                    println!("^^^ received privacy response: {:?}", s.clone());
+                                    return Ok(s);
+                                }
+                                _ => {
+                                    error!("Unexpected privacy response: {:?}", privacy_response);
+                                }
+                            },
+                            Err(e) => {
+                                error!("Error in deserializing privacy response: {:?}", e);
+                            }
+                        },
+                        Err(e) => {
+                            error!("Error in getting privacy cloud settings: {:?}", e);
                         }
                     }
                     Err(jsonrpsee::core::Error::Custom(String::from(

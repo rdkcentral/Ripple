@@ -401,7 +401,7 @@ pub struct AppSetting {
 
 pub type UserGrants = Vec<UserGrantInfo>;
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum PrivacyResponse {
     None,
     Bool(bool),
