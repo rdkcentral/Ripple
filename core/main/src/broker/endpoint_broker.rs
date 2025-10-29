@@ -1111,7 +1111,7 @@ impl EndpointBrokerState {
     pub async fn send_with_response_timeout(
         &self,
         rpc_request: RpcRequest,
-        response_tx: ripple_sdk::tokio::sync::oneshot::Sender<Value>,
+        response_tx: ripple_sdk::tokio::sync::oneshot::Sender<Result<Value, Value>>,
         timeout_secs: u64,
     ) -> Result<(), RippleError> {
         // Get the appropriate broker rule for this request
@@ -1154,15 +1154,23 @@ impl EndpointBrokerState {
 
             match timeout(timeout_duration, callback_rx.recv()).await {
                 Ok(Some(broker_output)) => {
-                    // Received a valid broker response - extract the result or error
-                    let response_value = if let Some(result) = broker_output.data.result {
-                        result
-                    } else if let Some(error) = broker_output.data.error {
-                        error
-                    } else {
-                        serde_json::Value::Null
-                    };
-                    let _ = response_tx.send(response_value);
+                    // Received a valid broker response
+                    // Success case: data contains a result field
+                    if let Some(result) = broker_output.data.result {
+                        let _ = response_tx.send(Ok(result));
+                    }
+                    // Error case: data contains an error field
+                    else if let Some(error) = broker_output.data.error {
+                        let _ = response_tx.send(Err(error));
+                    }
+                    // Edge case: neither result nor error
+                    else {
+                        let error_response = serde_json::json!({
+                            "code": -32603,
+                            "message": "Internal error: response contains neither result nor error"
+                        });
+                        let _ = response_tx.send(Err(error_response));
+                    }
                 }
                 Ok(None) => {
                     // Channel was closed without sending a response
@@ -1170,7 +1178,7 @@ impl EndpointBrokerState {
                         "code": -32000,
                         "message": "Broker channel closed unexpectedly"
                     });
-                    let _ = response_tx.send(error_response);
+                    let _ = response_tx.send(Err(error_response));
                 }
                 Err(_) => {
                     // Timeout occurred
@@ -1178,7 +1186,7 @@ impl EndpointBrokerState {
                         "code": -32001,
                         "message": "Request timeout"
                     });
-                    let _ = response_tx.send(error_response);
+                    let _ = response_tx.send(Err(error_response));
                 }
             }
         });

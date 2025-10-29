@@ -36,10 +36,7 @@ use ripple_sdk::{
     framework::ripple_contract::RippleContract,
     log::debug,
     serde_json::Value,
-    tokio::{
-        sync::oneshot,
-        time::{timeout, Duration},
-    },
+    tokio::sync::oneshot,
     utils::error::RippleError,
     uuid::Uuid,
 };
@@ -276,20 +273,36 @@ impl PlatformState {
             .send_with_response_timeout(rpc_request.clone(), tx, timeout_secs)
             .await?;
 
-        // Wait for response with a timeout to handle infrastructure issues
-        let timeout_duration = Duration::from_secs(timeout_secs);
-        match timeout(timeout_duration, rx).await {
-            Ok(Ok(response)) => {
-                // Received a legitimate response
-                Ok(response)
-            }
-            Ok(Err(_)) => {
-                // The oneshot channel was closed without sending a response
-                Err(RippleError::ProcessorError)
+        // Wait for response from the oneshot channel
+        match rx.await {
+            Ok(result) => {
+                // The spawned task sent a Result<Value, Value>
+                result.map_err(|error_value| {
+                    // Try to extract meaningful error information from the JSON error
+                    if let Some(obj) = error_value.as_object() {
+                        let code = obj.get("code").and_then(|v| v.as_i64()).unwrap_or(-1);
+                        let message = obj
+                            .get("message")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Unknown error");
+
+                        // Map specific error codes to appropriate RippleError variants
+                        match code {
+                            -32001 => RippleError::TimeoutError,
+                            -32000 => {
+                                RippleError::BrokerError("Channel closed unexpectedly".to_string())
+                            }
+                            _ => RippleError::BrokerError(format!("{}: {}", code, message)),
+                        }
+                    } else {
+                        // Fallback if error is not in expected format
+                        RippleError::BrokerError(error_value.to_string())
+                    }
+                })
             }
             Err(_) => {
-                // Timeout occurred
-                Err(RippleError::TimeoutError)
+                // Channel sender was dropped without sending
+                Err(RippleError::ProcessorError)
             }
         }
     }
