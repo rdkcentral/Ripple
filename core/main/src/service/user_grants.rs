@@ -1201,13 +1201,6 @@ impl GrantPolicyEnforcer {
                     error!("Unable to sync usergrants to cloud. Error: {:?}", err);
                 }
             }
-
-            // let request =
-            //     UserGrantsCloudStoreRequest::SetCloudUserGrants(usergrants_cloud_set_params);
-            // let resp = platform_state.get_client().send_extn_request(request).await;
-            // if resp.is_err() {
-            //     error!("Unable to sync usergrants to cloud. Unable to send request to extn");
-            // }
         }
     }
 
