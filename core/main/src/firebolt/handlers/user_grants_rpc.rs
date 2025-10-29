@@ -278,7 +278,9 @@ impl UserGrantsServer for UserGrantsImpl {
         let result = GrantState::update_grant(
             &self.platform_state,
             GrantStateModify::Grant,
-            &request.options.and_then(|x: ripple_sdk::api::firebolt::fb_user_grants::GrantModificationOptions| x.app_id),
+            &request.options.and_then(
+                |x: ripple_sdk::api::firebolt::fb_user_grants::GrantModificationOptions| x.app_id,
+            ),
             request.role,
             request.capability,
             ctx,

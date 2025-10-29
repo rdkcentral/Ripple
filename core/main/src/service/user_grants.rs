@@ -1188,7 +1188,7 @@ impl GrantPolicyEnforcer {
                 UserGrantsCloudStoreRequest::SetCloudUserGrants(usergrants_cloud_set_params);
             let params = serde_json::to_value(request).unwrap();
             match BrokerUtils::process_internal_main_request(
-                &platform_state,
+                platform_state,
                 "distributor.setCloudUserGrants",
                 Some(params),
             )

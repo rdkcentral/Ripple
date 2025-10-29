@@ -703,24 +703,24 @@ impl PrivacyImpl {
                                     )
                                     .await;
                                 }
-                                return Ok(());
+                                Ok(())
                             }
                             Err(e) => {
                                 error!("Error in setting privacy cloud property: {:?}", e);
-                                return Err(jsonrpsee::core::Error::Custom(String::from(
+                                Err(jsonrpsee::core::Error::Custom(String::from(
                                     "set_privacy_cloud_property: Privacy cloud is not available",
-                                )));
+                                )))
                             }
                         }
                     } else {
-                        return Err(jsonrpsee::core::Error::Custom(
+                        Err(jsonrpsee::core::Error::Custom(
                             "Property is not a privacy setting".to_owned(),
-                        ));
+                        ))
                     }
                 } else {
-                    return Err(jsonrpsee::core::Error::Custom(
+                    Err(jsonrpsee::core::Error::Custom(
                         "Account session is not available".to_owned(),
-                    ));
+                    ))
                 }
             }
         }
