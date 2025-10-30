@@ -15,7 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use super::service_message::ServiceMessage;
+use std::collections::HashMap;
+
 use crate::api::gateway::rpc_gateway_api::CallContext;
 use crate::api::{
     gateway::rpc_gateway_api::{ApiMessage, ApiProtocol},
@@ -31,16 +32,17 @@ use crate::utils::extn_utils::ExtnStackSize;
 use crate::utils::mock_utils::get_next_mock_service_response;
 use crate::utils::{error::RippleError, ws_utils::WebSocketUtils};
 use futures_util::{SinkExt, StreamExt};
-use jsonrpsee::core::server::rpc_module::Methods;
+use jsonrpsee::core::{server::rpc_module::Methods, RpcResult};
 use log::{debug, error, info, trace, warn};
+use serde::de::DeserializeOwned;
 use serde_json::Value;
-use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc, oneshot};
 use tokio::sync::{mpsc::Sender as MSender, oneshot::Sender as OSender};
 use tokio_tungstenite::tungstenite::Message;
 use uuid::Uuid;
 
+use super::service_message::ServiceMessage;
 #[derive(Debug, Clone, Default)]
 pub struct ServiceClient {
     pub service_sender: Option<MSender<ServiceMessage>>,
@@ -183,6 +185,7 @@ impl ServiceClient {
             let handle_ws_message = |msg: Message| {
                 if let Message::Text(message) = msg.clone() {
                     // Service message
+                    debug!("Received Service Message: {:#?}", message);
                     if let Ok(sm) = serde_json::from_str::<ServiceMessage>(&message) {
                         match sm.message {
                             JsonRpcMessage::Request(ref _json_rpc_request) => {
@@ -308,15 +311,56 @@ impl ServiceClient {
         self.extn_client.as_ref().and_then(|ec| ec.get_stack_size())
     }
 
+    pub async fn call_and_parse_ripple_main_rpc<T: DeserializeOwned>(
+        &mut self,
+        method: &str,
+        params: Option<serde_json::Value>,
+        ctx: Option<&CallContext>,
+        timeout: u64,
+        service_id: &str,
+        error_msg: &str,
+    ) -> RpcResult<T> {
+        let res = self
+            .request_with_timeout_main(
+                method.to_string(),
+                params,
+                ctx,
+                timeout,
+                service_id.to_string(),
+            )
+            .await
+            .map_err(|_| jsonrpsee::core::Error::Custom(error_msg.to_string()))?;
+
+        match res.message {
+            JsonRpcMessage::Success(v) => serde_json::from_value::<T>(v.result).map_err(|_| {
+                jsonrpsee::core::Error::Custom(format!("Failed to parse response for {}", method))
+            }),
+            _ => Err(jsonrpsee::core::Error::Custom(format!(
+                "Failed to get Success response for {}",
+                method
+            ))),
+        }
+    }
+
     #[allow(unused_variables)]
+    #[allow(clippy::too_many_arguments)]
     pub async fn request_with_timeout_main(
         &mut self,
         method: String,
         params: Option<Value>,
-        ctx: &CallContext,
+        ctx: Option<&CallContext>,
         timeout_in_msecs: u64,
         service_id: String,
     ) -> Result<ServiceMessage, RippleError> {
+        let default_ctx;
+        let ctx = match ctx {
+            Some(c) => c,
+            None => {
+                default_ctx = self.get_default_service_call_context(method.clone());
+                &default_ctx
+            }
+        };
+
         #[cfg(all(not(feature = "mock"), not(test)))]
         {
             let resp = tokio::time::timeout(
@@ -386,7 +430,7 @@ impl ServiceClient {
         }
     }
 
-    fn get_default_service_call_context(method: String) -> CallContext {
+    pub fn get_default_service_call_context(&self, method: String) -> CallContext {
         CallContext::new(
             Uuid::new_v4().to_string(),
             Uuid::new_v4().to_string(),
@@ -398,6 +442,7 @@ impl ServiceClient {
             false,
         )
     }
+
     pub fn request_transient(
         &self,
         method: String,
@@ -410,14 +455,24 @@ impl ServiceClient {
         let ctx = match ctx {
             Some(c) => c,
             None => {
-                default_ctx = Self::get_default_service_call_context(method.clone());
+                default_ctx = self.get_default_service_call_context(method.clone());
                 &default_ctx
             }
         };
 
         let id = Uuid::new_v4().to_string();
-        let mut service_request =
+        let service_request =
             ServiceMessage::new_request(method.to_owned(), params, Id::String(id.clone()));
+        self.send_transient(service_request, ctx, id.clone(), service_id)
+    }
+
+    fn send_transient(
+        &self,
+        mut service_request: ServiceMessage,
+        ctx: &CallContext,
+        id: String,
+        service_id: String,
+    ) -> Result<String, RippleError> {
         let mut context = ctx.clone();
         context.protocol = ApiProtocol::Service;
         let vec = vec![id.clone(), service_id];
@@ -445,7 +500,6 @@ fn add_single_processor<P>(id: String, processor: Option<P>, map: Arc<RwLock<Has
         processor_state.insert(id, processor);
     }
 }
-
 #[cfg(test)]
 pub mod tests {
     use crate::api::gateway::rpc_gateway_api::ApiProtocol;
@@ -529,7 +583,7 @@ pub mod tests {
             false,
         );
         let result: Result<ServiceMessage, RippleError> = client
-            .request_with_timeout_main("method.1".to_string(), None, &context, 5000, id)
+            .request_with_timeout_main("method.1".to_string(), None, Some(&context), 5000, id)
             .await;
         println!("result: {:?}", result);
         assert!(result.is_ok());
