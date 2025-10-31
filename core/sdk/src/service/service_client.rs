@@ -18,6 +18,8 @@
 use std::collections::HashMap;
 
 use crate::api::gateway::rpc_gateway_api::CallContext;
+use crate::api::manifest::device_manifest::DeviceManifest;
+use crate::api::manifest::extn_manifest::ExtnManifest;
 use crate::api::{
     gateway::rpc_gateway_api::{ApiMessage, ApiProtocol},
     manifest::extn_manifest::ExtnSymbol,
@@ -55,6 +57,7 @@ pub struct ServiceClient {
     pub outbound_extn_rx: Arc<RwLock<Option<mpsc::Receiver<ApiMessage>>>>,
     pub outbound_service_rx: Arc<RwLock<Option<mpsc::Receiver<ServiceMessage>>>>,
 }
+pub static CONFIG_SERVICE_ID: &str = "ripple:channel:bootstrap:config";
 
 pub struct ServiceClientBuilder {
     extn_symbol: Option<ExtnSymbol>,
@@ -144,6 +147,7 @@ impl ServiceClient {
     pub async fn initialize(&self) {
         debug!("Starting Service Client initialize");
         let service_id = self.service_id.clone().unwrap();
+
         let base_path = std::env::var("RIPPLE_SERVICE_HANDSHAKE_PATH")
             .unwrap_or_else(|_| "127.0.0.1:3474".to_string());
         let path = tokio_tungstenite::tungstenite::http::Uri::builder()
@@ -170,11 +174,33 @@ impl ServiceClient {
                 return;
             }
         };
+        
+        let mut retry_count = 0u32;
         loop {
             debug!("Connecting to WebSocket at {}", path);
             Self::connect_websocket(self, &path, &mut outbound_service_rx, &mut outbound_extn_rx)
                 .await;
+
             debug!("Initialize Ended Abruptly");
+            
+            // Exponential backoff with jitter to avoid DOSing the service
+            // Base delay starts at 100ms and caps at 10 seconds
+            let base_delay_ms = std::cmp::min(100u64 * 2u64.pow(retry_count), 10_000);
+            
+            // Add jitter: random value between 0 and base_delay_ms
+            // Using a simple LCG (Linear Congruential Generator) to avoid extra dependencies
+            let jitter_seed = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos() as u64;
+            let jitter = (jitter_seed.wrapping_mul(1103515245).wrapping_add(12345) >> 16) % base_delay_ms;
+            
+            let delay_ms = base_delay_ms + jitter;
+            debug!("Reconnecting in {} ms (attempt {})", delay_ms, retry_count + 1);
+            
+            tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
+            
+            retry_count = retry_count.saturating_add(1);
         }
     }
 
@@ -283,8 +309,8 @@ impl ServiceClient {
                             warn!("Received extension message but no extn_client present");
                         }
                     };
-                } else if let Message::Close(_) = msg {
-                    info!("Received Close message, exiting initialize");
+                } else if let Message::Close(close) = msg {
+                    info!("Received Close {:?} message, exiting initialize", close);
                     return false;
                 } else {
                     warn!("Received unexpected message: {:?}", msg);
@@ -445,7 +471,7 @@ impl ServiceClient {
         let ctx = match ctx {
             Some(c) => c,
             None => {
-                default_ctx = self.get_default_service_call_context(method.clone());
+                default_ctx = Self::get_default_service_call_context(method.clone());
                 &default_ctx
             }
         };
@@ -545,7 +571,7 @@ impl ServiceClient {
         }
     }
 
-    pub fn get_default_service_call_context(&self, method: String) -> CallContext {
+    pub fn get_default_service_call_context(method: String) -> CallContext {
         CallContext::new(
             Uuid::new_v4().to_string(),
             Uuid::new_v4().to_string(),
@@ -569,7 +595,7 @@ impl ServiceClient {
         let ctx = match ctx {
             Some(c) => c,
             None => {
-                default_ctx = self.get_default_service_call_context(method.clone());
+                default_ctx = Self::get_default_service_call_context(method.clone());
                 &default_ctx
             }
         };
@@ -618,7 +644,7 @@ impl ServiceClient {
         let ctx = match ctx {
             Some(c) => c,
             None => {
-                default_ctx = self.get_default_service_call_context(method.clone());
+                default_ctx = Self::get_default_service_call_context(method.clone());
                 &default_ctx
             }
         };
@@ -626,6 +652,56 @@ impl ServiceClient {
         let id = Uuid::new_v4().to_string();
         let service_message = ServiceMessage::new_notification(method.to_owned(), params);
         self.send_transient(service_message, ctx, id.clone(), service_id)
+    }
+    pub async fn get_config_item(&mut self, key: &str) -> Result<Option<String>, RippleError> {
+        if let Some(service_id) = self.service_id.clone() {
+            let service_id = service_id.to_string();
+            let config_map: serde_json::Map<String, serde_json::Value> = self
+                .call_and_parse_ripple_main_rpc(
+                    "ripple.getServiceConfigItem",
+                    Some(serde_json::json!({ "service_id": service_id, "key": key })),
+                    None,
+                    0,
+                    CONFIG_SERVICE_ID,
+                    "Failed to get config",
+                )
+                .await?;
+
+            if let Some(value) = config_map.get(key) {
+                if let Some(s) = value.as_str() {
+                    Ok(Some(s.to_string()))
+                } else {
+                    Ok(None)
+                }
+            } else {
+                Ok(None)
+            }
+        } else {
+            error!("Service Client missing Service ID during initialization");
+            return Err(RippleError::ServiceError);
+        }
+    }
+
+    pub async fn get_config() -> Result<(DeviceManifest, ExtnManifest), RippleError> {
+        let mut service_client = ServiceClient::builder()
+            .with_extension(ExtnSymbol {
+                id: CONFIG_SERVICE_ID.to_string(),
+                uses: vec![],
+                fulfills: vec![],
+                config: None,
+            })
+            .build();
+
+        service_client
+            .call_and_parse_ripple_main_rpc(
+                "ripple.getConfig",
+                None,
+                None,
+                0,
+                CONFIG_SERVICE_ID,
+                "Failed to get config",
+            )
+            .await?
     }
 }
 

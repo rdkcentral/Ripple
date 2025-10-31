@@ -34,6 +34,7 @@ use ripple_sdk::{
             provider::{ProviderRequestPayload, ProviderResponsePayload},
         },
         gateway::rpc_gateway_api::CallContext,
+        manifest::{device_manifest::DeviceManifest, extn_manifest::ExtnManifest},
         settings::{SettingValue, SettingsRequest, SettingsRequestParam},
     },
     async_trait::async_trait,
@@ -139,6 +140,16 @@ pub trait Internal {
         ctx: CallContext,
         request: SettingsRequestParam,
     ) -> RpcResult<()>;
+    #[method(name = "ripple.getConfig")]
+    async fn get_config(&self, ctx: CallContext) -> RpcResult<(DeviceManifest, ExtnManifest)>;
+
+    #[method(name = "ripple.getServiceConfigItem")]
+    async fn get_service_config_item(
+        &self,
+        ctx: CallContext,
+        service_id: String,
+        key: String,
+    ) -> RpcResult<Option<String>>;
 }
 
 #[derive(Debug, Clone, Default)]
@@ -376,6 +387,31 @@ impl InternalServer for InternalImpl {
     ) -> RpcResult<()> {
         subscribe_to_settings(&self.state, request).await;
         Ok(())
+    }
+    async fn get_config(&self, _ctx: CallContext) -> RpcResult<(DeviceManifest, ExtnManifest)> {
+        Ok((self.state.get_device_manifest(), self.state.get_manifest()))
+    }
+    async fn get_service_config_item(
+        &self,
+        _ctx: CallContext,
+        service_id: String,
+        key: String,
+    ) -> RpcResult<Option<String>> {
+        //get manifest from platform state, then get config from manifest
+        match self.state.get_manifest().get_extn_symbol(&service_id) {
+            Some(extn) => {
+                if let Some(config) = extn.config {
+                    if let Some(value) = config.get(&key) {
+                        return Ok(Some(value.clone()));
+                    } else {
+                        return Ok(None);
+                    }
+                } else {
+                    return Ok(None);
+                }
+            }
+            None => Err(rpc_err("Service ID not found")),
+        }
     }
 }
 

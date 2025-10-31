@@ -50,9 +50,14 @@ use crate::{
 
 use super::service_registry::ServiceRegistry;
 use serde_json::Value;
-const ALLOWED_SERVICES_LIST: [&str; 2] = [
+const ALLOWED_SERVICES_LIST: [&str; 3] = [
     "ripple:channel:gateway:badger",
     "ripple:channel:distributor:eos",
+    /*
+    this is to address a chicken-and-egg situation with get_config in service bootstrapping - this service id is *only* to allow
+    services to all the ServiceClient singleton to get the config from Ripple Main
+    */
+    "ripple:channel:bootstrap:config",
 ];
 
 #[derive(Debug, Clone)]
