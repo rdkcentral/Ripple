@@ -57,7 +57,6 @@ pub struct ServiceClient {
     pub outbound_extn_rx: Arc<RwLock<Option<mpsc::Receiver<ApiMessage>>>>,
     pub outbound_service_rx: Arc<RwLock<Option<mpsc::Receiver<ServiceMessage>>>>,
 }
-pub static CONFIG_SERVICE_ID: &str = "ripple:channel:bootstrap:config";
 
 pub struct ServiceClientBuilder {
     extn_symbol: Option<ExtnSymbol>,
@@ -174,7 +173,7 @@ impl ServiceClient {
                 return;
             }
         };
-        
+
         let mut retry_count = 0u32;
         loop {
             debug!("Connecting to WebSocket at {}", path);
@@ -182,24 +181,29 @@ impl ServiceClient {
                 .await;
 
             debug!("Initialize Ended Abruptly");
-            
+
             // Exponential backoff with jitter to avoid DOSing the service
             // Base delay starts at 100ms and caps at 10 seconds
             let base_delay_ms = std::cmp::min(100u64 * 2u64.pow(retry_count), 10_000);
-            
+
             // Add jitter: random value between 0 and base_delay_ms
             // Using a simple LCG (Linear Congruential Generator) to avoid extra dependencies
             let jitter_seed = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_nanos() as u64;
-            let jitter = (jitter_seed.wrapping_mul(1103515245).wrapping_add(12345) >> 16) % base_delay_ms;
-            
+            let jitter =
+                (jitter_seed.wrapping_mul(1103515245).wrapping_add(12345) >> 16) % base_delay_ms;
+
             let delay_ms = base_delay_ms + jitter;
-            debug!("Reconnecting in {} ms (attempt {})", delay_ms, retry_count + 1);
-            
+            debug!(
+                "Reconnecting in {} ms (attempt {})",
+                delay_ms,
+                retry_count + 1
+            );
+
             tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
-            
+
             retry_count = retry_count.saturating_add(1);
         }
     }
@@ -662,7 +666,7 @@ impl ServiceClient {
                     Some(serde_json::json!({ "service_id": service_id, "key": key })),
                     None,
                     0,
-                    CONFIG_SERVICE_ID,
+                    &service_id,
                     "Failed to get config",
                 )
                 .await?;
@@ -680,28 +684,6 @@ impl ServiceClient {
             error!("Service Client missing Service ID during initialization");
             return Err(RippleError::ServiceError);
         }
-    }
-
-    pub async fn get_config() -> Result<(DeviceManifest, ExtnManifest), RippleError> {
-        let mut service_client = ServiceClient::builder()
-            .with_extension(ExtnSymbol {
-                id: CONFIG_SERVICE_ID.to_string(),
-                uses: vec![],
-                fulfills: vec![],
-                config: None,
-            })
-            .build();
-
-        service_client
-            .call_and_parse_ripple_main_rpc(
-                "ripple.getConfig",
-                None,
-                None,
-                0,
-                CONFIG_SERVICE_ID,
-                "Failed to get config",
-            )
-            .await?
     }
 }
 
