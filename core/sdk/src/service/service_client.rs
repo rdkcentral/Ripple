@@ -184,18 +184,24 @@ impl ServiceClient {
 
             // Exponential backoff with jitter to avoid DOSing the service
             // Base delay starts at 100ms and caps at 10 seconds
-            let base_delay_ms = std::cmp::min(100u64 * 2u64.pow(retry_count), 10_000);
+            let base_delay_ms = std::cmp::min(
+                100u64.saturating_mul(2u64.saturating_pow(retry_count)),
+                10_000
+            );
 
             // Add jitter: random value between 0 and base_delay_ms
             // Using a simple LCG (Linear Congruential Generator) to avoid extra dependencies
-            let jitter_seed = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos() as u64;
-            let jitter =
-                (jitter_seed.wrapping_mul(1103515245).wrapping_add(12345) >> 16) % base_delay_ms;
+            let jitter = if base_delay_ms > 0 {
+                let jitter_seed = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_nanos() as u64;
+                (jitter_seed.wrapping_mul(1103515245).wrapping_add(12345) >> 16) % (base_delay_ms + 1)
+            } else {
+                0
+            };
 
-            let delay_ms = base_delay_ms + jitter;
+            let delay_ms = base_delay_ms.saturating_add(jitter);
             debug!(
                 "Reconnecting in {} ms (attempt {})",
                 delay_ms,
