@@ -34,12 +34,11 @@ use ripple_sdk::{
             provider::{ProviderRequestPayload, ProviderResponsePayload},
         },
         gateway::rpc_gateway_api::CallContext,
-        manifest::{device_manifest::DeviceManifest, extn_manifest::ExtnManifest},
         settings::{SettingValue, SettingsRequest, SettingsRequestParam},
     },
     async_trait::async_trait,
     log::{debug, error},
-    service::service_event_state::Event,
+    service::{service_event_state::Event, types::GetServiceConfigItemRequest},
     tokio::sync::oneshot,
     utils::{error::RippleError, rpc_utils::rpc_err},
 };
@@ -140,15 +139,12 @@ pub trait Internal {
         ctx: CallContext,
         request: SettingsRequestParam,
     ) -> RpcResult<()>;
-    #[method(name = "ripple.getConfig")]
-    async fn get_config(&self, ctx: CallContext) -> RpcResult<(DeviceManifest, ExtnManifest)>;
 
     #[method(name = "ripple.getServiceConfigItem")]
     async fn get_service_config_item(
         &self,
         ctx: CallContext,
-        service_id: String,
-        key: String,
+        request: GetServiceConfigItemRequest,
     ) -> RpcResult<Option<String>>;
 }
 
@@ -388,20 +384,21 @@ impl InternalServer for InternalImpl {
         subscribe_to_settings(&self.state, request).await;
         Ok(())
     }
-    async fn get_config(&self, _ctx: CallContext) -> RpcResult<(DeviceManifest, ExtnManifest)> {
-        Ok((self.state.get_device_manifest(), self.state.get_manifest()))
-    }
+
     async fn get_service_config_item(
         &self,
         _ctx: CallContext,
-        service_id: String,
-        key: String,
+        request: GetServiceConfigItemRequest,
     ) -> RpcResult<Option<String>> {
         //get manifest from platform state, then get config from manifest
-        match self.state.get_manifest().get_extn_symbol(&service_id) {
+        match self
+            .state
+            .get_manifest()
+            .get_extn_symbol(&request.service_id)
+        {
             Some(extn) => {
                 if let Some(config) = extn.config {
-                    if let Some(value) = config.get(&key) {
+                    if let Some(value) = config.get(&request.key) {
                         return Ok(Some(value.clone()));
                     } else {
                         return Ok(None);

@@ -18,8 +18,7 @@
 use std::collections::HashMap;
 
 use crate::api::gateway::rpc_gateway_api::CallContext;
-use crate::api::manifest::device_manifest::DeviceManifest;
-use crate::api::manifest::extn_manifest::ExtnManifest;
+
 use crate::api::{
     gateway::rpc_gateway_api::{ApiMessage, ApiProtocol},
     manifest::extn_manifest::ExtnSymbol,
@@ -186,7 +185,7 @@ impl ServiceClient {
             // Base delay starts at 100ms and caps at 10 seconds
             let base_delay_ms = std::cmp::min(
                 100u64.saturating_mul(2u64.saturating_pow(retry_count)),
-                10_000
+                10_000,
             );
 
             // Add jitter: random value between 0 and base_delay_ms
@@ -196,7 +195,8 @@ impl ServiceClient {
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_nanos() as u64;
-                (jitter_seed.wrapping_mul(1103515245).wrapping_add(12345) >> 16) % (base_delay_ms + 1)
+                (jitter_seed.wrapping_mul(1103515245).wrapping_add(12345) >> 16)
+                    % (base_delay_ms + 1)
             } else {
                 0
             };
@@ -662,34 +662,6 @@ impl ServiceClient {
         let id = Uuid::new_v4().to_string();
         let service_message = ServiceMessage::new_notification(method.to_owned(), params);
         self.send_transient(service_message, ctx, id.clone(), service_id)
-    }
-    pub async fn get_config_item(&mut self, key: &str) -> Result<Option<String>, RippleError> {
-        if let Some(service_id) = self.service_id.clone() {
-            let service_id = service_id.to_string();
-            let config_map: serde_json::Map<String, serde_json::Value> = self
-                .call_and_parse_ripple_main_rpc(
-                    "ripple.getServiceConfigItem",
-                    Some(serde_json::json!({ "service_id": service_id, "key": key })),
-                    None,
-                    0,
-                    &service_id,
-                    "Failed to get config",
-                )
-                .await?;
-
-            if let Some(value) = config_map.get(key) {
-                if let Some(s) = value.as_str() {
-                    Ok(Some(s.to_string()))
-                } else {
-                    Ok(None)
-                }
-            } else {
-                Ok(None)
-            }
-        } else {
-            error!("Service Client missing Service ID during initialization");
-            return Err(RippleError::ServiceError);
-        }
     }
 }
 
