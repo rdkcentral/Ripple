@@ -655,10 +655,6 @@ impl ExtnPayloadProvider for StorageManagerRequest {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum StorageAdjective {
-    PrivacyCloud,
-    PrivacyLocal,
-    UsergrantCloud,
-    UsergrantLocal,
     Local,
     Manager,
     Secure,
