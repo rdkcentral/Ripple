@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use crate::broker::broker_utils::BrokerUtils;
 use crate::processor::storage::storage_manager::StorageManager;
 use crate::service::apps::app_events::AppEventDecorator;
 use crate::{
@@ -31,14 +32,13 @@ use ripple_sdk::{
     api::{
         device::device_peristence::SetBoolProperty,
         distributor::distributor_privacy::{
-            ContentListenRequest, GetPropertyParams, PrivacyCloudRequest, PrivacySettings,
-            PrivacySettingsData, PrivacySettingsStoreRequest, SetPropertyParams,
+            ContentListenRequest, PrivacySettings, PrivacySettingsData,
         },
         firebolt::{
             fb_capabilities::{CapabilityRole, FireboltCap, RoleInfo, CAPABILITY_NOT_AVAILABLE},
             fb_general::{ListenRequest, ListenerResponse},
         },
-        gateway::rpc_gateway_api::{ApiProtocol, CallContext, RpcRequest},
+        gateway::rpc_gateway_api::CallContext,
         storage_property::{
             StorageProperty::{
                 self, AllowAcrCollection, AllowAppContentAdTargeting, AllowBusinessAnalytics,
@@ -56,10 +56,8 @@ use ripple_sdk::{
             EVENT_ALLOW_UNENTITLED_RESUME_POINTS_CHANGED, EVENT_ALLOW_WATCH_HISTORY_CHANGED,
         },
     },
-    extn::extn_client_message::ExtnPayload,
-    extn::extn_client_message::ExtnResponse,
     log::{debug, error},
-    serde_json::{from_value, json},
+    serde_json::json,
 };
 
 use super::advertising_rpc::ScopeOption;
@@ -92,35 +90,25 @@ impl AllowAppContentAdTargetingSettings {
         platform_state: &mut PlatformState,
         ctx: &CallContext,
     ) -> HashMap<String, String> {
-        let mut new_ctx = ctx.clone();
-        new_ctx.protocol = ApiProtocol::Extn;
-
         platform_state
             .metrics
             .add_api_stats(&ctx.request_id, "localization.countryCode");
 
-        let rpc_request = RpcRequest {
-            ctx: new_ctx.clone(),
-            method: "localization.countryCode".into(),
-            params_json: RpcRequest::prepend_ctx(None, &new_ctx),
-        };
-        let resp = platform_state
-            .get_client()
-            .get_extn_client()
-            .main_internal_request(rpc_request.clone())
-            .await;
-
-        let country_code = if let Ok(res) = resp.clone() {
-            if let Some(ExtnResponse::Value(val)) = res.payload.extract::<ExtnResponse>() {
-                match from_value::<String>(val) {
-                    Ok(v) => v,
-                    Err(_) => "US".to_owned(),
+        let country_code = match BrokerUtils::process_internal_main_request(
+            platform_state,
+            "localization.countryCode",
+            None,
+        )
+        .await
+        {
+            Ok(response_value) => {
+                if let Ok(country) = serde_json::from_value::<String>(response_value) {
+                    country
+                } else {
+                    "US".to_owned()
                 }
-            } else {
-                "US".to_owned()
             }
-        } else {
-            "US".to_owned()
+            Err(_) => "US".to_owned(),
         };
 
         [
@@ -573,24 +561,13 @@ impl PrivacyImpl {
 
         match privacy_settings_storage_type {
             PrivacySettingsStorageType::Local | PrivacySettingsStorageType::Sync => {
-                let payload = PrivacySettingsStoreRequest::GetPrivacySettings(property);
-                let response = platform_state.get_client().send_extn_request(payload).await;
-                if let Ok(extn_msg) = response {
-                    match extn_msg.payload {
-                        ExtnPayload::Response(res) => match res {
-                            ExtnResponse::Boolean(val) => RpcResult::Ok(val),
-                            _ => RpcResult::Err(jsonrpsee::core::Error::Custom(
-                                "Unable to fetch".to_owned(),
-                            )),
-                        },
-                        _ => RpcResult::Err(jsonrpsee::core::Error::Custom(
-                            "Unexpected response received from Extn".to_owned(),
-                        )),
-                    }
-                } else {
-                    RpcResult::Err(jsonrpsee::core::Error::Custom(
-                        "Error in getting response from Extn".to_owned(),
-                    ))
+                // Direct call to StorageManager instead of routing through extension processor
+                match StorageManager::get_bool(platform_state, property).await {
+                    Ok(val) => RpcResult::Ok(val),
+                    Err(e) => RpcResult::Err(jsonrpsee::core::Error::Custom(format!(
+                        "Unable to fetch privacy setting: {}",
+                        e
+                    ))),
                 }
             }
             PrivacySettingsStorageType::Cloud => {
@@ -603,18 +580,33 @@ impl PrivacyImpl {
                             ))
                         }
                     };
-                    let request = PrivacyCloudRequest::GetProperty(GetPropertyParams {
-                        setting,
-                        dist_session,
+                    let request_payload = json!({
+                        "setting": setting,
+                        "dist_session": dist_session
                     });
-                    if let Ok(resp) = platform_state.get_client().send_extn_request(request).await {
-                        if let Some(ExtnResponse::Boolean(b)) = resp.payload.extract() {
-                            return Ok(b);
+
+                    match BrokerUtils::process_internal_main_request(
+                        platform_state,
+                        "distributor.privacy.getProperty",
+                        Some(request_payload),
+                    )
+                    .await
+                    {
+                        Ok(response_value) => {
+                            if let Some(boolean_value) = response_value.as_bool() {
+                                return Ok(boolean_value);
+                            }
+                            Err(jsonrpsee::core::Error::Custom(String::from(
+                                "Invalid response format from distributor.privacy.getProperty",
+                            )))
+                        }
+                        Err(e) => {
+                            error!("Failed to get privacy property from distributor: {:?}", e);
+                            Err(jsonrpsee::core::Error::Custom(String::from(
+                                "PrivacySettingsStorageType::Cloud: Not Available",
+                            )))
                         }
                     }
-                    Err(jsonrpsee::core::Error::Custom(String::from(
-                        "PrivacySettingsStorageType::Cloud: Not Available",
-                    )))
                 } else {
                     Err(jsonrpsee::core::Error::Custom(String::from(
                         "Account session is not available",
@@ -638,35 +630,31 @@ impl PrivacyImpl {
 
         match privacy_settings_storage_type {
             PrivacySettingsStorageType::Local => {
-                let payload = PrivacySettingsStoreRequest::SetPrivacySettings(property, value);
-                let response = platform_state.get_client().send_extn_request(payload).await;
-                if let Ok(extn_msg) = response {
-                    match extn_msg.payload {
-                        ExtnPayload::Response(res) => match res {
-                            ExtnResponse::None(_) => RpcResult::Ok(()),
-                            _ => RpcResult::Err(jsonrpsee::core::Error::Custom(
-                                "Unable to fetch".to_owned(),
-                            )),
-                        },
-                        _ => RpcResult::Err(jsonrpsee::core::Error::Custom(
-                            "Unexpected response received from Extn".to_owned(),
-                        )),
-                    }
-                } else {
-                    RpcResult::Err(jsonrpsee::core::Error::Custom(
-                        "Error in getting response from Extn".to_owned(),
-                    ))
+                // Direct call to StorageManager instead of routing through extension processor
+                match StorageManager::set_bool(platform_state, property, value, None).await {
+                    Ok(_) => RpcResult::Ok(()),
+                    Err(e) => RpcResult::Err(jsonrpsee::core::Error::Custom(format!(
+                        "Unable to set privacy setting: {}",
+                        e
+                    ))),
                 }
             }
             PrivacySettingsStorageType::Cloud | PrivacySettingsStorageType::Sync => {
                 if let Some(dist_session) = platform_state.session_state.get_account_session() {
                     if let Some(privacy_setting) = property.as_privacy_setting() {
-                        let request = PrivacyCloudRequest::SetProperty(SetPropertyParams {
-                            setting: privacy_setting,
-                            value,
-                            dist_session,
+                        let request_payload = json!({
+                            "setting": privacy_setting,
+                            "value": value,
+                            "dist_session": dist_session
                         });
-                        let result = platform_state.get_client().send_extn_request(request).await;
+
+                        let result = BrokerUtils::process_internal_main_request(
+                            platform_state,
+                            "distributor.privacy.setProperty",
+                            Some(request_payload),
+                        )
+                        .await;
+
                         if PrivacySettingsStorageType::Sync == privacy_settings_storage_type
                             && result.is_ok()
                         {
@@ -1177,15 +1165,34 @@ impl PrivacyServer for PrivacyImpl {
             }
             PrivacySettingsStorageType::Cloud => {
                 if let Some(dist_session) = self.state.session_state.get_account_session() {
-                    let request = PrivacyCloudRequest::GetProperties(dist_session);
-                    if let Ok(resp) = self.state.get_client().send_extn_request(request).await {
-                        if let Some(b) = resp.payload.extract() {
-                            return Ok(b);
+                    let request_payload = json!({
+                        "dist_session": dist_session
+                    });
+
+                    match BrokerUtils::process_internal_main_request(
+                        &self.state,
+                        "distributor.privacy.getProperties",
+                        Some(request_payload),
+                    )
+                    .await
+                    {
+                        Ok(response_value) => {
+                            if let Ok(privacy_settings) =
+                                serde_json::from_value::<PrivacySettings>(response_value)
+                            {
+                                return Ok(privacy_settings);
+                            }
+                            Err(jsonrpsee::core::Error::Custom(String::from(
+                                "Invalid response format from distributor.privacy.getProperties",
+                            )))
+                        }
+                        Err(e) => {
+                            error!("Failed to get privacy properties from distributor: {:?}", e);
+                            Err(jsonrpsee::core::Error::Custom(String::from(
+                                "PrivacySettingsStorageType::Cloud: Not Available",
+                            )))
                         }
                     }
-                    Err(jsonrpsee::core::Error::Custom(String::from(
-                        "PrivacySettingsStorageType::Cloud: Not Available",
-                    )))
                 } else {
                     Err(jsonrpsee::core::Error::Custom(String::from(
                         "Account session is not available",
