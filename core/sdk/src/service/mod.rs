@@ -18,25 +18,3 @@ pub mod service_client;
 pub mod service_event_state;
 pub mod service_message;
 pub mod service_rpc_router;
-pub mod types {
-    use serde::Deserialize;
-    use serde_json::Value;
-
-    /*
-     this is to support get_config_item, which needs the service id to be passed to the config read
-    */
-    #[derive(Deserialize)]
-    pub struct GetServiceConfigItemRequest {
-        pub service_id: String,
-        pub key: String,
-    }
-
-    impl From<GetServiceConfigItemRequest> for Value {
-        fn from(req: GetServiceConfigItemRequest) -> Self {
-            serde_json::json!({
-                "service_id": req.service_id,
-                "key": req.key
-            })
-        }
-    }
-}

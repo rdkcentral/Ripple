@@ -107,7 +107,7 @@ async fn init(client: ServiceClient) {
 }
 
 fn start() {
-    let Ok((extn_manifest, _device_manifest)) = RippleManifestLoader::initialize() else {
+    let Ok((_extn_manifest, _device_manifest)) = RippleManifestLoader::initialize() else {
         error!("Error initializing manifests");
         return;
     };

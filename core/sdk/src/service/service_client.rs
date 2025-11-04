@@ -107,7 +107,7 @@ impl ServiceClientBuilder {
             error!("Error initializing manifests");
             return Err(RippleError::ServiceError);
         };
-        /*if symbolt was not already set by caller, try read from config */
+        /*if symbol was not already set by caller, try read from config */
         if self.extn_symbol.is_none() {
             self.extn_symbol = Self::get_symbol(
                 extn_manifest.clone(),
@@ -449,38 +449,59 @@ impl ServiceClient {
         self.service_router.clone()
     }
     pub fn get_stack_size(&self) -> Option<ExtnStackSize> {
-        self.extn_client.as_ref().and_then(|ec| ec.get_stack_size())
+        self.get_config("stack_size")
+            .map(|v| ExtnStackSize::from(v.as_str()))
     }
-
+    pub fn get_config(&self, key: &str) -> Option<String> {
+        if let Some(extn_id) = &self.service_id {
+            match self
+                .get_extension_manifest()
+                .get_extn_symbol(extn_id.to_string().as_str())
+            {
+                Some(extn) => {
+                    if let Some(config) = extn.config {
+                        if let Some(value) = config.get(&key.to_string()) {
+                            return Some(value.clone());
+                        } else {
+                            return None;
+                        }
+                    } else {
+                        return None;
+                    }
+                }
+                None => None,
+            }
+        } else {
+            error!("ServiceClient does not have a valid service_id");
+            return None;
+        }
+    }
     /// Method to get configurations on the manifest per extension
     pub fn get_bool_config(&self, key: &str) -> bool {
-        // if let Some(s) = self.sender.get_config(key) {
-        //     if let Ok(v) = s.parse() {
-        //         return v;
-        //     }
-        // }
-        // false
-        todo!("Implement get_bool_config");
+        if let Some(s) = self.get_config(key) {
+            if let Ok(v) = s.parse() {
+                return v;
+            }
+        }
+        false
     }
 
     pub fn get_uint_config(&self, key: &str) -> Option<u64> {
-        // if let Some(s) = self.sender.get_config(key) {
-        //     if let Ok(v) = s.parse() {
-        //         return Some(v);
-        //     }
-        // }
-        // None
-        todo!("Implement get_uint_config");
+        if let Some(s) = self.get_config(key) {
+            if let Ok(v) = s.parse() {
+                return Some(v);
+            }
+        }
+        None
     }
 
     pub fn get_string_array_config(&self, key: &str) -> Option<Vec<String>> {
-        // if let Some(s) = self.sender.get_config(key) {
-        //     if let Ok(v) = serde_json::from_str(s.as_str()) {
-        //         return Some(v);
-        //     }
-        // }
-        // None
-        todo!("Implement get_string_array_config");
+        if let Some(s) = self.get_config(key) {
+            if let Ok(v) = serde_json::from_str(s.as_str()) {
+                return Some(v);
+            }
+        }
+        None
     }
 
     pub async fn call_and_parse_ripple_main_rpc<T: DeserializeOwned>(
@@ -860,5 +881,362 @@ pub mod tests {
         let client = ServiceClient::mock();
         let rx = client.get_outbound_extn_rx();
         assert!(rx.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_service_client_builder_new() {
+        let builder = ServiceClientBuilder::new("test_service".to_string(), ExtnClassId::Gateway);
+        assert_eq!(builder.service_name, "test_service");
+        assert_eq!(builder.extn_class_id, ExtnClassId::Gateway);
+        assert!(builder.extn_symbol.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_service_client_builder_default() {
+        let builder = ServiceClientBuilder::default();
+        assert_eq!(builder.service_name, "ripple_service");
+        assert_eq!(builder.extn_class_id, ExtnClassId::Gateway);
+    }
+
+    #[tokio::test]
+    async fn test_get_bool_config() {
+        let client = ServiceClient::mock();
+        let result = client.get_bool_config("test_bool");
+        assert!(!result); // Should return false if config doesn't exist
+    }
+
+    #[tokio::test]
+    async fn test_get_uint_config() {
+        let client = ServiceClient::mock();
+        let result = client.get_uint_config("test_uint");
+        assert!(result.is_none()); // Should return None if config doesn't exist
+    }
+
+    #[tokio::test]
+    async fn test_get_string_array_config() {
+        let client = ServiceClient::mock();
+        let result = client.get_string_array_config("test_array");
+        assert!(result.is_none()); // Should return None if config doesn't exist
+    }
+
+    #[tokio::test]
+    async fn test_get_stack_size() {
+        let client = ServiceClient::mock();
+        let result = client.get_stack_size();
+        assert!(result.is_none()); // Should return None if no stack_size config
+    }
+
+    #[tokio::test]
+    async fn test_request_with_timeout_error() {
+        let mut client = ServiceClient::mock();
+        let id = Uuid::new_v4().to_string();
+        queue_mock_service_response(&id, Err(RippleError::ServiceError));
+
+        let context = CallContext::new(
+            id.to_string(),
+            "test_method".to_string(),
+            "app1".to_string(),
+            123122_u64,
+            ApiProtocol::Service,
+            "method.1".to_string(),
+            None,
+            false,
+        );
+        let result = client
+            .request_with_timeout_main("method.1".to_string(), None, Some(&context), 5000, id, None)
+            .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_request_transient_without_sender() {
+        let mut client = ServiceClient::mock();
+        client.service_sender = None; // Remove sender to test error path
+
+        let result = client.request_transient(
+            "test_method".to_string(),
+            None,
+            None,
+            "service_id".to_string(),
+        );
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_send_notification() {
+        let client = ServiceClient::mock();
+        let result = client.send_notification(
+            "test.notification".to_string(),
+            Some(json!({"key": "value"})),
+            None,
+            "service_id".to_string(),
+        );
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_get_default_service_call_context() {
+        let context = ServiceClient::get_default_service_call_context("test_method".to_string());
+        assert_eq!(context.method, "test_method");
+        assert_eq!(context.protocol, ApiProtocol::Service);
+        assert_eq!(context.app_id, "internal");
+    }
+
+    #[tokio::test]
+    async fn test_send_service_response_invalid_context() {
+        let client = ServiceClient::mock();
+        let service_message = ServiceMessage::new_success(json!({"result": "test"}), Id::Null);
+        // Test with None context - should log a warning but not crash
+        client.send_service_response(service_message);
+    }
+
+    #[tokio::test]
+    async fn test_call_and_parse_ripple_event_subscription_req_rpc() {
+        let mut client = ServiceClient::mock();
+        let id = Uuid::new_v4().to_string();
+        let (event_sender, _) = mpsc::channel::<ServiceMessage>(32);
+
+        queue_mock_service_response(
+            &id,
+            Ok(ServiceMessage::new_success(
+                json!({"result": true}),
+                Id::Null,
+            )),
+        );
+
+        let context = CallContext::new(
+            id.to_string(),
+            "test_method".to_string(),
+            "app1".to_string(),
+            123122_u64,
+            ApiProtocol::Service,
+            "method.1".to_string(),
+            None,
+            false,
+        );
+
+        let result = client
+            .call_and_parse_ripple_event_subscription_req_rpc(
+                "test.subscribe",
+                None,
+                Some(&context),
+                5000,
+                &id,
+                "Error message",
+                event_sender,
+            )
+            .await;
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), true);
+    }
+
+    #[tokio::test]
+    async fn test_get_extension_manifest() {
+        let client = ServiceClient::mock();
+        let manifest = client.get_extension_manifest();
+        assert!(manifest.extns.is_empty()); // Default manifest should have empty extensions list
+    }
+
+    #[tokio::test]
+    async fn test_get_device_manifest() {
+        let client = ServiceClient::mock();
+        let _manifest = client.get_device_manifest();
+        // DeviceManifest exists and can be retrieved
+    }
+
+    #[tokio::test]
+    async fn test_get_extn_client() {
+        let client = ServiceClient::mock();
+        let extn_client = client.get_extn_client();
+        assert!(extn_client.is_none()); // Mock doesn't have extn_client
+    }
+
+    #[tokio::test]
+    async fn test_get_service_sender() {
+        let client = ServiceClient::mock();
+        let sender = client.get_service_sender();
+        assert!(sender.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_get_service_router() {
+        let client = ServiceClient::mock();
+        let router = client.get_service_router();
+        // Router should be retrievable
+        let _state = router.read().unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_get_service_router_state() {
+        let client = ServiceClient::mock();
+        let _state = client.get_service_router_state();
+        // RouterState should be retrievable
+    }
+
+    #[tokio::test]
+    async fn test_call_and_parse_ripple_main_rpc_success() {
+        let mut client = ServiceClient::mock();
+        let id = Uuid::new_v4().to_string();
+
+        queue_mock_service_response(
+            &id,
+            Ok(ServiceMessage::new_success(
+                json!({"test_field": "test_value"}),
+                Id::Null,
+            )),
+        );
+
+        let context = CallContext::new(
+            id.to_string(),
+            "test_method".to_string(),
+            "app1".to_string(),
+            123122_u64,
+            ApiProtocol::Service,
+            "method.1".to_string(),
+            None,
+            false,
+        );
+
+        #[derive(serde::Deserialize)]
+        struct TestResponse {
+            test_field: String,
+        }
+
+        let result: RpcResult<TestResponse> = client
+            .call_and_parse_ripple_main_rpc(
+                "test_method",
+                None,
+                Some(&context),
+                5000,
+                &id,
+                "Parse error",
+            )
+            .await;
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().test_field, "test_value");
+    }
+
+    #[tokio::test]
+    async fn test_set_service_rpc_route() {
+        let mut client = ServiceClient::mock();
+        let methods = Methods::new();
+        let result = client.set_service_rpc_route(methods);
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_send_notification_with_params() {
+        let client = ServiceClient::mock();
+        let params = json!({"event": "test_event", "data": "test_data"});
+        let result = client.send_notification(
+            "test.notification".to_string(),
+            Some(params),
+            None,
+            "service_id".to_string(),
+        );
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_request_transient_success() {
+        let client = ServiceClient::mock();
+        let result = client.request_transient(
+            "test_method".to_string(),
+            Some(json!({"param": "value"})),
+            None,
+            "service_id".to_string(),
+        );
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_get_outbound_service_rx_twice() {
+        let client = ServiceClient::mock();
+        let rx1 = client.get_outbound_service_rx();
+        assert!(rx1.is_ok());
+
+        // Second call should fail as receiver was already taken
+        let rx2 = client.get_outbound_service_rx();
+        assert!(rx2.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_outbound_extn_rx_twice() {
+        let client = ServiceClient::mock();
+        let rx1 = client.get_outbound_extn_rx();
+        assert!(rx1.is_ok());
+
+        // Second call should fail as receiver was already taken
+        let rx2 = client.get_outbound_extn_rx();
+        assert!(rx2.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_call_and_parse_ripple_event_subscription_req_rpc_failure() {
+        let mut client = ServiceClient::mock();
+        let id = Uuid::new_v4().to_string();
+        let (event_sender, _) = mpsc::channel::<ServiceMessage>(32);
+
+        queue_mock_service_response(&id, Err(RippleError::ServiceError));
+
+        let context = CallContext::new(
+            id.to_string(),
+            "test_method".to_string(),
+            "app1".to_string(),
+            123122_u64,
+            ApiProtocol::Service,
+            "method.1".to_string(),
+            None,
+            false,
+        );
+
+        let result = client
+            .call_and_parse_ripple_event_subscription_req_rpc(
+                "test.subscribe",
+                None,
+                Some(&context),
+                5000,
+                &id,
+                "Error message",
+                event_sender,
+            )
+            .await;
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), false); // Should return false on error
+    }
+
+    #[tokio::test]
+    async fn test_request_with_timeout_with_default_context() {
+        let mut client = ServiceClient::mock();
+
+        // Create a context and use its ID for mocking
+        let context = ServiceClient::get_default_service_call_context("method.1".to_string());
+        let id = context.get_id();
+
+        queue_mock_service_response(
+            &id,
+            Ok(ServiceMessage::new_success(
+                json!({"result": "success"}),
+                Id::Null,
+            )),
+        );
+
+        let service_id = Uuid::new_v4().to_string();
+
+        // Test with the context that matches our mocked response
+        let result: Result<ServiceMessage, RippleError> = client
+            .request_with_timeout_main(
+                "method.1".to_string(),
+                None,
+                Some(&context),
+                5000,
+                service_id,
+                None,
+            )
+            .await;
+        assert!(result.is_ok());
     }
 }

@@ -38,7 +38,7 @@ use ripple_sdk::{
     },
     async_trait::async_trait,
     log::{debug, error},
-    service::{service_event_state::Event, types::GetServiceConfigItemRequest},
+    service::service_event_state::Event,
     tokio::sync::oneshot,
     utils::{error::RippleError, rpc_utils::rpc_err},
 };
@@ -139,13 +139,6 @@ pub trait Internal {
         ctx: CallContext,
         request: SettingsRequestParam,
     ) -> RpcResult<()>;
-
-    #[method(name = "ripple.getServiceConfigItem")]
-    async fn get_service_config_item(
-        &self,
-        ctx: CallContext,
-        request: GetServiceConfigItemRequest,
-    ) -> RpcResult<Option<String>>;
 }
 
 #[derive(Debug, Clone, Default)]
@@ -383,32 +376,6 @@ impl InternalServer for InternalImpl {
     ) -> RpcResult<()> {
         subscribe_to_settings(&self.state, request).await;
         Ok(())
-    }
-
-    async fn get_service_config_item(
-        &self,
-        _ctx: CallContext,
-        request: GetServiceConfigItemRequest,
-    ) -> RpcResult<Option<String>> {
-        //get manifest from platform state, then get config from manifest
-        match self
-            .state
-            .get_manifest()
-            .get_extn_symbol(&request.service_id)
-        {
-            Some(extn) => {
-                if let Some(config) = extn.config {
-                    if let Some(value) = config.get(&request.key) {
-                        return Ok(Some(value.clone()));
-                    } else {
-                        return Ok(None);
-                    }
-                } else {
-                    return Ok(None);
-                }
-            }
-            None => Err(rpc_err("Service ID not found")),
-        }
     }
 }
 
