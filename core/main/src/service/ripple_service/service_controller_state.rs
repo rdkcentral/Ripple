@@ -554,7 +554,7 @@ async fn return_invalid_service_error_message(
             id: id.clone(),
             payload: ExtnPayload::Response(ExtnResponse::Error(e)),
             requestor: ExtnId::try_from(session.get_app_id()).unwrap(),
-            target: RippleContract::Internal,
+            target: RippleContract::RippleContext,
             target_id: None,
             ts: None,
         };
