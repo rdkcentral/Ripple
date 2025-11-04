@@ -1165,11 +1165,8 @@ impl EndpointBrokerState {
                     }
                     // Edge case: neither result nor error
                     else {
-                        let error_response = serde_json::json!({
-                            "code": -32603,
-                            "message": "Internal error: response contains neither result nor error"
-                        });
-                        let _ = response_tx.send(Err(error_response));
+                        // treat this as success with null result
+                        let _ = response_tx.send(Ok(Value::Null));
                     }
                 }
                 Ok(None) => {
