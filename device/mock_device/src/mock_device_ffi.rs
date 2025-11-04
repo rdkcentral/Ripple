@@ -49,10 +49,6 @@ pub async fn start_service() {
         ]),
     );
     info!("Starting mock device channel");
-    // let Ok((extn_manifest, _device_manifest)) = RippleManifestLoader::initialize() else {
-    //     error!("Error initializing manifests");
-    //     return;
-    // };
     if let Ok(service_client) =
         ServiceClient::builder(EXTN_NAME.into(), ExtnClassId::Gateway).build()
     {
@@ -63,20 +59,6 @@ pub async fn start_service() {
         error!("Failed to build service client");
         return;
     }
-
-    // let id = ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.to_string()).to_string();
-    // let symbol = extn_manifest.get_extn_symbol(&id);
-    // if symbol.is_none() {
-    //     error!("Error getting symbol");
-    //     return;
-    // }
-    // let service_client = if let Some(symbol) = symbol {
-    //     ServiceClient::builder().with_extension(symbol).build()
-    // } else {
-    //     ServiceClient::builder().build()
-    // };
-
-    // init(service_client.clone()).await;
 }
 
 async fn init(client: ServiceClient) {
