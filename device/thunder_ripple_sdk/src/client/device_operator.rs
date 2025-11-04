@@ -190,11 +190,14 @@ impl DeviceResponseMessage {
         json_resp: &JsonRpcApiResponse,
         sub_id: Option<String>,
     ) -> Option<DeviceResponseMessage> {
+        let json_value = serde_json::to_value(json_resp).ok();
         let mut device_response_msg = None;
         if let Some(res) = &json_resp.result {
             device_response_msg = Some(DeviceResponseMessage::new(res.clone(), sub_id));
-        } else if let Some(er) = &json_resp.error {
-            device_response_msg = Some(DeviceResponseMessage::new(er.clone(), sub_id));
+        } else if let Some(_er) = &json_resp.error {
+            if let Some(val) = json_value {
+                device_response_msg = Some(DeviceResponseMessage::new(val, sub_id));
+            }
         } else if json_resp.clone().method.is_some() {
             if let Some(params) = &json_resp.params {
                 if let Ok(dev_resp) = serde_json::to_value(params) {
