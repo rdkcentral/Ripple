@@ -299,6 +299,7 @@ impl ThunderDeviceInfoRequestProcessor {
     }
 
     async fn model(state: CachedState, req: ExtnMessage) -> bool {
+        ripple_sdk::log::info!("@@@NNA...Entered ThunderDeviceInfoRequestProcessor::model");
         let response = Self::get_model(&state).await;
         Self::respond(state.get_client(), req, ExtnResponse::String(response))
             .await
@@ -946,6 +947,11 @@ impl ExtnRequestProcessor for ThunderDeviceInfoRequestProcessor {
         msg: ExtnMessage,
         extracted_message: Self::VALUE,
     ) -> bool {
+        // Debug log: print contract name for incoming request
+        ripple_sdk::log::info!(
+            "@@@NNA...Incoming DeviceInfoRequest: {:?}",
+            extracted_message
+        );
         match extracted_message {
             DeviceInfoRequest::Model => Self::model(state.clone(), msg).await,
             DeviceInfoRequest::Audio => Self::audio(state.clone(), msg).await,
