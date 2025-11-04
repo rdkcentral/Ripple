@@ -79,7 +79,7 @@ impl ServiceClientBuilder {
         Self {
             extn_symbol: None,
             service_name,
-            extn_class_id: extn_class_id,
+            extn_class_id,
         }
     }
 
@@ -132,8 +132,8 @@ impl ServiceClientBuilder {
                 event_processors: Arc::new(RwLock::new(HashMap::new())),
                 outbound_extn_rx: Arc::new(RwLock::new(Some(ext_tr))),
                 outbound_service_rx: Arc::new(RwLock::new(Some(service_tr))),
-                extn_manifest: extn_manifest,
-                device_manifest: device_manifest,
+                extn_manifest,
+                device_manifest,
             })
         } else {
             Ok(ServiceClient {
@@ -145,8 +145,8 @@ impl ServiceClientBuilder {
                 event_processors: Arc::new(RwLock::new(HashMap::new())),
                 outbound_extn_rx: Arc::new(RwLock::new(None)),
                 outbound_service_rx: Arc::new(RwLock::new(None)),
-                extn_manifest: extn_manifest,
-                device_manifest: device_manifest,
+                extn_manifest,
+                device_manifest,
             })
         }
     }
@@ -460,20 +460,16 @@ impl ServiceClient {
             {
                 Some(extn) => {
                     if let Some(config) = extn.config {
-                        if let Some(value) = config.get(&key.to_string()) {
-                            return Some(value.clone());
-                        } else {
-                            return None;
-                        }
+                        config.get(key).cloned()
                     } else {
-                        return None;
+                        None
                     }
                 }
                 None => None,
             }
         } else {
             error!("ServiceClient does not have a valid service_id");
-            return None;
+            None
         }
     }
     /// Method to get configurations on the manifest per extension
@@ -1028,7 +1024,7 @@ pub mod tests {
             .await;
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), true);
+        assert!(result.unwrap());
     }
 
     #[tokio::test]
@@ -1205,7 +1201,7 @@ pub mod tests {
             .await;
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), false); // Should return false on error
+        assert!(!result.unwrap()); // Should return false on error
     }
 
     #[tokio::test]

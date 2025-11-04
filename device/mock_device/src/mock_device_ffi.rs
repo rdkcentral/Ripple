@@ -57,7 +57,6 @@ pub async fn start_service() {
         init(service_client).await
     } else {
         error!("Failed to build service client");
-        return;
     }
 }
 
@@ -106,12 +105,10 @@ fn start() {
             }
             Err(err) => {
                 error!("Error creating runtime: {}", err);
-                return;
             }
         };
     } else {
         error!("Failed to build service client");
-        return;
     }
 }
 
