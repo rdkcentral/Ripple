@@ -20,7 +20,6 @@ use crate::{
     thunder_state::ThunderBootstrapStateWithClient,
 };
 use ripple_sdk::{
-    api::manifest::device_manifest::DeviceManifest,
     extn::client::extn_client::ExtnClient,
     log::{debug, error, info, warn},
     serde_json,
