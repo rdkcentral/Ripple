@@ -49,24 +49,34 @@ pub async fn start_service() {
         ]),
     );
     info!("Starting mock device channel");
-    let Ok((extn_manifest, _device_manifest)) = RippleManifestLoader::initialize() else {
-        error!("Error initializing manifests");
-        return;
-    };
+    // let Ok((extn_manifest, _device_manifest)) = RippleManifestLoader::initialize() else {
+    //     error!("Error initializing manifests");
+    //     return;
+    // };
+    if let Ok(service_client) =
+        ServiceClient::builder(EXTN_NAME.into(), ExtnClassId::Gateway).build()
+    {
+        info!("Service client built successfully");
 
-    let id = ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.to_string()).to_string();
-    let symbol = extn_manifest.get_extn_symbol(&id);
-    if symbol.is_none() {
-        error!("Error getting symbol");
+        init(service_client).await
+    } else {
+        error!("Failed to build service client");
         return;
     }
-    let service_client = if let Some(symbol) = symbol {
-        ServiceClient::builder().with_extension(symbol).build()
-    } else {
-        ServiceClient::builder().build()
-    };
 
-    init(service_client.clone()).await;
+    // let id = ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.to_string()).to_string();
+    // let symbol = extn_manifest.get_extn_symbol(&id);
+    // if symbol.is_none() {
+    //     error!("Error getting symbol");
+    //     return;
+    // }
+    // let service_client = if let Some(symbol) = symbol {
+    //     ServiceClient::builder().with_extension(symbol).build()
+    // } else {
+    //     ServiceClient::builder().build()
+    // };
+
+    // init(service_client.clone()).await;
 }
 
 async fn init(client: ServiceClient) {
@@ -101,29 +111,26 @@ fn start() {
         error!("Error initializing manifests");
         return;
     };
-    let runtime = match Runtime::new() {
-        Ok(r) => r,
-        Err(err) => {
-            error!("Error creating runtime: {}", err);
-            return;
-        }
-    };
 
-    let id = ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.to_string()).to_string();
-    let symbol = extn_manifest.get_extn_symbol(&id);
-    if symbol.is_none() {
-        error!("Error getting symbol");
+    if let Ok(service_client) =
+        ServiceClient::builder(EXTN_NAME.into(), ExtnClassId::Gateway).build()
+    {
+        info!("Service client built successfully");
+        match Runtime::new() {
+            Ok(runtime) => {
+                runtime.block_on(async move {
+                    init(service_client.clone()).await;
+                });
+            }
+            Err(err) => {
+                error!("Error creating runtime: {}", err);
+                return;
+            }
+        };
+    } else {
+        error!("Failed to build service client");
         return;
     }
-    let service_client = if let Some(symbol) = symbol {
-        ServiceClient::builder().with_extension(symbol).build()
-    } else {
-        ServiceClient::builder().build()
-    };
-
-    runtime.block_on(async move {
-        init(service_client.clone()).await;
-    });
 }
 
 fn init_extn_channel() -> ExtnChannel {

@@ -19,11 +19,14 @@ use std::collections::HashMap;
 
 use crate::api::gateway::rpc_gateway_api::CallContext;
 
+use crate::api::manifest::device_manifest::DeviceManifest;
+use crate::api::manifest::extn_manifest::ExtnManifest;
+use crate::api::manifest::ripple_manifest_loader::RippleManifestLoader;
 use crate::api::{
     gateway::rpc_gateway_api::{ApiMessage, ApiProtocol},
     manifest::extn_manifest::ExtnSymbol,
 };
-use crate::extn::extn_id::ExtnId;
+use crate::extn::extn_id::{ExtnClassId, ExtnId};
 use crate::extn::{client::extn_client::ExtnClient, extn_client_message::ExtnMessage};
 use crate::processor::rpc_router::RouterState;
 use crate::service::service_message::{Id, JsonRpcMessage};
@@ -55,35 +58,72 @@ pub struct ServiceClient {
     pub service_id: Option<ExtnId>,
     pub outbound_extn_rx: Arc<RwLock<Option<mpsc::Receiver<ApiMessage>>>>,
     pub outbound_service_rx: Arc<RwLock<Option<mpsc::Receiver<ServiceMessage>>>>,
+    extn_manifest: ExtnManifest,
+    device_manifest: DeviceManifest,
 }
 
 pub struct ServiceClientBuilder {
     extn_symbol: Option<ExtnSymbol>,
+    service_name: String,
+    extn_class_id: ExtnClassId,
 }
 
 impl Default for ServiceClientBuilder {
     fn default() -> Self {
-        Self::new()
+        Self::new("ripple_service".to_string(), ExtnClassId::Gateway)
     }
 }
 
 impl ServiceClientBuilder {
-    pub fn new() -> Self {
-        Self { extn_symbol: None }
+    pub fn new(service_name: String, extn_class_id: ExtnClassId) -> Self {
+        Self {
+            extn_symbol: None,
+            service_name,
+            extn_class_id: extn_class_id,
+        }
     }
 
     pub fn with_extension(mut self, symbol: ExtnSymbol) -> Self {
         self.extn_symbol = Some(symbol);
         self
     }
+    fn get_symbol(
+        extn_manifest: ExtnManifest,
+        service_name: String,
+        extn_class_id: ExtnClassId,
+    ) -> Option<ExtnSymbol> {
+        let extn = ExtnId::new_channel(extn_class_id, service_name.clone()).to_string();
+        debug!(
+            "Getting symbol for extn id: {} for service_name {}",
+            extn, service_name
+        );
+        extn_manifest.get_extn_symbol(&extn)
+    }
 
-    pub fn build(self) -> ServiceClient {
+    pub fn build(&mut self) -> Result<ServiceClient, RippleError> {
         let service_router = Arc::new(RwLock::new(RouterState::new()));
         let (service_sender, service_tr) = mpsc::channel::<ServiceMessage>(32);
+        let Ok((extn_manifest, device_manifest)) = RippleManifestLoader::initialize() else {
+            error!("Error initializing manifests");
+            return Err(RippleError::ServiceError);
+        };
+        /*if symbolt was not already set by caller, try read from config */
+        if self.extn_symbol.is_none() {
+            self.extn_symbol = Self::get_symbol(
+                extn_manifest.clone(),
+                self.service_name.clone(),
+                self.extn_class_id.clone(),
+            );
+        }
 
-        if let Some(symbol) = self.extn_symbol {
+        debug!(
+            "extn_symbol in ServiceClientBuilder.build(): {:?}",
+            self.extn_symbol
+        );
+
+        if let Some(symbol) = &self.extn_symbol {
             let (extn_client, ext_tr) = ExtnClient::new_extn(symbol.clone());
-            ServiceClient {
+            Ok(ServiceClient {
                 service_sender: Some(service_sender),
                 service_router,
                 extn_client: Some(extn_client),
@@ -92,9 +132,11 @@ impl ServiceClientBuilder {
                 event_processors: Arc::new(RwLock::new(HashMap::new())),
                 outbound_extn_rx: Arc::new(RwLock::new(Some(ext_tr))),
                 outbound_service_rx: Arc::new(RwLock::new(Some(service_tr))),
-            }
+                extn_manifest: extn_manifest,
+                device_manifest: device_manifest,
+            })
         } else {
-            ServiceClient {
+            Ok(ServiceClient {
                 service_sender: Some(service_sender),
                 service_router,
                 extn_client: None,
@@ -103,14 +145,22 @@ impl ServiceClientBuilder {
                 event_processors: Arc::new(RwLock::new(HashMap::new())),
                 outbound_extn_rx: Arc::new(RwLock::new(None)),
                 outbound_service_rx: Arc::new(RwLock::new(None)),
-            }
+                extn_manifest: extn_manifest,
+                device_manifest: device_manifest,
+            })
         }
     }
 }
 
 impl ServiceClient {
-    pub fn builder() -> ServiceClientBuilder {
-        ServiceClientBuilder::new()
+    pub fn builder(service_name: String, extn_class_id: ExtnClassId) -> ServiceClientBuilder {
+        ServiceClientBuilder::new(service_name, extn_class_id)
+    }
+    pub fn get_extension_manifest(&self) -> ExtnManifest {
+        self.extn_manifest.clone()
+    }
+    pub fn get_device_manifest(&self) -> DeviceManifest {
+        self.device_manifest.clone()
     }
 
     pub fn set_service_rpc_route(&mut self, methods: Methods) -> Result<(), RippleError> {
@@ -400,6 +450,37 @@ impl ServiceClient {
     }
     pub fn get_stack_size(&self) -> Option<ExtnStackSize> {
         self.extn_client.as_ref().and_then(|ec| ec.get_stack_size())
+    }
+
+    /// Method to get configurations on the manifest per extension
+    pub fn get_bool_config(&self, key: &str) -> bool {
+        // if let Some(s) = self.sender.get_config(key) {
+        //     if let Ok(v) = s.parse() {
+        //         return v;
+        //     }
+        // }
+        // false
+        todo!("Implement get_bool_config");
+    }
+
+    pub fn get_uint_config(&self, key: &str) -> Option<u64> {
+        // if let Some(s) = self.sender.get_config(key) {
+        //     if let Ok(v) = s.parse() {
+        //         return Some(v);
+        //     }
+        // }
+        // None
+        todo!("Implement get_uint_config");
+    }
+
+    pub fn get_string_array_config(&self, key: &str) -> Option<Vec<String>> {
+        // if let Some(s) = self.sender.get_config(key) {
+        //     if let Ok(v) = serde_json::from_str(s.as_str()) {
+        //         return Some(v);
+        //     }
+        // }
+        // None
+        todo!("Implement get_string_array_config");
     }
 
     pub async fn call_and_parse_ripple_main_rpc<T: DeserializeOwned>(
@@ -720,6 +801,8 @@ pub mod tests {
                 outbound_extn_rx: Arc::new(RwLock::new(Some(extn_tr))),
                 outbound_service_rx: Arc::new(RwLock::new(Some(service_tr))),
                 event_processors: Arc::new(RwLock::new(HashMap::new())),
+                extn_manifest: ExtnManifest::default(),
+                device_manifest: DeviceManifest::default(),
             }
         }
 
