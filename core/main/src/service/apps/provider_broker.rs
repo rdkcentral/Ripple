@@ -331,14 +331,14 @@ impl ProviderBroker {
             Some(session) => {
                 oneshot_send_and_log(session.caller.tx, resp.result, "ProviderResponse");
                 if session.focused {
-                    let app_id = session.provider.provider.app_id;
+                    /*let app_id = session.provider.provider.app_id;
                     let event = LifecycleManagementEventRequest::Provide(
                         LifecycleManagementProviderEvent::Remove(app_id),
                     );
                     let client = pst.clone().get_client();
                     if let Err(e) = client.send_event(event) {
                         error!("send event error {:?}", e);
-                    }
+                    }*/
                 }
             }
             None => {
@@ -421,14 +421,14 @@ impl ProviderBroker {
         if let Some(session) = active_sessions.get_mut(&request.correlation_id) {
             session.focused = true;
             if pst.has_internal_launcher() {
-                let app_id = session.provider.provider.app_id.clone();
+                /*let app_id = session.provider.provider.app_id.clone();
                 let event = LifecycleManagementEventRequest::Provide(
                     LifecycleManagementProviderEvent::Add(app_id),
                 );
                 let client = pst.clone().get_client();
                 if let Err(e) = client.send_event(event) {
                     error!("send event error {:?}", e);
-                }
+                }*/
             }
         } else {
             warn!("Focus: No active session for request");

@@ -1508,12 +1508,13 @@ impl DelegatedLauncherHandler {
         &mut self,
         event: LifecycleManagementEventRequest,
     ) -> Result<AppManagerResponse, AppError> {
-        if self.platform_state.has_internal_launcher() {
+        /*if self.platform_state.has_internal_launcher() {
             if let Err(e) = self.platform_state.get_client().send_event(event) {
                 error!("send event error {:?}", e);
                 return Err(AppError::OsError);
             }
-        } else {
+        } else*/
+        {
             let event_name;
             let value;
             match event {

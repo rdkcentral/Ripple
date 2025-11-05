@@ -46,6 +46,7 @@ pub enum LifecycleManagementEventRequest {
     Provide(LifecycleManagementProviderEvent),
 }
 
+/*
 impl ExtnPayloadProvider for LifecycleManagementEventRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Event(ExtnEvent::Value(serde_json::to_value(self).unwrap()))
@@ -66,7 +67,7 @@ impl ExtnPayloadProvider for LifecycleManagementEventRequest {
         RippleContract::Launcher
     }
 }
-
+*/
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum LifecycleManagementRequest {
     Session(AppSessionRequest),
@@ -76,7 +77,7 @@ pub enum LifecycleManagementRequest {
     GetSecondScreenPayload(String),
     StartPage(String),
 }
-
+/*
 impl ExtnPayloadProvider for LifecycleManagementRequest {
     fn get_extn_payload(&self) -> ExtnPayload {
         ExtnPayload::Request(ExtnRequest::LifecycleManagement(self.clone()))
@@ -94,7 +95,7 @@ impl ExtnPayloadProvider for LifecycleManagementRequest {
         RippleContract::LifecycleManagement
     }
 }
-
+*/
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct LifecycleManagementLaunchEvent {
     pub parameters: LifecycleManagementLaunchParameters,
@@ -277,6 +278,7 @@ mod tests {
         );
     }
 
+    /*
     #[test]
     fn test_extn_request_lifecycle_management() {
         let app_session_request = AppSessionRequest {
@@ -317,4 +319,5 @@ mod tests {
         let contract_type: RippleContract = RippleContract::Launcher;
         test_extn_payload_provider(launch_event, contract_type);
     }
+    */
 }

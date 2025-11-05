@@ -99,7 +99,7 @@ pub struct AppLaunchInfo {
 }
 
 pub type AppResponse = Result<AppManagerResponse, AppError>;
-
+/*
 impl ExtnPayloadProvider for AppResponse {
     fn get_extn_payload(&self) -> ExtnPayload {
         let response = if self.is_ok() {
@@ -135,7 +135,7 @@ impl ExtnPayloadProvider for AppResponse {
         RippleContract::LifecycleManagement
     }
 }
-
+*/
 #[derive(Debug, Clone)]
 pub struct AppRequest {
     pub method: AppMethod,
@@ -379,12 +379,14 @@ mod tests {
         assert_eq!(result.unwrap_err(), RippleError::SenderMissing);
     }
 
+    /*
     #[test]
     fn test_extn_payload_provider_for_app_response() {
         let app_response: AppResponse = Ok(AppManagerResponse::State(LifecycleState::Initializing));
         let contract_type: RippleContract = RippleContract::LifecycleManagement;
         test_extn_payload_provider(app_response, contract_type);
     }
+    */
 
     #[test]
     fn test_extn_payload_provider_for_app_event_request() {
