@@ -64,7 +64,7 @@ enum MethodType {
     Response,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct RpcModuleContext {
     platform_state: PlatformState,
     method: String,

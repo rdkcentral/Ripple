@@ -81,14 +81,11 @@ pub enum RippleContract {
     AppEvents,
     /// Device channel specific events which get cascaded across Main and Extensions like Power, HDCP
     DeviceEvents(EventAdjective),
-    /// Contract which controls User Privacy Settings will become an Adjective in near future
-    PrivacySettings,
     /// Contract to allow Extensions to  get and set Settings.
     Settings,
     /// Extensions can use this contract to get more information on the firebolt capabilities  
     Caps,
     /// Contract for Extensions to recieve Telemetry events from Main
-    OperationalMetricListener,
     Observability,
     TelemetryEventsListener,
     Storage(StorageAdjective),
@@ -100,7 +97,6 @@ pub enum RippleContract {
     ExtnProvider(ExtnProviderAdjective),
     // Runtime ability for a given distributor to turn off a certian feature
     RemoteFeatureControl,
-    Analytics,
 }
 
 pub trait ContractAdjective: serde::ser::Serialize + DeserializeOwned {

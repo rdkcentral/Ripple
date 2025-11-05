@@ -47,6 +47,15 @@ impl From<bool> for ActivationStatus {
     }
 }
 
+impl From<ActivationStatus> for bool {
+    fn from(status: ActivationStatus) -> Self {
+        match status {
+            ActivationStatus::Activated => true,
+            ActivationStatus::NotActivated | ActivationStatus::AccountToken(_) => false,
+        }
+    }
+}
+
 impl From<AccountToken> for ActivationStatus {
     fn from(value: AccountToken) -> Self {
         ActivationStatus::AccountToken(value)
@@ -65,7 +74,7 @@ pub struct RippleContext {
     pub features: Vec<String>,
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Eq, Hash)]
 pub enum RippleContextUpdateType {
     ActivationStatusChanged,
     TokenChanged,

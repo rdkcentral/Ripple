@@ -87,10 +87,29 @@ impl std::fmt::Display for AudioProfile {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct AccountToken {
     pub token: String,
     pub expires: u64,
+}
+
+impl std::fmt::Debug for AccountToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AccountToken")
+            .field("token", &"****")
+            .field("expires", &self.expires)
+            .finish()
+    }
+}
+
+impl std::fmt::Display for AccountToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "AccountToken {{ token: ****, expires: {} }}",
+            self.expires
+        )
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -283,6 +302,7 @@ mod tests {
     #[rstest]
     #[case("STANDBY", PowerState::Standby)]
     #[case("ON", PowerState::On)]
+    #[case("LIGHT_SLEEP", PowerState::LightSleep)]
     fn test_power_state_from_str(#[case] s: &str, #[case] expected: PowerState) {
         assert_eq!(PowerState::from_str(s), Ok(expected));
     }
