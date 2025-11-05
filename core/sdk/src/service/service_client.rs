@@ -232,10 +232,10 @@ impl ServiceClient {
             debug!("Initialize Ended Abruptly");
 
             // Exponential backoff with jitter to avoid DOSing the service
-            // Base delay starts at 100ms and caps at 10 seconds
+            // Base delay starts at 100ms and caps at 1 seconds
             let base_delay_ms = std::cmp::min(
                 100u64.saturating_mul(2u64.saturating_pow(retry_count)),
-                10_000,
+                1_000,
             );
 
             // Add jitter: random value between 0 and base_delay_ms
