@@ -78,7 +78,7 @@ proc-macro2.workspace = true
 
 # Memory allocator: jemalloc with aggressive settings for embedded platforms
 tikv-jemallocator = { version = "0.6", features = ["unprefixed_malloc_on_supported_platforms", "background_threads"] }
-tikv-jemalloc-ctl = "0.6"
+tikv-jemalloc-ctl = { version  ="0.6", features = ["stats"]}
 
 [build-dependencies]
 vergen = "1"

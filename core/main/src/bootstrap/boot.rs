@@ -45,36 +45,72 @@ fn spawn_periodic_memory_maintenance() {
         // 15-second interval balances aggressive memory return with minimal CPU overhead
         // For high-traffic scenarios (50+ ops/min), this prevents accumulation between purges
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(15));
+        
+        // Pre-allocate command buffers to avoid allocations in hot path
+        // Max arena count is typically < 1000, so 32 bytes is sufficient
+        let mut purge_cmd = String::with_capacity(32);
+        let mut decay_cmd = String::with_capacity(32);
+        
         loop {
             interval.tick().await;
 
             // Force jemalloc to purge dirty pages and decay them back to OS
-            use tikv_jemalloc_ctl::{arenas, epoch};
+            use tikv_jemalloc_ctl::{arenas, epoch, stats};
 
-            // Update stats epoch
+            // Update stats epoch to get current memory metrics
             if let Ok(e) = epoch::mib() {
                 let _ = e.advance();
             }
+
+            // Capture memory stats before purging
+            let resident_before = stats::resident::read().unwrap_or(0);
+            let mapped_before = stats::mapped::read().unwrap_or(0);
 
             // Purge all arenas AND force dirty/muzzy pages back to OS
             // With retain:false, this should trigger actual munmap() instead of just madvise()
             if let Ok(narenas) = arenas::narenas::read() {
                 for arena_id in 0..narenas {
                     // First purge dirty pages to muzzy
-                    let purge_cmd = format!("arena.{}.purge\0", arena_id);
+                    purge_cmd.clear();
+                    use std::fmt::Write;
+                    let _ = write!(&mut purge_cmd, "arena.{}.purge\0", arena_id);
+                    // SAFETY: purge_cmd is a valid null-terminated string conforming to jemalloc's
+                    // mallctl interface. The arena_id is bounds-checked by the narenas loop.
+                    // The operation is write-only (value=0) triggering a side effect to purge the arena.
+                    // No safe wrapper exists in tikv-jemalloc-ctl for dynamic per-arena commands.
                     unsafe {
                         let _ = tikv_jemalloc_ctl::raw::write(purge_cmd.as_bytes(), 0usize);
                     }
 
                     // Then decay both dirty and muzzy pages immediately (forces memory return)
-                    let decay_cmd = format!("arena.{}.decay\0", arena_id);
+                    decay_cmd.clear();
+                    let _ = write!(&mut decay_cmd, "arena.{}.decay\0", arena_id);
+                    // SAFETY: Same invariants as purge above. Triggers immediate decay of both dirty
+                    // and muzzy pages to force memory return to OS (munmap with retain:false config).
                     unsafe {
                         let _ = tikv_jemalloc_ctl::raw::write(decay_cmd.as_bytes(), 0usize);
                     }
                 }
+
+                // Update epoch again to capture post-purge stats
+                if let Ok(e) = epoch::mib() {
+                    let _ = e.advance();
+                }
+
+                // Measure memory freed by purge/decay cycle
+                let resident_after = stats::resident::read().unwrap_or(0);
+                let mapped_after = stats::mapped::read().unwrap_or(0);
+                
+                let resident_freed = resident_before.saturating_sub(resident_after);
+                let mapped_freed = mapped_before.saturating_sub(mapped_after);
+                
                 debug!(
-                    "Periodic memory maintenance: purged and decayed {} arenas",
-                    narenas
+                    "Memory maintenance: purged {} arenas | freed: {} KB resident, {} KB mapped | resident: {} -> {} KB",
+                    narenas,
+                    resident_freed / 1024,
+                    mapped_freed / 1024,
+                    resident_before / 1024,
+                    resident_after / 1024
                 );
             }
 
