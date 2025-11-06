@@ -44,7 +44,7 @@ use ripple_sdk::{
         },
         gateway::rpc_gateway_api::{CallContext, CallerSession},
     },
-    log::{error, info, trace},
+    log::{error, info},
     tokio::{sync::oneshot, time::timeout},
     utils::{rpc_utils::rpc_error_with_code_result, serde_utils::SerdeClearString},
 };
@@ -159,11 +159,9 @@ impl ProviderRegistrar {
         method_type: MethodType,
         rpc_module: &mut RpcModule<RpcModuleContext>,
     ) -> bool {
-        trace!(
-            "register_method: method_name={}, method_type={:?}, rpc_module={:?}",
-            method_name,
-            method_type,
-            rpc_module
+        info!(
+            "register_method: method_name={}, method_type={:?}",
+            method_name, method_type
         );
 
         let result = match method_type {
