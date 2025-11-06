@@ -422,15 +422,12 @@ impl AppEvents {
     }
 
     fn remove_session_from_events(event_listeners: &mut Vec<EventListener>, session_id: &String) {
-        let mut itr = event_listeners.iter();
-        let i = itr.position(|x| x.call_ctx.session_id == *session_id);
-        if let Some(index) = i {
-            event_listeners.remove(index);
-        }
+        // Remove ALL listeners for this session, not just the first one
+        event_listeners.retain(|listener| listener.call_ctx.session_id != *session_id);
     }
 
     pub fn remove_session(state: &PlatformState, session_id: String) {
-        state.session_state.clear_session(&session_id);
+        state.session_state.clear_session_legacy(&session_id);
         let mut listeners = state.app_events_state.listeners.write().unwrap();
         let all_events = listeners.keys().cloned().collect::<Vec<String>>();
         for event_name in all_events {
@@ -461,7 +458,7 @@ pub mod tests {
         let session = Session::new(call_context.clone().app_id, None);
         platform_state
             .session_state
-            .add_session(call_context.clone().session_id, session);
+            .add_session_legacy(call_context.clone().session_id, session);
 
         AppEvents::add_listener(
             &platform_state,
@@ -481,5 +478,65 @@ pub mod tests {
         let listeners =
             AppEvents::get_listeners(&platform_state.app_events_state, "test_event", None);
         assert!(listeners.len() == 1);
+    }
+
+    #[tokio::test]
+    pub async fn test_remove_session_removes_all_listeners() {
+        let platform_state = PlatformState::mock();
+        let call_context = CallContext::mock();
+        let session_id = call_context.session_id.clone();
+        let listen_request = ListenRequest { listen: true };
+
+        let session = Session::new(call_context.clone().app_id, None);
+        platform_state
+            .session_state
+            .add_session_legacy(session_id.clone(), session);
+
+        // Add multiple listeners for the same session but different events
+        AppEvents::add_listener(
+            &platform_state,
+            "event1".to_string(),
+            call_context.clone(),
+            listen_request.clone(),
+        );
+
+        AppEvents::add_listener(
+            &platform_state,
+            "event2".to_string(),
+            call_context.clone(),
+            listen_request.clone(),
+        );
+
+        AppEvents::add_listener(
+            &platform_state,
+            "event3".to_string(),
+            call_context.clone(),
+            listen_request.clone(),
+        );
+
+        // Verify listeners were added
+        assert!(
+            AppEvents::get_listeners(&platform_state.app_events_state, "event1", None).len() == 1
+        );
+        assert!(
+            AppEvents::get_listeners(&platform_state.app_events_state, "event2", None).len() == 1
+        );
+        assert!(
+            AppEvents::get_listeners(&platform_state.app_events_state, "event3", None).len() == 1
+        );
+
+        // Remove the session - this should remove ALL listeners for this session
+        AppEvents::remove_session(&platform_state, session_id);
+
+        // Verify ALL listeners were removed (memory leak fix)
+        assert!(
+            AppEvents::get_listeners(&platform_state.app_events_state, "event1", None).is_empty()
+        );
+        assert!(
+            AppEvents::get_listeners(&platform_state.app_events_state, "event2", None).is_empty()
+        );
+        assert!(
+            AppEvents::get_listeners(&platform_state.app_events_state, "event3", None).is_empty()
+        );
     }
 }

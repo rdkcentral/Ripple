@@ -30,6 +30,7 @@ use ripple_sdk::{
     framework::RippleResponse,
     log::error,
     tokio::sync::{mpsc::Sender, oneshot},
+    types::AppId,
     utils::error::RippleError,
 };
 
@@ -101,7 +102,8 @@ impl RippleClient {
 
     pub async fn get_app_state(&self, app_id: &str) -> Result<String, RippleError> {
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<Result<AppManagerResponse, AppError>>();
-        let app_request = AppRequest::new(AppMethod::State(app_id.to_owned()), app_resp_tx);
+        let app_request =
+            AppRequest::new(AppMethod::State(AppId::new_unchecked(app_id)), app_resp_tx);
         if let Err(e) = self.send_app_request(app_request) {
             error!("Send error for get_state {:?}", e);
             return Err(RippleError::SendFailure);

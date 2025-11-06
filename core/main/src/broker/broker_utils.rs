@@ -51,10 +51,16 @@ impl BrokerUtils {
         params: Option<Value>,
     ) -> RpcResult<Value> {
         let rpc_request = RpcRequest::internal(method, on_behalf_of).with_params(params);
-        state
-            .metrics
-            .add_api_stats(&rpc_request.ctx.request_id, method);
-        Self::internal_request(state, rpc_request).await
+        let request_id = rpc_request.ctx.request_id.clone();
+        state.metrics.add_api_stats(&request_id, method);
+        let result = Self::internal_request(state, rpc_request).await;
+
+        // MEMORY FIX: Clean up api_stats after internal request completes
+        // Previously this was never cleaned up, causing HashMap to grow indefinitely
+        let mut state_mut = state.clone();
+        state_mut.metrics.remove_api_stats(&request_id);
+
+        result
     }
 
     async fn internal_request(state: &PlatformState, rpc_request: RpcRequest) -> RpcResult<Value> {

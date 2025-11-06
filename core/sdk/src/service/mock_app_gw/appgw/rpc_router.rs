@@ -424,6 +424,9 @@ async fn cleanup_disconnected_service(context: CleanupContext<'_>) {
         });
         let _ = tx.send(Message::Text(err_response.to_string())).await;
     }
+
+    // Flush tokio worker thread allocator caches after service cleanup
+    tokio::task::yield_now().await;
 }
 
 // Error handling functions

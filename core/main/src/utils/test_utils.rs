@@ -76,7 +76,7 @@ pub async fn cap_state_listener(
     let session = Session::new(ctx.app_id.clone(), Some(session_tx.clone()));
     state
         .session_state
-        .add_session(ctx.session_id.clone(), session);
+        .add_session_legacy(ctx.session_id.clone(), session);
     CapState::setup_listener(
         state,
         ctx,

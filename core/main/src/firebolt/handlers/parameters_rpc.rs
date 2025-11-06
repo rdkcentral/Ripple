@@ -28,6 +28,7 @@ use ripple_sdk::{
     },
     log::error,
     tokio::sync::oneshot,
+    types::AppId,
 };
 use serde::Serialize;
 
@@ -79,7 +80,7 @@ impl ParametersServer for ParametersImpl {
     async fn initialization(&self, ctx: CallContext) -> RpcResult<AppInitParameters> {
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
         let app_request = AppRequest::new(
-            AppMethod::GetLaunchRequest(ctx.app_id.to_owned()),
+            AppMethod::GetLaunchRequest(AppId::new_unchecked(&ctx.app_id)),
             app_resp_tx,
         );
         let mut platform_state = self.platform_state.clone();

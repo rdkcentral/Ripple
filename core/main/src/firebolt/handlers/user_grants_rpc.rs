@@ -39,6 +39,7 @@ use ripple_sdk::{
     chrono::{DateTime, Utc},
     log::debug,
     tokio::sync::oneshot,
+    types::AppId,
     utils::rpc_utils::rpc_error_with_code_result,
 };
 
@@ -109,7 +110,10 @@ impl UserGrantsImpl {
     async fn get_app_title(&self, app_id: &str) -> RpcResult<Option<String>> {
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
 
-        let app_request = AppRequest::new(AppMethod::GetAppName(app_id.into()), app_resp_tx);
+        let app_request = AppRequest::new(
+            AppMethod::GetAppName(AppId::new_unchecked(app_id)),
+            app_resp_tx,
+        );
 
         if self
             .platform_state

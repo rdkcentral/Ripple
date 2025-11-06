@@ -40,6 +40,7 @@ use ripple_sdk::{
     log::{debug, error},
     service::service_event_state::Event,
     tokio::sync::oneshot,
+    types::AppId,
     utils::{error::RippleError, rpc_utils::rpc_err},
 };
 
@@ -184,8 +185,10 @@ impl InternalServer for InternalImpl {
     async fn get_app_catalog_id(&self, _: CallContext, app_id: String) -> RpcResult<String> {
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
 
-        let app_request =
-            AppRequest::new(AppMethod::GetAppContentCatalog(app_id.clone()), app_resp_tx);
+        let app_request = AppRequest::new(
+            AppMethod::GetAppContentCatalog(AppId::new_unchecked(&app_id)),
+            app_resp_tx,
+        );
         if let Err(e) = self.state.get_client().send_app_request(app_request) {
             error!("Send error for AppMethod::GetAppContentCatalog {:?}", e);
         }
@@ -237,7 +240,7 @@ impl InternalServer for InternalImpl {
         let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
 
         let app_request = AppRequest::new(
-            AppMethod::GetSecondScreenPayload(ctx.app_id.clone()),
+            AppMethod::GetSecondScreenPayload(AppId::new_unchecked(&ctx.app_id)),
             app_resp_tx,
         );
 

@@ -60,6 +60,7 @@ use ripple_sdk::{
     log::{debug, error, trace, warn},
     serde_json::Value,
     tokio::sync::oneshot,
+    types::AppId,
     utils::error::RippleError,
 };
 use serde::Deserialize;
@@ -1905,7 +1906,7 @@ impl GrantStepExecutor {
     async fn get_app_name(platform_state: &PlatformState, app_id: String) -> String {
         let mut app_name: String = Default::default();
         let (tx, rx) = oneshot::channel::<AppResponse>();
-        let app_request = AppRequest::new(AppMethod::GetAppName(app_id), tx);
+        let app_request = AppRequest::new(AppMethod::GetAppName(AppId::new_unchecked(app_id)), tx);
         let send_result = platform_state.get_client().send_app_request(app_request);
         if send_result.is_err() {
             return app_name;
@@ -2118,7 +2119,7 @@ mod tests {
                 let ctx_c = ctx.clone();
                 state
                     .session_state
-                    .add_session(ctx.session_id.clone(), sample_app_session);
+                    .add_session_legacy(ctx.session_id.clone(), sample_app_session);
 
                 ProviderBroker::register_or_unregister_provider(
                     &state_c,

@@ -18,6 +18,7 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use futures::{stream::SplitStream, SinkExt, StreamExt};
 use ripple_sdk::api::gateway::rpc_gateway_api::JsonRpcApiResponse;
+use ripple_sdk::log::debug;
 use ripple_sdk::{
     api::{gateway::rpc_gateway_api::ApiMessage, manifest::extn_manifest::ExtnSymbol},
     extn::{
@@ -389,7 +390,7 @@ impl ServiceControllerState {
             // Gateway will probably not necessarily be ready when extensions start
             state
                 .session_state
-                .add_session(session_id.to_string(), session.clone());
+                .add_session_legacy(session_id.to_string(), session.clone());
             client
                 .get_extn_client()
                 .add_sender(app_id.to_string(), symbol.clone(), sender);
@@ -409,6 +410,7 @@ impl ServiceControllerState {
                     let req_text = msg.to_text().unwrap().to_string();
 
                     if let Ok(sm) = serde_json::from_str::<ServiceMessage>(&req_text) {
+                        debug!("processing service_message:{}", sm);
                         Self::process_inbound_service_message(
                             state,
                             connection_id,
@@ -429,7 +431,9 @@ impl ServiceControllerState {
                         .await;
                     }
                 }
-                Ok(_) => {}
+                Ok(ok) => {
+                    debug!("non service message received on websocket: {:?}", ok);
+                }
                 Err(e) => {
                     error!(
                         "WebSocket error for service connection_id={}: {:?}",
@@ -543,7 +547,7 @@ async fn return_invalid_service_error_message(
 ) {
     if let Some(session) = state
         .session_state
-        .get_session_for_connection_id(connection_id)
+        .get_session_for_connection_id_legacy(connection_id)
     {
         let id = if let RippleError::BrokerError(id) = e.clone() {
             id

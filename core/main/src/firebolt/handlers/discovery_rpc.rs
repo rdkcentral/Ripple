@@ -64,6 +64,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::CallContext,
         manifest::device_manifest::IntentValidation,
     },
+    types::AppId,
     utils::rpc_utils::rpc_error_with_code_result,
 };
 use serde::{Deserialize, Serialize};
@@ -150,7 +151,7 @@ pub async fn get_content_partner_id(
     let (app_resp_tx, app_resp_rx) = oneshot::channel::<Result<AppManagerResponse, AppError>>();
 
     let app_request = AppRequest::new(
-        AppMethod::GetAppContentCatalog(ctx.app_id.clone()),
+        AppMethod::GetAppContentCatalog(AppId::new_unchecked(ctx.app_id.clone())),
         app_resp_tx,
     );
     if let Err(e) = platform_state.get_client().send_app_request(app_request) {

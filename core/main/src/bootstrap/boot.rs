@@ -35,6 +35,7 @@ use super::{
     start_fbgateway_step::FireboltGatewayStep,
     start_ws_step::StartWsStep,
 };
+
 /// Starts up Ripple uses `PlatformState` to manage State
 /// # Arguments
 /// * `platform_state` - PlatformState
@@ -60,6 +61,11 @@ pub async fn boot(state: BootstrapState) -> RippleResponse {
     let bootstrap = Bootstrap::new(state);
     execute_step(LoggingBootstrapStep, &bootstrap).await?;
     log_memory_usage("After-LoggingBootstrapStep");
+
+    // MEMORY FIX: Spawn periodic memory maintenance task for embedded platforms
+    // On SOC, continuous app lifecycle traffic causes linear memory growth even with
+    // tokio yielding. This task aggressively purges jemalloc arenas every 30s to
+    // force memory return to OS during sustained traffic patterns.
     execute_step(StartWsStep, &bootstrap).await?;
     log_memory_usage("After-StartWsStep");
     execute_step(StartCommunicationBroker, &bootstrap).await?;

@@ -382,6 +382,32 @@ pub struct EndpointBrokerState {
     metrics_state: OpMetricState,
 }
 
+/// Memory monitoring: Broker state metrics
+#[derive(Debug, Clone)]
+pub struct BrokerMetrics {
+    pub request_map_size: usize,
+    pub extension_map_size: usize,
+    pub endpoint_map_size: usize,
+    pub cleaner_list_size: usize,
+}
+
+/// Memory monitoring: Endpoint validation results
+#[derive(Debug, Clone)]
+pub struct EndpointValidationResult {
+    pub total_endpoints: usize,
+    pub healthy_endpoints: usize,
+    pub closed_channels: usize,
+    pub issues: Vec<EndpointValidationIssue>,
+}
+
+/// Memory monitoring: Endpoint validation issues
+#[derive(Debug, Clone)]
+pub enum EndpointValidationIssue {
+    ClosedChannel(String),
+    UnresponsiveEndpoint(String),
+    OrphanedConnection(String),
+}
+
 #[derive(Debug)]
 pub enum HandleBrokerageError {
     RuleNotFound(String),
@@ -510,6 +536,28 @@ impl EndpointBrokerState {
     pub fn has_rule(&self, rule: &str) -> bool {
         self.rule_engine.read().unwrap().has_rule(rule)
     }
+
+    pub fn log_hashmap_sizes(&self) {
+        if let Ok(request_map) = self.request_map.read() {
+            debug!(
+                "MEMORY_DEBUG: broker request_map size: {}",
+                request_map.len()
+            );
+        }
+        if let Ok(extension_map) = self.extension_request_map.read() {
+            debug!(
+                "MEMORY_DEBUG: broker extension_request_map size: {}",
+                extension_map.len()
+            );
+        }
+        if let Ok(endpoint_map) = self.endpoint_map.read() {
+            debug!(
+                "MEMORY_DEBUG: broker endpoint_map size: {}",
+                endpoint_map.len()
+            );
+        }
+    }
+
     #[cfg(not(test))]
     fn reconnect_thread(&self, mut rx: Receiver<BrokerConnectRequest>, client: RippleClient) {
         use crate::firebolt::firebolt_gateway::FireboltGatewayCommand;
@@ -1101,9 +1149,24 @@ impl EndpointBrokerState {
 
         for cleaner in cleaners {
             /*
-            for now, just eat the error - the return type was mainly added to prepate for future refactoring/testability
+            for now, just eat the error - the return type was mainly added to prepare for future refactoring/testability
             */
             let _ = cleaner.cleanup_session(app_id).await;
+        }
+    }
+
+    /// Memory optimization: Get broker state metrics for monitoring
+    pub fn get_broker_metrics(&self) -> BrokerMetrics {
+        let request_map_size = self.request_map.read().unwrap().len();
+        let extension_map_size = self.extension_request_map.read().unwrap().len();
+        let endpoint_map_size = self.endpoint_map.read().unwrap().len();
+        let cleaner_list_size = self.cleaner_list.read().unwrap().len();
+
+        BrokerMetrics {
+            request_map_size,
+            extension_map_size,
+            endpoint_map_size,
+            cleaner_list_size,
         }
     }
 }
@@ -1407,11 +1470,11 @@ impl BrokerOutputForwarder {
                 .get_api_stats(&rpc_request.ctx.request_id)
             {
                 message.stats = Some(api_stats);
-                if rpc_request.ctx.app_id.eq_ignore_ascii_case("internal") {
-                    platform_state
-                        .metrics
-                        .remove_api_stats(&rpc_request.ctx.request_id);
-                }
+                // MEMORY FIX: Always remove API stats after use to prevent accumulation
+                // Previously only removed for "internal" app_id, causing memory growth
+                platform_state
+                    .metrics
+                    .remove_api_stats(&rpc_request.ctx.request_id);
             }
             if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
                 if let Ok(extn_message) =
@@ -1428,7 +1491,7 @@ impl BrokerOutputForwarder {
                 Self::handle_service_message(rpc_request, &message, platform_state).await;
             } else if let Some(session) = platform_state
                 .session_state
-                .get_session_for_connection_id(&session_id)
+                .get_session_for_connection_id_legacy(&session_id)
             {
                 let _ = session.send_json_rpc(message).await;
             }
@@ -1516,7 +1579,7 @@ impl BrokerOutputForwarder {
                     );
                     if let Some(session) = platform_state_c
                         .session_state
-                        .get_session_for_connection_id(&session_id)
+                        .get_session_for_connection_id_legacy(&session_id)
                     {
                         let _ = session.send_json_rpc(message).await;
                     }
@@ -1739,7 +1802,7 @@ impl BrokerOutputForwarder {
 
         if let Some(session) = platform_state_c
             .session_state
-            .get_session_for_connection_id(&session_id)
+            .get_session_for_connection_id_legacy(&session_id)
         {
             let _ = session.send_json_rpc(message).await;
         }

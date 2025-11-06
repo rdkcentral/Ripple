@@ -213,6 +213,7 @@ mod tests {
         NavigationIntentLoose, NavigationIntentStrict,
     };
     use crate::api::firebolt::fb_discovery::DiscoveryContext;
+    use crate::types;
     use crate::utils::test_utils::test_extn_payload_provider;
 
     #[test]
@@ -282,7 +283,7 @@ mod tests {
         let app_session_request = AppSessionRequest {
             session: AppSession {
                 app: AppBasicInfo {
-                    id: "sample_id".to_string(),
+                    id: types::AppId::new("sample_id".to_string()).unwrap(),
                     catalog: None,
                     url: None,
                     title: None,
