@@ -828,13 +828,13 @@ impl DelegatedLauncherHandler {
         if let AppMethod::BrowserSession(_) = method {
             if platform_state
                 .endpoint_state
-                .has_rule("ripple.reportSessionUpdate")
+                .has_rule("distributor.reportSessionUpdate")
             {
                 if let Ok(AppManagerResponse::Session(a)) = app_manager_response {
                     let params = serde_json::to_value(a).unwrap();
                     if BrokerUtils::process_internal_main_request(
                         platform_state,
-                        "ripple.reportSessionUpdate",
+                        "distributor.reportSessionUpdate",
                         Some(params),
                     )
                     .await
@@ -848,7 +848,7 @@ impl DelegatedLauncherHandler {
 
         if platform_state
             .endpoint_state
-            .has_rule("ripple.reportLifecycleStateChange")
+            .has_rule("distributor.reportLifecycleStateChange")
         {
             let previous_state = platform_state.app_manager_state.get_internal_state(app_id);
 
@@ -881,7 +881,7 @@ impl DelegatedLauncherHandler {
             .unwrap();
             if BrokerUtils::process_for_app_main_request(
                 platform_state,
-                "ripple.reportLifecycleStateChange",
+                "distributor.reportLifecycleStateChange",
                 Some(params),
                 app_id,
             )
