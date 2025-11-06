@@ -21,7 +21,6 @@ use ripple_sdk::{
         RippleResponse,
     },
     log::{debug, error},
-    tokio,
 };
 
 use crate::state::bootstrap_state::BootstrapState;
@@ -37,54 +36,6 @@ use super::{
     start_ws_step::StartWsStep,
 };
 
-/// Spawn a background task that periodically purges jemalloc arenas and flushes tokio caches
-/// This is critical for embedded platforms where sustained traffic causes linear memory growth
-/// Combined with retain:false config, this should force actual memory return to OS via munmap
-fn spawn_periodic_memory_maintenance() {
-    tokio::spawn(async {
-        // 15-second interval balances aggressive memory return with minimal CPU overhead
-        // For high-traffic scenarios (50+ ops/min), this prevents accumulation between purges
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(15));
-        loop {
-            interval.tick().await;
-
-            // Force jemalloc to purge dirty pages and decay them back to OS
-            use tikv_jemalloc_ctl::{arenas, epoch};
-
-            // Update stats epoch
-            if let Ok(e) = epoch::mib() {
-                let _ = e.advance();
-            }
-
-            // Purge all arenas AND force dirty/muzzy pages back to OS
-            // With retain:false, this should trigger actual munmap() instead of just madvise()
-            if let Ok(narenas) = arenas::narenas::read() {
-                for arena_id in 0..narenas {
-                    // First purge dirty pages to muzzy
-                    let purge_cmd = format!("arena.{}.purge\0", arena_id);
-                    unsafe {
-                        let _ = tikv_jemalloc_ctl::raw::write(purge_cmd.as_bytes(), 0usize);
-                    }
-
-                    // Then decay both dirty and muzzy pages immediately (forces memory return)
-                    let decay_cmd = format!("arena.{}.decay\0", arena_id);
-                    unsafe {
-                        let _ = tikv_jemalloc_ctl::raw::write(decay_cmd.as_bytes(), 0usize);
-                    }
-                }
-                debug!(
-                    "Periodic memory maintenance: purged and decayed {} arenas",
-                    narenas
-                );
-            }
-
-            // Flush tokio worker thread allocator caches
-            for _ in 0..5 {
-                tokio::task::yield_now().await;
-            }
-        }
-    });
-}
 /// Starts up Ripple uses `PlatformState` to manage State
 /// # Arguments
 /// * `platform_state` - PlatformState
@@ -115,7 +66,6 @@ pub async fn boot(state: BootstrapState) -> RippleResponse {
     // On SOC, continuous app lifecycle traffic causes linear memory growth even with
     // tokio yielding. This task aggressively purges jemalloc arenas every 30s to
     // force memory return to OS during sustained traffic patterns.
-    spawn_periodic_memory_maintenance();
     execute_step(StartWsStep, &bootstrap).await?;
     log_memory_usage("After-StartWsStep");
     execute_step(StartCommunicationBroker, &bootstrap).await?;

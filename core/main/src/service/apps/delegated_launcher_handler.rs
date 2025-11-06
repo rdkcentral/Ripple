@@ -1462,9 +1462,6 @@ impl DelegatedLauncherHandler {
             .app_manager_state
             .insert(app_id.to_string(), app.clone());
 
-        // MEMORY FIX: Trigger memory cleanup when new app sessions are created
-        Self::force_memory_reclamation(app_id.as_str());
-
         // Check for memory pressure after inserting new app
         if platform_state.app_manager_state.check_memory_pressure() {
             debug!("Memory pressure detected after app insertion, cleaning up excess apps");
@@ -1611,58 +1608,6 @@ impl DelegatedLauncherHandler {
             return Err(AppError::NotFound);
         }
         Ok(AppManagerResponse::None)
-    }
-
-    /// Force jemalloc to purge unused memory back to OS IMMEDIATELY
-    #[cfg(not(target_env = "msvc"))]
-    fn force_jemalloc_purge() {
-        use tikv_jemalloc_ctl::{arenas, epoch};
-
-        // Step 1: Advance epoch to update stats
-        if let Ok(e) = epoch::mib() {
-            let _ = e.advance();
-        }
-
-        // Step 2: Force purge AND decay all arenas to return memory to OS
-        if let Ok(narenas) = arenas::narenas::read() {
-            for arena_id in 0..narenas {
-                use tikv_jemalloc_ctl::raw;
-
-                // First purge dirty pages to muzzy
-                let purge_cmd = format!("arena.{}.purge\0", arena_id);
-                unsafe {
-                    let _ = raw::write(purge_cmd.as_bytes(), 0usize);
-                }
-
-                // Then decay both dirty and muzzy pages immediately (forces MADV_DONTNEED)
-                let decay_cmd = format!("arena.{}.decay\0", arena_id);
-                unsafe {
-                    let _ = raw::write(decay_cmd.as_bytes(), 0usize);
-                }
-            }
-            debug!(
-                "Jemalloc: Forced immediate purge+decay of {} arenas - memory returned to OS",
-                narenas
-            );
-        }
-    }
-
-    /// Force aggressive memory reclamation after app session ends
-    fn force_memory_reclamation(app_id: &str) {
-        debug!(
-            "Forcing memory reclamation after app session end: {}",
-            app_id
-        );
-
-        // Force garbage collection via explicit drop hint
-        std::mem::drop(Vec::<u8>::with_capacity(0));
-
-        // Yield to allow any pending cleanup tasks to run
-        std::hint::spin_loop();
-
-        // CRITICAL FIX: Force jemalloc purge after every app session
-        #[cfg(not(target_env = "msvc"))]
-        Self::force_jemalloc_purge();
     }
 
     async fn get_launch_request(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {

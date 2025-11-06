@@ -76,9 +76,7 @@ strum_macros = "0.24"
 openrpc_validator = { path = "../../openrpc_validator", optional = true, default-features = false }
 proc-macro2.workspace = true
 
-# Memory allocator: jemalloc with aggressive settings for embedded platforms
-tikv-jemallocator = { version = "0.6", features = ["unprefixed_malloc_on_supported_platforms", "background_threads"] }
-tikv-jemalloc-ctl = "0.6"
+
 
 [build-dependencies]
 vergen = "1"
