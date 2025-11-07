@@ -35,6 +35,8 @@ use ripple_sdk::{
     },
     framework::ripple_contract::RippleContract,
     log::debug,
+    serde_json::Value,
+    tokio::sync::oneshot,
     utils::error::RippleError,
     uuid::Uuid,
 };
@@ -246,6 +248,63 @@ impl PlatformState {
             .get_extn_client()
             .main_internal_request(rpc_request.to_owned())
             .await
+    }
+
+    ///
+    /// Direct broker rule-based RPC request without extn_client
+    pub async fn broker_rule_request(
+        &self,
+        rpc_request: &RpcRequest,
+    ) -> Result<Value, RippleError> {
+        self.broker_rule_request_timeout(rpc_request, 20).await
+    }
+
+    ///
+    /// Direct broker rule-based RPC request without extn_client with custom timeout
+    pub async fn broker_rule_request_timeout(
+        &self,
+        rpc_request: &RpcRequest,
+        timeout_secs: u64,
+    ) -> Result<Value, RippleError> {
+        let (tx, rx) = oneshot::channel();
+
+        // Send request through endpoint broker with response channel
+        self.endpoint_state
+            .send_with_response_timeout(rpc_request.clone(), tx, timeout_secs)
+            .await?;
+
+        // Wait for response from the oneshot channel
+        match rx.await {
+            Ok(result) => {
+                // The spawned task sent a Result<Value, Value>
+                result.map_err(|error_value| {
+                    // Try to extract meaningful error information from the JSON error
+                    if let Some(obj) = error_value.as_object() {
+                        let code = obj.get("code").and_then(|v| v.as_i64()).unwrap_or(-1);
+                        let message = obj
+                            .get("message")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Unknown error");
+
+                        // Map specific error codes to appropriate RippleError variants
+                        match code {
+                            -32001 => RippleError::TimeoutError,
+                            -32000 => {
+                                RippleError::BrokerError("Channel closed unexpectedly".to_string())
+                            }
+                            _ => RippleError::BrokerError(format!("{}: {}", code, message)),
+                        }
+                    } else {
+                        // Fallback if error is not in expected format
+                        RippleError::BrokerError(error_value.to_string())
+                    }
+                })
+            }
+            Err(_) => {
+                // Channel sender was dropped without sending
+                Err(RippleError::ProcessorError)
+            }
+        }
     }
 }
 
