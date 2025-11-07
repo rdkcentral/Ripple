@@ -441,7 +441,7 @@ pub mod tests {
                 state: MockState {
                     client: ExtnClient::mock(),
                     contracts: vec![
-                        RippleContract::Internal,
+                        RippleContract::RippleContext,
                         RippleContract::Session(SessionAdjective::Account),
                         RippleContract::DeviceEvents(EventAdjective::Input),
                     ],
@@ -501,7 +501,7 @@ pub mod tests {
         let result = MockRequestProcessor::process_request(
             MockState {
                 client: extn_client,
-                contracts: vec![RippleContract::Internal],
+                contracts: vec![RippleContract::RippleContext],
             },
             msg.clone(),
             get_mock_request(),
@@ -611,7 +611,7 @@ pub mod tests {
         assert_eq!(
             result,
             Some(vec![
-                RippleContract::Internal,
+                RippleContract::RippleContext,
                 RippleContract::Session(SessionAdjective::Account),
                 RippleContract::DeviceEvents(EventAdjective::Input),
             ])
@@ -622,7 +622,7 @@ pub mod tests {
     async fn test_event_handle_error() {
         let state = MockState {
             client: ExtnClient::mock(),
-            contracts: vec![RippleContract::Internal],
+            contracts: vec![RippleContract::RippleContext],
         };
         let msg = get_mock_message(PayloadType::Event);
         let error = RippleError::ProcessorError;
@@ -648,7 +648,7 @@ pub mod tests {
         let processor = MockRequestProcessor {
             state: MockState {
                 client: extn_client.clone(),
-                contracts: vec![RippleContract::Internal],
+                contracts: vec![RippleContract::RippleContext],
             },
             streamer: DefaultExtnStreamer::new(),
         };
@@ -658,7 +658,7 @@ pub mod tests {
         let response = extn_client
             .request(MockRequest {
                 app_id: "test_app_id".to_string(),
-                contract: RippleContract::Internal,
+                contract: RippleContract::RippleContext,
                 expected_response: exp_resp.clone(),
             })
             .await;
@@ -668,7 +668,7 @@ pub mod tests {
                 let expected_message = ExtnMessage {
                     id: "some-uuid".to_string(),
                     requestor: ExtnId::get_main_target("main".into()),
-                    target: RippleContract::Internal,
+                    target: RippleContract::RippleContext,
                     target_id: None,
                     payload: ExtnPayload::Response(exp_resp.clone().unwrap()),
                     ts: Some(Utc::now().timestamp_millis()),
@@ -706,7 +706,7 @@ pub mod tests {
         let processor = MockEventProcessor {
             state: MockState {
                 client: extn_client.clone(),
-                contracts: vec![RippleContract::Internal],
+                contracts: vec![RippleContract::RippleContext],
             },
             streamer: DefaultExtnStreamer::new(),
         };
