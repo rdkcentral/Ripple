@@ -317,15 +317,15 @@ mod tests {
             },
         };
 
-        app.update_intent(NavigationIntent::NavigationIntentStrict(
+        app.update_intent(NavigationIntent::NavigationIntentStrict(Box::new(
             NavigationIntentStrict::Home(home_intent.clone()),
-        ));
+        )));
 
         assert_eq!(
             app.launch.intent,
-            Some(NavigationIntent::NavigationIntentStrict(
+            Some(NavigationIntent::NavigationIntentStrict(Box::new(
                 NavigationIntentStrict::Home(home_intent),
-            ))
+            )))
         );
     }
 

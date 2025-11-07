@@ -86,7 +86,7 @@ impl AppLibrary {
                 error!("Local manifests not supported yet");
                 None
             }
-            AppManifestLoad::Embedded(manifest) => Some(manifest.clone()),
+            AppManifestLoad::Embedded(manifest) => Some((**manifest).clone()),
         }
     }
 
@@ -123,12 +123,12 @@ mod tests {
             AppLibraryEntry {
                 app_id: "app1".to_string(),
                 boot_state: BootState::Foreground,
-                manifest: AppManifestLoad::Embedded(AppManifest::default()),
+                manifest: AppManifestLoad::Embedded(Box::default()),
             },
             AppLibraryEntry {
                 app_id: "app2".to_string(),
                 boot_state: BootState::Unloaded,
-                manifest: AppManifestLoad::Embedded(AppManifest::default()),
+                manifest: AppManifestLoad::Embedded(Box::default()),
             },
         ]
     }
@@ -161,7 +161,7 @@ mod tests {
             Some(AppLibraryEntry {
                 app_id: "app1".to_string(),
                 boot_state: BootState::Foreground,
-                manifest: AppManifestLoad::Embedded(AppManifest::default()),
+                manifest: AppManifestLoad::Embedded(Box::default()),
             })
         );
     }

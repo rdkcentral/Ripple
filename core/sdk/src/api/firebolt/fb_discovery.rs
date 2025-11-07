@@ -484,20 +484,22 @@ mod tests {
 
         let launch_request = LaunchRequest {
             app_id: "test_app".to_string(),
-            intent: Some(NavigationIntent::NavigationIntentStrict(
+            intent: Some(NavigationIntent::NavigationIntentStrict(Box::new(
                 NavigationIntentStrict::Home(home_intent),
-            )),
+            ))),
         };
 
         let intent = launch_request.get_intent();
         assert_eq!(
             intent,
-            NavigationIntent::NavigationIntentStrict(NavigationIntentStrict::Home(HomeIntent {
-                context: DiscoveryContext {
-                    source: "test_source".to_string(),
-                    age_policy: None,
+            NavigationIntent::NavigationIntentStrict(Box::new(NavigationIntentStrict::Home(
+                HomeIntent {
+                    context: DiscoveryContext {
+                        source: "test_source".to_string(),
+                        age_policy: None,
+                    }
                 }
-            }))
+            )))
         );
     }
 
