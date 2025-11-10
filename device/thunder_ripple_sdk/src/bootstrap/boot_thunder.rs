@@ -20,11 +20,11 @@ use crate::{
     thunder_state::ThunderBootstrapStateWithClient,
 };
 use ripple_sdk::{
-    api::manifest::device_manifest::DeviceManifest,
     extn::client::extn_client::ExtnClient,
     log::{debug, error, info, warn},
     serde_json,
 };
+use serde_json::Value;
 
 use crate::client::thunder_client::ThunderClientBuilder;
 use crate::thunder_state::ThunderBootstrapStateWithConfig;
@@ -45,7 +45,7 @@ fn gateway_default() -> String {
 
 pub async fn boot_thunder(
     ext_client: ExtnClient,
-    device_manifest: &DeviceManifest,
+    thunder_parameters: &Value,
 ) -> Option<ThunderBootstrapStateWithClient> {
     info!("Booting thunder initiated, Using thunder_async_clinet");
     let mut status_check = true;
@@ -66,7 +66,7 @@ pub async fn boot_thunder(
             return None;
         }
     };
-    serde_json::from_value(device_manifest.configuration.platform_parameters.clone())
+    serde_json::from_value(thunder_parameters.clone())
         .map(|thunder_parameters: ThunderPlatformParams| {
             url::Url::parse(&thunder_parameters.gateway).map_or_else(
                 |_| {

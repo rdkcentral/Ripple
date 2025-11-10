@@ -85,13 +85,20 @@ pub trait UserGrants {
     #[method(name = "ripple.clearUserGrants")]
     async fn clear_user_grants(&self, ctx: CallContext) -> RpcResult<()>;
     #[method(name = "ripple.setUserGrants")]
-    async fn set_user_grant(
+    async fn set_user_grants(
         &self,
         ctx: CallContext,
-        user_grant_info: UserGrantInfo,
+        user_grant_info: Vec<UserGrantInfo>,
     ) -> RpcResult<()>;
     #[method(name = "ripple.syncGrantsMap")]
     async fn sync_user_grants_map(&self, ctx: CallContext) -> RpcResult<()>;
+    #[method(name = "ripple.getUserGrants")]
+    async fn get_user_grants(
+        &self,
+        ctx: CallContext,
+        app_id: String,
+        permission: FireboltPermission,
+    ) -> RpcResult<Option<bool>>;
 }
 
 #[derive(Debug)]
@@ -177,35 +184,40 @@ impl UserGrantsImpl {
 
 #[async_trait]
 impl UserGrantsServer for UserGrantsImpl {
-    async fn set_user_grant(
+    async fn set_user_grants(
         &self,
         _ctx: CallContext,
-        user_grant_info: UserGrantInfo,
+        user_grant_info: Vec<UserGrantInfo>,
     ) -> RpcResult<()> {
         debug!("Handling set user grant request: {:?}", user_grant_info);
-        let app_id = user_grant_info.app_name.to_owned();
-        let grant_entry = GrantEntry {
-            role: user_grant_info.role,
-            capability: user_grant_info.capability.to_owned(),
-            status: user_grant_info.status,
-            lifespan: match user_grant_info.expiry_time {
-                Some(_) => Some(GrantLifespan::Seconds),
-                None => Some(GrantLifespan::Forever),
-            },
-            last_modified_time: user_grant_info.last_modified_time,
-            lifespan_ttl_in_secs: user_grant_info.expiry_time.map(|epoch_duration| {
-                epoch_duration
-                    .as_secs()
-                    .saturating_sub(user_grant_info.last_modified_time.as_secs())
-            }),
-        };
-        let _ = self
-            .platform_state
-            .cap_state
-            .grant_state
-            .update_grant_entry(app_id, grant_entry);
+
+        for grant_info in user_grant_info {
+            let app_id = grant_info.app_name.to_owned();
+            let grant_entry = GrantEntry {
+                role: grant_info.role,
+                capability: grant_info.capability.to_owned(),
+                status: grant_info.status,
+                lifespan: match grant_info.expiry_time {
+                    Some(_) => Some(GrantLifespan::Seconds),
+                    None => Some(GrantLifespan::Forever),
+                },
+                last_modified_time: grant_info.last_modified_time,
+                lifespan_ttl_in_secs: grant_info.expiry_time.map(|epoch_duration| {
+                    epoch_duration
+                        .as_secs()
+                        .saturating_sub(grant_info.last_modified_time.as_secs())
+                }),
+            };
+            let _ = self
+                .platform_state
+                .cap_state
+                .grant_state
+                .update_grant_entry(app_id, grant_entry);
+        }
+
         Ok(())
     }
+
     async fn sync_user_grants_map(&self, _ctx: CallContext) -> RpcResult<()> {
         debug!("Handling sync grant map request");
         let _ = self
@@ -215,6 +227,39 @@ impl UserGrantsServer for UserGrantsImpl {
             .sync_grant_map_with_grant_policy(&self.platform_state)
             .await;
         Ok(())
+    }
+
+    async fn get_user_grants(
+        &self,
+        _ctx: CallContext,
+        app_id: String,
+        permission: FireboltPermission,
+    ) -> RpcResult<Option<bool>> {
+        debug!(
+            "Getting user grants for app: {} and permission: {:?}",
+            app_id, permission
+        );
+
+        let result = self
+            .platform_state
+            .cap_state
+            .grant_state
+            .get_grant_status(&app_id, &permission);
+
+        match result {
+            Some(grant_status) => {
+                let granted = match grant_status {
+                    ripple_sdk::api::device::device_user_grants_data::GrantStatus::Allowed => true,
+                    ripple_sdk::api::device::device_user_grants_data::GrantStatus::Denied => false,
+                };
+                debug!("Found user grant status: {}", granted);
+                Ok(Some(granted))
+            }
+            None => {
+                debug!("No user grant status found");
+                Ok(None)
+            }
+        }
     }
     async fn clear_user_grants(&self, _ctx: CallContext) -> RpcResult<()> {
         debug!("Handling clear user grants request");

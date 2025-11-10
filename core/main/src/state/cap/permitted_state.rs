@@ -187,11 +187,20 @@ impl PermissionHandler {
                         let mut permission_response = permissions;
                         Self::process_permissions(state, app_id, &mut permission_response)
                     }
-                    Err(_) => Err(RippleError::InvalidOutput),
+                    Err(_) => {
+                        error!("cloud_fetch_and_store : Failed to get permission distributor.getPermissions");
+                        Err(RippleError::InvalidOutput)
+                    }
                 },
-                Err(_) => Err(RippleError::InvalidOutput),
+                Err(_) => {
+                    error!(
+                        "cloud_fetch_and_store : Error response from distributor.getPermissions"
+                    );
+                    Err(RippleError::InvalidOutput)
+                }
             }
         } else {
+            error!("cloud_fetch_and_store : No account session found");
             Err(RippleError::InvalidOutput)
         }
     }
