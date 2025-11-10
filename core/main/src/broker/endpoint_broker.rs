@@ -37,6 +37,7 @@ use ripple_sdk::{
     tokio::{
         self,
         sync::mpsc::{self, Receiver, Sender},
+        time::{timeout, Duration},
     },
     tokio_tungstenite::tungstenite::Message,
     utils::error::RippleError,
@@ -1105,6 +1106,89 @@ impl EndpointBrokerState {
             */
             let _ = cleaner.cleanup_session(app_id).await;
         }
+    }
+    /// Send a request through the broker and wait for response with a oneshot channel and custom timeout
+    pub async fn send_with_response_timeout(
+        &self,
+        rpc_request: RpcRequest,
+        response_tx: ripple_sdk::tokio::sync::oneshot::Sender<Result<Value, Value>>,
+        timeout_secs: u64,
+    ) -> Result<(), RippleError> {
+        // Get the appropriate broker rule for this request
+        let rule = match self.get_broker_rule(&rpc_request) {
+            Ok(RuleRetrieved::ExactMatch(rule) | RuleRetrieved::WildcardMatch(rule)) => rule,
+            Err(_) => return Err(RippleError::NotAvailable),
+        };
+
+        // Create a custom callback that will send the response through the oneshot channel
+        let (callback_tx, mut callback_rx) = mpsc::channel(1);
+        let custom_callback = BrokerCallback {
+            sender: callback_tx,
+        };
+
+        // Create broker request with the custom callback
+        let broker_request =
+            self.update_request(&rpc_request, &rule, None, Some(custom_callback), vec![]);
+
+        // Get the appropriate endpoint for this rule
+        let endpoint = self
+            .get_endpoint(&rule, self.callback.clone())
+            .map_err(|_| RippleError::NotAvailable)?;
+
+        // Send the request through the endpoint
+        match endpoint {
+            BrokerEndpoint::BrokerSender(sender) => {
+                sender.send(broker_request).await?;
+            }
+            _ => {
+                return Err(RippleError::BrokerError(
+                    "Failed to send broker request".to_owned(),
+                ))
+            }
+        }
+
+        // Wait for the response and forward it through the oneshot channel with timeout
+        tokio::spawn(async move {
+            // Use the provided timeout value
+            let timeout_duration = Duration::from_secs(timeout_secs);
+
+            match timeout(timeout_duration, callback_rx.recv()).await {
+                Ok(Some(broker_output)) => {
+                    // Received a valid broker response
+                    // Success case: data contains a result field
+                    if let Some(result) = broker_output.data.result {
+                        let _ = response_tx.send(Ok(result));
+                    }
+                    // Error case: data contains an error field
+                    else if let Some(error) = broker_output.data.error {
+                        let _ = response_tx.send(Err(error));
+                    }
+                    // Edge case: neither result nor error
+                    else {
+                        // treat this as success with null result
+                        let _ = response_tx.send(Ok(Value::Null));
+                    }
+                }
+                Ok(None) => {
+                    // Channel was closed without sending a response
+                    let error_response = serde_json::json!({
+                        "code": -32000,
+                        "message": "Broker channel closed unexpectedly"
+                    });
+                    let _ = response_tx.send(Err(error_response));
+                }
+                Err(_) => {
+                    // Timeout occurred
+                    let error_response = serde_json::json!({
+                        "code": -32001,
+                        "message": "Request timeout"
+                    });
+                    let _ = response_tx.send(Err(error_response));
+                }
+            }
+        });
+
+        Ok(())
     }
 }
 

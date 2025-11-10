@@ -49,24 +49,15 @@ pub async fn start_service() {
         ]),
     );
     info!("Starting mock device channel");
-    let Ok((extn_manifest, _device_manifest)) = RippleManifestLoader::initialize() else {
-        error!("Error initializing manifests");
-        return;
-    };
+    if let Ok(service_client) =
+        ServiceClient::builder(EXTN_NAME.into(), ExtnClassId::Gateway).build()
+    {
+        info!("Service client built successfully");
 
-    let id = ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.to_string()).to_string();
-    let symbol = extn_manifest.get_extn_symbol(&id);
-    if symbol.is_none() {
-        error!("Error getting symbol");
-        return;
-    }
-    let service_client = if let Some(symbol) = symbol {
-        ServiceClient::builder().with_extension(symbol).build()
+        init(service_client).await
     } else {
-        ServiceClient::builder().build()
-    };
-
-    init(service_client.clone()).await;
+        error!("Failed to build service client");
+    }
 }
 
 async fn init(client: ServiceClient) {
@@ -97,33 +88,28 @@ async fn init(client: ServiceClient) {
 }
 
 fn start() {
-    let Ok((extn_manifest, _device_manifest)) = RippleManifestLoader::initialize() else {
+    let Ok((_extn_manifest, _device_manifest)) = RippleManifestLoader::initialize() else {
         error!("Error initializing manifests");
         return;
     };
-    let runtime = match Runtime::new() {
-        Ok(r) => r,
-        Err(err) => {
-            error!("Error creating runtime: {}", err);
-            return;
-        }
-    };
 
-    let id = ExtnId::new_channel(ExtnClassId::Device, EXTN_NAME.to_string()).to_string();
-    let symbol = extn_manifest.get_extn_symbol(&id);
-    if symbol.is_none() {
-        error!("Error getting symbol");
-        return;
-    }
-    let service_client = if let Some(symbol) = symbol {
-        ServiceClient::builder().with_extension(symbol).build()
+    if let Ok(service_client) =
+        ServiceClient::builder(EXTN_NAME.into(), ExtnClassId::Gateway).build()
+    {
+        info!("Service client built successfully");
+        match Runtime::new() {
+            Ok(runtime) => {
+                runtime.block_on(async move {
+                    init(service_client.clone()).await;
+                });
+            }
+            Err(err) => {
+                error!("Error creating runtime: {}", err);
+            }
+        };
     } else {
-        ServiceClient::builder().build()
-    };
-
-    runtime.block_on(async move {
-        init(service_client.clone()).await;
-    });
+        error!("Failed to build service client");
+    }
 }
 
 fn init_extn_channel() -> ExtnChannel {

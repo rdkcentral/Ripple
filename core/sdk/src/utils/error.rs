@@ -79,6 +79,48 @@ impl From<RippleError> for jsonrpsee::core::Error {
         jsonrpsee::core::Error::Custom(format!("{}", value))
     }
 }
+/*
+brendanobra: hygiene, to support ?
+*/
+impl From<jsonrpsee::core::Error> for RippleError {
+    fn from(value: jsonrpsee::core::Error) -> Self {
+        match value {
+            jsonrpsee::core::Error::Custom(e) => match e.as_str() {
+                "MissingInput" => RippleError::MissingInput,
+                "InvalidInput" => RippleError::InvalidInput,
+                "InvalidOutput" => RippleError::InvalidOutput,
+                "SenderMissing" => RippleError::SenderMissing,
+                "SendFailure" => RippleError::SendFailure,
+                "ApiAuthenticationFailed" => RippleError::ApiAuthenticationFailed,
+                "ExtnError" => RippleError::ExtnError,
+                "BootstrapError" => RippleError::BootstrapError,
+                "ParseError" => RippleError::ParseError,
+                "ProcessorError" => RippleError::ProcessorError,
+                "ClientMissing" => RippleError::ClientMissing,
+                "NoResponse" => RippleError::NoResponse,
+                "InvalidAccess" => RippleError::InvalidAccess,
+                other if other.starts_with("Permission ") => {
+                    let reason_str = &other["Permission ".len()..];
+                    let reason = match reason_str {
+                        "AppNotInActiveState" => DenyReason::AppNotInActiveState,
+                        "Disabled" => DenyReason::Disabled,
+                        "GrantDenied" => DenyReason::GrantDenied,
+                        "GrantProviderMissing" => DenyReason::GrantProviderMissing,
+                        "NotFound" => DenyReason::NotFound,
+                        "Unavailable" => DenyReason::Unavailable,
+                        "Ungranted" => DenyReason::Ungranted,
+                        "Unpermitted" => DenyReason::Unpermitted,
+                        "Unsupported" => DenyReason::Unsupported,
+                        _ => DenyReason::Unavailable,
+                    };
+                    RippleError::Permission(reason)
+                }
+                _ => RippleError::ServiceError,
+            },
+            _ => RippleError::ServiceError,
+        }
+    }
+}
 
 #[cfg(all(test, feature = "rpc"))]
 mod tests {
