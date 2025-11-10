@@ -88,7 +88,10 @@ fn handle_resolved_response(
         debug!("Service Request resolved successfully: response {}", msg);
         send_response(msg, sender, sm, json_rpc_request);
     } else if let Some(error) = json_rpc_response.get("error") {
-        error!("Service Request resolved with error: response {}", error);
+        error!(
+            "Service Request: {} resolved with error: response {}",
+            msg, error
+        );
         send_response(msg, sender, sm, json_rpc_request);
     } else {
         error!("Service Request resolved with unknown response: {}", msg);
