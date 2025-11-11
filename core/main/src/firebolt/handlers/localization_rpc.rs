@@ -71,16 +71,6 @@ pub trait Localization {
         ctx: CallContext,
         request: ListenRequest,
     ) -> RpcResult<ListenerResponse>;
-    #[method(name = "localization.locale")]
-    async fn locale(&self, _ctx: CallContext) -> RpcResult<String>;
-    #[method(name = "localization.setLocale")]
-    async fn locale_set(&self, ctx: CallContext, set_request: SetStringProperty) -> RpcResult<()>;
-    #[method(name = "localization.onLocaleChanged")]
-    async fn on_locale_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse>;
     #[method(name = "localization.latlon")]
     async fn latlon(&self, _ctx: CallContext) -> RpcResult<String>;
     #[method(name = "localization.setLatlon")]
@@ -282,34 +272,6 @@ impl LocalizationServer for LocalizationImpl {
             request,
             "LocalizationPostalCodeChanged",
             "localization.onPostalCodeChanged",
-        )
-        .await
-    }
-
-    async fn locale(&self, _ctx: CallContext) -> RpcResult<String> {
-        StorageManager::get_string(&self.platform_state, StorageProperty::Locale).await
-    }
-
-    async fn locale_set(&self, _ctx: CallContext, set_request: SetStringProperty) -> RpcResult<()> {
-        StorageManager::set_string(
-            &self.platform_state,
-            StorageProperty::Locale,
-            set_request.value,
-            None,
-        )
-        .await
-    }
-
-    async fn on_locale_changed(
-        &self,
-        ctx: CallContext,
-        request: ListenRequest,
-    ) -> RpcResult<ListenerResponse> {
-        self.on_request_app_event(
-            ctx,
-            request,
-            "LocalizationLocaleChanged",
-            "localization.onLocaleChanged",
         )
         .await
     }
