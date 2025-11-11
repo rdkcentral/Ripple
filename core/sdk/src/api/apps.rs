@@ -23,7 +23,7 @@ use tokio::sync::oneshot;
 use uuid::Uuid;
 
 use crate::{
-    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider, ExtnResponse},
+    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider},
     framework::ripple_contract::RippleContract,
     utils::{channel_utils::oneshot_send_and_log, error::RippleError},
 };
@@ -99,43 +99,7 @@ pub struct AppLaunchInfo {
 }
 
 pub type AppResponse = Result<AppManagerResponse, AppError>;
-/*
-impl ExtnPayloadProvider for AppResponse {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        let response = if self.is_ok() {
-            if let Ok(resp) = self {
-                ExtnResponse::Value(serde_json::to_value(resp.clone()).unwrap())
-            } else {
-                ExtnResponse::None(())
-            }
-        } else {
-            ExtnResponse::Error(RippleError::ProcessorError)
-        };
 
-        ExtnPayload::Response(response)
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        if let ExtnPayload::Response(resp) = payload {
-            match resp {
-                ExtnResponse::Value(v) => {
-                    if let Ok(v) = serde_json::from_value(v) {
-                        return Some(Ok(v));
-                    }
-                }
-                ExtnResponse::Error(_) => return Some(Err(AppError::General)),
-                _ => {}
-            }
-        }
-
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::LifecycleManagement
-    }
-}
-*/
 #[derive(Debug, Clone)]
 pub struct AppRequest {
     pub method: AppMethod,
@@ -378,15 +342,6 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), RippleError::SenderMissing);
     }
-
-    /*
-    #[test]
-    fn test_extn_payload_provider_for_app_response() {
-        let app_response: AppResponse = Ok(AppManagerResponse::State(LifecycleState::Initializing));
-        let contract_type: RippleContract = RippleContract::LifecycleManagement;
-        test_extn_payload_provider(app_response, contract_type);
-    }
-    */
 
     #[test]
     fn test_extn_payload_provider_for_app_event_request() {

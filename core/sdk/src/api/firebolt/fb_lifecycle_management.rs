@@ -17,13 +17,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    api::{
-        apps::{AppSession, CloseReason},
-        device::entertainment_data::{InternalNavigationIntent, NavigationIntent},
-    },
-    extn::extn_client_message::{ExtnEvent, ExtnPayload, ExtnPayloadProvider, ExtnRequest},
-    framework::ripple_contract::RippleContract,
+use crate::api::{
+    apps::{AppSession, CloseReason},
+    device::entertainment_data::{InternalNavigationIntent, NavigationIntent},
 };
 
 use super::{fb_discovery::LaunchRequest, fb_lifecycle::LifecycleState};
@@ -46,28 +42,6 @@ pub enum LifecycleManagementEventRequest {
     Provide(LifecycleManagementProviderEvent),
 }
 
-/*
-impl ExtnPayloadProvider for LifecycleManagementEventRequest {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Event(ExtnEvent::Value(serde_json::to_value(self).unwrap()))
-    }
-
-    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        if let ExtnPayload::Event(ExtnEvent::Value(value)) = payload {
-            let result: Result<Self, serde_json::Error> = serde_json::from_value(value);
-            if let Ok(result) = result {
-                return Some(result);
-            }
-        }
-
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::Launcher
-    }
-}
-*/
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum LifecycleManagementRequest {
     Session(AppSessionRequest),
@@ -77,25 +51,7 @@ pub enum LifecycleManagementRequest {
     GetSecondScreenPayload(String),
     StartPage(String),
 }
-/*
-impl ExtnPayloadProvider for LifecycleManagementRequest {
-    fn get_extn_payload(&self) -> ExtnPayload {
-        ExtnPayload::Request(ExtnRequest::LifecycleManagement(self.clone()))
-    }
 
-    fn get_from_payload(payload: ExtnPayload) -> Option<Self> {
-        if let ExtnPayload::Request(ExtnRequest::LifecycleManagement(value)) = payload {
-            return Some(value);
-        }
-
-        None
-    }
-
-    fn contract() -> RippleContract {
-        RippleContract::LifecycleManagement
-    }
-}
-*/
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct LifecycleManagementLaunchEvent {
     pub parameters: LifecycleManagementLaunchParameters,
@@ -208,13 +164,11 @@ pub struct AppSessionRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::apps::{AppBasicInfo, AppLaunchInfo, AppRuntime, AppSession};
     use crate::api::device::entertainment_data::{
         HomeIntent, InternalNavigationIntent, InternalNavigationIntentStrict,
         NavigationIntentLoose, NavigationIntentStrict,
     };
     use crate::api::firebolt::fb_discovery::DiscoveryContext;
-    use crate::utils::test_utils::test_extn_payload_provider;
 
     #[test]
     fn test_get_intent_some() {
@@ -277,47 +231,4 @@ mod tests {
             }
         );
     }
-
-    /*
-    #[test]
-    fn test_extn_request_lifecycle_management() {
-        let app_session_request = AppSessionRequest {
-            session: AppSession {
-                app: AppBasicInfo {
-                    id: "sample_id".to_string(),
-                    catalog: None,
-                    url: None,
-                    title: None,
-                },
-                runtime: Some(AppRuntime {
-                    id: Some("sample_runtime_id".to_string()),
-                }),
-                launch: AppLaunchInfo::default(),
-            },
-        };
-        let lifecycle_management_request = LifecycleManagementRequest::Session(app_session_request);
-        let contract_type: RippleContract = RippleContract::LifecycleManagement;
-        test_extn_payload_provider(lifecycle_management_request, contract_type);
-    }
-
-    #[test]
-    fn test_lifecycle_management_launch_event_serialization() {
-        let launch_event =
-            LifecycleManagementEventRequest::Launch(LifecycleManagementLaunchEvent {
-                parameters: LifecycleManagementLaunchParameters {
-                    app_id: "example_app".to_string(),
-                    intent: Some(InternalNavigationIntent::NavigationIntentStrict(
-                        InternalNavigationIntentStrict::Home(HomeIntent {
-                            context: DiscoveryContext {
-                                source: "test_source".to_string(),
-                                age_policy: None,
-                            },
-                        }),
-                    )),
-                },
-            });
-        let contract_type: RippleContract = RippleContract::Launcher;
-        test_extn_payload_provider(launch_event, contract_type);
-    }
-    */
 }
