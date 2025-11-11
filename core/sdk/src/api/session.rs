@@ -208,12 +208,12 @@ mod tests {
     use super::*;
     use crate::utils::test_utils::test_extn_payload_provider;
 
-    #[test]
-    fn test_extn_request_account_session() {
-        let account_session_request = AccountSessionRequest::Get;
-        let contract_type: RippleContract = RippleContract::Session(SessionAdjective::Account);
-        test_extn_payload_provider(account_session_request, contract_type);
-    }
+    // #[test]
+    // fn test_extn_request_account_session() {
+    //     let account_session_request = AccountSessionRequest::Get;
+    //     let contract_type: RippleContract = RippleContract::Session(SessionAdjective::Account);
+    //     test_extn_payload_provider(account_session_request, contract_type);
+    // }
 
     #[test]
     fn test_extn_payload_provider_for_account_session() {

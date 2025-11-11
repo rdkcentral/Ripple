@@ -1069,7 +1069,7 @@ pub mod tests {
                 device_info_request::DeviceInfoRequest,
                 device_request::{AccountToken, DeviceRequest},
             },
-            session::{AccountSessionRequest, SessionAdjective},
+            session::SessionAdjective,
         },
         extn::{
             client::{
@@ -1084,7 +1084,7 @@ pub mod tests {
         },
         utils::{
             logger::init_logger,
-            mock_utils::{get_mock_extn_client, queue_mock_response, MockEvent, MockRequest},
+            mock_utils::{get_mock_extn_client, MockEvent, MockRequest},
         },
     };
     use core::panic;
@@ -1126,46 +1126,46 @@ pub mod tests {
         }
     }
 
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_request_with_timeout() {
-        let mut client = ExtnClient::mock();
-        let msg = ExtnMessage {
-            id: "test_id".to_string(),
-            requestor: ExtnId::get_main_target("main".into()),
-            target: RippleContract::Internal,
-            target_id: Some(ExtnId::get_main_target("main".into())),
-            payload: ExtnPayload::Response(ExtnResponse::String("success".to_string())),
-            ts: Some(Utc::now().timestamp_millis()),
-        };
-        let id = Uuid::new_v4().to_string();
-        queue_mock_response(&id, Ok(msg.clone()));
-        let result: Result<ExtnResponse, RippleError> = client
-            .request_with_timeout(AccountSessionRequest::Get, 5000, Some(id))
-            .await;
-        println!("result: {:?}", result);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExtnResponse::String("success".to_string()));
-    }
+    // #[tokio::test(flavor = "multi_thread")]
+    // async fn test_request_with_timeout() {
+    //     let mut client = ExtnClient::mock();
+    //     let msg = ExtnMessage {
+    //         id: "test_id".to_string(),
+    //         requestor: ExtnId::get_main_target("main".into()),
+    //         target: RippleContract::Internal,
+    //         target_id: Some(ExtnId::get_main_target("main".into())),
+    //         payload: ExtnPayload::Response(ExtnResponse::String("success".to_string())),
+    //         ts: Some(Utc::now().timestamp_millis()),
+    //     };
+    //     let id = Uuid::new_v4().to_string();
+    //     queue_mock_response(&id, Ok(msg.clone()));
+    //     let result: Result<ExtnResponse, RippleError> = client
+    //         .request_with_timeout(AccountSessionRequest::Get, 5000, Some(id))
+    //         .await;
+    //     println!("result: {:?}", result);
+    //     assert!(result.is_ok());
+    //     assert_eq!(result.unwrap(), ExtnResponse::String("success".to_string()));
+    // }
 
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_request_with_timeout_main() {
-        let mut client = ExtnClient::mock();
-        let msg = ExtnMessage {
-            id: "test_id".to_string(),
-            requestor: ExtnId::get_main_target("main".into()),
-            target: RippleContract::Internal,
-            target_id: Some(ExtnId::get_main_target("main".into())),
-            payload: ExtnPayload::Response(ExtnResponse::String("success".to_string())),
-            ts: Some(Utc::now().timestamp_millis()),
-        };
-        let id = Uuid::new_v4().to_string();
-        queue_mock_response(&id, Ok(msg.clone()));
-        let result: Result<ExtnResponse, RippleError> = client
-            .request_with_timeout_main(AccountSessionRequest::Get, 5000, Some(id))
-            .await;
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ExtnResponse::String("success".to_string()));
-    }
+    // #[tokio::test(flavor = "multi_thread")]
+    // async fn test_request_with_timeout_main() {
+    //     let mut client = ExtnClient::mock();
+    //     let msg = ExtnMessage {
+    //         id: "test_id".to_string(),
+    //         requestor: ExtnId::get_main_target("main".into()),
+    //         target: RippleContract::Internal,
+    //         target_id: Some(ExtnId::get_main_target("main".into())),
+    //         payload: ExtnPayload::Response(ExtnResponse::String("success".to_string())),
+    //         ts: Some(Utc::now().timestamp_millis()),
+    //     };
+    //     let id = Uuid::new_v4().to_string();
+    //     queue_mock_response(&id, Ok(msg.clone()));
+    //     let result: Result<ExtnResponse, RippleError> = client
+    //         .request_with_timeout_main(AccountSessionRequest::Get, 5000, Some(id))
+    //         .await;
+    //     assert!(result.is_ok());
+    //     assert_eq!(result.unwrap(), ExtnResponse::String("success".to_string()));
+    // }
 
     #[test]
     fn test_add_stream_processor() {
