@@ -33,7 +33,7 @@ pub mod openrpc_validator {
         }
     }
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Default)]
     pub struct RpcMethodValidator;
 
     impl RpcMethodValidator {

@@ -391,7 +391,7 @@ pub struct ContentPolicy {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum NavigationIntent {
-    NavigationIntentStrict(NavigationIntentStrict),
+    NavigationIntentStrict(Box<NavigationIntentStrict>),
     NavigationIntentLoose(NavigationIntentLoose),
 }
 
@@ -399,7 +399,7 @@ pub enum NavigationIntent {
 // To avoid the data loss during IEC InternalNavigationIntent is created so the Firebolt specification is not affected
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum InternalNavigationIntent {
-    NavigationIntentStrict(InternalNavigationIntentStrict),
+    NavigationIntentStrict(Box<InternalNavigationIntentStrict>),
     NavigationIntentLoose(NavigationIntentLoose),
 }
 
@@ -407,7 +407,9 @@ impl From<NavigationIntent> for InternalNavigationIntent {
     fn from(value: NavigationIntent) -> Self {
         match value {
             NavigationIntent::NavigationIntentLoose(l) => Self::NavigationIntentLoose(l),
-            NavigationIntent::NavigationIntentStrict(s) => Self::NavigationIntentStrict(s.into()),
+            NavigationIntent::NavigationIntentStrict(s) => {
+                Self::NavigationIntentStrict(Box::new((*s).into()))
+            }
         }
     }
 }
@@ -418,7 +420,7 @@ impl From<InternalNavigationIntent> for NavigationIntent {
         match value {
             InternalNavigationIntent::NavigationIntentLoose(l) => Self::NavigationIntentLoose(l),
             InternalNavigationIntent::NavigationIntentStrict(s) => {
-                Self::NavigationIntentStrict(s.into())
+                Self::NavigationIntentStrict(Box::new((*s).into()))
             }
         }
     }
@@ -426,9 +428,9 @@ impl From<InternalNavigationIntent> for NavigationIntent {
 
 impl Default for NavigationIntent {
     fn default() -> Self {
-        NavigationIntent::NavigationIntentStrict(
-            NavigationIntentStrict::Home(HomeIntent::default()),
-        )
+        NavigationIntent::NavigationIntentStrict(Box::new(NavigationIntentStrict::Home(
+            HomeIntent::default(),
+        )))
     }
 }
 

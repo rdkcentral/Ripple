@@ -288,7 +288,7 @@ pub struct AppLibraryEntry {
 pub enum AppManifestLoad {
     Remote(String),
     Local(String),
-    Embedded(AppManifest),
+    Embedded(Box<AppManifest>),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
