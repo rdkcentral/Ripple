@@ -37,11 +37,11 @@ pub struct DiscoveryContext {
     pub source: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "agePolicy")]
-    pub age_policy: Option<Vec<String>>,
+    pub age_policy: Option<String>,
 }
 
 impl DiscoveryContext {
-    pub fn new(source: &str, age_policy: Option<Vec<String>>) -> DiscoveryContext {
+    pub fn new(source: &str, age_policy: Option<String>) -> DiscoveryContext {
         DiscoveryContext {
             source: source.to_string(),
             age_policy,
