@@ -56,6 +56,7 @@ regex.workspace = true
 serde_json.workspace = true
 
 arrayvec = { version ="0.7.2", default-features = false }
+smallvec = { version = "1.11", default-features = false }
 env-file-reader = "0.2.0"
 sd-notify = { version = "0.4.1", optional = true }
 exitcode = "1.1.2"
@@ -74,6 +75,10 @@ strum_macros = "0.24"
 # Only included when openrpc_validation feature is enabled
 openrpc_validator = { path = "../../openrpc_validator", optional = true, default-features = false }
 proc-macro2.workspace = true
+
+# Memory allocator: jemalloc with aggressive settings for embedded platforms
+tikv-jemallocator = { version = "0.6", features = ["unprefixed_malloc_on_supported_platforms", "background_threads"] }
+tikv-jemalloc-ctl = { version  ="0.6", features = ["stats"]}
 
 [build-dependencies]
 vergen = "1"
