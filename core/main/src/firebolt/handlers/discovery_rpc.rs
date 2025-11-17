@@ -43,7 +43,7 @@ use ripple_sdk::{
         firebolt::{
             fb_capabilities::FireboltCap,
             fb_discovery::{
-                AgePolicy, LaunchRequest, DISCOVERY_EVENT_ON_NAVIGATE_TO, ENTITY_INFO_CAPABILITY,
+                LaunchRequest, DISCOVERY_EVENT_ON_NAVIGATE_TO, ENTITY_INFO_CAPABILITY,
                 ENTITY_INFO_EVENT, EVENT_DISCOVERY_POLICY_CHANGED, PURCHASED_CONTENT_CAPABILITY,
                 PURCHASED_CONTENT_EVENT,
             },
@@ -265,14 +265,7 @@ impl DiscoveryServer for DiscoveryImpl {
             .get_features()
             .intent_validation;
         validate_navigation_intent(intent_validation_config, request.intent.clone()).await?;
-        let policy_ids = self
-            .state
-            .policy_state
-            .policy_identifiers_alias
-            .read()
-            .unwrap()
-            .clone();
-        let req_updated_source = update_intent(ctx.app_id.clone(), policy_ids, request.clone());
+        let req_updated_source = update_intent(ctx.app_id.clone(), request.clone());
         info!(
             "Discovery.launch: req_updated_source: {:?}",
             &req_updated_source
@@ -528,11 +521,7 @@ impl DiscoveryServer for DiscoveryImpl {
         Ok(true)
     }
 }
-fn update_intent(
-    source: String,
-    _policy_ids: Vec<AgePolicy>,
-    request: LaunchRequest,
-) -> LaunchRequest {
+fn update_intent(source: String, request: LaunchRequest) -> LaunchRequest {
     match request.intent.clone() {
         Some(NavigationIntent::NavigationIntentStrict(navigation_intent)) => {
             let updated_navigation_intent = match navigation_intent {
