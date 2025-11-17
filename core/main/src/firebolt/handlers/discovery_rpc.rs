@@ -521,10 +521,7 @@ impl DiscoveryServer for DiscoveryImpl {
         Ok(true)
     }
 }
-fn update_intent(
-    source: String,
-    request: LaunchRequest,
-) -> LaunchRequest {
+fn update_intent(source: String, request: LaunchRequest) -> LaunchRequest {
     match request.intent.clone() {
         Some(NavigationIntent::NavigationIntentStrict(navigation_intent)) => {
             let updated_navigation_intent = match navigation_intent {
