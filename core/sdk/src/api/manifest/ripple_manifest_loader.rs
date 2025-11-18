@@ -38,13 +38,12 @@ pub struct RippleManifestConfig {
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]
+#[serde(default)]
 struct DefaultManifestConfig {
     device: String,
     extn: String,
     tag: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     test_device: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     test_extn: Option<String>,
 }
 
