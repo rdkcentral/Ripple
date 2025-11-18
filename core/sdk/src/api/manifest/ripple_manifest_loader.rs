@@ -42,8 +42,10 @@ struct DefaultManifestConfig {
     device: String,
     extn: String,
     tag: Option<String>,
-    test_device: String,
-    test_extn: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    test_device: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    test_extn: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]
@@ -354,13 +356,17 @@ impl RippleConfigLoader {
         };
 
         let test_path = if is_extn {
-            self.manifest_config.default.test_extn.as_str()
+            self.manifest_config.default.test_extn.as_deref()
         } else {
-            self.manifest_config.default.test_device.as_str()
+            self.manifest_config.default.test_device.as_deref()
         };
 
-        let test_path_resolved = if !test_path.is_empty() {
-            Some(self.resolve_path(test_path))
+        let test_path_resolved = if let Some(path) = test_path {
+            if !path.is_empty() {
+                Some(self.resolve_path(path))
+            } else {
+                None
+            }
         } else {
             None
         };
