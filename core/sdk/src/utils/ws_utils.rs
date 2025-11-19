@@ -202,11 +202,20 @@ impl WebSocketUtils {
         RippleError,
     > {
         let mut index: i32 = 0;
+        let mut retry_count: u32 = 0;
         let mut delay_duration = tokio::time::Duration::from_millis(retry_every);
+
         loop {
             match Self::connect_tcp_port(&tcp_port, &url_path).await {
                 Ok(v) => {
-                    info!("Websocket TCP Connection with {} succeeded", url_path);
+                    if retry_count > 0 {
+                        info!(
+                            "Websocket TCP Connection with {} succeeded after {} retries",
+                            url_path, retry_count
+                        );
+                    } else {
+                        info!("Websocket TCP Connection with {} succeeded", url_path);
+                    }
                     break Ok(v);
                 }
                 Err(e) => {
@@ -220,18 +229,28 @@ impl WebSocketUtils {
                     }
                 }
             }
+
             if let Some(fail) = &config.fail_after {
                 if fail.eq(&index) {
+                    warn!(
+                        "Websocket TCP Connection with {} failed after {} retries",
+                        url_path, retry_count
+                    );
                     break Err(RippleError::NotAvailable);
                 }
             }
+
             index += 1;
+            retry_count += 1;
+
             warn!(
-                "new Websocket TCP Connection with {} failed with retry for last {} millisecs in {}",
+                "Websocket TCP Connection with {} failed (retry #{}) - retrying after {} ms on {}",
                 url_path,
+                retry_count,
                 delay_duration.as_millis(),
                 tcp_port
             );
+
             if delay_duration < tokio::time::Duration::from_secs(3) {
                 delay_duration *= 2;
             }

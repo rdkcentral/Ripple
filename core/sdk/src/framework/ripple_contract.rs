@@ -81,7 +81,6 @@ pub enum RippleContract {
     AppEvents,
     /// Device channel specific events which get cascaded across Main and Extensions like Power, HDCP
     DeviceEvents(EventAdjective),
-    /// Contract which controls User Privacy Settings will become an Adjective in near future
     /// Contract to allow Extensions to  get and set Settings.
     Settings,
     /// Extensions can use this contract to get more information on the firebolt capabilities  

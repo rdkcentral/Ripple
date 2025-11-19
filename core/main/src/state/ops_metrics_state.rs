@@ -23,7 +23,7 @@ use std::{
 use ripple_sdk::{
     api::observability::metrics_util::ApiStats,
     chrono::{DateTime, Utc},
-    log::{error, warn},
+    log::trace,
 };
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
@@ -79,7 +79,7 @@ impl OpMetricState {
 
         let size = api_stats_map.len();
         if size >= API_STATS_MAP_SIZE_WARNING {
-            warn!("add_api_stats: api_stats_map size warning: {}", size);
+            trace!("add_api_stats: api_stats_map size warning: {}", size);
         }
     }
 
@@ -93,7 +93,7 @@ impl OpMetricState {
         if let Some(stats) = api_stats_map.get_mut(request_id) {
             stats.stats_ref = stats_ref;
         } else {
-            println!(
+            trace!(
                 "update_api_stats_ref: request_id not found: request_id={}",
                 request_id
             );
@@ -105,7 +105,7 @@ impl OpMetricState {
         if let Some(stats) = api_stats_map.get_mut(request_id) {
             stats.stats.update_stage(stage)
         } else {
-            error!(
+            trace!(
                 "update_api_stage: request_id not found: request_id={}",
                 request_id
             );

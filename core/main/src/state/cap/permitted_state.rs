@@ -187,11 +187,16 @@ impl PermissionHandler {
                             &mut permission_response_copy,
                         );
                     }
+                    error!("cloud_fetch_and_store : Invalid permission_response");
                     Err(RippleError::InvalidOutput)
                 }
-                None => Err(RippleError::InvalidOutput),
+                None => {
+                    error!("cloud_fetch_and_store : No extn_response found");
+                    Err(RippleError::InvalidOutput)
+                }
             }
         } else {
+            error!("cloud_fetch_and_store : No account session found");
             Err(RippleError::InvalidOutput)
         }
     }

@@ -25,5 +25,3 @@ pub mod pin_processor;
 pub mod rpc_gateway_processor;
 pub mod settings_processor;
 pub mod storage;
-pub mod store_privacy_settings_processor;
-pub mod store_user_grants_processor;

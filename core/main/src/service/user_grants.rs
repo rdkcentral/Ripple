@@ -39,9 +39,7 @@ use ripple_sdk::{
                 PolicyPersistenceType,
             },
         },
-        distributor::distributor_usergrants::{
-            UserGrantsCloudSetParams, UserGrantsCloudStoreRequest,
-        },
+        distributor::distributor_usergrants::UserGrantsCloudSetParams,
         firebolt::{
             fb_capabilities::{
                 CapEvent, CapabilityRole, DenyReason, DenyReasonWithCap, FireboltCap,
@@ -1179,15 +1177,37 @@ impl GrantPolicyEnforcer {
                 return;
             }
 
+            // Convert to rule-based call using BrokerUtils for distributor
             let usergrants_cloud_set_params = UserGrantsCloudSetParams {
                 account_session,
                 user_grant_info,
             };
-            let request =
-                UserGrantsCloudStoreRequest::SetCloudUserGrants(usergrants_cloud_set_params);
-            let resp = platform_state.get_client().send_extn_request(request).await;
-            if resp.is_err() {
-                error!("Unable to sync usergrants to cloud. Unable to send request to extn");
+
+            // Serialize the parameters for the rule-based call
+            let params = match serde_json::to_value(&usergrants_cloud_set_params) {
+                Ok(value) => Some(value),
+                Err(e) => {
+                    error!(
+                        "Unable to sync usergrants to cloud. Failed to serialize parameters: {}",
+                        e
+                    );
+                    return;
+                }
+            };
+
+            // Make the rule-based call to distributor using internal broker system
+            let result = crate::broker::broker_utils::BrokerUtils::process_internal_main_request(
+                platform_state,
+                "distributor.usergrants.setCloudUserGrants",
+                params,
+            )
+            .await;
+
+            if result.is_err() {
+                error!(
+                    "Unable to sync usergrants to cloud. Rule-based request failed: {:?}",
+                    result
+                );
             }
         }
     }
