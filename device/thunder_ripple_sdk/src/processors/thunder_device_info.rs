@@ -269,18 +269,17 @@ impl ThunderDeviceInfoRequestProcessor {
         let resp = state
             .get_thunder_client()
             .call(DeviceCallRequest {
-                method: ThunderPlugin::System.method("getSystemVersions"),
+                method: ThunderPlugin::System.method("getDeviceInfo"),
                 params: None,
             })
             .await;
         info!("{}", resp.message);
-        let resp = resp.message.get("stbVersion");
-        if resp.is_none() {
-            return "NA".to_owned();
-        }
-        let resp = resp.unwrap().as_str().unwrap().trim_matches('"');
-        let split_string: Vec<&str> = resp.split('_').collect();
-        String::from(split_string[0])
+
+        let model_number = resp.message.get("model_number")
+            .and_then(|v| v.as_str())
+            .unwrap_or("NA");
+
+        model_number.to_owned()
     }
 
     async fn get_model(state: &CachedState) -> String {
