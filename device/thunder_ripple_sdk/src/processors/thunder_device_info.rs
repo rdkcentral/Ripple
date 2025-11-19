@@ -275,7 +275,9 @@ impl ThunderDeviceInfoRequestProcessor {
             .await;
         info!("{}", resp.message);
 
-        let model_number = resp.message.get("model_number")
+        let model_number = resp
+            .message
+            .get("model_number")
             .and_then(|v| v.as_str())
             .unwrap_or("NA");
 
