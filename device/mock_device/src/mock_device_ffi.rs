@@ -94,7 +94,7 @@ fn start() {
     };
 
     if let Ok(service_client) =
-        ServiceClient::builder(EXTN_NAME.into(), ExtnClassId::Gateway).build()
+        ServiceClient::builder(EXTN_NAME.into(), ExtnClassId::Device).build()
     {
         info!("Service client built successfully");
         match Runtime::new() {
