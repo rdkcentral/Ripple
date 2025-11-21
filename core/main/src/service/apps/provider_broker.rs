@@ -21,9 +21,6 @@ use ripple_sdk::{
         firebolt::{
             fb_capabilities::{CapEvent, FireboltCap},
             fb_general::ListenRequest,
-            fb_lifecycle_management::{
-                LifecycleManagementEventRequest, LifecycleManagementProviderEvent,
-            },
             fb_openrpc::FireboltOpenRpcMethod,
             provider::{
                 FocusRequest, GenericProviderError, ProviderRequest, ProviderRequestPayload,
@@ -330,16 +327,6 @@ impl ProviderBroker {
         match active_sessions.remove(&resp.correlation_id) {
             Some(session) => {
                 oneshot_send_and_log(session.caller.tx, resp.result, "ProviderResponse");
-                if session.focused {
-                    let app_id = session.provider.provider.app_id;
-                    let event = LifecycleManagementEventRequest::Provide(
-                        LifecycleManagementProviderEvent::Remove(app_id),
-                    );
-                    let client = pst.clone().get_client();
-                    if let Err(e) = client.send_event(event) {
-                        error!("send event error {:?}", e);
-                    }
-                }
             }
             None => {
                 error!("Ignored provider response because there was no active session waiting")
@@ -420,16 +407,6 @@ impl ProviderBroker {
         let mut active_sessions = pst.provider_broker_state.active_sessions.write().unwrap();
         if let Some(session) = active_sessions.get_mut(&request.correlation_id) {
             session.focused = true;
-            if pst.has_internal_launcher() {
-                let app_id = session.provider.provider.app_id.clone();
-                let event = LifecycleManagementEventRequest::Provide(
-                    LifecycleManagementProviderEvent::Add(app_id),
-                );
-                let client = pst.clone().get_client();
-                if let Err(e) = client.send_event(event) {
-                    error!("send event error {:?}", e);
-                }
-            }
         } else {
             warn!("Focus: No active session for request");
         }
