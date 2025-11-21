@@ -14,7 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-
 use jsonrpsee::{core::server::rpc_module::Methods, types::TwoPointZero};
 use ripple_sdk::{
     api::{
@@ -39,6 +38,7 @@ use ripple_sdk::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt;
 
 use crate::{
     broker::endpoint_broker::BrokerOutput,
@@ -76,15 +76,136 @@ pub struct JsonRpcError {
     pub data: Option<Value>,
 }
 
+/// Validation errors for identifier types
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IdentifierError {
+    Empty,
+    InvalidUuid(String),
+    InvalidAppId(String),
+    InvalidFormat(String),
+}
+/// Internal connection tracking identifier, may differ from session ID (must be UUID)
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ConnectionId(String);
+
+// Implementation for ConnectionId (UUID-based)
+impl ConnectionId {
+    /// Creates a new ConnectionId with validation
+    // pub fn new(id: impl Into<String>) -> Result<Self, IdentifierError> {
+    //     let id_str = id.into();
+    //     validate_uuid(&id_str)?;
+    //     Ok(Self(id_str))
+    // }
+
+    /// Creates a ConnectionId without validation (for migration/legacy support)
+    /// Use sparingly and only during migration period
+    pub fn new_unchecked(id: impl Into<String>) -> Self {
+        let id_str = id.into();
+
+        // Log validation errors to help identify problematic usage during migration
+        // if let Err(err) = validate_uuid(&id_str) {
+        //     log::warn!(
+        //         "ConnectionId::new_unchecked used with invalid UUID: {} (error: {})",
+        //         id_str,
+        //         err
+        //     );
+        // }
+
+        Self(id_str)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn into_string(self) -> String {
+        self.0
+    }
+}
+
+impl fmt::Display for ConnectionId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+// impl FromStr for ConnectionId {
+//     type Err = IdentifierError;
+
+//     fn from_str(s: &str) -> Result<Self, Self::Err> {
+//         Self::new(s)
+//     }
+// }
+
+// impl TryFrom<String> for ConnectionId {
+//     type Error = IdentifierError;
+
+//     fn try_from(s: String) -> Result<Self, Self::Error> {
+//         Self::new(s)
+//     }
+// }
+
+// impl AsRef<str> for ConnectionId {
+//     fn as_ref(&self) -> &str {
+//         &self.0
+//     }
+// }
+
+/// WebSocket session identifier used for client connections (must be UUID)
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct SessionId(String);
+
+impl SessionId {
+    /// Creates a new SessionId with validation
+    // pub fn new(id: impl Into<String>) -> Result<Self, IdentifierError> {
+    //     let id_str = id.into();
+    //     validate_uuid(&id_str)?;
+    //     Ok(Self(id_str))
+    // }
+
+    /// Creates a SessionId without validation (for migration/legacy support)
+    /// Use sparingly and only during migration period
+    pub fn new_unchecked(id: impl Into<String>) -> Self {
+        let id_str = id.into();
+
+        // Log validation errors to help identify problematic usage during migration
+        // if let Err(err) = validate_uuid(&id_str) {
+        //     log::warn!(
+        //         "SessionId::new_unchecked used with invalid UUID: {} (error: {})",
+        //         id_str,
+        //         err
+        //     );
+        // }
+
+        Self(id_str)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn into_string(self) -> String {
+        self.0
+    }
+}
+
+impl fmt::Display for SessionId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum FireboltGatewayCommand {
     RegisterSession {
-        session_id: String,
+        session_id: SessionId,
         session: Session,
     },
     UnregisterSession {
-        session_id: String,
-        cid: String,
+        session_id: SessionId,
+        cid: ConnectionId,
     },
     HandleRpc {
         request: RpcRequest,
@@ -134,21 +255,36 @@ impl FireboltGateway {
                     session_id,
                     session,
                 } => {
+                    // Convert SessionId to ConnectionId since session_id actually contains the connection_id
+                    // This is part of the session leak fix - we use connection_id as the HashMap key
+                    let connection_id = ConnectionId::new_unchecked(session_id.into_string());
                     self.state
                         .platform_state
                         .session_state
-                        .add_session(session_id, session);
+                        .add_session(connection_id.to_string(), session);
                 }
-                UnregisterSession { session_id, cid } => {
-                    AppEvents::remove_session(&self.state.platform_state, session_id.clone());
-                    ProviderBroker::unregister_session(&self.state.platform_state, cid.clone())
-                        .await;
+                UnregisterSession { session_id: _, cid } => {
+                    // Use cid for all cleanup operations since that's what we used as the HashMap key during registration
+                    AppEvents::remove_session(&self.state.platform_state, cid.as_str().to_string());
+                    ProviderBroker::unregister_session(
+                        &self.state.platform_state,
+                        cid.as_str().to_string(),
+                    )
+                    .await;
                     self.state
                         .platform_state
                         .endpoint_state
-                        .cleanup_for_app(&cid)
+                        .cleanup_for_app(cid.as_str())
                         .await;
-                    self.state.platform_state.session_state.clear_session(&cid);
+                    self.state
+                        .platform_state
+                        .session_state
+                        .clear_session(&cid.to_string());
+
+                    // Flush tokio worker thread allocator caches after cleanup
+                    for _ in 0..3 {
+                        tokio::task::yield_now().await;
+                    }
                 }
                 HandleRpc { request } => self.handle(request, None).await,
                 HandleRpcForExtn { msg } => {
@@ -584,3 +720,211 @@ async fn send_json_rpc_error(
         );
     }
 }
+
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use crate::state::session_state::Session;
+//     use ripple_sdk::tokio::sync::mpsc;
+
+//     #[test]
+//     fn test_firebolt_gateway_command_uses_newtypes() {
+//         // Test that FireboltGatewayCommand properly uses SessionId and ConnectionId newtypes
+//         let session_id = SessionId::new("550e8400-e29b-41d4-a716-446655440000").unwrap();
+//         let connection_id = ConnectionId::new("123e4567-e89b-12d3-a456-426614174000").unwrap();
+//         let (tx, _rx) = mpsc::channel(1);
+//         let session = Session::new("test_app".to_string(), Some(tx));
+
+//         // Test RegisterSession command
+//         let register_cmd = FireboltGatewayCommand::RegisterSession {
+//             session_id: session_id.clone(),
+//             session: session.clone(),
+//         };
+
+//         // Test UnregisterSession command
+//         let unregister_cmd = FireboltGatewayCommand::UnregisterSession {
+//             session_id: session_id.clone(),
+//             cid: connection_id.clone(),
+//         };
+
+//         // Verify the commands can be created and cloned (testing Debug trait)
+//         assert!(format!("{:?}", register_cmd).contains("RegisterSession"));
+//         assert!(format!("{:?}", unregister_cmd).contains("UnregisterSession"));
+
+//         // Test cloning works
+//         let _cloned_register = register_cmd.clone();
+//         let _cloned_unregister = unregister_cmd.clone();
+//     }
+
+//     #[test]
+//     fn test_firebolt_gateway_command_serialization() {
+//         // Test that FireboltGatewayCommand with newtypes can be serialized/deserialized
+//         let session_id = SessionId::new("550e8400-e29b-41d4-a716-446655440000").unwrap();
+//         let connection_id = ConnectionId::new("123e4567-e89b-12d3-a456-426614174000").unwrap();
+
+//         // Test that our newtypes serialize correctly
+//         let session_json = serde_json::to_string(&session_id).unwrap();
+//         assert_eq!(session_json, "\"550e8400-e29b-41d4-a716-446655440000\"");
+
+//         let connection_json = serde_json::to_string(&connection_id).unwrap();
+//         assert_eq!(connection_json, "\"123e4567-e89b-12d3-a456-426614174000\"");
+
+//         // Test deserialization
+//         let deserialized_session: SessionId = serde_json::from_str(&session_json).unwrap();
+//         let deserialized_connection: ConnectionId = serde_json::from_str(&connection_json).unwrap();
+
+//         assert_eq!(deserialized_session.as_str(), session_id.as_str());
+//         assert_eq!(deserialized_connection.as_str(), connection_id.as_str());
+//     }
+
+//     #[test]
+//     fn test_session_id_connection_id_type_safety() {
+//         // This test demonstrates that our newtypes prevent type confusion at compile time
+//         let session_uuid = "550e8400-e29b-41d4-a716-446655440000";
+//         let connection_uuid = "123e4567-e89b-12d3-a456-426614174000";
+
+//         let session_id = SessionId::new(session_uuid).unwrap();
+//         let connection_id = ConnectionId::new(connection_uuid).unwrap();
+
+//         // These should be different types even with same UUID format
+//         assert_eq!(session_id.as_str(), session_uuid);
+//         assert_eq!(connection_id.as_str(), connection_uuid);
+
+//         // If we accidentally tried to use them interchangeably, it would be a compile error:
+//         // let wrong_cmd = FireboltGatewayCommand::RegisterSession {
+//         //     session_id: connection_id,  // ← This would fail to compile!
+//         //     session: session,
+//         // };
+//     }
+
+//     #[test]
+//     fn test_json_rpc_message_with_newtype_integration() {
+//         // Test that our JsonRpc structures work with the newtype refactor
+//         let error = JsonRpcError {
+//             code: 1001,
+//             message: "Test error".to_string(),
+//             data: None,
+//         };
+
+//         let message = JsonRpcMessage {
+//             jsonrpc: TwoPointZero,
+//             id: 123,
+//             error: Some(error),
+//         };
+
+//         // Should serialize correctly
+//         let serialized = serde_json::to_string(&message).unwrap();
+//         assert!(serialized.contains("Test error"));
+//         assert!(serialized.contains("1001"));
+
+//         // Should deserialize correctly
+//         let deserialized: JsonRpcMessage = serde_json::from_str(&serialized).unwrap();
+//         assert_eq!(deserialized.id, 123);
+//         assert_eq!(deserialized.error.unwrap().message, "Test error");
+//     }
+
+//     #[test]
+//     fn test_newtype_migration_compatibility() {
+//         // Test that our new_unchecked methods support migration from String
+//         let legacy_session_id = "some-legacy-session-id";
+//         let legacy_connection_id = "some-legacy-connection-id";
+
+//         // These should work even with non-UUID strings (for migration)
+//         let session_id = SessionId::new_unchecked(legacy_session_id);
+//         let connection_id = ConnectionId::new_unchecked(legacy_connection_id);
+
+//         assert_eq!(session_id.as_str(), legacy_session_id);
+//         assert_eq!(connection_id.as_str(), legacy_connection_id);
+
+//         // They should convert back to strings correctly
+//         assert_eq!(session_id.into_string(), legacy_session_id);
+//         assert_eq!(connection_id.into_string(), legacy_connection_id);
+//     }
+
+//     #[test]
+//     fn test_session_leak_fix_identifier_consistency() {
+//         // Test that demonstrates the session leak fix
+//         // The fix ensures registration and unregistration use consistent identifiers
+
+//         use crate::state::session_state::{Session, SessionState};
+
+//         let session_state = SessionState::default();
+
+//         // Simulate a connection_id (what's actually used as the HashMap key)
+//         let connection_id =
+//             ConnectionId::new_unchecked("550e8400-e29b-41d4-a716-446655440000".to_string());
+//         let different_session_id = "user-provided-session"; // Different from connection_id
+
+//         // Create a session
+//         let session = Session::new("test.app".into(), None);
+
+//         // Test 1: Simulate the correct behavior (what the fix ensures)
+//         // Register session with connection_id as key
+//         session_state.add_session(connection_id.clone(), session.clone());
+
+//         // Verify session was added
+//         let session_exists = session_state
+//             .get_session_for_connection_id(&connection_id)
+//             .is_some();
+//         assert!(
+//             session_exists,
+//             "Session should be registered with connection_id as key"
+//         );
+
+//         // Remove session using same connection_id (correct behavior)
+//         session_state.clear_session(&connection_id);
+
+//         // Verify session was properly removed (no leak)
+//         let session_exists_after = session_state
+//             .get_session_for_connection_id(&connection_id)
+//             .is_some();
+//         assert!(
+//             !session_exists_after,
+//             "Session should be cleaned up completely - no leak!"
+//         );
+
+//         // Test 2: Simulate the old buggy behavior (before the fix)
+//         // Register session with one identifier (using legacy method to simulate old behavior)
+//         session_state.add_session_legacy(different_session_id.to_string(), session.clone());
+
+//         // Verify session was added (using legacy method)
+//         let session_exists_2 = session_state
+//             .get_session_for_connection_id_legacy(different_session_id)
+//             .is_some();
+//         assert!(
+//             session_exists_2,
+//             "Session should be registered with different_session_id"
+//         );
+
+//         // Try to remove using different identifier (this would be the bug!)
+//         let wrong_connection_id = ConnectionId::new_unchecked(connection_id.as_str().to_string());
+//         session_state.clear_session(&wrong_connection_id); // Wrong key!
+
+//         // Session should still exist because we used wrong key for removal
+//         let session_still_exists = session_state
+//             .get_session_for_connection_id_legacy(different_session_id)
+//             .is_some();
+//         assert!(
+//             session_still_exists,
+//             "Session should still exist - this would be the leak!"
+//         );
+
+//         // Clean up properly for test (using legacy method)
+//         session_state.clear_session_legacy(different_session_id);
+//         let cleaned_up = session_state
+//             .get_session_for_connection_id_legacy(different_session_id)
+//             .is_some();
+//         assert!(!cleaned_up, "Session should be cleaned up with correct key");
+
+//         // Test 3: Verify our newtype system helps prevent confusion
+//         let session_id_newtype = SessionId::new_unchecked(connection_id.as_str().to_string());
+//         let connection_id_newtype = ConnectionId::new_unchecked(connection_id.as_str().to_string());
+
+//         // With newtypes, both should represent the same underlying value
+//         assert_eq!(session_id_newtype.as_str(), connection_id_newtype.as_str());
+//         assert_eq!(
+//             session_id_newtype.into_string(),
+//             connection_id.into_string()
+//         );
+//     }
+// }
