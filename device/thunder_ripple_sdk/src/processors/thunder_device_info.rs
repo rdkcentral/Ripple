@@ -187,19 +187,28 @@ pub struct ThunderNetworkService;
 
 impl ThunderNetworkService {
     pub async fn has_internet(state: &ThunderState) -> bool {
-        let response = state
+        let resp = state
             .get_thunder_client()
             .call(DeviceCallRequest {
                 method: ThunderPlugin::Network.method("isConnectedToInternet"),
                 params: None,
             })
             .await;
-        info!("{}", response.message);
-        let response = response.message.get("connectedToInternet");
-        if response.is_none() {
+
+        if let Some(error) = resp.message.get("error") {
+            error!(
+                "isConnectedToInternet call FAILED response of error:{:?}",
+                error
+            );
             return false;
         }
-        let v = response.unwrap().as_bool().unwrap_or(false);
+
+        let response = match resp.message.get("connectedToInternet") {
+            Some(val) => val,
+            None => return false,
+        };
+
+        let v = response.as_bool().unwrap_or(false);
         let _ = state
             .get_client()
             .request_transient(RippleContextUpdateRequest::InternetStatus(v.into()));
@@ -262,7 +271,11 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        info!("{}", resp.message);
+
+        if let Some(error) = resp.message.get("error") {
+            error!("getSerialNumber call FAILED response of error:{:?}", error);
+            return "".to_string();
+        }
 
         resp.message["serialNumber"]
             .as_str()
@@ -277,12 +290,20 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        info!("{}", resp.message);
-        let resp = resp.message.get("stbVersion");
-        if resp.is_none() {
-            return "NA".to_owned();
+
+        if let Some(error) = resp.message.get("error") {
+            error!(
+                "getSystemVersions call FAILED response of error:{:?}",
+                error
+            );
+            return "".to_string();
         }
-        let resp = resp.unwrap().as_str().unwrap().trim_matches('"');
+
+        let response = match resp.message.get("stbVersion") {
+            Some(val) => val,
+            None => return "NA".to_owned(),
+        };
+        let resp = response.as_str().unwrap().trim_matches('"');
         let split_string: Vec<&str> = resp.split('_').collect();
         String::from(split_string[0])
     }
@@ -313,7 +334,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        info!("{}", response.message);
+
         if !check_thunder_response_success(&response) {
             error!("{}", response.message);
             return HashMap::new();
@@ -347,7 +368,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        info!("{}", response.message);
+
         let mut hdcp_response = HashMap::new();
         let resp = response.message.get("supportedHDCPVersion");
 
@@ -409,7 +430,8 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        info!("{}", resp.message);
+
+        info!("getHDCPStatus call response msg: {}", resp.message);
         if let Ok(thdcp) = serde_json::from_value::<ThunderHDCPStatus>(resp.message) {
             response = thdcp.hdcp_status;
         }
@@ -442,7 +464,19 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        info!("{}", response.message);
+
+        if let Some(error) = response.message.get("error") {
+            error!(
+                "getTVHDRCapabilities call FAILED response of error:{:?}",
+                error
+            );
+            return HashMap::new();
+        }
+
+        info!(
+            "getTVHDRCapabilities call response msg: {}",
+            response.message
+        );
         let supported_cap: u32 = response.message["capabilities"]
             .to_string()
             .parse()
@@ -480,7 +514,15 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        info!("{}", resp.message);
+
+        if let Some(error) = resp.message.get("error") {
+            error!(
+                "getSystemVersions call FAILED response of error:{:?}",
+                error
+            );
+            return FireboltSemanticVersion::default();
+        }
+
         if let Ok(tsv) = serde_json::from_value::<SystemVersion>(resp.message) {
             let tsv_split = tsv.receiver_version.split('.');
             let tsv_vec: Vec<&str> = tsv_split.collect();
@@ -546,7 +588,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
-        info!("{}", response.message);
+
         if check_thunder_response_success(&response) {
             if let Some(v) = response.message["freeRam"].as_u64() {
                 return Self::respond(state.get_client(), req, ExtnResponse::Value(json!(v)))
@@ -554,7 +596,7 @@ impl ThunderDeviceInfoRequestProcessor {
                     .is_ok();
             }
         }
-        error!("{}", response.message);
+        error!("getSystemMemory call response msg: {}", response.message);
         Self::handle_error(state.get_client(), req, RippleError::ProcessorError).await
     }
 
@@ -567,7 +609,7 @@ impl ThunderDeviceInfoRequestProcessor {
             })
             .await;
 
-        info!("getTimeZoneDST: {}", response.message);
+        info!("getTimeZoneDST call response msg: {}", response.message);
         if check_thunder_response_success(&response) {
             if let Ok(v) = serde_json::from_value::<ThunderTimezoneResponse>(response.message) {
                 return Ok(v.time_zone);
@@ -685,6 +727,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
+
         if let Some(v) = response.message["isenabled"].as_bool() {
             return Self::respond(state.get_client(), request, ExtnResponse::Boolean(v))
                 .await
@@ -711,6 +754,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 params,
             })
             .await;
+
         if check_thunder_response_success(&response) {
             return Self::ack(state.get_client(), request).await.is_ok();
         }
@@ -725,6 +769,15 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
+
+        if let Some(error) = response.message.get("error") {
+            error!(
+                "getttsconfiguration call FAILED response of error:{:?}",
+                error
+            );
+            return false;
+        }
+
         if let Some(rate) = response.message["rate"].as_f64() {
             return Self::respond(
                 state.get_client(),
@@ -745,6 +798,14 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
+
+        if let Some(error) = response.message.get("error") {
+            error!(
+                "getttsconfiguration call FAILED response of error:{:?}",
+                error
+            );
+            return Err(());
+        }
 
         if let Some(rate) = response.message["rate"].as_f64() {
             return Ok(scale_voice_speed_from_thunder_to_firebolt(rate as f32));
@@ -771,6 +832,7 @@ impl ThunderDeviceInfoRequestProcessor {
                 params,
             })
             .await;
+
         if check_thunder_response_success(&response) {
             return Self::ack(state.get_client(), request).await.is_ok();
         }
@@ -815,6 +877,15 @@ impl ThunderDeviceInfoRequestProcessor {
                 params: None,
             })
             .await;
+
+        if let Some(error) = resp.message.get("error") {
+            error!(
+                "getSystemVersions call FAILED response of error:{:?}",
+                error
+            );
+            return false;
+        }
+
         if let Ok(tsv) = serde_json::from_value::<SystemVersion>(resp.message) {
             let release_regex = Regex::new(r"([^_]*)_(.*)_(VBN|PROD[^_]*)_(.*)").unwrap();
             let non_release_regex =

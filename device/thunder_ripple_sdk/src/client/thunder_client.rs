@@ -165,7 +165,7 @@ impl DeviceOperator for ThunderClient {
             }
             let result = rx.await;
             if let Err(ref e) = result {
-                error!("subscribe: e={:?}", e);
+                error!("subscribe: error={:?}", e);
             }
             result
         } else {

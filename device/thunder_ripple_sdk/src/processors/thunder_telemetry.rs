@@ -161,7 +161,7 @@ impl ExtnEventProcessor for ThunderTelemetryProcessor {
 
         if let Ok(data) = render_event_data(&extracted_message) {
             info!("Sending telemetry event: {}", data);
-            state
+            let _ = state
                 .get_thunder_client()
                 .call(DeviceCallRequest {
                     method: ThunderPlugin::Telemetry.unversioned_method("logApplicationEvent"),
