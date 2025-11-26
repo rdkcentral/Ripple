@@ -349,7 +349,7 @@ impl ProviderRegistrar {
                         for (method, _handler_method) in method_map.iter() {
                             if method.to_lowercase().contains(&search_term) {
                                 info!(
-                                    "callback_provider_invoker: Injection method found: {}",
+                                    "callback_app_event_emitter: Injection method found: {}",
                                     method
                                 );
 
