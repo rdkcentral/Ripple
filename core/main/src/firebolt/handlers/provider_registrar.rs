@@ -335,10 +335,8 @@ impl ProviderRegistrar {
 
             let result_value = match event_data {
                 Value::Object(ref event_data_map) => {
-                    // 1. Call the new function, destructuring the returned tuple
                     let method_map = load_app_injection_method_list();
                     let search_term = context.method.clone().to_lowercase();
-                    let mut found = false;
 
                     let mut result_map = Map::new();
                     for (key, value) in event_data_map {
@@ -346,18 +344,14 @@ impl ProviderRegistrar {
                     }
 
                     if method_map.is_empty() {
-                        info!("The map is currently **empty**. Cannot search for method.");
+                        info!("The map is currently empty. Cannot search for method.");
                     } else {
-                        // 2. Use the returned `search_term` for iteration
                         for (method, _handler_method) in method_map.iter() {
-                            // Check if the handler method (value) contains the search term
-
                             if method.to_lowercase().contains(&search_term) {
                                 info!(
                                     "callback_provider_invoker: Injection method found: {}",
                                     method
                                 );
-                                //else, insert provider_app_id into response_map
 
                                 if !result_map.contains_key("appId") {
                                     if let Some(context) = call_context.clone() {
@@ -370,17 +364,9 @@ impl ProviderRegistrar {
                                         result_map.insert("appId".to_string(), Value::Null);
                                     }
                                 }
-                                found = true;
 
                                 break;
                             }
-                        }
-
-                        if !found {
-                            info!(
-                                "callback_provider_invoker: No injection method found for: {}",
-                                context.method
-                            );
                         }
                     }
 
@@ -571,22 +557,18 @@ impl ProviderRegistrar {
                     }
                 };
 
-                // 1. Call the new function, destructuring the returned tuple
                 let method_map = load_app_injection_method_list();
                 let search_term = context.method.clone().to_lowercase();
 
                 let mut response_map = Map::new();
-                //else, insert provider_app_id into response_map
                 for (key, value) in provider_response_value_map {
                     response_map.insert(key.clone(), value.clone());
                 }
 
                 if method_map.is_empty() {
-                    info!("The map is currently **empty**. Cannot search for method.");
+                    info!("The map is currently empty. Cannot search for method.");
                 } else {
-                    // 2. Use the returned `search_term` for iteration
                     for (method, _handler_method) in method_map.iter() {
-                        // Check if the handler method (value) contains the search term
                         if method.to_lowercase().contains(&search_term) {
                             info!(
                                 "callback_provider_invoker: Injection method found: {}",
@@ -601,11 +583,6 @@ impl ProviderRegistrar {
                             break;
                         }
                     }
-
-                    info!(
-                        "callback_provider_invoker: No injection method found for: {}",
-                        context.method
-                    );
                 }
                 Ok(Value::Object(response_map))
             }
@@ -1056,6 +1033,24 @@ mod tests {
         if let ProviderResponsePayload::GenericError(c) = result.result {
             assert!(c.code == -60001);
             assert!(c.message.eq("The Player with 'ipa' id does not exist"))
+        }
+    }
+
+    #[test]
+    fn test_load_app_injection_method_list() {
+        let method_map = load_app_injection_method_list();
+        assert!(!method_map.is_empty());
+    }
+
+    #[test]
+    fn test_load_app_injection_method_list_values() {
+        let method_map = load_app_injection_method_list();
+        for (key, value) in method_map.iter() {
+            if key.eq("Discovery.userInterest") {
+                assert!(value.eq("Content.onUserInterest"));
+            }
+
+            assert!(method_map.contains_key("Discovery.userInterest"));
         }
     }
 }
