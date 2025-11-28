@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use crate::{
     firebolt::rpc::register_aliases,
@@ -49,6 +49,33 @@ use ripple_sdk::{
     utils::{rpc_utils::rpc_error_with_code_result, serde_utils::SerdeClearString},
 };
 use serde_json::{Map, Value};
+
+// The hardcoded JSON string remains a static global variable.
+static APP_INJECTION_METHOD_LIST_JSON: &str = r#"
+    {
+        "Discovery.userInterest": "Content.onUserInterest"
+    }
+"#;
+
+fn load_app_injection_method_list() -> HashMap<String, String> {
+    let parse_result: Result<HashMap<String, String>, serde_json::Error> =
+        serde_json::from_str(APP_INJECTION_METHOD_LIST_JSON);
+
+    match parse_result {
+        // If parsing is successful (Ok), return the map.
+        Ok(map) => {
+            info!("APP_INJECTION_METHOD_LIST JSON successfully loaded.");
+            map
+        }
+        Err(e) => {
+            error!(
+                "ERROR: Failed to parse APP_INJECTION_METHOD_LIST JSON string: {}",
+                e
+            );
+            HashMap::new() // Default value: an empty HashMap
+        }
+    }
+}
 
 // TODO: Add to config
 const DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS: u64 = 15000;
@@ -308,41 +335,42 @@ impl ProviderRegistrar {
 
             let result_value = match event_data {
                 Value::Object(ref event_data_map) => {
-                    if let Some(event_schema_map) = context
-                        .platform_state
-                        .open_rpc_state
-                        .get_openrpc_validator()
-                        .get_closest_result_properties_schema(event, event_data_map)
-                    {
-                        // Populate the event result, injecting the app ID if the field exists in the event schema
+                    let method_map = load_app_injection_method_list();
+                    let search_term = context.method.clone().to_lowercase();
 
-                        let mut result_map = Map::new();
+                    let mut result_map = Map::new();
+                    for (key, value) in event_data_map {
+                        result_map.insert(key.clone(), value.clone());
+                    }
 
-                        for key in event_schema_map.keys() {
-                            if let Some(event_value) = event_data_map.get(key) {
-                                result_map.insert(key.clone(), event_value.clone());
-                            } else if key.eq("appId") {
-                                if let Some(context) = call_context.clone() {
-                                    result_map.insert(key.clone(), Value::String(context.app_id));
-                                } else {
-                                    error!("callback_app_event_emitter: Missing call context, could not determine app ID");
-                                    result_map.insert(key.clone(), Value::Null);
+                    if method_map.is_empty() {
+                        info!("The map is currently empty. Cannot search for method.");
+                    } else {
+                        for (method, _handler_method) in method_map.iter() {
+                            if method.to_lowercase().contains(&search_term) {
+                                info!(
+                                    "callback_app_event_emitter: Injection method found: {}",
+                                    method
+                                );
+
+                                if !result_map.contains_key("appId") {
+                                    if let Some(context) = call_context.clone() {
+                                        result_map.insert(
+                                            "appId".to_string(),
+                                            Value::String(context.app_id),
+                                        );
+                                    } else {
+                                        error!("callback_app_event_emitter: Missing call context, could not determine app ID");
+                                        result_map.insert("appId".to_string(), Value::Null);
+                                    }
                                 }
-                            } else {
-                                error!(
-                                "callback_app_event_emitter: Missing field in event data: field={}",
-                                key);
 
-                                // Assume the field in the schema holds the contents of the event. This
-                                // is the fragile part that should probably be addressed by a schema change.
-                                result_map.insert(key.clone(), event_data.clone());
+                                break;
                             }
                         }
-
-                        Value::Object(result_map)
-                    } else {
-                        event_data.clone()
                     }
+
+                    Value::Object(result_map)
                 }
                 _ => event_data.clone(),
             };
@@ -529,73 +557,31 @@ impl ProviderRegistrar {
                     }
                 };
 
-                let result_properties_map = match context
-                    .platform_state
-                    .open_rpc_state
-                    .get_openrpc_validator()
-                    .get_closest_result_properties_schema(
-                        &context.method,
-                        provider_response_value_map,
-                    ) {
-                    Some(result_properties_map) => result_properties_map,
-                    None => {
-                        error!("callback_provider_invoker: Result schema not found");
-                        return Err(Error::Custom(String::from("Result schema not found")));
-                    }
-                };
-
-                // Inject the provider app ID if the field exists in the provided-to response schema, the other field will be
-                // the provider response. The firebolt spec is not ideal in that the provider response data is captured
-                // within a field of the provided-to's response object, hence the somewhat arbritrary logic here. Ideally
-                // the provided-to response object would be identical to the provider response object aside from an optional
-                // appId field.
+                let method_map = load_app_injection_method_list();
+                let search_term = context.method.clone().to_lowercase();
 
                 let mut response_map = Map::new();
-                for key in result_properties_map.keys() {
-                    if let Some(field) = provider_response_value_map.get(key) {
-                        response_map.insert(key.clone(), field.clone());
-                    } else if key.eq("appId") {
-                        response_map.insert(
-                            key.clone(),
-                            Value::String(provider_app_id.clone().unwrap_or_default()),
-                        );
-                    } else if let Some(Value::Object(result_property_map)) =
-                        result_properties_map.get(key)
-                    {
-                        let reference_path = match result_property_map.get("$ref") {
-                            Some(Value::String(path)) => path,
-                            _ => {
-                                error!("callback_provider_invoker: $ref not found: key={}", key);
-                                continue;
+                for (key, value) in provider_response_value_map {
+                    response_map.insert(key.clone(), value.clone());
+                }
+
+                if method_map.is_empty() {
+                    info!("The map is currently empty. Cannot search for method.");
+                } else {
+                    for (method, _handler_method) in method_map.iter() {
+                        if method.to_lowercase().contains(&search_term) {
+                            info!(
+                                "callback_provider_invoker: Injection method found: {}",
+                                method
+                            );
+
+                            if !response_map.contains_key("appId") {
+                                if let Some(app_id) = provider_app_id.clone() {
+                                    response_map.insert("appId".to_string(), Value::String(app_id));
+                                }
                             }
-                        };
-
-                        if let Some(ref_properties_map) = context
-                            .platform_state
-                            .open_rpc_state
-                            .get_openrpc_validator()
-                            .get_result_ref_schema(reference_path)
-                        {
-                            // If any (!) of the keys match, assume the field in the schema holds the contents of the provider response. This
-                            // is the fragile part that should be addressed by a spec change, as Ripple can only guess at intention.
-
-                            if provider_response_value_map
-                                .keys()
-                                .any(|key| ref_properties_map.contains_key(key))
-                            {
-                                response_map.insert(key.clone(), provider_response_value.clone());
-
-                                // Just bail now, we're dumping the complete provider response into the response map
-                                // under some key in the schema, so it's either right or wrong but continuing to iterate
-                                // would be wrong-er.
-
-                                return Ok(Value::Object(response_map));
-                            }
-                        } else {
-                            error!("callback_provider_invoker: ref_properties_map not found");
+                            break;
                         }
-                    } else {
-                        error!("callback_provider_invoker: Not an object: key={}", key);
                     }
                 }
                 Ok(Value::Object(response_map))
@@ -1047,6 +1033,24 @@ mod tests {
         if let ProviderResponsePayload::GenericError(c) = result.result {
             assert!(c.code == -60001);
             assert!(c.message.eq("The Player with 'ipa' id does not exist"))
+        }
+    }
+
+    #[test]
+    fn test_load_app_injection_method_list() {
+        let method_map = load_app_injection_method_list();
+        assert!(!method_map.is_empty());
+    }
+
+    #[test]
+    fn test_load_app_injection_method_list_values() {
+        let method_map = load_app_injection_method_list();
+        for (key, value) in method_map.iter() {
+            if key.eq("Discovery.userInterest") {
+                assert!(value.eq("Content.onUserInterest"));
+            }
+
+            assert!(method_map.contains_key("Discovery.userInterest"));
         }
     }
 }
