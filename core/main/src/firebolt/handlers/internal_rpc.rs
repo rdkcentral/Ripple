@@ -17,6 +17,7 @@
 
 use crate::service::settings_processor::{get_settings_map, subscribe_to_settings};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
+use crate::utils::rpc_utils::rpc_add_event_listener;
 use ripple_sdk::{
     api::{
         apps::{AppEvent, AppEventRequest, AppManagerResponse, AppMethod, AppRequest, AppResponse},
@@ -35,6 +36,7 @@ use ripple_sdk::{
         },
         gateway::rpc_gateway_api::CallContext,
         settings::{SettingValue, SettingsRequest, SettingsRequestParam},
+        storage_property::EVENT_POLICY_IDENTIFIER_ALIAS_CHANGED,
     },
     async_trait::async_trait,
     log::{debug, error},
@@ -60,6 +62,8 @@ use crate::{
     state::platform_state::PlatformState,
     utils::rpc_utils::rpc_await_oneshot,
 };
+use ripple_sdk::api::firebolt::fb_general::ListenRequest;
+use ripple_sdk::api::firebolt::fb_general::ListenerResponse;
 
 #[rpc(server)]
 pub trait Internal {
@@ -91,6 +95,13 @@ pub trait Internal {
 
     #[method(name = "ripple.getSecondScreenPayload")]
     async fn get_second_screen_payload(&self, ctx: CallContext) -> RpcResult<String>;
+
+    #[method(name = "account.onPolicyIdentifierAliasChanged")]
+    async fn on_policy_identifier_alias_changed(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
 
     #[method(name = "account.setPolicyIdentifierAlias")]
     async fn set_policy_identifier_alias(
@@ -225,12 +236,39 @@ impl InternalServer for InternalImpl {
         params: PolicyIdentifierAlias,
     ) -> RpcResult<()> {
         debug!("Setting policy identifier alias: {:?}", params);
-        self.state.add_policy_identifier_alias(params);
+        let current_age_policies = self.state.get_policy_identifier_alias();
+        let new_age_policies = params.policy_identifier_alias.clone();
+        if current_age_policies == new_age_policies {
+            debug!("Policy identifier alias is the same as existing, no update needed");
+            return Ok(());
+        }
+
+        self.state.add_policy_identifier_alias(params.clone());
+        let value = serde_json::to_value(&params).unwrap_or_default();
+        AppEvents::emit(&self.state, EVENT_POLICY_IDENTIFIER_ALIAS_CHANGED, &value).await;
         Ok(())
     }
 
     async fn get_policy_identifier_alias(&self, _ctx: CallContext) -> RpcResult<Vec<AgePolicy>> {
         Ok(self.state.get_policy_identifier_alias())
+    }
+
+    async fn on_policy_identifier_alias_changed(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        debug!(
+            "Subscribing to policy identifier alias changed event request: {:?}",
+            request
+        );
+        rpc_add_event_listener(
+            &self.state,
+            ctx,
+            request,
+            EVENT_POLICY_IDENTIFIER_ALIAS_CHANGED,
+        )
+        .await
     }
 
     async fn get_second_screen_payload(&self, ctx: CallContext) -> RpcResult<String> {
