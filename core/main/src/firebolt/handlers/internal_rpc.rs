@@ -16,8 +16,8 @@
 //
 
 use crate::service::settings_processor::{get_settings_map, subscribe_to_settings};
-use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
 use crate::utils::rpc_utils::rpc_add_event_listener;
+use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
 use ripple_sdk::{
     api::{
         apps::{AppEvent, AppEventRequest, AppManagerResponse, AppMethod, AppRequest, AppResponse},
