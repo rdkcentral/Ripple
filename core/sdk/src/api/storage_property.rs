@@ -116,6 +116,7 @@ pub const EVENT_ALLOW_UNENTITLED_RESUME_POINTS_CHANGED: &str =
     "privacy.onAllowUnentitledResumePointsChanged";
 pub const EVENT_ALLOW_WATCH_HISTORY_CHANGED: &str = "privacy.onAllowWatchHistoryChanged";
 pub const EVENT_DEVICE_NAME_CHANGED: &str = "device.onNameChanged";
+pub const EVENT_POLICY_IDENTIFIER_ALIAS_CHANGED: &str = "account.onPolicyIdentifierAliasChanged";
 pub const EVENT_DEVICE_DEVICE_NAME_CHANGED: &str = "device.onDeviceNameChanged";
 pub const EVENT_SECOND_SCREEN_FRIENDLY_NAME_CHANGED: &str = "secondscreen.onFriendlyNameChanged";
 pub const EVENT_ADVERTISING_POLICY_CHANGED: &str = "advertising.onPolicyChanged";
