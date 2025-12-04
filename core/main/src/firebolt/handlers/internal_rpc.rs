@@ -36,7 +36,6 @@ use ripple_sdk::{
         },
         gateway::rpc_gateway_api::CallContext,
         settings::{SettingValue, SettingsRequest, SettingsRequestParam},
-        storage_property::EVENT_POLICY_IDENTIFIER_ALIAS_CHANGED,
     },
     async_trait::async_trait,
     log::{debug, error},
@@ -64,6 +63,8 @@ use crate::{
 };
 use ripple_sdk::api::firebolt::fb_general::ListenRequest;
 use ripple_sdk::api::firebolt::fb_general::ListenerResponse;
+
+pub const EVENT_POLICY_IDENTIFIER_ALIAS_CHANGED: &str = "account.onPolicyIdentifierAliasChanged";
 
 #[rpc(server)]
 pub trait Internal {
