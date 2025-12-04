@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use crate::utils::rpc_utils::rpc_add_event_listener;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc, RpcModule};
 use ripple_sdk::{
     api::{
@@ -43,6 +44,10 @@ use crate::{
     state::platform_state::PlatformState,
     utils::rpc_utils::rpc_await_oneshot,
 };
+use ripple_sdk::api::firebolt::fb_general::ListenRequest;
+use ripple_sdk::api::firebolt::fb_general::ListenerResponse;
+
+const EVENT_POLICY_IDENTIFIER_ALIAS_CHANGED: &str = "account.onPolicyIdentifierAliasChanged";
 
 #[rpc(server)]
 pub trait Internal {
@@ -78,6 +83,13 @@ pub trait Internal {
         ctx: CallContext,
         params: PolicyIdentifierAlias,
     ) -> RpcResult<()>;
+
+    #[method(name = "account.onPolicyIdentifierAliasChanged")]
+    async fn on_policy_identifier_alias_changed(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse>;
 
     #[method(name = "account.policyIdentifierAlias")]
     async fn get_policy_identifier_alias(&self, ctx: CallContext) -> RpcResult<Vec<AgePolicy>>;
@@ -167,12 +179,39 @@ impl InternalServer for InternalImpl {
         params: PolicyIdentifierAlias,
     ) -> RpcResult<()> {
         debug!("Setting policy identifier alias: {:?}", params);
-        self.state.add_policy_identifier_alias(params);
+        let current_age_policies = self.state.get_policy_identifier_alias();
+        let new_age_policies = params.policy_identifier_alias.clone();
+        if current_age_policies == new_age_policies {
+            debug!("Policy identifier alias is the same as existing, no update needed");
+            return Ok(());
+        }
+
+        self.state.add_policy_identifier_alias(params.clone());
+        let value = serde_json::to_value(&params).unwrap_or_default();
+        AppEvents::emit(&self.state, EVENT_POLICY_IDENTIFIER_ALIAS_CHANGED, &value).await;
         Ok(())
     }
 
     async fn get_policy_identifier_alias(&self, _ctx: CallContext) -> RpcResult<Vec<AgePolicy>> {
         Ok(self.state.get_policy_identifier_alias())
+    }
+
+    async fn on_policy_identifier_alias_changed(
+        &self,
+        ctx: CallContext,
+        request: ListenRequest,
+    ) -> RpcResult<ListenerResponse> {
+        debug!(
+            "Subscribing to policy identifier alias changed event request: {:?}",
+            request
+        );
+        rpc_add_event_listener(
+            &self.state,
+            ctx,
+            request,
+            EVENT_POLICY_IDENTIFIER_ALIAS_CHANGED,
+        )
+        .await
     }
 }
 
