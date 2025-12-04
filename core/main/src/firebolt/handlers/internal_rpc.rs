@@ -64,7 +64,7 @@ use crate::{
 use ripple_sdk::api::firebolt::fb_general::ListenRequest;
 use ripple_sdk::api::firebolt::fb_general::ListenerResponse;
 
-pub const EVENT_POLICY_IDENTIFIER_ALIAS_CHANGED: &str = "account.onPolicyIdentifierAliasChanged";
+const EVENT_POLICY_IDENTIFIER_ALIAS_CHANGED: &str = "account.onPolicyIdentifierAliasChanged";
 
 #[rpc(server)]
 pub trait Internal {
