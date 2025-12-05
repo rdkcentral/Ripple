@@ -237,9 +237,9 @@ impl InternalServer for InternalImpl {
         params: PolicyIdentifierAlias,
     ) -> RpcResult<()> {
         debug!("Setting policy identifier alias: {:?}", params);
-        let current_age_policies = self.state.get_policy_identifier_alias();
-        let new_age_policies = params.policy_identifier_alias.clone();
-        if current_age_policies == new_age_policies {
+        let current_policy_identifiers = self.state.get_policy_identifier_alias();
+        let new_policy_identifiers = params.policy_identifier_alias.clone();
+        if current_policy_identifiers == new_policy_identifiers {
             debug!("Policy identifier alias is the same as existing, no update needed");
             return Ok(());
         }
