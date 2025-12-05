@@ -23,7 +23,7 @@ use ripple_sdk::{
         caps::CapsRequest,
         firebolt::{
             fb_discovery::{AgePolicy, PolicyIdentifierAlias},
-            fb_general::ListenRequestWithEvent,
+            fb_general::{ListenRequest, ListenRequestWithEvent, ListenerResponse},
             fb_telemetry::TelemetryPayload,
         },
         gateway::rpc_gateway_api::CallContext,
@@ -44,8 +44,6 @@ use crate::{
     state::platform_state::PlatformState,
     utils::rpc_utils::rpc_await_oneshot,
 };
-use ripple_sdk::api::firebolt::fb_general::ListenRequest;
-use ripple_sdk::api::firebolt::fb_general::ListenerResponse;
 
 const EVENT_POLICY_IDENTIFIER_ALIAS_CHANGED: &str = "account.onPolicyIdentifierAliasChanged";
 
