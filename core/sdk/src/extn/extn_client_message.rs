@@ -493,7 +493,7 @@ pub enum ExtnResponse {
     StorageData(StorageData),
     NetworkResponse(NetworkResponse),
     TimezoneWithOffset(String, i64),
-    DefaultApp(AppLibraryEntry),
+    DefaultApp(Box<AppLibraryEntry>),
     Settings(HashMap<String, SettingValue>),
     BoolMap(HashMap<String, bool>),
 }

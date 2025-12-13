@@ -435,7 +435,7 @@ impl DiscoveryServer for DiscoveryImpl {
     ) -> RpcResult<bool> {
         let response = ProviderResponse {
             correlation_id: entity_info.correlation_id,
-            result: ProviderResponsePayload::EntityInfoResponse(entity_info.result),
+            result: ProviderResponsePayload::EntityInfoResponse(Box::new(entity_info.result)),
         };
         ProviderBroker::provider_response(&self.state, response).await;
         Ok(true)
@@ -524,7 +524,7 @@ impl DiscoveryServer for DiscoveryImpl {
 fn update_intent(source: String, request: LaunchRequest) -> LaunchRequest {
     match request.intent.clone() {
         Some(NavigationIntent::NavigationIntentStrict(navigation_intent)) => {
-            let updated_navigation_intent = match navigation_intent {
+            let updated_navigation_intent = match *navigation_intent {
                 NavigationIntentStrict::Home(mut home_intent) => {
                     home_intent.context.source = source;
                     NavigationIntentStrict::Home(home_intent)
@@ -569,9 +569,9 @@ fn update_intent(source: String, request: LaunchRequest) -> LaunchRequest {
 
             LaunchRequest {
                 app_id: request.app_id,
-                intent: Some(NavigationIntent::NavigationIntentStrict(
+                intent: Some(NavigationIntent::NavigationIntentStrict(Box::new(
                     updated_navigation_intent,
-                )),
+                ))),
             }
         }
         Some(NavigationIntent::NavigationIntentLoose(mut loose_intent)) => {

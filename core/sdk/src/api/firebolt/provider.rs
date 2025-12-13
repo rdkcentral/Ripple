@@ -75,7 +75,7 @@ pub enum ProviderResponsePayload {
     GenericError(GenericProviderError),
     PinChallengeResponse(PinChallengeResponse),
     KeyboardResult(KeyboardSessionResponse),
-    EntityInfoResponse(Option<EntityInfoResult>),
+    EntityInfoResponse(Box<Option<EntityInfoResult>>),
     PurchasedContentResponse(PurchasedContentResult),
     GenericResponse(serde_json::Value),
 }
@@ -109,7 +109,7 @@ impl ProviderResponsePayload {
 
     pub fn as_entity_info_result(&self) -> Option<Option<EntityInfoResult>> {
         match self {
-            ProviderResponsePayload::EntityInfoResponse(res) => Some(res.clone()),
+            ProviderResponsePayload::EntityInfoResponse(res) => Some((**res).clone()),
             _ => None,
         }
     }
@@ -129,7 +129,9 @@ impl ProviderResponsePayload {
                 serde_json::to_value(res).unwrap()
             }
             ProviderResponsePayload::KeyboardResult(res) => serde_json::to_value(res).unwrap(),
-            ProviderResponsePayload::EntityInfoResponse(res) => serde_json::to_value(res).unwrap(),
+            ProviderResponsePayload::EntityInfoResponse(res) => {
+                serde_json::to_value(res.clone()).unwrap()
+            }
             ProviderResponsePayload::PurchasedContentResponse(res) => {
                 serde_json::to_value(res).unwrap()
             }
@@ -341,11 +343,12 @@ mod tests {
                 audio_descriptions: Some(vec!["en".to_string()]),
             }]),
         };
-        let response = ProviderResponsePayload::EntityInfoResponse(Some(EntityInfoResult {
-            expires: "expires".to_string(),
-            entity: entity_info.clone(),
-            related: None,
-        }));
+        let response =
+            ProviderResponsePayload::EntityInfoResponse(Box::new(Some(EntityInfoResult {
+                expires: "expires".to_string(),
+                entity: entity_info.clone(),
+                related: None,
+            })));
         assert_eq!(
             response.as_entity_info_result(),
             Some(Some(EntityInfoResult {

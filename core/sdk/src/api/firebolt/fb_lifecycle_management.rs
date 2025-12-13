@@ -256,11 +256,11 @@ mod tests {
     fn test_get_launch_request() {
         let launch_params = LifecycleManagementLaunchParameters {
             app_id: "test_app".to_string(),
-            intent: Some(InternalNavigationIntent::NavigationIntentStrict(
+            intent: Some(InternalNavigationIntent::NavigationIntentStrict(Box::new(
                 InternalNavigationIntentStrict::Home(HomeIntent {
                     context: DiscoveryContext::new("voice", None),
                 }),
-            )),
+            ))),
         };
 
         let launch_request = launch_params.get_launch_request();
@@ -268,11 +268,11 @@ mod tests {
             launch_request,
             LaunchRequest {
                 app_id: "test_app".to_string(),
-                intent: Some(NavigationIntent::NavigationIntentStrict(
+                intent: Some(NavigationIntent::NavigationIntentStrict(Box::new(
                     NavigationIntentStrict::Home(HomeIntent {
                         context: DiscoveryContext::new("voice", None),
                     }),
-                )),
+                ))),
             }
         );
     }
@@ -304,14 +304,14 @@ mod tests {
             LifecycleManagementEventRequest::Launch(LifecycleManagementLaunchEvent {
                 parameters: LifecycleManagementLaunchParameters {
                     app_id: "example_app".to_string(),
-                    intent: Some(InternalNavigationIntent::NavigationIntentStrict(
+                    intent: Some(InternalNavigationIntent::NavigationIntentStrict(Box::new(
                         InternalNavigationIntentStrict::Home(HomeIntent {
                             context: DiscoveryContext {
                                 source: "test_source".to_string(),
                                 age_policy: None,
                             },
                         }),
-                    )),
+                    ))),
                 },
             });
         let contract_type: RippleContract = RippleContract::Launcher;
