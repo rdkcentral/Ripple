@@ -15,12 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use std::{
-    net::SocketAddr,
-    sync::{Arc, RwLock},
-};
-
-use super::firebolt_gateway::FireboltGatewayCommand;
+use super::firebolt_gateway::{ConnectionId, FireboltGatewayCommand, SessionId};
 use crate::{
     service::apps::delegated_launcher_handler::{AppManagerState, AppManagerState2_0},
     service::ripple_service::service_controller_state::ServiceControllerState,
@@ -55,6 +50,10 @@ use ripple_sdk::{
     uuid::Uuid,
 };
 use ripple_sdk::{log::debug, tokio};
+use std::{
+    net::SocketAddr,
+    sync::{Arc, RwLock},
+};
 #[allow(dead_code)]
 pub struct FireboltWs {}
 
@@ -339,7 +338,7 @@ impl FireboltWs {
         let connection_id_c = connection_id.clone();
 
         let msg = FireboltGatewayCommand::RegisterSession {
-            session_id: connection_id.clone(),
+            session_id: SessionId::new_unchecked(connection_id.clone()),
             session: session.clone(),
         };
         if let Err(e) = client.send_gateway_command(msg) {
@@ -462,8 +461,8 @@ impl FireboltWs {
         }
         debug!("SESSION DEBUG Unregistering {}", connection_id);
         let msg = FireboltGatewayCommand::UnregisterSession {
-            session_id: identity.session_id.clone(),
-            cid: connection_id,
+            session_id: SessionId::new_unchecked(connection_id.clone()),
+            cid: ConnectionId::new_unchecked(connection_id.clone()),
         };
         if let Err(e) = client.send_gateway_command(msg) {
             error!("Error Unregistering {:?}", e);
