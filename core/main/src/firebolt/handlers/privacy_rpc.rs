@@ -26,6 +26,13 @@ use jsonrpsee::{
     proc_macros::rpc,
     RpcModule,
 };
+use ripple_sdk::api::device::device_user_grants_data::GrantStatus;
+use ripple_sdk::api::distributor::distributor_privacy::ShareWatchHistoryRequest;
+use ripple_sdk::api::distributor::distributor_usergrants::{
+    UserGrantsCloudSetParams, UserGrantsCloudStoreRequest,
+};
+use ripple_sdk::api::usergrant_entry::UserGrantInfo;
+use ripple_sdk::log::{error, info};
 use ripple_sdk::utils::rpc_utils::rpc_error_with_code_result;
 use ripple_sdk::{
     api::{
@@ -61,7 +68,6 @@ use std::collections::HashMap;
 
 pub const US_PRIVACY_KEY: &str = "us_privacy";
 pub const LMT_KEY: &str = "lmt";
-
 #[derive(Debug, Clone)]
 struct AllowAppContentAdTargetingSettings {
     lmt: String,
@@ -318,6 +324,13 @@ pub trait Privacy {
     ) -> RpcResult<ListenerResponse>;
     #[method(name = "privacy.settings")]
     async fn get_settings(&self, ctx: CallContext) -> RpcResult<PrivacySettings>;
+
+    #[method(name = "privacysettings.shareWatchHistory")]
+    async fn set_share_watch_history(
+        &self,
+        ctx: CallContext,
+        share: ShareWatchHistoryRequest,
+    ) -> RpcResult<()>;
 }
 
 pub async fn get_allow_app_content_ad_targeting_settings(
@@ -1092,6 +1105,57 @@ impl PrivacyServer for PrivacyImpl {
                         "Account session is not available",
                     )))
                 }
+            }
+        }
+    }
+    async fn set_share_watch_history(
+        &self,
+        ctx: CallContext,
+        request: ShareWatchHistoryRequest,
+    ) -> RpcResult<()> {
+        info!(
+            "RPC call: privacySettings.shareWatchHistory with share={}",
+            request.share
+        );
+        let session = self.state.session_state.get_account_session().unwrap();
+
+        // Create a UserGrantInfo object for watch history sharing
+
+        let user_grant_info = UserGrantInfo {
+            status: if request.share {
+                Some(GrantStatus::Allowed)
+            } else {
+                Some(GrantStatus::Denied)
+            },
+            app_name: Some(ctx.app_id),
+            capability: "xrn:firebolt:privacy-settings:share-watch-history".to_string(),
+            ..Default::default()
+        };
+
+        // Remove optOutContext field for now as it is supported only by xcal:primaryContentAdTargeting privacy setting
+        // let opt_out_context = "xcal:watchHistory".to_string();
+
+        let params = UserGrantsCloudSetParams {
+            account_session: session,
+            user_grant_info,
+        };
+
+        let payload = UserGrantsCloudStoreRequest::SetCloudUserGrants(params);
+
+        match self.state.get_client().send_extn_request(payload).await {
+            Ok(_) => {
+                info!(
+                    "Successfully set watch history sharing to {}",
+                    request.share
+                );
+                Ok(())
+            }
+            Err(e) => {
+                error!("Failed to set watch history sharing: {:?}", e);
+                Err(jsonrpsee::core::Error::Custom(format!(
+                    "Failed to set watch history sharing: {:?}",
+                    e
+                )))
             }
         }
     }
