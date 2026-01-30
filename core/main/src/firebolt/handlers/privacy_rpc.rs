@@ -1128,7 +1128,6 @@ impl PrivacyServer for PrivacyImpl {
                 Some(GrantStatus::Denied)
             },
             app_name: Some(ctx.app_id),
-            capability: "xrn:firebolt:privacy-settings:share-watch-history".to_string(),
             ..Default::default()
         };
 
