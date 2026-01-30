@@ -579,77 +579,6 @@ impl DiscoveryServer for DiscoveryImpl {
         )))
     }
 
-    // async fn launch(&self, ctx: CallContext, request: LaunchRequest) -> RpcResult<bool> {
-    //     let app_defaults_configuration = self.state.get_device_manifest().applications.defaults;
-
-    //     let intent_validation_config = self
-    //         .state
-    //         .get_device_manifest()
-    //         .get_features()
-    //         .intent_validation;
-    //     validate_navigation_intent(intent_validation_config, request.intent.clone()).await?;
-
-    //     let req_updated_source = update_intent_source(ctx.app_id.clone(), request.clone());
-
-    //     if let Some(reserved_app_id) =
-    //         app_defaults_configuration.get_reserved_application_id(&request.app_id)
-    //     {
-    //         if reserved_app_id.is_empty() {
-    //             return Err(rpc_navigate_reserved_app_err(
-    //                 format!(
-    //                     "Discovery.launch: Cannot find a valid reserved app id for {}",
-    //                     request.app_id
-    //                 )
-    //                 .as_str(),
-    //             ));
-    //         }
-
-    //         // Not validating the intent, pass-through to app as is.
-    //         if !AppEvents::is_app_registered_for_event(
-    //             &self.state,
-    //             reserved_app_id.to_string(),
-    //             DISCOVERY_EVENT_ON_NAVIGATE_TO,
-    //         ) {
-    //             return Err(rpc_navigate_reserved_app_err(
-    //                 format!("Discovery.launch: reserved app id {} is not registered for discovery.onNavigateTo event",
-    //                 reserved_app_id).as_str(),
-    //             ));
-    //         }
-    //         // emit EVENT_ON_NAVIGATE_TO to the reserved app.
-    //         AppEvents::emit_to_app(
-    //             &self.state,
-    //             reserved_app_id.to_string(),
-    //             DISCOVERY_EVENT_ON_NAVIGATE_TO,
-    //             &serde_json::to_value(req_updated_source.intent).unwrap(),
-    //         )
-    //         .await;
-    //         info!(
-    //             "emit_to_app called for app {} event {}",
-    //             reserved_app_id.to_string(),
-    //             DISCOVERY_EVENT_ON_NAVIGATE_TO
-    //         );
-    //         return Ok(true);
-    //     }
-    //     let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
-
-    //     let app_request =
-    //         AppRequest::new(AppMethod::Launch(req_updated_source.clone()), app_resp_tx);
-
-    //     if self
-    //         .state
-    //         .get_client()
-    //         .send_app_request(app_request)
-    //         .is_ok()
-    //         && app_resp_rx.await.is_ok()
-    //     {
-    //         return Ok(true);
-    //     }
-
-    //     Err(jsonrpsee::core::Error::Custom(String::from(
-    //         "Discovery.launch: some failure",
-    //     )))
-    // }
-
     async fn on_navigate_to(
         &self,
         ctx: CallContext,
@@ -840,7 +769,7 @@ impl DiscoveryServer for DiscoveryImpl {
         }
     }
 }
-fn update_intent_source(source : String, request: LaunchRequest) -> LaunchRequest {
+fn update_intent_source(source: String, request: LaunchRequest) -> LaunchRequest {
     match request.intent.clone() {
         Some(NavigationIntent::NavigationIntentStrict(navigation_intent)) => {
             let updated_navigation_intent = match navigation_intent {
