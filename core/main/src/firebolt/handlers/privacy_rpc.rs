@@ -1139,7 +1139,7 @@ impl PrivacyServer for PrivacyImpl {
             user_grant_info,
         };
 
-        let payload = UserGrantsCloudStoreRequest::SetCloudUserGrants(params);
+        let payload = UserGrantsCloudStoreRequest::SetShareWatchHistoryCloud(params);
 
         match self.state.get_client().send_extn_request(payload).await {
             Ok(_) => {

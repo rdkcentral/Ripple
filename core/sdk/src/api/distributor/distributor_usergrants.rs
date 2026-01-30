@@ -37,10 +37,12 @@ pub struct UserGrantsCloudSetParams {
     pub account_session: AccountSession,
     pub user_grant_info: UserGrantInfo,
 }
+
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum UserGrantsCloudStoreRequest {
     GetCloudUserGrants(UserGrantsCloudGetParams),
     SetCloudUserGrants(UserGrantsCloudSetParams),
+    SetShareWatchHistoryCloud(UserGrantsCloudSetParams),
 }
 
 impl ExtnPayloadProvider for UserGrantsCloudStoreRequest {
