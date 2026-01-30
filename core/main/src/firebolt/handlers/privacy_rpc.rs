@@ -1117,7 +1117,13 @@ impl PrivacyServer for PrivacyImpl {
             "RPC call: privacySettings.shareWatchHistory with share={}",
             request.share
         );
-        let session = self.state.session_state.get_account_session().unwrap();
+        let session = if let Some(session) = self.state.session_state.get_account_session() {
+            session
+        } else {
+            return Err(jsonrpsee::core::Error::Custom(String::from(
+                "Account session is not available",
+            )));
+        };
 
         // Create a UserGrantInfo object for watch history sharing
 
