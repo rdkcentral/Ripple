@@ -559,7 +559,7 @@ impl DiscoveryServer for DiscoveryImpl {
                 "discovery.launch.internal",
                 Some(serde_json::to_value(req_updated_source).map_err(|e| {
                     error!("Serialization error: {:?}", e);
-                    rpc_err("Failed to serialize SectionIntent")
+                    rpc_err("Failed to serialize LaunchRequest")
                 })?),
             )
             .await
