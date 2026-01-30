@@ -840,8 +840,7 @@ impl DiscoveryServer for DiscoveryImpl {
         }
     }
 }
-fn update_intent_source(source_app_id: String, request: LaunchRequest) -> LaunchRequest {
-    let source = format!("xrn:firebolt:application:{}", source_app_id);
+fn update_intent_source(source : String, request: LaunchRequest) -> LaunchRequest {
     match request.intent.clone() {
         Some(NavigationIntent::NavigationIntentStrict(navigation_intent)) => {
             let updated_navigation_intent = match navigation_intent {
