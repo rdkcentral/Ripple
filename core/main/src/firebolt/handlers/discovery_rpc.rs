@@ -574,3 +574,4 @@ impl RippleRPCProvider<DiscoveryImpl> for DiscoveryRPCProvider {
         (DiscoveryImpl { state }).into_rpc()
     }
 }
+
