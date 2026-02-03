@@ -256,7 +256,7 @@ impl DiscoveryServer for DiscoveryImpl {
         DiscoveryImpl::get_content_policy(&ctx, &self.state, &ctx.app_id).await
     }
 
-    async fn launch(&self, ctx: CallContext, request: LaunchRequest) -> RpcResult<bool> {
+    async fn launch(&self, _ctx: CallContext, request: LaunchRequest) -> RpcResult<bool> {
         let app_defaults_configuration = self.state.get_device_manifest().applications.defaults;
 
         let intent_validation_config = self
@@ -265,11 +265,6 @@ impl DiscoveryServer for DiscoveryImpl {
             .get_features()
             .intent_validation;
         validate_navigation_intent(intent_validation_config, request.intent.clone()).await?;
-        let req_updated_source = update_intent(ctx.app_id.clone(), request.clone());
-        info!(
-            "Discovery.launch: req_updated_source: {:?}",
-            &req_updated_source
-        );
 
         if let Some(reserved_app_id) =
             app_defaults_configuration.get_reserved_application_id(&request.app_id)
@@ -287,7 +282,7 @@ impl DiscoveryServer for DiscoveryImpl {
             match BrokerUtils::process_internal_main_request(
                 &self.state.clone(),
                 "discovery.launch.internal",
-                Some(serde_json::to_value(req_updated_source).map_err(|e| {
+                Some(serde_json::to_value(request).map_err(|e| {
                     error!("Serialization error: {:?}", e);
                     rpc_err("Failed to serialize SectionIntent")
                 })?),
@@ -303,47 +298,7 @@ impl DiscoveryServer for DiscoveryImpl {
                     return Err(rpc_err("Internal subscription launch failed"));
                 }
             }
-
-            // Not validating the intent, pass-through to app as is.
-            // if !AppEvents::is_app_registered_for_event(
-            //     &self.state,
-            //     reserved_app_id.to_string(),
-            //     DISCOVERY_EVENT_ON_NAVIGATE_TO,
-            // ) {
-            //     return Err(rpc_navigate_reserved_app_err(
-            //         format!("Discovery.launch: reserved app id {} is not registered for discovery.onNavigateTo event",
-            //         reserved_app_id).as_str(),
-            //     ));
-            // }
-            // emit EVENT_ON_NAVIGATE_TO to the reserved app.
-            // AppEvents::emit_to_app(
-            //     &self.state,
-            //     reserved_app_id.to_string(),
-            //     DISCOVERY_EVENT_ON_NAVIGATE_TO,
-            //     &serde_json::to_value(req_updated_source.intent).unwrap(),
-            // )
-            // .await;
-            // info!(
-            //     "emit_to_app called for app {} event {}",
-            //     reserved_app_id.to_string(),
-            //     DISCOVERY_EVENT_ON_NAVIGATE_TO
-            // );
-            // return Ok(true);
         }
-        // let (app_resp_tx, app_resp_rx) = oneshot::channel::<AppResponse>();
-
-        // let app_request =
-        //     AppRequest::new(AppMethod::Launch(req_updated_source.clone()), app_resp_tx);
-
-        // if self
-        //     .state
-        //     .get_client()
-        //     .send_app_request(app_request)
-        //     .is_ok()
-        //     && app_resp_rx.await.is_ok()
-        // {
-        //     return Ok(true);
-        // }
 
         Err(jsonrpsee::core::Error::Custom(String::from(
             "Discovery.launch: some failure",
@@ -521,69 +476,70 @@ impl DiscoveryServer for DiscoveryImpl {
         Ok(true)
     }
 }
-fn update_intent(source: String, request: LaunchRequest) -> LaunchRequest {
-    match request.intent.clone() {
-        Some(NavigationIntent::NavigationIntentStrict(navigation_intent)) => {
-            let updated_navigation_intent = match navigation_intent {
-                NavigationIntentStrict::Home(mut home_intent) => {
-                    home_intent.context.source = source;
-                    NavigationIntentStrict::Home(home_intent)
-                }
-                NavigationIntentStrict::Launch(mut launch_intent) => {
-                    launch_intent.context.source = source;
-                    NavigationIntentStrict::Launch(launch_intent)
-                }
-                NavigationIntentStrict::Entity(mut entity_intent) => {
-                    entity_intent.context.source = source;
-                    NavigationIntentStrict::Entity(entity_intent)
-                }
-                NavigationIntentStrict::Playback(mut playback_intent) => {
-                    playback_intent.context.source = source;
-                    NavigationIntentStrict::Playback(playback_intent)
-                }
-                NavigationIntentStrict::Search(mut search_intent) => {
-                    search_intent.context.source = source;
-                    NavigationIntentStrict::Search(search_intent)
-                }
-                NavigationIntentStrict::Section(mut section_intent) => {
-                    section_intent.context.source = source;
-                    NavigationIntentStrict::Section(section_intent)
-                }
-                NavigationIntentStrict::Tune(mut tune_intent) => {
-                    tune_intent.context.source = source;
-                    NavigationIntentStrict::Tune(tune_intent)
-                }
-                NavigationIntentStrict::ProviderRequest(mut provider_request_intent) => {
-                    provider_request_intent.context.source = source;
-                    NavigationIntentStrict::ProviderRequest(provider_request_intent)
-                }
-                NavigationIntentStrict::PlayEntity(mut p) => {
-                    p.context.source = source;
-                    NavigationIntentStrict::PlayEntity(p)
-                }
-                NavigationIntentStrict::PlayQuery(mut p) => {
-                    p.context.source = source;
-                    NavigationIntentStrict::PlayQuery(p)
-                }
-            };
 
-            LaunchRequest {
-                app_id: request.app_id,
-                intent: Some(NavigationIntent::NavigationIntentStrict(
-                    updated_navigation_intent,
-                )),
-            }
-        }
-        Some(NavigationIntent::NavigationIntentLoose(mut loose_intent)) => {
-            loose_intent.context.source = source;
-            LaunchRequest {
-                app_id: request.app_id,
-                intent: Some(NavigationIntent::NavigationIntentLoose(loose_intent)),
-            }
-        }
-        _ => request,
-    }
-}
+// fn update_intent(source: String, request: LaunchRequest) -> LaunchRequest {
+//     match request.intent.clone() {
+//         Some(NavigationIntent::NavigationIntentStrict(navigation_intent)) => {
+//             let updated_navigation_intent = match navigation_intent {
+//                 NavigationIntentStrict::Home(mut home_intent) => {
+//                     home_intent.context.source = source;
+//                     NavigationIntentStrict::Home(home_intent)
+//                 }
+//                 NavigationIntentStrict::Launch(mut launch_intent) => {
+//                     launch_intent.context.source = source;
+//                     NavigationIntentStrict::Launch(launch_intent)
+//                 }
+//                 NavigationIntentStrict::Entity(mut entity_intent) => {
+//                     entity_intent.context.source = source;
+//                     NavigationIntentStrict::Entity(entity_intent)
+//                 }
+//                 NavigationIntentStrict::Playback(mut playback_intent) => {
+//                     playback_intent.context.source = source;
+//                     NavigationIntentStrict::Playback(playback_intent)
+//                 }
+//                 NavigationIntentStrict::Search(mut search_intent) => {
+//                     search_intent.context.source = source;
+//                     NavigationIntentStrict::Search(search_intent)
+//                 }
+//                 NavigationIntentStrict::Section(mut section_intent) => {
+//                     section_intent.context.source = source;
+//                     NavigationIntentStrict::Section(section_intent)
+//                 }
+//                 NavigationIntentStrict::Tune(mut tune_intent) => {
+//                     tune_intent.context.source = source;
+//                     NavigationIntentStrict::Tune(tune_intent)
+//                 }
+//                 NavigationIntentStrict::ProviderRequest(mut provider_request_intent) => {
+//                     provider_request_intent.context.source = source;
+//                     NavigationIntentStrict::ProviderRequest(provider_request_intent)
+//                 }
+//                 NavigationIntentStrict::PlayEntity(mut p) => {
+//                     p.context.source = source;
+//                     NavigationIntentStrict::PlayEntity(p)
+//                 }
+//                 NavigationIntentStrict::PlayQuery(mut p) => {
+//                     p.context.source = source;
+//                     NavigationIntentStrict::PlayQuery(p)
+//                 }
+//             };
+
+//             LaunchRequest {
+//                 app_id: request.app_id,
+//                 intent: Some(NavigationIntent::NavigationIntentStrict(
+//                     updated_navigation_intent,
+//                 )),
+//             }
+//         }
+//         Some(NavigationIntent::NavigationIntentLoose(mut loose_intent)) => {
+//             loose_intent.context.source = source;
+//             LaunchRequest {
+//                 app_id: request.app_id,
+//                 intent: Some(NavigationIntent::NavigationIntentLoose(loose_intent)),
+//             }
+//         }
+//         _ => request,
+//     }
+// }
 
 pub async fn validate_navigation_intent(
     intent_validation_config: IntentValidation,
