@@ -43,7 +43,7 @@ use ripple_sdk::{
         firebolt::{
             fb_capabilities::FireboltCap,
             fb_discovery::{
-                AgePolicy, LaunchRequest, DISCOVERY_EVENT_ON_NAVIGATE_TO, ENTITY_INFO_CAPABILITY,
+                LaunchRequest, DISCOVERY_EVENT_ON_NAVIGATE_TO, ENTITY_INFO_CAPABILITY,
                 ENTITY_INFO_EVENT, EVENT_DISCOVERY_POLICY_CHANGED, PURCHASED_CONTENT_CAPABILITY,
                 PURCHASED_CONTENT_EVENT,
             },
@@ -256,7 +256,7 @@ impl DiscoveryServer for DiscoveryImpl {
         DiscoveryImpl::get_content_policy(&ctx, &self.state, &ctx.app_id).await
     }
 
-    async fn launch(&self, ctx: CallContext, request: LaunchRequest) -> RpcResult<bool> {
+    async fn launch(&self, _ctx: CallContext, request: LaunchRequest) -> RpcResult<bool> {
         let app_defaults_configuration = self.state.get_device_manifest().applications.defaults;
 
         let intent_validation_config = self
@@ -265,13 +265,6 @@ impl DiscoveryServer for DiscoveryImpl {
             .get_features()
             .intent_validation;
         validate_navigation_intent(intent_validation_config, request.intent.clone()).await?;
-        let policy_ids = self
-            .state
-            .policy_state
-            .policy_identifiers_alias
-            .read()
-            .unwrap()
-            .clone();
 
         if let Some(reserved_app_id) =
             app_defaults_configuration.get_reserved_application_id(&request.app_id)
