@@ -338,6 +338,12 @@ pub enum PrivacyResponse {
     Grants(UserGrants),
 }
 
+#[derive(Debug, Deserialize, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareWatchHistoryRequest {
+    pub share: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
