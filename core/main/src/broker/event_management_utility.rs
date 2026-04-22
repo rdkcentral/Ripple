@@ -89,10 +89,6 @@ impl EventManagementUtility {
             params_json: RpcRequest::prepend_ctx(None, &new_ctx),
         };
 
-        platform_state
-            .metrics
-            .add_api_stats(&ctx.request_id, "advertising.policy");
-
         let resp = platform_state
             .get_client()
             .get_extn_client()

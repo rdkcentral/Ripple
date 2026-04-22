@@ -45,12 +45,9 @@ use ripple_sdk::{
 use std::sync::{Arc, RwLock};
 
 use crate::{
-    firebolt::firebolt_gateway::JsonRpcMessage,
     service::telemetry_builder::TelemetryBuilder,
     state::{platform_state::PlatformState, session_state::Session},
-    utils::router_utils::{
-        add_telemetry_status_code, capture_stage, get_rpc_header, return_extn_response,
-    },
+    utils::router_utils::return_extn_response,
 };
 
 pub struct RpcRouter;
@@ -90,7 +87,7 @@ impl Default for RouterState {
 }
 
 async fn resolve_route(
-    platform_state: &mut PlatformState,
+    _platform_state: &mut PlatformState,
     method_entry: Option<(String, MethodCallback)>,
     resources: Resources,
     req: RpcRequest,
@@ -180,31 +177,10 @@ async fn resolve_route(
 
     if let Some(r) = sink_rx.next().await {
         debug!("Received response from method sink {}", r.clone());
-        let rpc_header = get_rpc_header(&req);
         let protocol = req.ctx.protocol.clone();
         let request_id = req.clone().ctx.request_id;
 
-        let status_code = if let Ok(r) = serde_json::from_str::<JsonRpcMessage>(&r) {
-            if let Some(ec) = r.error {
-                ec.code
-            } else {
-                1
-            }
-        } else {
-            1
-        };
-
-        capture_stage(&platform_state.metrics, &req, "routing");
-
-        platform_state.metrics.update_api_stats_ref(
-            &request_id,
-            add_telemetry_status_code(&rpc_header, status_code.to_string().as_str()),
-        );
-
-        let mut msg = ApiMessage::new(protocol, r, request_id.clone());
-        if let Some(api_stats) = platform_state.metrics.get_api_stats(&request_id) {
-            msg.stats = Some(api_stats);
-        }
+        let msg = ApiMessage::new(protocol, r, request_id.clone());
         return Ok(msg);
     }
     error!("Invalid output from method sink");

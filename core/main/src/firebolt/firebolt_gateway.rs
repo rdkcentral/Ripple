@@ -28,7 +28,7 @@ use ripple_sdk::{
                 ApiMessage, ApiProtocol, CallContext, JsonRpcApiResponse, RpcRequest,
             },
         },
-        observability::{log_signal::LogSignal, metrics_util::ApiStats},
+        observability::log_signal::LogSignal,
     },
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
@@ -51,7 +51,6 @@ use crate::{
         bootstrap_state::BootstrapState, openrpc_state::OpenRpcState,
         platform_state::PlatformState, session_state::Session,
     },
-    utils::router_utils::{capture_stage, get_rpc_header_with_status},
 };
 
 use super::rpc_router::RpcRouter;
@@ -222,15 +221,8 @@ impl FireboltGateway {
                             }
                         };
 
-                        let mut api_message =
+                        let api_message =
                             ApiMessage::new(protocol, data, rpc_request.ctx.request_id.clone());
-
-                        if let Some(api_stats) = platform_state
-                            .metrics
-                            .get_api_stats(&rpc_request.ctx.request_id.clone())
-                        {
-                            api_message.stats = Some(api_stats);
-                        }
 
                         TelemetryBuilder::send_fb_tt(
                             &platform_state,
@@ -305,10 +297,6 @@ impl FireboltGateway {
         let mut request_c = request.clone();
         request_c.method = FireboltOpenRpcMethod::name_with_lowercase_module(&request.method);
 
-        platform_state
-            .metrics
-            .add_api_stats(&request_c.ctx.request_id, &request_c.method);
-
         let fail_open = matches!(
             platform_state
                 .get_device_manifest()
@@ -320,7 +308,6 @@ impl FireboltGateway {
         let open_rpc_state = self.state.platform_state.open_rpc_state.clone();
 
         tokio::spawn(async move {
-            capture_stage(&platform_state.metrics, &request_c, "context_ready");
             // Validate incoming request parameters.
             if let Err(error_string) = validate_request(open_rpc_state, &request_c, fail_open) {
                 let json_rpc_error = JsonRpcError {
@@ -333,15 +320,12 @@ impl FireboltGateway {
                 return;
             }
 
-            capture_stage(&platform_state.metrics, &request_c, "openrpc_val");
             let result = if extn_request || service_request {
                 // extn protocol means its an internal Ripple request skip permissions.
                 Ok(Vec::new())
             } else {
                 FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await
             };
-
-            capture_stage(&platform_state.metrics, &request_c, "permission");
 
             match result {
                 Ok(p) => {
@@ -539,7 +523,6 @@ async fn send_json_rpc_error(
         .session_state
         .get_session(&request.ctx)
     {
-        let status_code = json_rpc_error.code;
         let error_message = JsonRpcMessage {
             jsonrpc: TwoPointZero {},
             id: request.ctx.call_id,
@@ -547,25 +530,10 @@ async fn send_json_rpc_error(
         };
 
         if let Ok(error_message) = serde_json::to_string(&error_message) {
-            let mut api_message = ApiMessage::new(
+            let api_message = ApiMessage::new(
                 request.clone().ctx.protocol,
                 error_message,
                 request.clone().ctx.request_id,
-            );
-
-            if let Some(api_stats) = platform_state
-                .metrics
-                .get_api_stats(&request.ctx.request_id)
-            {
-                api_message.stats = Some(ApiStats {
-                    api: request.method.clone(),
-                    stats_ref: get_rpc_header_with_status(request, status_code),
-                    stats: api_stats.stats.clone(),
-                });
-            }
-            platform_state.metrics.update_api_stats_ref(
-                &request.ctx.request_id,
-                get_rpc_header_with_status(request, status_code),
             );
 
             if let Err(e) = session.send_json_rpc(api_message).await {
