@@ -362,7 +362,7 @@ impl FireboltWs {
 
         let rpc_context: Arc<RwLock<Vec<String>>> = Arc::new(RwLock::new(context));
         let (mut sender, mut receiver) = ws_stream.split();
-        let mut platform_state = state.clone();
+        let _platform_state = state.clone();
         let context_clone = ctx.clone();
 
         tokio::spawn(async move {
@@ -372,10 +372,6 @@ impl FireboltWs {
                     .await;
                 match send_result {
                     Ok(_) => {
-                        platform_state
-                            .metrics
-                            .update_api_stage(&api_message.request_id, "response");
-
                         LogSignal::new(
                             "sent_firebolt_response".to_string(),
                             "firebolt message sent".to_string(),
@@ -384,24 +380,6 @@ impl FireboltWs {
                         .with_diagnostic_context_item("cid", &connection_id_c.clone())
                         .with_diagnostic_context_item("result", &api_message.jsonrpc_msg.clone())
                         .emit_debug();
-                        if let Some(stats) = platform_state
-                            .metrics
-                            .get_api_stats(&api_message.request_id)
-                        {
-                            info!(
-                                "Sending Firebolt response: {:?},{}",
-                                stats.stats_ref,
-                                stats.stats.get_total_time()
-                            );
-                            debug!(
-                                "Full Firebolt Split: {:?},{}",
-                                stats.stats_ref,
-                                stats.stats.get_stage_durations()
-                            );
-                            platform_state
-                                .metrics
-                                .remove_api_stats(&api_message.request_id);
-                        }
 
                         info!(
                             "Sent Firebolt response cid={} msg={}",

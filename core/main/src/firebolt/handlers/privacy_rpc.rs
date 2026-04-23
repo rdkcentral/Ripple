@@ -88,12 +88,8 @@ impl AllowAppContentAdTargetingSettings {
     pub async fn get_allow_app_content_ad_targeting_settings(
         &self,
         platform_state: &mut PlatformState,
-        ctx: &CallContext,
+        _ctx: &CallContext,
     ) -> HashMap<String, String> {
-        platform_state
-            .metrics
-            .add_api_stats(&ctx.request_id, "localization.countryCode");
-
         let country_code = match BrokerUtils::process_internal_main_request(
             platform_state,
             "localization.countryCode",
