@@ -20,10 +20,7 @@ use ripple_sdk::{
         client::extn_client::ExtnClient,
         extn_client_message::{ExtnMessage, ExtnResponse},
     },
-    log::trace,
 };
-
-use crate::state::ops_metrics_state::OpMetricState;
 
 pub fn return_extn_response(msg: ApiMessage, extn_msg: ExtnMessage, client: ExtnClient) {
     if let Ok(resp) = serde_json::from_str::<JsonRpcApiResponse>(&msg.jsonrpc_msg) {
@@ -56,17 +53,4 @@ pub fn get_rpc_header(request: &RpcRequest) -> String {
 
 pub fn add_telemetry_status_code(original_ref: &str, status_code: &str) -> Option<String> {
     Some(format!("{},{}", original_ref, status_code))
-}
-
-pub fn capture_stage(metrics_state: &OpMetricState, request: &RpcRequest, stage: &str) {
-    let mut state = metrics_state.clone();
-    let duration = state.update_api_stage(&request.ctx.request_id, stage);
-
-    trace!(
-        "Firebolt processing stage: {},{},{},{}",
-        request.ctx.app_id,
-        request.ctx.method,
-        stage,
-        duration
-    )
 }

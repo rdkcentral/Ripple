@@ -58,9 +58,7 @@ use crate::{
     state::{
         ops_metrics_state::OpMetricState, platform_state::PlatformState, session_state::Session,
     },
-    utils::router_utils::{
-        add_telemetry_status_code, capture_stage, get_rpc_header, return_extn_response,
-    },
+    utils::router_utils::return_extn_response,
 };
 
 use super::{
@@ -380,6 +378,7 @@ pub struct EndpointBrokerState {
     cleaner_list: Arc<RwLock<Vec<BrokerCleaner>>>,
     reconnect_tx: Sender<BrokerConnectRequest>,
     provider_broker_state: ProvideBrokerState,
+    #[allow(dead_code)]
     metrics_state: OpMetricState,
 }
 
@@ -763,7 +762,6 @@ impl EndpointBrokerState {
         data.id = Some(rpc_request.ctx.call_id);
         //let output = BrokerOutput::new(data);
 
-        capture_stage(&self.metrics_state, &rpc_request, "static_rule_request");
         data
     }
 
@@ -1464,39 +1462,15 @@ impl BrokerOutputForwarder {
                 .sender
                 .try_send(BrokerOutput::new(response.clone()));
         } else {
-            let tm_str = get_rpc_header(rpc_request);
             let mut response = response.clone();
             if is_event {
                 response.update_event_message(rpc_request);
             }
-            let mut message = ApiMessage::new(
+            let message = ApiMessage::new(
                 rpc_request.ctx.protocol.clone(),
                 serde_json::to_string(&response).unwrap(),
                 rpc_request.ctx.request_id.clone(),
             );
-            let mut status_code: i64 = 1;
-            if let Some(e) = &response.error {
-                if let Some(Value::Number(n)) = e.get("code") {
-                    if let Some(v) = n.as_i64() {
-                        status_code = v;
-                    }
-                }
-            }
-            platform_state.metrics.update_api_stats_ref(
-                &rpc_request.ctx.request_id,
-                add_telemetry_status_code(&tm_str, status_code.to_string().as_str()),
-            );
-            if let Some(api_stats) = platform_state
-                .metrics
-                .get_api_stats(&rpc_request.ctx.request_id)
-            {
-                message.stats = Some(api_stats);
-                if rpc_request.ctx.app_id.eq_ignore_ascii_case("internal") {
-                    platform_state
-                        .metrics
-                        .remove_api_stats(&rpc_request.ctx.request_id);
-                }
-            }
             if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
                 if let Ok(extn_message) =
                     platform_state.endpoint_state.get_extn_message(id, is_event)

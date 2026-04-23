@@ -33,9 +33,6 @@ impl BrokerUtils {
     ) -> RpcResult<Value> {
         let mut rpc_request = RpcRequest::internal(method, None).with_params(params);
         rpc_request.ctx.app_id = app_id.to_owned();
-        state
-            .metrics
-            .add_api_stats(&rpc_request.ctx.request_id, method);
         Self::internal_request(state, rpc_request).await
     }
 
@@ -54,9 +51,6 @@ impl BrokerUtils {
         params: Option<Value>,
     ) -> RpcResult<Value> {
         let rpc_request = RpcRequest::internal(method, on_behalf_of).with_params(params);
-        state
-            .metrics
-            .add_api_stats(&rpc_request.ctx.request_id, method);
         Self::internal_request(state, rpc_request).await
     }
 
