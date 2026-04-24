@@ -657,6 +657,38 @@ impl EndpointBrokerState {
         let mut rpc_request_c = rpc_request.clone();
         {
             let mut request_map = self.request_map.write().unwrap();
+
+            // When re-registering a subscription for the same (session_id, method),
+            // remove the old entry to prevent unbounded accumulation.
+            // Without this, each re-subscription leaks ~2KB in request_map.
+            if rpc_request.is_subscription() {
+                let session_id = &rpc_request.ctx.session_id;
+                let method = &rpc_request.ctx.method;
+                let old_ids: Vec<u64> = request_map
+                    .iter()
+                    .filter(|(_, req)| {
+                        req.rpc.is_subscription()
+                            && req.rpc.ctx.session_id == *session_id
+                            && req.rpc.ctx.method.eq_ignore_ascii_case(method)
+                    })
+                    .map(|(k, _)| *k)
+                    .collect();
+                if !old_ids.is_empty() {
+                    for old_id in &old_ids {
+                        request_map.remove(old_id);
+                    }
+                    // Also clean extension_request_map for the old IDs
+                    let mut extn_map = self.extension_request_map.write().unwrap();
+                    for old_id in &old_ids {
+                        extn_map.remove(old_id);
+                    }
+                    debug!(
+                        "update_request: removed {} superseded subscription entries for method={} session={}",
+                        old_ids.len(), method, session_id
+                    );
+                }
+            }
+
             let _ = request_map.insert(
                 id,
                 BrokerRequest {
