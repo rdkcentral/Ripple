@@ -727,6 +727,7 @@ mod tests {
                 endpoint: None,
             },
             subscription_processed: None,
+            created_at: std::time::Instant::now(),
         };
         status_manager.add_broker_request_to_pending_list("TestPlugin".to_string(), request);
 

@@ -308,6 +308,7 @@ mod tests {
             workflow_callback: None,
             subscription_processed: None,
             telemetry_response_listeners: vec![],
+            created_at: std::time::Instant::now(),
         };
 
         broker.sender.send(request).await.unwrap();
@@ -355,6 +356,7 @@ mod tests {
             workflow_callback: None,
             subscription_processed: None,
             telemetry_response_listeners: vec![],
+            created_at: std::time::Instant::now(),
         };
 
         broker.sender.send(request).await.unwrap();
@@ -386,6 +388,7 @@ mod tests {
             workflow_callback: None,
             subscription_processed: None,
             telemetry_response_listeners: vec![],
+            created_at: std::time::Instant::now(),
         };
         let id = request.get_id();
 
@@ -430,6 +433,7 @@ mod tests {
             workflow_callback: None,
             subscription_processed: None,
             telemetry_response_listeners: vec![],
+            created_at: std::time::Instant::now(),
         };
         WSNotificationBroker::start(request, callback, endpoint.get_url().clone())
     }
@@ -509,6 +513,7 @@ mod tests {
             workflow_callback: None,
             subscription_processed: None,
             telemetry_response_listeners: vec![],
+            created_at: std::time::Instant::now(),
         };
         let port: u32 = 34743;
         let endpoint = RuleEndpoint {

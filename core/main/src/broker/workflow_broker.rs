@@ -334,6 +334,7 @@ pub mod tests {
             subscription_processed: None,
             workflow_callback: Some(callback),
             telemetry_response_listeners: vec![],
+            created_at: std::time::Instant::now(),
         }
     }
     pub fn rule_engine() -> RuleEngine {
@@ -408,6 +409,7 @@ pub mod tests {
             subscription_processed: None,
             workflow_callback: Some(callback.clone()),
             telemetry_response_listeners: vec![],
+            created_at: std::time::Instant::now(),
         };
 
         let error = JsonRpcApiError::default()
@@ -507,6 +509,7 @@ pub mod tests {
             subscription_processed: None,
             workflow_callback: Some(callback.clone()),
             telemetry_response_listeners: vec![],
+            created_at: std::time::Instant::now(),
         };
         broker_sender.sender.send(broker_request).await.unwrap();
 
@@ -542,6 +545,7 @@ pub mod tests {
             subscription_processed: None,
             workflow_callback: Some(callback.clone()),
             telemetry_response_listeners: vec![],
+            created_at: std::time::Instant::now(),
         };
 
         broker_sender.sender.send(broker_request).await.unwrap();

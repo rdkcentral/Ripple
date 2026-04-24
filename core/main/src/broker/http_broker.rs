@@ -308,6 +308,7 @@ mod tests {
             subscription_processed: None,
             workflow_callback: Some(callback.clone()),
             telemetry_response_listeners: vec![],
+            created_at: std::time::Instant::now(),
         };
 
         sender.sender.send(broker_request).await.unwrap();
@@ -328,6 +329,7 @@ mod tests {
             subscription_processed: None,
             workflow_callback: None,
             telemetry_response_listeners: vec![],
+            created_at: std::time::Instant::now(),
         }
     }
 
@@ -569,6 +571,7 @@ mod tests {
             subscription_processed: None,
             workflow_callback: None,
             telemetry_response_listeners: vec![],
+            created_at: std::time::Instant::now(),
         };
 
         let base_uri: Uri = "http://localhost:1234/".parse().unwrap();
@@ -599,6 +602,7 @@ mod tests {
             subscription_processed: None,
             workflow_callback: None,
             telemetry_response_listeners: vec![],
+            created_at: std::time::Instant::now(),
         };
 
         let client = Client::new();
@@ -638,6 +642,7 @@ mod tests {
             subscription_processed: None,
             workflow_callback: None,
             telemetry_response_listeners: vec![],
+            created_at: std::time::Instant::now(),
         };
 
         let client = Client::new();

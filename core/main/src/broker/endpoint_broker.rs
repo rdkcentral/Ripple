@@ -49,6 +49,7 @@ use std::{
         atomic::{AtomicU64, Ordering},
         Arc, RwLock,
     },
+    time::Instant,
 };
 
 use crate::{
@@ -102,13 +103,28 @@ impl BrokerCleaner {
 // Default Broker mpsc channel buffer size
 pub const BROKER_CHANNEL_BUFFER_SIZE: usize = 32;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct BrokerRequest {
     pub rpc: RpcRequest,
     pub rule: Rule,
     pub subscription_processed: Option<bool>,
     pub workflow_callback: Option<BrokerCallback>,
     pub telemetry_response_listeners: Vec<Sender<BrokerOutput>>,
+    /// Timestamp when this request was created, used for stale entry cleanup
+    pub created_at: Instant,
+}
+
+impl Default for BrokerRequest {
+    fn default() -> Self {
+        Self {
+            rpc: RpcRequest::default(),
+            rule: Rule::default(),
+            subscription_processed: None,
+            workflow_callback: None,
+            telemetry_response_listeners: Vec::new(),
+            created_at: Instant::now(),
+        }
+    }
 }
 impl ripple_sdk::api::observability::log_signal::ContextAsJson for BrokerRequest {
     fn as_json(&self) -> serde_json::Value {
@@ -241,6 +257,7 @@ impl BrokerRequest {
             subscription_processed: None,
             workflow_callback,
             telemetry_response_listeners,
+            created_at: Instant::now(),
         }
     }
 
@@ -497,6 +514,8 @@ impl EndpointBrokerState {
         /*bobra: configuring this out for unit tests */
         #[cfg(not(test))]
         state.reconnect_thread(_rec_tr, _ripple_client);
+        #[cfg(not(test))]
+        state.start_stale_entry_cleanup_task();
         state
     }
     pub fn with_rules_engine(mut self, rule_engine: Arc<RwLock<RuleEngine>>) -> Self {
@@ -646,6 +665,7 @@ impl EndpointBrokerState {
                     subscription_processed: None,
                     workflow_callback: workflow_callback.clone(),
                     telemetry_response_listeners: telemetry_response_listeners.clone(),
+                    created_at: Instant::now(),
                 },
             );
         }
@@ -1104,6 +1124,107 @@ impl EndpointBrokerState {
             */
             let _ = cleaner.cleanup_session(app_id).await;
         }
+
+        // Clean up request_map entries for the disconnected app
+        {
+            let mut request_map = self.request_map.write().unwrap();
+            let before = request_map.len();
+            request_map.retain(|_, v| v.rpc.ctx.app_id != app_id);
+            let removed = before - request_map.len();
+            if removed > 0 {
+                info!(
+                    "cleanup_for_app: removed {} request_map entries for app_id={}",
+                    removed, app_id
+                );
+            }
+        }
+
+        // Clean up extension_request_map entries for the disconnected app
+        // Note: ExtnMessage may not have a direct app_id field, so we clean up
+        // entries whose IDs are no longer in request_map (orphaned)
+        {
+            let request_map = self.request_map.read().unwrap();
+            let mut extn_map = self.extension_request_map.write().unwrap();
+            let before = extn_map.len();
+            extn_map.retain(|id, _| request_map.contains_key(id));
+            let removed = before - extn_map.len();
+            if removed > 0 {
+                info!(
+                    "cleanup_for_app: removed {} extension_request_map orphaned entries",
+                    removed
+                );
+            }
+        }
+    }
+
+    /// Periodically sweep stale entries from request_map and extension_request_map.
+    /// Non-subscription entries older than `max_age` are removed.
+    /// This prevents memory leaks when responses are never received.
+    pub fn start_stale_entry_cleanup_task(&self) {
+        let request_map = self.request_map.clone();
+        let extension_request_map = self.extension_request_map.clone();
+        // Sweep interval: every 60 seconds
+        let sweep_interval = Duration::from_secs(60);
+        // Max age for non-subscription entries: 5 minutes
+        let max_age = Duration::from_secs(300);
+
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(sweep_interval);
+            loop {
+                interval.tick().await;
+                let now = Instant::now();
+
+                // Clean stale non-subscription entries from request_map
+                let stale_ids: Vec<u64> = {
+                    let map = request_map.read().unwrap();
+                    map.iter()
+                        .filter(|(_, req)| {
+                            !req.rpc.is_subscription()
+                                && now.duration_since(req.created_at) > max_age
+                        })
+                        .map(|(id, _)| *id)
+                        .collect()
+                };
+
+                if !stale_ids.is_empty() {
+                    let mut map = request_map.write().unwrap();
+                    for id in &stale_ids {
+                        map.remove(id);
+                    }
+                    info!(
+                        "Stale entry cleanup: removed {} expired non-subscription entries from request_map (map size now: {})",
+                        stale_ids.len(),
+                        map.len()
+                    );
+
+                    // Also clean corresponding extension_request_map entries
+                    let mut extn_map = extension_request_map.write().unwrap();
+                    let mut extn_removed = 0;
+                    for id in &stale_ids {
+                        if extn_map.remove(id).is_some() {
+                            extn_removed += 1;
+                        }
+                    }
+                    if extn_removed > 0 {
+                        info!(
+                            "Stale entry cleanup: removed {} expired entries from extension_request_map (map size now: {})",
+                            extn_removed,
+                            extn_map.len()
+                        );
+                    }
+                }
+
+                // Log current map sizes for monitoring
+                let req_map_size = request_map.read().unwrap().len();
+                let extn_map_size = extension_request_map.read().unwrap().len();
+                if req_map_size > 100 || extn_map_size > 100 {
+                    info!(
+                        "Broker map sizes: request_map={}, extension_request_map={}",
+                        req_map_size, extn_map_size
+                    );
+                }
+            }
+        });
     }
     /// Send a request through the broker and wait for response with a oneshot channel and custom timeout
     pub async fn send_with_response_timeout(
@@ -1127,6 +1248,11 @@ impl EndpointBrokerState {
         // Create broker request with the custom callback
         let broker_request =
             self.update_request(&rpc_request, &rule, None, Some(custom_callback), vec![]);
+
+        // Capture the request ID and map references for cleanup on timeout
+        let request_id = broker_request.rpc.ctx.call_id;
+        let request_map = self.request_map.clone();
+        let extension_request_map = self.extension_request_map.clone();
 
         // Get the appropriate endpoint for this rule
         let endpoint = self
@@ -1169,6 +1295,9 @@ impl EndpointBrokerState {
                 }
                 Ok(None) => {
                     // Channel was closed without sending a response
+                    // Clean up orphaned map entries
+                    let _ = request_map.write().unwrap().remove(&request_id);
+                    let _ = extension_request_map.write().unwrap().remove(&request_id);
                     let error_response = serde_json::json!({
                         "code": -32000,
                         "message": "Broker channel closed unexpectedly"
@@ -1176,7 +1305,13 @@ impl EndpointBrokerState {
                     let _ = response_tx.send(Err(error_response));
                 }
                 Err(_) => {
-                    // Timeout occurred
+                    // Timeout occurred - clean up orphaned map entries
+                    let _ = request_map.write().unwrap().remove(&request_id);
+                    let _ = extension_request_map.write().unwrap().remove(&request_id);
+                    error!(
+                        "Request timed out after {}s, cleaned up request_map entry for id={}",
+                        timeout_secs, request_id
+                    );
                     let error_response = serde_json::json!({
                         "code": -32001,
                         "message": "Request timeout"
@@ -2015,6 +2150,7 @@ mod endpoint_broker_tests {
                     subscription_processed: None,
                     workflow_callback: None,
                     telemetry_response_listeners: vec![],
+                    created_at: std::time::Instant::now(),
                 },
                 RippleError::InvalidInput,
             )

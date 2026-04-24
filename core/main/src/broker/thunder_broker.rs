@@ -844,6 +844,7 @@ mod tests {
             subscription_processed: None,
             workflow_callback: None,
             telemetry_response_listeners: vec![],
+            created_at: std::time::Instant::now(),
         }
     }
 
@@ -1070,6 +1071,7 @@ mod tests {
                 },
                 subscription_processed: Some(false),
                 workflow_callback: None,
+                created_at: std::time::Instant::now(),
             };
 
             thndr_broker.subscribe(&subscribe_request);
@@ -1127,6 +1129,7 @@ mod tests {
                 },
                 subscription_processed: Some(true),
                 workflow_callback: None,
+                created_at: std::time::Instant::now(),
             };
             thndr_broker.subscribe(&unsubscribe_request);
 
