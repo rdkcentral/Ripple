@@ -16,8 +16,7 @@
 //
 
 use ripple_sdk::{
-    api::session::EventAdjective, framework::ripple_contract::RippleContract,
-    log::info,
+    api::session::EventAdjective, framework::ripple_contract::RippleContract, log::info,
     utils::error::RippleError,
 };
 

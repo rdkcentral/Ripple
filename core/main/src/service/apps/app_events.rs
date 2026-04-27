@@ -463,9 +463,7 @@ impl AppEvents {
                 let all_contexts = ctx_map.keys().cloned().collect::<Vec<Option<String>>>();
                 for context in all_contexts {
                     if let Some(event_listener) = ctx_map.get_mut(&context) {
-                        event_listener.retain(|l| {
-                            l.call_ctx.cid.as_deref() != Some(connection_id)
-                        });
+                        event_listener.retain(|l| l.call_ctx.cid.as_deref() != Some(connection_id));
                     }
                     if ctx_map.get(&context).map_or(false, |v| v.is_empty()) {
                         ctx_map.remove(&context);
