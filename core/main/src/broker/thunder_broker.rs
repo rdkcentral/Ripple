@@ -30,7 +30,7 @@ use ripple_sdk::{
         gateway::rpc_gateway_api::{JsonRpcApiResponse, RpcRequest},
         observability::log_signal::LogSignal,
     },
-    log::{debug, error, info, trace},
+    log::{debug, error, info, trace, warn},
     tokio::{
         self,
         sync::{mpsc, Mutex},
@@ -198,7 +198,7 @@ impl ThunderBroker {
     ) -> Self {
         let endpoint = request.endpoint.clone();
         let (broker_request_tx, mut broker_request_rx) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
-        let (c_tx, mut c_tr) = mpsc::channel(2);
+        let (c_tx, mut c_tr) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
         let broker_sender = BrokerSender {
             sender: broker_request_tx,
         };
@@ -373,16 +373,58 @@ impl ThunderBroker {
                             broker_for_cleanup.subscription_map.write().unwrap().remove(&cleanup_request)
                         };
                         if let Some(mut cleanup) = value {
-                            let sender = broker_for_cleanup.get_sender();
-                            while let Some(mut v) = cleanup.pop() {
-                                v.rpc = v.rpc.get_unsubscribe();
-                                if (sender.send(v).await).is_err() {
-                                    error!("Cleanup Error for {}",&cleanup_request);
+                            info!(
+                                "BrokerCleaner: unsubscribing {} subscription(s) for session {}",
+                                cleanup.len(), cleanup_request
+                            );
+                            // Send unregister calls directly to Thunder via the WebSocket.
+                            // We must NOT route through the broker sender + prepare_request(),
+                            // because prepare_request() calls self.unsubscribe() which looks up
+                            // subscription_map — but we already removed entries above.
+                            let binding = ws_tx_wrap.clone();
+                            let mut ws_tx = binding.lock().await;
+                            while let Some(v) = cleanup.pop() {
+                                let (callsign, method) =
+                                    ThunderBroker::get_callsign_and_method_from_alias(&v.rule.alias);
+                                if let Some(method) = method {
+                                    let unregister = serde_json::json!({
+                                        "jsonrpc": "2.0",
+                                        "id": v.rpc.ctx.call_id,
+                                        "method": format!("{}.unregister", callsign),
+                                        "params": {
+                                            "event": method,
+                                            "id": format!("{}", v.rpc.ctx.call_id)
+                                        }
+                                    });
+                                    info!(
+                                        "BrokerCleaner: sending Thunder unregister for {}.{} (call_id={})",
+                                        callsign, method, v.rpc.ctx.call_id
+                                    );
+                                    if let Err(e) = ws_tx.feed(Message::Text(unregister.to_string())).await {
+                                        error!(
+                                            "BrokerCleaner: failed to send unregister for {}: {:?}",
+                                            cleanup_request, e
+                                        );
+                                    }
+                                } else {
+                                    warn!(
+                                        "BrokerCleaner: could not extract method from alias '{}', skipping unregister",
+                                        v.rule.alias
+                                    );
                                 }
                             }
-
+                            if let Err(e) = ws_tx.flush().await {
+                                error!(
+                                    "BrokerCleaner: failed to flush unregister calls for {}: {:?}",
+                                    cleanup_request, e
+                                );
+                            }
+                        } else {
+                            debug!(
+                                "BrokerCleaner: no subscriptions found for key '{}', skipping",
+                                cleanup_request
+                            );
                         }
-
                     }
                     }
             }
