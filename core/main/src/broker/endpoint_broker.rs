@@ -1104,6 +1104,45 @@ impl EndpointBrokerState {
             */
             let _ = cleaner.cleanup_session(app_id).await;
         }
+
+        // Clean up subscription entries from request_map and extension_request_map
+        // that belong to this app. These are never removed on disconnect otherwise.
+        self.cleanup_request_maps_for_app(app_id);
+    }
+
+    /// Remove subscription/event entries from request_map and extension_request_map
+    /// for the given app_id (which may be a session_id or connection_id).
+    /// Without this, subscription entries in request_map (guarded by is_subscription())
+    /// and event entries in extension_request_map persist forever.
+    fn cleanup_request_maps_for_app(&self, app_id: &str) {
+        let removed_ids: Vec<u64> = {
+            let mut request_map = self.request_map.write().unwrap();
+            let ids_to_remove: Vec<u64> = request_map
+                .iter()
+                .filter(|(_, req)| {
+                    req.rpc.ctx.app_id == app_id
+                        || req.rpc.ctx.session_id == app_id
+                        || req.rpc.ctx.cid.as_deref() == Some(app_id)
+                })
+                .map(|(id, _)| *id)
+                .collect();
+            for id in &ids_to_remove {
+                request_map.remove(id);
+            }
+            ids_to_remove
+        };
+
+        if !removed_ids.is_empty() {
+            let mut extn_map = self.extension_request_map.write().unwrap();
+            for id in &removed_ids {
+                extn_map.remove(id);
+            }
+            info!(
+                "cleanup_request_maps_for_app: removed {} request_map and extension_request_map entries for {}",
+                removed_ids.len(),
+                app_id
+            );
+        }
     }
     /// Send a request through the broker and wait for response with a oneshot channel and custom timeout
     pub async fn send_with_response_timeout(

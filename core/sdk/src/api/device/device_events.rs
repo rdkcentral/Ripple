@@ -39,6 +39,9 @@ pub const VOICE_GUIDANCE_SPEED_CHANGED: &str = "voiceguidance.onSpeedChanged";
 pub enum DeviceEvent {
     InputChanged,
     AudioChanged,
+    /// Signals that an app has disconnected and its event subscriptions should be cleaned up.
+    /// The callback_type.get_id() carries the app_id to clean.
+    Cleanup,
 }
 
 impl FromStr for DeviceEvent {
@@ -48,6 +51,7 @@ impl FromStr for DeviceEvent {
         match s {
             "device.onHdcpChanged" => Ok(Self::InputChanged),
             "device.onAudioChanged" => Ok(Self::AudioChanged),
+            "device.cleanup" => Ok(Self::Cleanup),
             _ => Err(()),
         }
     }
@@ -91,6 +95,7 @@ impl ExtnPayloadProvider for DeviceEventRequest {
         match self.event {
             DeviceEvent::InputChanged => RippleContract::DeviceEvents(EventAdjective::Input),
             DeviceEvent::AudioChanged => RippleContract::DeviceEvents(EventAdjective::Audio),
+            DeviceEvent::Cleanup => RippleContract::DeviceEvents(EventAdjective::Input),
         }
     }
 

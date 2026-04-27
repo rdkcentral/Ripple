@@ -18,6 +18,7 @@
 use jsonrpsee::{core::server::rpc_module::Methods, types::TwoPointZero};
 use ripple_sdk::{
     api::{
+        device::device_events::{DeviceEvent, DeviceEventCallback, DeviceEventRequest},
         firebolt::{
             fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
             fb_openrpc::FireboltOpenRpcMethod,
@@ -162,6 +163,24 @@ impl FireboltGateway {
                         .await;
                     // Clear session from session_map by connection_id (the key used during registration)
                     self.state.platform_state.session_state.clear_session(&cid);
+                    // Send cleanup to ThunderEventProcessor (extension side) to remove
+                    // event_map and last_event entries for this app
+                    let cleanup_request = DeviceEventRequest {
+                        event: DeviceEvent::Cleanup,
+                        subscribe: false,
+                        callback_type: DeviceEventCallback::FireboltAppEvent(cid.clone()),
+                    };
+                    if let Err(e) = self
+                        .state
+                        .platform_state
+                        .get_client()
+                        .send_extn_request_transient(cleanup_request)
+                    {
+                        warn!(
+                            "Failed to send ThunderEventProcessor cleanup for {}: {:?}",
+                            cid, e
+                        );
+                    }
                 }
                 HandleRpc { request } => self.handle(request, None).await,
                 HandleRpcForExtn { msg } => {

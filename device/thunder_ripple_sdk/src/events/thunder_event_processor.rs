@@ -93,6 +93,10 @@ impl ThunderEventMessage {
                         value.clone(),
                     )))
                 }
+                DeviceEvent::Cleanup => {
+                    // Cleanup is not a real Thunder event, skip
+                    return None;
+                }
             }
         } else {
             debug!(
