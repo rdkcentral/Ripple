@@ -139,7 +139,14 @@ impl FireboltGateway {
                         .add_session(session_id, session);
                 }
                 UnregisterSession { session_id, cid } => {
+                    info!(
+                        "Cleanup: session_id={} cid={} - removing event listeners, broker subs, session",
+                        session_id, cid
+                    );
+                    // Clean event listeners by session_id
                     AppEvents::remove_session(&self.state.platform_state, session_id.clone());
+                    // Also clean event listeners by connection_id (cid) in case session_id != cid
+                    AppEvents::cleanup_by_connection_id(&self.state.platform_state, &cid);
                     ProviderBroker::unregister_session(&self.state.platform_state, cid.clone())
                         .await;
                     self.state
@@ -147,6 +154,13 @@ impl FireboltGateway {
                         .endpoint_state
                         .cleanup_for_app(&cid)
                         .await;
+                    // Also cleanup broker subscriptions by session_id (subscription_map uses session_id as key)
+                    self.state
+                        .platform_state
+                        .endpoint_state
+                        .cleanup_for_app(&session_id)
+                        .await;
+                    // Clear session from session_map by connection_id (the key used during registration)
                     self.state.platform_state.session_state.clear_session(&cid);
                 }
                 HandleRpc { request } => self.handle(request, None).await,
