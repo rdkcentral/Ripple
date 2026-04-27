@@ -2526,6 +2526,114 @@ mod endpoint_broker_tests {
         //     // assert!(state.get_request(2).is_ok());
         //     // assert!(state.get_request(1).is_ok());
         // }
+
+        #[cfg(test)]
+        mod cleanup_request_maps {
+            use super::*;
+            use crate::broker::rules::rules_engine::{Rule, RuleTransform};
+            use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
+            use ripple_sdk::Mockable;
+            use serial_test::serial;
+
+            fn make_state() -> EndpointBrokerState {
+                let (tx, _) = channel(2);
+                let client = RippleClient::new(ChannelsState::new());
+                EndpointBrokerState::new(
+                    OpMetricState::default(),
+                    tx,
+                    RuleEngine {
+                        rules: RuleSet::default(),
+                        functions: HashMap::default(),
+                    },
+                    client,
+                )
+            }
+
+            fn default_rule() -> Rule {
+                Rule {
+                    alias: "test.method".to_owned(),
+                    transform: RuleTransform::default(),
+                    endpoint: None,
+                    filter: None,
+                    event_handler: None,
+                    sources: None,
+                }
+            }
+
+            #[serial]
+            #[tokio::test]
+            async fn test_cleanup_by_app_id() {
+                let state = make_state();
+                let mut req = RpcRequest::mock();
+                req.ctx.app_id = "epg".to_string();
+                state.update_request(&req, &default_rule(), None, None, vec![]);
+
+                assert_eq!(state.request_map.read().unwrap().len(), 1);
+                state.cleanup_request_maps_for_app("epg");
+                assert!(state.request_map.read().unwrap().is_empty());
+            }
+
+            #[serial]
+            #[tokio::test]
+            async fn test_cleanup_by_session_id() {
+                let state = make_state();
+                let mut req = RpcRequest::mock();
+                req.ctx.session_id = "sess-123".to_string();
+                req.ctx.app_id = "other".to_string();
+                state.update_request(&req, &default_rule(), None, None, vec![]);
+
+                state.cleanup_request_maps_for_app("sess-123");
+                assert!(state.request_map.read().unwrap().is_empty());
+            }
+
+            #[serial]
+            #[tokio::test]
+            async fn test_cleanup_by_cid() {
+                let state = make_state();
+                let mut req = RpcRequest::mock();
+                req.ctx.cid = Some("conn-xyz".to_string());
+                req.ctx.app_id = "other".to_string();
+                state.update_request(&req, &default_rule(), None, None, vec![]);
+
+                state.cleanup_request_maps_for_app("conn-xyz");
+                assert!(state.request_map.read().unwrap().is_empty());
+            }
+
+            #[serial]
+            #[tokio::test]
+            async fn test_cleanup_no_match_is_noop() {
+                let state = make_state();
+                let req = RpcRequest::mock();
+                state.update_request(&req, &default_rule(), None, None, vec![]);
+
+                state.cleanup_request_maps_for_app("nonexistent");
+                assert_eq!(state.request_map.read().unwrap().len(), 1);
+            }
+
+            #[serial]
+            #[tokio::test]
+            async fn test_cleanup_also_removes_extension_request_map() {
+                let state = make_state();
+                let mut req = RpcRequest::mock();
+                req.ctx.app_id = "epg".to_string();
+                state.update_request(&req, &default_rule(), None, None, vec![]);
+                let id = {
+                    let map = state.request_map.read().unwrap();
+                    *map.keys().next().unwrap()
+                };
+                {
+                    let mut extn_map = state.extension_request_map.write().unwrap();
+                    extn_map.insert(
+                        id,
+                        ripple_sdk::extn::extn_client_message::ExtnMessage::default(),
+                    );
+                }
+
+                state.cleanup_request_maps_for_app("epg");
+                assert!(state.request_map.read().unwrap().is_empty());
+                assert!(state.extension_request_map.read().unwrap().is_empty());
+            }
+        }
     }
 
     #[tokio::test]

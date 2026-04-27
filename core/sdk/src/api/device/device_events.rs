@@ -112,10 +112,38 @@ mod tests {
 
     #[rstest(input, expected,
             case("device.onHdcpChanged", Ok(DeviceEvent::InputChanged)),
+            case("device.cleanup", Ok(DeviceEvent::Cleanup)),
             case("invalid_event", Err(())),
         )]
     fn test_from_str(input: &str, expected: Result<DeviceEvent, ()>) {
         assert_eq!(DeviceEvent::from_str(input), expected);
+    }
+
+    #[test]
+    fn test_cleanup_event_request_payload_roundtrip() {
+        let request = DeviceEventRequest {
+            event: DeviceEvent::Cleanup,
+            subscribe: false,
+            callback_type: DeviceEventCallback::FireboltAppEvent("epg".to_string()),
+        };
+        let payload = request.get_extn_payload();
+        let recovered = DeviceEventRequest::get_from_payload(payload).unwrap();
+        assert_eq!(recovered.event, DeviceEvent::Cleanup);
+        assert_eq!(recovered.callback_type.get_id(), "epg");
+    }
+
+    #[test]
+    fn test_cleanup_event_contract() {
+        let request = DeviceEventRequest {
+            event: DeviceEvent::Cleanup,
+            subscribe: true,
+            callback_type: DeviceEventCallback::FireboltAppEvent("app1".to_string()),
+        };
+        // Cleanup routes through the same contract as Input events
+        assert_eq!(
+            request.get_contract(),
+            RippleContract::DeviceEvents(EventAdjective::Input)
+        );
     }
 
     #[rstest]

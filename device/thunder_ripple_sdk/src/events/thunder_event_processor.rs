@@ -356,3 +356,105 @@ impl Default for ThunderEventProcessor {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::client::device_operator::DeviceSubscribeRequest;
+
+    fn make_handler(listeners: Vec<&str>) -> ThunderEventHandler {
+        ThunderEventHandler {
+            request: DeviceSubscribeRequest {
+                module: "TestModule".to_string(),
+                event_name: "testEvent".to_string(),
+                params: None,
+                sub_id: None,
+            },
+            handle: |_, _, _| {},
+            is_valid: |_| true,
+            listeners: listeners.into_iter().map(|s| s.to_string()).collect(),
+            id: "test_id".to_string(),
+            callback_type: DeviceEventCallback::FireboltAppEvent("test".to_string()),
+        }
+    }
+
+    #[test]
+    fn test_cleanup_by_app_id_removes_sole_listener() {
+        let processor = ThunderEventProcessor::new();
+        {
+            let mut map = processor.event_map.write().unwrap();
+            map.insert("event.a".to_string(), make_handler(vec!["epg"]));
+        }
+        // Also add a last_event entry
+        {
+            let mut last = processor.last_event.write().unwrap();
+            last.insert("event.a".to_string(), serde_json::json!({"foo": 1}));
+        }
+
+        let removed = processor.cleanup_by_app_id("epg");
+
+        assert_eq!(removed, vec!["event.a".to_string()]);
+        assert!(processor.event_map.read().unwrap().is_empty());
+        assert!(processor.last_event.read().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_cleanup_by_app_id_keeps_other_listeners() {
+        let processor = ThunderEventProcessor::new();
+        {
+            let mut map = processor.event_map.write().unwrap();
+            map.insert("event.a".to_string(), make_handler(vec!["epg", "settings"]));
+        }
+
+        let removed = processor.cleanup_by_app_id("epg");
+
+        assert!(removed.is_empty());
+        let map = processor.event_map.read().unwrap();
+        let handler = map.get("event.a").unwrap();
+        assert_eq!(handler.listeners, vec!["settings".to_string()]);
+    }
+
+    #[test]
+    fn test_cleanup_by_app_id_multiple_events() {
+        let processor = ThunderEventProcessor::new();
+        {
+            let mut map = processor.event_map.write().unwrap();
+            map.insert("event.a".to_string(), make_handler(vec!["epg"]));
+            map.insert("event.b".to_string(), make_handler(vec!["epg", "other"]));
+            map.insert("event.c".to_string(), make_handler(vec!["other"]));
+        }
+        {
+            let mut last = processor.last_event.write().unwrap();
+            last.insert("event.a".to_string(), serde_json::json!(1));
+            last.insert("event.b".to_string(), serde_json::json!(2));
+        }
+
+        let removed = processor.cleanup_by_app_id("epg");
+
+        assert_eq!(removed, vec!["event.a".to_string()]);
+        let map = processor.event_map.read().unwrap();
+        assert_eq!(map.len(), 2); // event.b and event.c remain
+        assert_eq!(
+            map.get("event.b").unwrap().listeners,
+            vec!["other".to_string()]
+        );
+        // last_event for event.a should be cleaned, event.b kept
+        let last = processor.last_event.read().unwrap();
+        assert!(!last.contains_key("event.a"));
+        assert!(last.contains_key("event.b"));
+    }
+
+    #[test]
+    fn test_cleanup_by_app_id_no_match() {
+        let processor = ThunderEventProcessor::new();
+        {
+            let mut map = processor.event_map.write().unwrap();
+            map.insert("event.a".to_string(), make_handler(vec!["epg"]));
+        }
+
+        let removed = processor.cleanup_by_app_id("nonexistent");
+
+        assert!(removed.is_empty());
+        assert_eq!(processor.event_map.read().unwrap().len(), 1);
+    }
+}

@@ -480,6 +480,7 @@ impl AppEvents {
 pub mod tests {
     use crate::state::session_state::Session;
     use ripple_sdk::tokio;
+    use ripple_sdk::uuid::Uuid;
     use ripple_tdk::utils::test_utils::Mockable;
 
     use super::*;
@@ -512,5 +513,127 @@ pub mod tests {
         let listeners =
             AppEvents::get_listeners(&platform_state.app_events_state, "test_event", None);
         assert!(listeners.len() == 1);
+    }
+
+    /// Helper: add a listener with a specific CallContext to a given event/context.
+    fn add_listener_direct(
+        state: &PlatformState,
+        event: &str,
+        ctx: CallContext,
+        context: Option<String>,
+    ) {
+        let mut listeners = state.app_events_state.listeners.write().unwrap();
+        let vec = AppEvents::get_or_create_listener_vec(
+            &mut listeners,
+            event.to_string(),
+            context,
+        );
+        vec.push(EventListener {
+            call_ctx: ctx,
+            session_tx: None,
+            decorator: None,
+        });
+    }
+
+    fn make_ctx(session_id: &str, app_id: &str, cid: Option<&str>) -> CallContext {
+        CallContext::new(
+            session_id.to_string(),
+            Uuid::new_v4().to_string(),
+            app_id.to_string(),
+            1,
+            ripple_sdk::api::gateway::rpc_gateway_api::ApiProtocol::Extn,
+            "method".to_string(),
+            cid.map(|s| s.to_string()),
+            false,
+        )
+    }
+
+    #[tokio::test]
+    async fn test_remove_session_prunes_empty_entries() {
+        let state = PlatformState::mock();
+        let session_id = "sess-1".to_string();
+        let ctx = make_ctx(&session_id, "app1", None);
+
+        // Register session so clear_session doesn't panic
+        let session = Session::new("app1".to_string(), None);
+        state.session_state.add_session(session_id.clone(), session);
+
+        add_listener_direct(&state, "evt1", ctx.clone(), None);
+
+        // Verify listener exists
+        assert_eq!(state.app_events_state.listeners.read().unwrap().len(), 1);
+
+        // remove_session should remove the listener AND prune empty maps
+        AppEvents::remove_session(&state, session_id);
+        assert!(state.app_events_state.listeners.read().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_remove_session_keeps_other_sessions() {
+        let state = PlatformState::mock();
+        let ctx1 = make_ctx("sess-1", "app1", None);
+        let ctx2 = make_ctx("sess-2", "app2", None);
+
+        let s1 = Session::new("app1".to_string(), None);
+        state.session_state.add_session("sess-1".to_string(), s1);
+        let s2 = Session::new("app2".to_string(), None);
+        state.session_state.add_session("sess-2".to_string(), s2);
+
+        add_listener_direct(&state, "evt1", ctx1.clone(), None);
+        add_listener_direct(&state, "evt1", ctx2.clone(), None);
+
+        AppEvents::remove_session(&state, "sess-1".to_string());
+
+        // evt1 should still exist with 1 listener
+        let listeners = state.app_events_state.listeners.read().unwrap();
+        assert_eq!(listeners.len(), 1);
+        assert_eq!(listeners.get("evt1").unwrap().get(&None).unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_by_connection_id_removes_matching() {
+        let state = PlatformState::mock();
+        let cid = "conn-abc";
+        let ctx = make_ctx("sess-1", "app1", Some(cid));
+
+        add_listener_direct(&state, "evt1", ctx.clone(), None);
+        add_listener_direct(&state, "evt2", ctx.clone(), Some("ctx-a".to_string()));
+
+        assert_eq!(state.app_events_state.listeners.read().unwrap().len(), 2);
+
+        AppEvents::cleanup_by_connection_id(&state, cid);
+
+        // Both events should be fully pruned
+        assert!(state.app_events_state.listeners.read().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_by_connection_id_keeps_other_cids() {
+        let state = PlatformState::mock();
+        let ctx1 = make_ctx("s1", "app1", Some("conn-1"));
+        let ctx2 = make_ctx("s2", "app2", Some("conn-2"));
+
+        add_listener_direct(&state, "evt1", ctx1, None);
+        add_listener_direct(&state, "evt1", ctx2, None);
+
+        AppEvents::cleanup_by_connection_id(&state, "conn-1");
+
+        let listeners = state.app_events_state.listeners.read().unwrap();
+        assert_eq!(listeners.get("evt1").unwrap().get(&None).unwrap().len(), 1);
+        assert_eq!(
+            listeners.get("evt1").unwrap().get(&None).unwrap()[0].call_ctx.cid.as_deref(),
+            Some("conn-2")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_by_connection_id_no_match_is_noop() {
+        let state = PlatformState::mock();
+        let ctx = make_ctx("s1", "app1", Some("conn-1"));
+        add_listener_direct(&state, "evt1", ctx, None);
+
+        AppEvents::cleanup_by_connection_id(&state, "nonexistent");
+
+        assert_eq!(state.app_events_state.listeners.read().unwrap().len(), 1);
     }
 }

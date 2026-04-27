@@ -161,24 +161,39 @@ impl FireboltGateway {
                         .endpoint_state
                         .cleanup_for_app(&session_id)
                         .await;
+                    // Resolve app_id from session state BEFORE clearing the session,
+                    // because ThunderEventProcessor stores listeners by app_id (e.g. "epg"),
+                    // not by cid (a UUID).
+                    let app_id_for_cleanup = self
+                        .state
+                        .platform_state
+                        .session_state
+                        .get_app_id(cid.clone());
                     // Clear session from session_map by connection_id (the key used during registration)
                     self.state.platform_state.session_state.clear_session(&cid);
                     // Send cleanup to ThunderEventProcessor (extension side) to remove
                     // event_map and last_event entries for this app
-                    let cleanup_request = DeviceEventRequest {
-                        event: DeviceEvent::Cleanup,
-                        subscribe: false,
-                        callback_type: DeviceEventCallback::FireboltAppEvent(cid.clone()),
-                    };
-                    if let Err(e) = self
-                        .state
-                        .platform_state
-                        .get_client()
-                        .send_extn_request_transient(cleanup_request)
-                    {
+                    if let Some(app_id) = app_id_for_cleanup {
+                        let cleanup_request = DeviceEventRequest {
+                            event: DeviceEvent::Cleanup,
+                            subscribe: false,
+                            callback_type: DeviceEventCallback::FireboltAppEvent(app_id.clone()),
+                        };
+                        if let Err(e) = self
+                            .state
+                            .platform_state
+                            .get_client()
+                            .send_extn_request_transient(cleanup_request)
+                        {
+                            warn!(
+                                "Failed to send ThunderEventProcessor cleanup for app_id={} (cid={}): {:?}",
+                                app_id, cid, e
+                            );
+                        }
+                    } else {
                         warn!(
-                            "Failed to send ThunderEventProcessor cleanup for {}: {:?}",
-                            cid, e
+                            "Could not resolve app_id for cid={}, skipping ThunderEventProcessor cleanup",
+                            cid
                         );
                     }
                 }
