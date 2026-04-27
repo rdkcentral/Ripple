@@ -16,7 +16,7 @@
 //
 
 use ripple_sdk::{
-    api::session::EventAdjective, framework::ripple_contract::RippleContract,
+    api::session::EventAdjective, framework::ripple_contract::RippleContract, log::info,
     utils::error::RippleError,
 };
 
@@ -106,6 +106,19 @@ impl ExtnRequestProcessor for ThunderOpenEventsProcessor {
                 id.clone(),
                 HDCPEventHandler::provide(id, callback_type),
             )),
+            DeviceEvent::Cleanup => {
+                // Clean up all event subscriptions for this app
+                let removed_events = state.event_processor.cleanup_by_app_id(&id);
+                if !removed_events.is_empty() {
+                    info!(
+                        "ThunderEventProcessor cleanup: removed {} event(s) for app {}: {:?}",
+                        removed_events.len(),
+                        id,
+                        removed_events
+                    );
+                }
+                return Self::ack(state.get_client(), msg).await.is_ok();
+            }
         } {
             v.await;
             Self::ack(state.get_client(), msg).await.is_ok()
