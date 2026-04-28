@@ -1362,11 +1362,6 @@ impl BrokerOutputForwarder {
         let event_utility_clone = event_utility.clone();
 
         tokio::spawn(async move {
-            // Cache last event data per subscription id to skip redundant event_handler
-            // processing when the Thunder event payload is unchanged (e.g.
-            // onDisplayConnectionChanged fires every ~5s with identical data).
-            let mut last_event_handler_data: HashMap<u64, Value> = HashMap::new();
-
             while let Some(output) = rx.recv().await {
                 let output_c = output.clone();
                 let mut response = output.data.clone();
@@ -1397,24 +1392,6 @@ impl BrokerOutputForwarder {
 
                         let apply_response_needed = if let Some(result) = response.result.clone() {
                             if is_event {
-                                // Skip event_handler processing if the event data is unchanged.
-                                // This prevents redundant internal requests (e.g. device.hdr,
-                                // device.hdcp) when Thunder fires the same event repeatedly
-                                // (onDisplayConnectionChanged every ~5s), avoiding heap growth
-                                // from repeated allocations.
-                                if broker_request.rule.event_handler.is_some() {
-                                    if let Some(last) = last_event_handler_data.get(&id) {
-                                        if *last == result {
-                                            debug!(
-                                                "Skipping duplicate event_handler for id={} method={}",
-                                                id, rpc_request.ctx.method
-                                            );
-                                            continue;
-                                        }
-                                    }
-                                    last_event_handler_data.insert(id, result.clone());
-                                }
-
                                 LogSignal::new(
                                     "handle_event_output".to_string(),
                                     "processing event".to_string(),
@@ -3498,77 +3475,6 @@ mod endpoint_broker_tests {
             assert!(cleaner.cleanup_session("test_app").await.is_err());
         }
     }
-    #[cfg(test)]
-    mod event_handler_dedup {
-        use serde_json::{json, Value};
-        use std::collections::HashMap;
-
-        /// Simulates the dedup logic in `start_forwarder`: returns true if the
-        /// event should be skipped (duplicate), false if it should be processed.
-        fn should_skip(
-            cache: &mut HashMap<u64, Value>,
-            id: u64,
-            has_event_handler: bool,
-            result: &Value,
-        ) -> bool {
-            if !has_event_handler {
-                return false;
-            }
-            if let Some(last) = cache.get(&id) {
-                if *last == *result {
-                    return true;
-                }
-            }
-            cache.insert(id, result.clone());
-            false
-        }
-
-        #[test]
-        fn test_first_event_is_not_skipped() {
-            let mut cache = HashMap::new();
-            let data = json!({"connected": true});
-            assert!(!should_skip(&mut cache, 20, true, &data));
-        }
-
-        #[test]
-        fn test_duplicate_event_is_skipped() {
-            let mut cache = HashMap::new();
-            let data = json!({"connected": true});
-            assert!(!should_skip(&mut cache, 20, true, &data));
-            assert!(should_skip(&mut cache, 20, true, &data));
-            assert!(should_skip(&mut cache, 20, true, &data));
-        }
-
-        #[test]
-        fn test_changed_event_is_not_skipped() {
-            let mut cache = HashMap::new();
-            let data1 = json!({"connected": true});
-            let data2 = json!({"connected": false});
-            assert!(!should_skip(&mut cache, 20, true, &data1));
-            assert!(should_skip(&mut cache, 20, true, &data1));
-            assert!(!should_skip(&mut cache, 20, true, &data2));
-            assert!(should_skip(&mut cache, 20, true, &data2));
-        }
-
-        #[test]
-        fn test_different_ids_tracked_independently() {
-            let mut cache = HashMap::new();
-            let data = json!({"connected": true});
-            assert!(!should_skip(&mut cache, 20, true, &data));
-            assert!(!should_skip(&mut cache, 22, true, &data));
-            assert!(should_skip(&mut cache, 20, true, &data));
-            assert!(should_skip(&mut cache, 22, true, &data));
-        }
-
-        #[test]
-        fn test_no_event_handler_never_skips() {
-            let mut cache = HashMap::new();
-            let data = json!({"connected": true});
-            assert!(!should_skip(&mut cache, 20, false, &data));
-            assert!(!should_skip(&mut cache, 20, false, &data));
-        }
-    }
-
     #[cfg(test)]
     mod workflow {
         // fn test_workflow() {
