@@ -89,7 +89,7 @@ pub struct BrokerCleaner {
 impl BrokerCleaner {
     async fn cleanup_session(&self, appid: &str) -> Result<String, RippleError> {
         if let Some(cleaner) = self.cleaner.clone() {
-            if let Err(e) = cleaner.try_send(appid.to_owned()) {
+            if let Err(e) = cleaner.send(appid.to_owned()).await {
                 error!("Couldnt cleanup {} {:?}", appid, e);
                 return Err(RippleError::SendFailure);
             }
