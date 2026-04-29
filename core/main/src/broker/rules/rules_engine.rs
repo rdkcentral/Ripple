@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-use jaq_interpret::{Ctx, FilterT, ParseCtx, RcIter, Val};
+use jaq_interpret::{Ctx, Filter, FilterT, ParseCtx, RcIter, Val};
 use ripple_sdk::api::{
     gateway::rpc_gateway_api::RpcRequest, manifest::extn_manifest::ExtnManifest,
 };
@@ -35,6 +35,22 @@ use super::rules_functions::{apply_functions, RulesFunction, RulesImport};
 
 static BASE_PARSE_CTX_INIT: Once = Once::new();
 static mut BASE_PARSE_CTX_PTR: Option<Mutex<ParseCtx>> = None;
+
+static FILTER_CACHE_INIT: Once = Once::new();
+static mut FILTER_CACHE_PTR: Option<Mutex<HashMap<String, Filter>>> = None;
+
+fn get_filter_cache() -> MutexGuard<'static, HashMap<String, Filter>> {
+    FILTER_CACHE_INIT.call_once(|| unsafe {
+        FILTER_CACHE_PTR = Some(Mutex::new(HashMap::new()));
+    });
+    unsafe {
+        FILTER_CACHE_PTR
+            .as_ref()
+            .expect("FILTER_CACHE_PTR not initialized")
+            .lock()
+            .expect("Failed to lock FILTER_CACHE_PTR")
+    }
+}
 
 #[derive(Debug, Deserialize, Default, Clone)]
 pub struct RuleSet {
@@ -532,6 +548,26 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
     // which do not include filters in the standard library
     // such as `map`, `select` etc.
 
+    // Check cache for previously compiled filter
+    {
+        let cache = get_filter_cache();
+        if let Some(cached_filter) = cache.get(filter) {
+            let f = cached_filter.clone();
+            drop(cache);
+            let inputs = RcIter::new(core::iter::empty());
+            let mut out = f.run((Ctx::new([], &inputs), Val::from(input)));
+            if let Some(Ok(v)) = out.next() {
+                info!(
+                    "Ripple Gateway Rule Processing Time (cached): {},{}",
+                    reference,
+                    Utc::now().timestamp_millis() - start
+                );
+                return Ok(Value::from(v));
+            }
+            return Err(RippleError::ParseError);
+        }
+    }
+
     // Parse the filter
     let (f, errs) = jaq_parse::parse(filter, jaq_parse::main());
     if !errs.is_empty() {
@@ -550,6 +586,15 @@ pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value
         defs.errs.clear(); // Clear errors before returning
         return Err(RippleError::RuleError);
     }
+    // Drop defs lock before acquiring cache lock to avoid deadlock
+    drop(defs);
+
+    // Cache the compiled filter
+    {
+        let mut cache = get_filter_cache();
+        cache.insert(filter.to_string(), f.clone());
+    }
+
     let inputs = RcIter::new(core::iter::empty());
     // iterator over the output values
     let mut out = f.run((Ctx::new([], &inputs), Val::from(input)));

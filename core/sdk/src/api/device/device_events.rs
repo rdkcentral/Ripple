@@ -39,6 +39,9 @@ pub const VOICE_GUIDANCE_SPEED_CHANGED: &str = "voiceguidance.onSpeedChanged";
 pub enum DeviceEvent {
     InputChanged,
     AudioChanged,
+    /// Signals that an app has disconnected and its event subscriptions should be cleaned up.
+    /// The callback_type.get_id() carries the app_id to clean.
+    Cleanup,
 }
 
 impl FromStr for DeviceEvent {
@@ -48,6 +51,7 @@ impl FromStr for DeviceEvent {
         match s {
             "device.onHdcpChanged" => Ok(Self::InputChanged),
             "device.onAudioChanged" => Ok(Self::AudioChanged),
+            "device.cleanup" => Ok(Self::Cleanup),
             _ => Err(()),
         }
     }
@@ -91,6 +95,7 @@ impl ExtnPayloadProvider for DeviceEventRequest {
         match self.event {
             DeviceEvent::InputChanged => RippleContract::DeviceEvents(EventAdjective::Input),
             DeviceEvent::AudioChanged => RippleContract::DeviceEvents(EventAdjective::Audio),
+            DeviceEvent::Cleanup => RippleContract::DeviceEvents(EventAdjective::Input),
         }
     }
 
@@ -107,10 +112,38 @@ mod tests {
 
     #[rstest(input, expected,
             case("device.onHdcpChanged", Ok(DeviceEvent::InputChanged)),
+            case("device.cleanup", Ok(DeviceEvent::Cleanup)),
             case("invalid_event", Err(())),
         )]
     fn test_from_str(input: &str, expected: Result<DeviceEvent, ()>) {
         assert_eq!(DeviceEvent::from_str(input), expected);
+    }
+
+    #[test]
+    fn test_cleanup_event_request_payload_roundtrip() {
+        let request = DeviceEventRequest {
+            event: DeviceEvent::Cleanup,
+            subscribe: false,
+            callback_type: DeviceEventCallback::FireboltAppEvent("epg".to_string()),
+        };
+        let payload = request.get_extn_payload();
+        let recovered = DeviceEventRequest::get_from_payload(payload).unwrap();
+        assert_eq!(recovered.event, DeviceEvent::Cleanup);
+        assert_eq!(recovered.callback_type.get_id(), "epg");
+    }
+
+    #[test]
+    fn test_cleanup_event_contract() {
+        let request = DeviceEventRequest {
+            event: DeviceEvent::Cleanup,
+            subscribe: true,
+            callback_type: DeviceEventCallback::FireboltAppEvent("app1".to_string()),
+        };
+        // Cleanup routes through the same contract as Input events
+        assert_eq!(
+            request.get_contract(),
+            RippleContract::DeviceEvents(EventAdjective::Input)
+        );
     }
 
     #[rstest]

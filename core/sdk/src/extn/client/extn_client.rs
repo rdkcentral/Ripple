@@ -472,7 +472,7 @@ impl ExtnClient {
                 }
             });
         } else {
-            error!("No response processor for {:?}", msg);
+            debug!("No response processor for {:?}", msg);
         }
     }
 
