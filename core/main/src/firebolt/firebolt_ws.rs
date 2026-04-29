@@ -438,9 +438,9 @@ impl FireboltWs {
                 }
             }
         }
-        info!(
-            "Session disconnect: unregistering connection_id={} session_id={} app_id={}",
-            connection_id, identity.session_id, identity.app_id
+        debug!(
+            "Session disconnect: unregistering connection_id={} app_id={}",
+            connection_id, identity.app_id
         );
         let msg = FireboltGatewayCommand::UnregisterSession {
             session_id: identity.session_id.clone(),

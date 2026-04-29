@@ -90,7 +90,7 @@ impl BrokerCleaner {
     async fn cleanup_session(&self, appid: &str) -> Result<String, RippleError> {
         if let Some(cleaner) = self.cleaner.clone() {
             if let Err(e) = cleaner.send(appid.to_owned()).await {
-                error!("Couldnt cleanup {} {:?}", appid, e);
+                error!("Could not clean up {} {:?}", appid, e);
                 return Err(RippleError::SendFailure);
             }
             return Ok(appid.to_owned());
@@ -1138,9 +1138,8 @@ impl EndpointBrokerState {
                 extn_map.remove(id);
             }
             debug!(
-                "cleanup_request_maps_for_app: removed {} request_map and extension_request_map entries for app_id={}",
-                removed_ids.len(),
-                app_id
+                "cleanup_request_maps_for_app: removed {} request_map and extension_request_map entries",
+                removed_ids.len()
             );
         }
     }
