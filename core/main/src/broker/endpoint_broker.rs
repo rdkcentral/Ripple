@@ -1138,9 +1138,8 @@ impl EndpointBrokerState {
                 extn_map.remove(id);
             }
             debug!(
-                "cleanup_request_maps: removed {} request_map and extension_request_map entries for app_id={}",
-                removed_ids.len(),
-                id
+                "cleanup_request_maps: removed {} request_map and extension_request_map entries",
+                removed_ids.len()
             );
         }
     }
