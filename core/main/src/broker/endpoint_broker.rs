@@ -1095,34 +1095,34 @@ impl EndpointBrokerState {
     }
 
     // Method to cleanup all subscription on App termination
-    pub async fn cleanup_for_app(&self, app_id: &str) {
+    pub async fn cleanup_for_app(&self, id: &str) {
         let cleaners = { self.cleaner_list.read().unwrap().clone() };
 
         for cleaner in cleaners {
             /*
             for now, just eat the error - the return type was mainly added to prepate for future refactoring/testability
             */
-            let _ = cleaner.cleanup_session(app_id).await;
+            let _ = cleaner.cleanup_session(id).await;
         }
 
         // Clean up subscription entries from request_map and extension_request_map
         // that belong to this app. These are never removed on disconnect otherwise.
-        self.cleanup_request_maps_for_app(app_id);
+        self.cleanup_request_maps(id);
     }
 
     /// Remove subscription/event entries from request_map and extension_request_map
-    /// for the given app_id (which may be a session_id or connection_id).
+    /// matching the given identifier (may be app_id, session_id, or connection_id).
     /// Without this, subscription entries in request_map (guarded by is_subscription())
     /// and event entries in extension_request_map persist forever.
-    fn cleanup_request_maps_for_app(&self, app_id: &str) {
+    fn cleanup_request_maps(&self, id: &str) {
         let removed_ids: Vec<u64> = {
             let mut request_map = self.request_map.write().unwrap();
             let ids_to_remove: Vec<u64> = request_map
                 .iter()
                 .filter(|(_, req)| {
-                    req.rpc.ctx.app_id == app_id
-                        || req.rpc.ctx.session_id == app_id
-                        || req.rpc.ctx.cid.as_deref() == Some(app_id)
+                    req.rpc.ctx.app_id == id
+                        || req.rpc.ctx.session_id == id
+                        || req.rpc.ctx.cid.as_deref() == Some(id)
                 })
                 .map(|(id, _)| *id)
                 .collect();
@@ -1138,8 +1138,9 @@ impl EndpointBrokerState {
                 extn_map.remove(id);
             }
             debug!(
-                "cleanup_request_maps_for_app: removed {} request_map and extension_request_map entries",
-                removed_ids.len()
+                "cleanup_request_maps: removed {} request_map and extension_request_map entries for app_id={}",
+                removed_ids.len(),
+                id
             );
         }
     }
@@ -2568,7 +2569,7 @@ mod endpoint_broker_tests {
                 state.update_request(&req, &default_rule(), None, None, vec![]);
 
                 assert_eq!(state.request_map.read().unwrap().len(), 1);
-                state.cleanup_request_maps_for_app("epg");
+                state.cleanup_request_maps("epg");
                 assert!(state.request_map.read().unwrap().is_empty());
             }
 
@@ -2581,7 +2582,7 @@ mod endpoint_broker_tests {
                 req.ctx.app_id = "other".to_string();
                 state.update_request(&req, &default_rule(), None, None, vec![]);
 
-                state.cleanup_request_maps_for_app("sess-123");
+                state.cleanup_request_maps("sess-123");
                 assert!(state.request_map.read().unwrap().is_empty());
             }
 
@@ -2594,7 +2595,7 @@ mod endpoint_broker_tests {
                 req.ctx.app_id = "other".to_string();
                 state.update_request(&req, &default_rule(), None, None, vec![]);
 
-                state.cleanup_request_maps_for_app("conn-xyz");
+                state.cleanup_request_maps("conn-xyz");
                 assert!(state.request_map.read().unwrap().is_empty());
             }
 
@@ -2605,7 +2606,7 @@ mod endpoint_broker_tests {
                 let req = RpcRequest::mock();
                 state.update_request(&req, &default_rule(), None, None, vec![]);
 
-                state.cleanup_request_maps_for_app("nonexistent");
+                state.cleanup_request_maps("nonexistent");
                 assert_eq!(state.request_map.read().unwrap().len(), 1);
             }
 
@@ -2628,7 +2629,7 @@ mod endpoint_broker_tests {
                     );
                 }
 
-                state.cleanup_request_maps_for_app("epg");
+                state.cleanup_request_maps("epg");
                 assert!(state.request_map.read().unwrap().is_empty());
                 assert!(state.extension_request_map.read().unwrap().is_empty());
             }

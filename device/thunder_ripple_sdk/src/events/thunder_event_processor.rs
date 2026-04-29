@@ -324,26 +324,32 @@ impl ThunderEventProcessor {
     /// Remove all event listeners for a given app_id (session cleanup on disconnect).
     /// Returns the list of event names that no longer have any listeners and were removed.
     pub fn cleanup_by_app_id(&self, app_id: &str) -> Vec<String> {
-        let mut event_map = self.event_map.write().unwrap();
-        let mut removed_events = Vec::new();
-        let event_names: Vec<String> = event_map.keys().cloned().collect();
-        for event_name in event_names {
-            if let Some(handler) = event_map.get_mut(&event_name) {
-                handler.listeners.retain(|id| id != app_id);
-                if handler.listeners.is_empty() {
-                    event_map.remove(&event_name);
-                    removed_events.push(event_name.clone());
+        let removed_events = {
+            let mut event_map = self.event_map.write().unwrap();
+            let mut removed = Vec::new();
+            let event_names: Vec<String> = event_map.keys().cloned().collect();
+            for event_name in event_names {
+                if let Some(handler) = event_map.get_mut(&event_name) {
+                    handler.listeners.retain(|id| id != app_id);
+                    if handler.listeners.is_empty() {
+                        event_map.remove(&event_name);
+                        removed.push(event_name.clone());
+                    }
                 }
             }
-        }
-        // Clean last_event entries for removed events to free heap
+            removed
+        }; // event_map lock dropped here
+           // Clean last_event entries for removed events to free heap
         if !removed_events.is_empty() {
             let mut last_event_map = self.last_event.write().unwrap();
             for event_name in &removed_events {
                 last_event_map.remove(event_name);
             }
         }
-        debug!("cleanup_by_app_id: removed_events={:?}", removed_events);
+        debug!(
+            "cleanup_by_app_id: app_id={}, removed_events={:?}",
+            app_id, removed_events
+        );
         removed_events
     }
 }
