@@ -343,10 +343,7 @@ impl ThunderEventProcessor {
                 last_event_map.remove(event_name);
             }
         }
-        debug!(
-            "cleanup_by_app_id: app_id={}, removed_events={:?}",
-            app_id, removed_events
-        );
+        debug!("cleanup_by_app_id: removed_events={:?}", removed_events);
         removed_events
     }
 }

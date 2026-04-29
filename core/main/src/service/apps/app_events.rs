@@ -523,11 +523,7 @@ pub mod tests {
         context: Option<String>,
     ) {
         let mut listeners = state.app_events_state.listeners.write().unwrap();
-        let vec = AppEvents::get_or_create_listener_vec(
-            &mut listeners,
-            event.to_string(),
-            context,
-        );
+        let vec = AppEvents::get_or_create_listener_vec(&mut listeners, event.to_string(), context);
         vec.push(EventListener {
             call_ctx: ctx,
             session_tx: None,
@@ -621,7 +617,10 @@ pub mod tests {
         let listeners = state.app_events_state.listeners.read().unwrap();
         assert_eq!(listeners.get("evt1").unwrap().get(&None).unwrap().len(), 1);
         assert_eq!(
-            listeners.get("evt1").unwrap().get(&None).unwrap()[0].call_ctx.cid.as_deref(),
+            listeners.get("evt1").unwrap().get(&None).unwrap()[0]
+                .call_ctx
+                .cid
+                .as_deref(),
             Some("conn-2")
         );
     }

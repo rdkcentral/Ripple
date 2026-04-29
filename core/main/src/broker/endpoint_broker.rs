@@ -1137,8 +1137,8 @@ impl EndpointBrokerState {
             for id in &removed_ids {
                 extn_map.remove(id);
             }
-            info!(
-                "cleanup_request_maps_for_app: removed {} request_map and extension_request_map entries for {}",
+            debug!(
+                "cleanup_request_maps_for_app: removed {} request_map and extension_request_map entries for app_id={}",
                 removed_ids.len(),
                 app_id
             );
@@ -1457,7 +1457,7 @@ impl BrokerOutputForwarder {
                         )
                         .await;
                     } else {
-                        error!(
+                        debug!(
                             "start_forwarder:{} request not found for {:?}",
                             line!(),
                             response

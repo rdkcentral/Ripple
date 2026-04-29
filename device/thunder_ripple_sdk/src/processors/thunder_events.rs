@@ -117,7 +117,7 @@ impl ExtnRequestProcessor for ThunderOpenEventsProcessor {
                         removed_events
                     );
                 }
-                return Self::ack(state.get_client(), msg).await.is_ok();
+                return true;
             }
         } {
             v.await;

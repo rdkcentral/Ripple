@@ -373,9 +373,9 @@ impl ThunderBroker {
                             broker_for_cleanup.subscription_map.write().unwrap().remove(&cleanup_request)
                         };
                         if let Some(mut cleanup) = value {
-                            info!(
-                                "BrokerCleaner: unsubscribing {} subscription(s) for session {}",
-                                cleanup.len(), cleanup_request
+                            debug!(
+                                "BrokerCleaner: unsubscribing {} subscription(s)",
+                                cleanup.len()
                             );
                             // Send unregister calls directly to Thunder via the WebSocket.
                             // We must NOT route through the broker sender + prepare_request(),
@@ -389,21 +389,20 @@ impl ThunderBroker {
                                 if let Some(method) = method {
                                     let unregister = serde_json::json!({
                                         "jsonrpc": "2.0",
-                                        "id": v.rpc.ctx.call_id,
                                         "method": format!("{}.unregister", callsign),
                                         "params": {
                                             "event": method,
                                             "id": format!("{}", v.rpc.ctx.call_id)
                                         }
                                     });
-                                    info!(
-                                        "BrokerCleaner: sending Thunder unregister for {}.{} (call_id={})",
-                                        callsign, method, v.rpc.ctx.call_id
+                                    debug!(
+                                        "BrokerCleaner: sending Thunder unregister for {}.{}",
+                                        callsign, method
                                     );
                                     if let Err(e) = ws_tx.feed(Message::Text(unregister.to_string())).await {
                                         error!(
-                                            "BrokerCleaner: failed to send unregister for {}: {:?}",
-                                            cleanup_request, e
+                                            "BrokerCleaner: failed to send unregister: {:?}",
+                                            e
                                         );
                                     }
                                 } else {
@@ -415,14 +414,13 @@ impl ThunderBroker {
                             }
                             if let Err(e) = ws_tx.flush().await {
                                 error!(
-                                    "BrokerCleaner: failed to flush unregister calls for {}: {:?}",
-                                    cleanup_request, e
+                                    "BrokerCleaner: failed to flush unregister calls: {:?}",
+                                    e
                                 );
                             }
                         } else {
                             debug!(
-                                "BrokerCleaner: no subscriptions found for key '{}', skipping",
-                                cleanup_request
+                                "BrokerCleaner: no subscriptions found, skipping"
                             );
                         }
                     }

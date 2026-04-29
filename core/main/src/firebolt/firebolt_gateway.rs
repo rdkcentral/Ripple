@@ -33,7 +33,7 @@ use ripple_sdk::{
     },
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
-    log::{error, info, trace, warn},
+    log::{debug, error, info, trace, warn},
     serde_json::{self, Value},
     service::service_message::{JsonRpcMessage as JsonRpcServiceMessage, ServiceMessage},
     tokio::{self, runtime::Handle, sync::mpsc::Sender},
@@ -141,8 +141,7 @@ impl FireboltGateway {
                 }
                 UnregisterSession { session_id, cid } => {
                     info!(
-                        "Cleanup: session_id={} cid={} - removing event listeners, broker subs, session",
-                        session_id, cid
+                        "Cleanup: app disconnect - removing event listeners, broker subs, session"
                     );
                     // Clean event listeners by session_id
                     AppEvents::remove_session(&self.state.platform_state, session_id.clone());
@@ -186,15 +185,12 @@ impl FireboltGateway {
                             .send_extn_request_transient(cleanup_request)
                         {
                             warn!(
-                                "Failed to send ThunderEventProcessor cleanup for app_id={} (cid={}): {:?}",
-                                app_id, cid, e
+                                "Failed to send ThunderEventProcessor cleanup for app_id={}: {:?}",
+                                app_id, e
                             );
                         }
                     } else {
-                        warn!(
-                            "Could not resolve app_id for cid={}, skipping ThunderEventProcessor cleanup",
-                            cid
-                        );
+                        debug!("Could not resolve app_id, skipping ThunderEventProcessor cleanup");
                     }
                 }
                 HandleRpc { request } => self.handle(request, None).await,
