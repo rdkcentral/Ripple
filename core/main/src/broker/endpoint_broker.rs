@@ -58,9 +58,7 @@ use crate::{
     state::{
         ops_metrics_state::OpMetricState, platform_state::PlatformState, session_state::Session,
     },
-    utils::router_utils::{
-        add_telemetry_status_code, capture_stage, get_rpc_header, return_extn_response,
-    },
+    utils::router_utils::return_extn_response,
 };
 
 use super::{
@@ -91,8 +89,8 @@ pub struct BrokerCleaner {
 impl BrokerCleaner {
     async fn cleanup_session(&self, appid: &str) -> Result<String, RippleError> {
         if let Some(cleaner) = self.cleaner.clone() {
-            if let Err(e) = cleaner.try_send(appid.to_owned()) {
-                error!("Couldnt cleanup {} {:?}", appid, e);
+            if let Err(e) = cleaner.send(appid.to_owned()).await {
+                error!("Could not clean up {} {:?}", appid, e);
                 return Err(RippleError::SendFailure);
             }
             return Ok(appid.to_owned());
@@ -380,6 +378,7 @@ pub struct EndpointBrokerState {
     cleaner_list: Arc<RwLock<Vec<BrokerCleaner>>>,
     reconnect_tx: Sender<BrokerConnectRequest>,
     provider_broker_state: ProvideBrokerState,
+    #[allow(dead_code)]
     metrics_state: OpMetricState,
 }
 
@@ -763,7 +762,6 @@ impl EndpointBrokerState {
         data.id = Some(rpc_request.ctx.call_id);
         //let output = BrokerOutput::new(data);
 
-        capture_stage(&self.metrics_state, &rpc_request, "static_rule_request");
         data
     }
 
@@ -1097,14 +1095,52 @@ impl EndpointBrokerState {
     }
 
     // Method to cleanup all subscription on App termination
-    pub async fn cleanup_for_app(&self, app_id: &str) {
+    pub async fn cleanup_for_app(&self, id: &str) {
         let cleaners = { self.cleaner_list.read().unwrap().clone() };
 
         for cleaner in cleaners {
             /*
             for now, just eat the error - the return type was mainly added to prepate for future refactoring/testability
             */
-            let _ = cleaner.cleanup_session(app_id).await;
+            let _ = cleaner.cleanup_session(id).await;
+        }
+
+        // Clean up subscription entries from request_map and extension_request_map
+        // that belong to this app. These are never removed on disconnect otherwise.
+        self.cleanup_request_maps(id);
+    }
+
+    /// Remove subscription/event entries from request_map and extension_request_map
+    /// matching the given identifier (may be app_id, session_id, or connection_id).
+    /// Without this, subscription entries in request_map (guarded by is_subscription())
+    /// and event entries in extension_request_map persist forever.
+    fn cleanup_request_maps(&self, id: &str) {
+        let removed_ids: Vec<u64> = {
+            let mut request_map = self.request_map.write().unwrap();
+            let ids_to_remove: Vec<u64> = request_map
+                .iter()
+                .filter(|(_, req)| {
+                    req.rpc.ctx.app_id == id
+                        || req.rpc.ctx.session_id == id
+                        || req.rpc.ctx.cid.as_deref() == Some(id)
+                })
+                .map(|(id, _)| *id)
+                .collect();
+            for id in &ids_to_remove {
+                request_map.remove(id);
+            }
+            ids_to_remove
+        };
+
+        if !removed_ids.is_empty() {
+            let mut extn_map = self.extension_request_map.write().unwrap();
+            for id in &removed_ids {
+                extn_map.remove(id);
+            }
+            debug!(
+                "cleanup_request_maps: removed {} request_map and extension_request_map entries",
+                removed_ids.len()
+            );
         }
     }
     /// Send a request through the broker and wait for response with a oneshot channel and custom timeout
@@ -1420,7 +1456,7 @@ impl BrokerOutputForwarder {
                         )
                         .await;
                     } else {
-                        error!(
+                        debug!(
                             "start_forwarder:{} request not found for {:?}",
                             line!(),
                             response
@@ -1464,39 +1500,15 @@ impl BrokerOutputForwarder {
                 .sender
                 .try_send(BrokerOutput::new(response.clone()));
         } else {
-            let tm_str = get_rpc_header(rpc_request);
             let mut response = response.clone();
             if is_event {
                 response.update_event_message(rpc_request);
             }
-            let mut message = ApiMessage::new(
+            let message = ApiMessage::new(
                 rpc_request.ctx.protocol.clone(),
                 serde_json::to_string(&response).unwrap(),
                 rpc_request.ctx.request_id.clone(),
             );
-            let mut status_code: i64 = 1;
-            if let Some(e) = &response.error {
-                if let Some(Value::Number(n)) = e.get("code") {
-                    if let Some(v) = n.as_i64() {
-                        status_code = v;
-                    }
-                }
-            }
-            platform_state.metrics.update_api_stats_ref(
-                &rpc_request.ctx.request_id,
-                add_telemetry_status_code(&tm_str, status_code.to_string().as_str()),
-            );
-            if let Some(api_stats) = platform_state
-                .metrics
-                .get_api_stats(&rpc_request.ctx.request_id)
-            {
-                message.stats = Some(api_stats);
-                if rpc_request.ctx.app_id.eq_ignore_ascii_case("internal") {
-                    platform_state
-                        .metrics
-                        .remove_api_stats(&rpc_request.ctx.request_id);
-                }
-            }
             if matches!(rpc_request.ctx.protocol, ApiProtocol::Extn) {
                 if let Ok(extn_message) =
                     platform_state.endpoint_state.get_extn_message(id, is_event)
@@ -2513,6 +2525,114 @@ mod endpoint_broker_tests {
         //     // assert!(state.get_request(2).is_ok());
         //     // assert!(state.get_request(1).is_ok());
         // }
+
+        #[cfg(test)]
+        mod cleanup_request_maps {
+            use super::*;
+            use crate::broker::rules::rules_engine::{Rule, RuleTransform};
+            use ripple_sdk::api::gateway::rpc_gateway_api::RpcRequest;
+            use ripple_sdk::Mockable;
+            use serial_test::serial;
+
+            fn make_state() -> EndpointBrokerState {
+                let (tx, _) = channel(2);
+                let client = RippleClient::new(ChannelsState::new());
+                EndpointBrokerState::new(
+                    OpMetricState::default(),
+                    tx,
+                    RuleEngine {
+                        rules: RuleSet::default(),
+                        functions: HashMap::default(),
+                    },
+                    client,
+                )
+            }
+
+            fn default_rule() -> Rule {
+                Rule {
+                    alias: "test.method".to_owned(),
+                    transform: RuleTransform::default(),
+                    endpoint: None,
+                    filter: None,
+                    event_handler: None,
+                    sources: None,
+                }
+            }
+
+            #[serial]
+            #[tokio::test]
+            async fn test_cleanup_by_app_id() {
+                let state = make_state();
+                let mut req = RpcRequest::mock();
+                req.ctx.app_id = "epg".to_string();
+                state.update_request(&req, &default_rule(), None, None, vec![]);
+
+                assert_eq!(state.request_map.read().unwrap().len(), 1);
+                state.cleanup_request_maps("epg");
+                assert!(state.request_map.read().unwrap().is_empty());
+            }
+
+            #[serial]
+            #[tokio::test]
+            async fn test_cleanup_by_session_id() {
+                let state = make_state();
+                let mut req = RpcRequest::mock();
+                req.ctx.session_id = "sess-123".to_string();
+                req.ctx.app_id = "other".to_string();
+                state.update_request(&req, &default_rule(), None, None, vec![]);
+
+                state.cleanup_request_maps("sess-123");
+                assert!(state.request_map.read().unwrap().is_empty());
+            }
+
+            #[serial]
+            #[tokio::test]
+            async fn test_cleanup_by_cid() {
+                let state = make_state();
+                let mut req = RpcRequest::mock();
+                req.ctx.cid = Some("conn-xyz".to_string());
+                req.ctx.app_id = "other".to_string();
+                state.update_request(&req, &default_rule(), None, None, vec![]);
+
+                state.cleanup_request_maps("conn-xyz");
+                assert!(state.request_map.read().unwrap().is_empty());
+            }
+
+            #[serial]
+            #[tokio::test]
+            async fn test_cleanup_no_match_is_noop() {
+                let state = make_state();
+                let req = RpcRequest::mock();
+                state.update_request(&req, &default_rule(), None, None, vec![]);
+
+                state.cleanup_request_maps("nonexistent");
+                assert_eq!(state.request_map.read().unwrap().len(), 1);
+            }
+
+            #[serial]
+            #[tokio::test]
+            async fn test_cleanup_also_removes_extension_request_map() {
+                let state = make_state();
+                let mut req = RpcRequest::mock();
+                req.ctx.app_id = "epg".to_string();
+                state.update_request(&req, &default_rule(), None, None, vec![]);
+                let id = {
+                    let map = state.request_map.read().unwrap();
+                    *map.keys().next().unwrap()
+                };
+                {
+                    let mut extn_map = state.extension_request_map.write().unwrap();
+                    extn_map.insert(
+                        id,
+                        ripple_sdk::extn::extn_client_message::ExtnMessage::default(),
+                    );
+                }
+
+                state.cleanup_request_maps("epg");
+                assert!(state.request_map.read().unwrap().is_empty());
+                assert!(state.extension_request_map.read().unwrap().is_empty());
+            }
+        }
     }
 
     #[tokio::test]

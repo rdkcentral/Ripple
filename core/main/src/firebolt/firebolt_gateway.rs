@@ -18,6 +18,7 @@
 use jsonrpsee::{core::server::rpc_module::Methods, types::TwoPointZero};
 use ripple_sdk::{
     api::{
+        device::device_events::{DeviceEvent, DeviceEventCallback, DeviceEventRequest},
         firebolt::{
             fb_capabilities::JSON_RPC_STANDARD_ERROR_INVALID_PARAMS,
             fb_openrpc::FireboltOpenRpcMethod,
@@ -28,11 +29,11 @@ use ripple_sdk::{
                 ApiMessage, ApiProtocol, CallContext, JsonRpcApiResponse, RpcRequest,
             },
         },
-        observability::{log_signal::LogSignal, metrics_util::ApiStats},
+        observability::log_signal::LogSignal,
     },
     chrono::Utc,
     extn::extn_client_message::ExtnMessage,
-    log::{error, info, trace, warn},
+    log::{debug, error, info, trace, warn},
     serde_json::{self, Value},
     service::service_message::{JsonRpcMessage as JsonRpcServiceMessage, ServiceMessage},
     tokio::{self, runtime::Handle, sync::mpsc::Sender},
@@ -51,7 +52,6 @@ use crate::{
         bootstrap_state::BootstrapState, openrpc_state::OpenRpcState,
         platform_state::PlatformState, session_state::Session,
     },
-    utils::router_utils::{capture_stage, get_rpc_header_with_status},
 };
 
 use super::rpc_router::RpcRouter;
@@ -140,7 +140,13 @@ impl FireboltGateway {
                         .add_session(session_id, session);
                 }
                 UnregisterSession { session_id, cid } => {
+                    info!(
+                        "Cleanup: app disconnect - removing event listeners, broker subs, session"
+                    );
+                    // Clean event listeners by session_id
                     AppEvents::remove_session(&self.state.platform_state, session_id.clone());
+                    // Also clean event listeners by connection_id (cid) in case session_id != cid
+                    AppEvents::cleanup_by_connection_id(&self.state.platform_state, &cid);
                     ProviderBroker::unregister_session(&self.state.platform_state, cid.clone())
                         .await;
                     self.state
@@ -148,7 +154,44 @@ impl FireboltGateway {
                         .endpoint_state
                         .cleanup_for_app(&cid)
                         .await;
+                    // Also cleanup broker subscriptions by session_id (subscription_map uses session_id as key)
+                    self.state
+                        .platform_state
+                        .endpoint_state
+                        .cleanup_for_app(&session_id)
+                        .await;
+                    // Resolve app_id from session state BEFORE clearing the session,
+                    // because ThunderEventProcessor stores listeners by app_id (e.g. "epg"),
+                    // not by cid (a UUID).
+                    let app_id_for_cleanup = self
+                        .state
+                        .platform_state
+                        .session_state
+                        .get_app_id(cid.clone());
+                    // Clear session from session_map by connection_id (the key used during registration)
                     self.state.platform_state.session_state.clear_session(&cid);
+                    // Send cleanup to ThunderEventProcessor (extension side) to remove
+                    // event_map and last_event entries for this app
+                    if let Some(app_id) = app_id_for_cleanup {
+                        let cleanup_request = DeviceEventRequest {
+                            event: DeviceEvent::Cleanup,
+                            subscribe: false,
+                            callback_type: DeviceEventCallback::FireboltAppEvent(app_id.clone()),
+                        };
+                        if let Err(e) = self
+                            .state
+                            .platform_state
+                            .get_client()
+                            .send_extn_request_transient(cleanup_request)
+                        {
+                            warn!(
+                                "Failed to send ThunderEventProcessor cleanup for app_id={}: {:?}",
+                                app_id, e
+                            );
+                        }
+                    } else {
+                        debug!("Could not resolve app_id, skipping ThunderEventProcessor cleanup");
+                    }
                 }
                 HandleRpc { request } => self.handle(request, None).await,
                 HandleRpcForExtn { msg } => {
@@ -222,15 +265,8 @@ impl FireboltGateway {
                             }
                         };
 
-                        let mut api_message =
+                        let api_message =
                             ApiMessage::new(protocol, data, rpc_request.ctx.request_id.clone());
-
-                        if let Some(api_stats) = platform_state
-                            .metrics
-                            .get_api_stats(&rpc_request.ctx.request_id.clone())
-                        {
-                            api_message.stats = Some(api_stats);
-                        }
 
                         TelemetryBuilder::send_fb_tt(
                             &platform_state,
@@ -305,10 +341,6 @@ impl FireboltGateway {
         let mut request_c = request.clone();
         request_c.method = FireboltOpenRpcMethod::name_with_lowercase_module(&request.method);
 
-        platform_state
-            .metrics
-            .add_api_stats(&request_c.ctx.request_id, &request_c.method);
-
         let fail_open = matches!(
             platform_state
                 .get_device_manifest()
@@ -320,7 +352,6 @@ impl FireboltGateway {
         let open_rpc_state = self.state.platform_state.open_rpc_state.clone();
 
         tokio::spawn(async move {
-            capture_stage(&platform_state.metrics, &request_c, "context_ready");
             // Validate incoming request parameters.
             if let Err(error_string) = validate_request(open_rpc_state, &request_c, fail_open) {
                 let json_rpc_error = JsonRpcError {
@@ -333,15 +364,12 @@ impl FireboltGateway {
                 return;
             }
 
-            capture_stage(&platform_state.metrics, &request_c, "openrpc_val");
             let result = if extn_request || service_request {
                 // extn protocol means its an internal Ripple request skip permissions.
                 Ok(Vec::new())
             } else {
                 FireboltGatekeeper::gate(platform_state.clone(), request_c.clone()).await
             };
-
-            capture_stage(&platform_state.metrics, &request_c, "permission");
 
             match result {
                 Ok(p) => {
@@ -539,7 +567,6 @@ async fn send_json_rpc_error(
         .session_state
         .get_session(&request.ctx)
     {
-        let status_code = json_rpc_error.code;
         let error_message = JsonRpcMessage {
             jsonrpc: TwoPointZero {},
             id: request.ctx.call_id,
@@ -547,25 +574,10 @@ async fn send_json_rpc_error(
         };
 
         if let Ok(error_message) = serde_json::to_string(&error_message) {
-            let mut api_message = ApiMessage::new(
+            let api_message = ApiMessage::new(
                 request.clone().ctx.protocol,
                 error_message,
                 request.clone().ctx.request_id,
-            );
-
-            if let Some(api_stats) = platform_state
-                .metrics
-                .get_api_stats(&request.ctx.request_id)
-            {
-                api_message.stats = Some(ApiStats {
-                    api: request.method.clone(),
-                    stats_ref: get_rpc_header_with_status(request, status_code),
-                    stats: api_stats.stats.clone(),
-                });
-            }
-            platform_state.metrics.update_api_stats_ref(
-                &request.ctx.request_id,
-                get_rpc_header_with_status(request, status_code),
             );
 
             if let Err(e) = session.send_json_rpc(api_message).await {

@@ -16,25 +16,18 @@
 //
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     sync::{Arc, RwLock},
 };
 
-use ripple_sdk::{
-    api::observability::metrics_util::ApiStats,
-    chrono::{DateTime, Utc},
-    log::trace,
-};
+use ripple_sdk::chrono::{DateTime, Utc};
 
 include!(concat!(env!("OUT_DIR"), "/version.rs"));
-
-const API_STATS_MAP_SIZE_WARNING: usize = 10;
 
 #[derive(Debug, Clone, Default)]
 pub struct OpMetricState {
     pub start_time: DateTime<Utc>,
     operational_telemetry_listeners: Arc<RwLock<HashSet<String>>>,
-    api_stats_map: Arc<RwLock<HashMap<String, ApiStats>>>,
     device_session_id: Arc<RwLock<Option<String>>>,
 }
 
@@ -71,50 +64,5 @@ impl OpMetricState {
             let mut context = self.device_session_id.write().unwrap();
             let _ = context.insert(value);
         }
-    }
-
-    pub fn add_api_stats(&self, request_id: &str, api: &str) {
-        let mut api_stats_map = self.api_stats_map.write().unwrap();
-        api_stats_map.insert(request_id.to_string(), ApiStats::new(api.into()));
-
-        let size = api_stats_map.len();
-        if size >= API_STATS_MAP_SIZE_WARNING {
-            trace!("add_api_stats: api_stats_map size warning: {}", size);
-        }
-    }
-
-    pub fn remove_api_stats(&mut self, request_id: &str) {
-        let mut api_stats_map = self.api_stats_map.write().unwrap();
-        api_stats_map.remove(request_id);
-    }
-
-    pub fn update_api_stats_ref(&mut self, request_id: &str, stats_ref: Option<String>) {
-        let mut api_stats_map = self.api_stats_map.write().unwrap();
-        if let Some(stats) = api_stats_map.get_mut(request_id) {
-            stats.stats_ref = stats_ref;
-        } else {
-            trace!(
-                "update_api_stats_ref: request_id not found: request_id={}",
-                request_id
-            );
-        }
-    }
-
-    pub fn update_api_stage(&mut self, request_id: &str, stage: &str) -> i64 {
-        let mut api_stats_map = self.api_stats_map.write().unwrap();
-        if let Some(stats) = api_stats_map.get_mut(request_id) {
-            stats.stats.update_stage(stage)
-        } else {
-            trace!(
-                "update_api_stage: request_id not found: request_id={}",
-                request_id
-            );
-            -1
-        }
-    }
-
-    pub fn get_api_stats(&self, request_id: &str) -> Option<ApiStats> {
-        let api_stats_map = self.api_stats_map.read().unwrap();
-        api_stats_map.get(request_id).cloned()
     }
 }
