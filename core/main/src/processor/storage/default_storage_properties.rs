@@ -22,13 +22,11 @@ use ripple_sdk::{
         KEY_ALLOW_PRIMARY_BROWSE_AD_TARGETING, KEY_ALLOW_PRIMARY_CONTENT_AD_TARGETING,
         KEY_ALLOW_PRODUCT_ANALYTICS, KEY_ALLOW_REMOTE_DIAGNOSTICS, KEY_ALLOW_RESUME_POINTS,
         KEY_ALLOW_UNENTITLED_PERSONALIZATION, KEY_ALLOW_UNENTITLED_RESUME_POINTS,
-        KEY_ALLOW_WATCH_HISTORY, KEY_AUDIO_DESCRIPTION_ENABLED, KEY_BACKGROUND_COLOR,
-        KEY_BACKGROUND_OPACITY, KEY_ENABLED, KEY_FONT_COLOR, KEY_FONT_EDGE, KEY_FONT_EDGE_COLOR,
-        KEY_FONT_FAMILY, KEY_FONT_OPACITY, KEY_FONT_SIZE, KEY_LOCALE, KEY_NAME,
-        KEY_SKIP_RESTRICTION, KEY_TEXT_ALIGN, KEY_TEXT_ALIGN_VERTICAL, KEY_WINDOW_COLOR,
-        KEY_WINDOW_OPACITY, NAMESPACE_ADVERTISING, NAMESPACE_AUDIO_DESCRIPTION,
-        NAMESPACE_CLOSED_CAPTIONS, NAMESPACE_DEVICE_NAME, NAMESPACE_LOCALIZATION,
-        NAMESPACE_PRIVACY,
+        KEY_ALLOW_WATCH_HISTORY, KEY_BACKGROUND_COLOR, KEY_BACKGROUND_OPACITY, KEY_ENABLED,
+        KEY_FONT_COLOR, KEY_FONT_EDGE, KEY_FONT_EDGE_COLOR, KEY_FONT_FAMILY, KEY_FONT_OPACITY,
+        KEY_FONT_SIZE, KEY_NAME, KEY_SKIP_RESTRICTION, KEY_TEXT_ALIGN, KEY_TEXT_ALIGN_VERTICAL,
+        KEY_WINDOW_COLOR, KEY_WINDOW_OPACITY, NAMESPACE_ADVERTISING, NAMESPACE_CLOSED_CAPTIONS,
+        NAMESPACE_DEVICE_NAME, NAMESPACE_PRIVACY,
     },
     log::trace,
 };
@@ -135,17 +133,6 @@ impl DefaultStorageProperties {
                     key.to_owned(),
                 )),
             }
-        } else if namespace.eq(NAMESPACE_AUDIO_DESCRIPTION) {
-            match key {
-                KEY_AUDIO_DESCRIPTION_ENABLED => Ok(state
-                    .get_device_manifest()
-                    .configuration
-                    .default_values
-                    .accessibility_audio_description_settings),
-                _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
-                    key.to_owned(),
-                )),
-            }
         } else {
             Err(DefaultStoragePropertiesError::UnreconizedNamespace(
                 namespace.to_owned(),
@@ -210,22 +197,6 @@ impl DefaultStorageProperties {
                     .configuration
                     .default_values
                     .name),
-                _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
-                    key.to_owned(),
-                )),
-            }
-        } else if namespace.eq(NAMESPACE_LOCALIZATION) {
-            match key {
-                KEY_LOCALE => Ok(state
-                    .get_device_manifest()
-                    .configuration
-                    .default_values
-                    .locale),
-                // Not used anywhere just yet
-                // KEY_ADDITIONAL_INFO => {
-                //     let a_info_map: HashMap<String, String> = state.get_device_manifest().clone().configuration.default_values.additional_info;
-                //     Ok(serde_json::to_string(&a_info_map).unwrap())
-                // }
                 _ => Err(DefaultStoragePropertiesError::UnreconizedKey(
                     key.to_owned(),
                 )),

@@ -33,7 +33,6 @@ pub const NAMESPACE_PRIVACY: &str = "Privacy";
 pub const NAMESPACE_DEVICE_NAME: &str = "DeviceName";
 pub const NAMESPACE_LOCALIZATION: &str = "Localization";
 pub const NAMESPACE_ADVERTISING: &str = "Advertising";
-pub const NAMESPACE_AUDIO_DESCRIPTION: &str = "AudioDescription";
 
 pub const KEY_ENABLED: &str = "enabled";
 pub const KEY_FONT_FAMILY: &str = "fontFamily";
@@ -53,7 +52,6 @@ pub const KEY_POSTAL_CODE: &str = "postalCode";
 pub const KEY_LOCALITY: &str = "locality";
 //pub const KEY_COUNTRY_CODE: &str = "countryCode";
 //pub const KEY_LANGUAGE: &str = "language";
-pub const KEY_LOCALE: &str = "locale";
 pub const KEY_LATLON: &str = "latlon";
 pub const KEY_ADDITIONAL_INFO: &str = "additionalInfo";
 pub const KEY_ALLOW_ACR_COLLECTION: &str = "allowACRCollection";
@@ -72,7 +70,6 @@ pub const KEY_ALLOW_WATCH_HISTORY: &str = "allowWatchHistory";
 pub const KEY_VOICE_GUIDANCE_SPEED: &str = "speed";
 pub const KEY_PARTNER_EXCLUSIONS: &str = "partnerExclusions";
 pub const KEY_SKIP_RESTRICTION: &str = "skipRestriction";
-pub const KEY_AUDIO_DESCRIPTION_ENABLED: &str = "audioDescriptionEnabled";
 pub const KEY_PREFERRED_AUDIO_LANGUAGES: &str = "preferredAudioLanguages";
 
 pub const EVENT_CLOSED_CAPTIONS_SETTINGS_CHANGED: &str =
@@ -247,12 +244,6 @@ const PROPERTY_DATA_POSTAL_CODE: PropertyData = PropertyData {
     event_names: Some(&[EVENT_POSTAL_CODE]),
 };
 
-const PROPERTY_DATA_LOCALE: PropertyData = PropertyData {
-    key: KEY_LOCALE,
-    namespace: NAMESPACE_LOCALIZATION,
-    event_names: Some(&[EVENT_LOCALE]),
-};
-
 const PROPERTY_DATA_LATLON: PropertyData = PropertyData {
     key: KEY_LATLON,
     namespace: NAMESPACE_LOCALIZATION,
@@ -368,12 +359,6 @@ const PROPERTY_DATA_SKIP_RESTRICTION: PropertyData = PropertyData {
     ]),
 };
 
-const PROPERTY_AUDIO_DESCRIPTION_ENABLED: PropertyData = PropertyData {
-    key: KEY_AUDIO_DESCRIPTION_ENABLED,
-    namespace: NAMESPACE_AUDIO_DESCRIPTION,
-    event_names: Some(&[EVENT_AUDIO_DESCRIPTION_SETTINGS_CHANGED]),
-};
-
 const PROPERTY_CC_PREFERRED_LANGUAGES: PropertyData = PropertyData {
     key: KEY_PREFERRED_AUDIO_LANGUAGES,
     namespace: NAMESPACE_CLOSED_CAPTIONS,
@@ -414,7 +399,6 @@ pub enum StorageProperty {
     ClosedCaptionsTextAlignVertical,
     Locality,
     PostalCode,
-    Locale,
     LatLon,
     AdditionalInfo,
     AllowAcrCollection,
@@ -432,7 +416,6 @@ pub enum StorageProperty {
     AllowWatchHistory,
     PartnerExclusions,
     SkipRestriction,
-    AudioDescriptionEnabled,
     CCPreferredLanguages,
 }
 
@@ -489,7 +472,6 @@ impl StorageProperty {
             }
             StorageProperty::Locality => PROPERTY_DATA_LOCALITY,
             StorageProperty::PostalCode => PROPERTY_DATA_POSTAL_CODE,
-            StorageProperty::Locale => PROPERTY_DATA_LOCALE,
             StorageProperty::LatLon => PROPERTY_DATA_LATLON,
             StorageProperty::AdditionalInfo => PROPERTY_DATA_ADDITIONAL_INFO,
             StorageProperty::AllowAcrCollection => PROPERTY_DATA_ALLOW_ACR_COLLECTION,
@@ -517,7 +499,6 @@ impl StorageProperty {
             StorageProperty::AllowWatchHistory => PROPERTY_DATA_ALLOW_WATCH_HISTORY,
             StorageProperty::PartnerExclusions => PROPERTY_DATA_PARTNER_EXCLUSIONS,
             StorageProperty::SkipRestriction => PROPERTY_DATA_SKIP_RESTRICTION,
-            StorageProperty::AudioDescriptionEnabled => PROPERTY_AUDIO_DESCRIPTION_ENABLED,
             StorageProperty::CCPreferredLanguages => PROPERTY_CC_PREFERRED_LANGUAGES,
         }
     }

@@ -20,7 +20,6 @@
 pub mod handlers {
     pub mod accessory_rpc;
     pub mod advertising_rpc;
-    pub mod audio_description_rpc;
     pub mod capabilities_rpc;
     pub mod closed_captions_rpc;
     pub mod device_rpc;
