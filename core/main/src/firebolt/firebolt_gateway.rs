@@ -82,6 +82,7 @@ pub enum FireboltGatewayCommand {
         session_id: String,
         session: Session,
     },
+    /// Cleanup when a WebSocket connection disconnects
     UnregisterSession {
         session_id: String,
         cid: String,
@@ -141,7 +142,8 @@ impl FireboltGateway {
                 }
                 UnregisterSession { session_id, cid } => {
                     info!(
-                        "Cleanup: app disconnect - removing event listeners, broker subs, session"
+                        "Cleanup: WebSocket disconnect - cid={}, session_id={}",
+                        cid, session_id
                     );
                     // Clean event listeners by session_id
                     AppEvents::remove_session(&self.state.platform_state, session_id.clone());
@@ -149,17 +151,15 @@ impl FireboltGateway {
                     AppEvents::cleanup_by_connection_id(&self.state.platform_state, &cid);
                     ProviderBroker::unregister_session(&self.state.platform_state, cid.clone())
                         .await;
+                    
+                    // Cleanup broker subscriptions by connection_id (cid)
+                    // This removes only subscriptions made by this specific WebSocket connection
                     self.state
                         .platform_state
                         .endpoint_state
-                        .cleanup_for_app(&cid)
+                        .cleanup_for_connection(&cid)
                         .await;
-                    // Also cleanup broker subscriptions by session_id (subscription_map uses session_id as key)
-                    self.state
-                        .platform_state
-                        .endpoint_state
-                        .cleanup_for_app(&session_id)
-                        .await;
+                    
                     // Resolve app_id from session state BEFORE clearing the session,
                     // because ThunderEventProcessor stores listeners by app_id (e.g. "epg"),
                     // not by cid (a UUID).

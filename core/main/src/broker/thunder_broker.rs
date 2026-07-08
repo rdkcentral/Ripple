@@ -17,7 +17,7 @@
 use super::{
     endpoint_broker::{
         BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutput, BrokerRequest,
-        BrokerSender, BrokerSubMap, EndpointBroker, EndpointBrokerState,
+        BrokerSender, BrokerSubMap, CleanupType, EndpointBroker, EndpointBrokerState,
         BROKER_CHANNEL_BUFFER_SIZE,
     },
     thunder::thunder_plugins_status_mgr::StatusManager,
@@ -198,7 +198,7 @@ impl ThunderBroker {
     ) -> Self {
         let endpoint = request.endpoint.clone();
         let (broker_request_tx, mut broker_request_rx) = mpsc::channel(BROKER_CHANNEL_BUFFER_SIZE);
-        let (c_tx, mut c_tr) = mpsc::channel(2);
+        let (c_tx, mut c_tr) = mpsc::channel::<CleanupType>(2);
         let broker_sender = BrokerSender {
             sender: broker_request_tx,
         };
@@ -369,13 +369,62 @@ impl ThunderBroker {
 
                 },
                     Some(cleanup_request) = c_tr.recv() => {
-                        let value = {
-                            broker_for_cleanup.subscription_map.write().unwrap().remove(&cleanup_request)
+                        // Collect subscriptions to clean up based on cleanup type
+                        let subscriptions_to_cleanup: Vec<BrokerRequest> = match &cleanup_request {
+                            CleanupType::Connection(connection_id) => {
+                                // Connection cleanup: remove only subscriptions with matching cid
+                                let mut sub_map = broker_for_cleanup.subscription_map.write().unwrap();
+                                let mut to_cleanup = Vec::new();
+                                
+                                // Iterate all entries and remove matching subscriptions
+                                let keys: Vec<String> = sub_map.keys().cloned().collect();
+                                for key in keys {
+                                    if let Some(mut requests) = sub_map.remove(&key) {
+                                        let (matching, remaining): (Vec<_>, Vec<_>) = requests
+                                            .drain(..)
+                                            .partition(|req| req.rpc.ctx.cid.as_deref() == Some(connection_id));
+                                        to_cleanup.extend(matching);
+                                        if !remaining.is_empty() {
+                                            sub_map.insert(key, remaining);
+                                        }
+                                    }
+                                }
+                                debug!(
+                                    "BrokerCleaner: connection cleanup for cid={}, found {} subscription(s)",
+                                    connection_id, to_cleanup.len()
+                                );
+                                to_cleanup
+                            }
+                            CleanupType::Session(session_id) => {
+                                // Session cleanup: remove all subscriptions for this session_id
+                                let mut sub_map = broker_for_cleanup.subscription_map.write().unwrap();
+                                let mut to_cleanup = Vec::new();
+                                
+                                // Iterate all entries and remove matching subscriptions
+                                let keys: Vec<String> = sub_map.keys().cloned().collect();
+                                for key in keys {
+                                    if let Some(mut requests) = sub_map.remove(&key) {
+                                        let (matching, remaining): (Vec<_>, Vec<_>) = requests
+                                            .drain(..)
+                                            .partition(|req| req.rpc.ctx.session_id == *session_id);
+                                        to_cleanup.extend(matching);
+                                        if !remaining.is_empty() {
+                                            sub_map.insert(key, remaining);
+                                        }
+                                    }
+                                }
+                                debug!(
+                                    "BrokerCleaner: session cleanup for session_id={}, found {} subscription(s)",
+                                    session_id, to_cleanup.len()
+                                );
+                                to_cleanup
+                            }
                         };
-                        if let Some(mut cleanup) = value {
+
+                        if !subscriptions_to_cleanup.is_empty() {
                             debug!(
                                 "BrokerCleaner: unsubscribing {} subscription(s)",
-                                cleanup.len()
+                                subscriptions_to_cleanup.len()
                             );
                             // Send unregister calls directly to Thunder via the WebSocket.
                             // We must NOT route through the broker sender + prepare_request(),
@@ -383,7 +432,7 @@ impl ThunderBroker {
                             // subscription_map — but we already removed entries above.
                             let binding = ws_tx_wrap.clone();
                             let mut ws_tx = binding.lock().await;
-                            while let Some(v) = cleanup.pop() {
+                            for v in subscriptions_to_cleanup {
                                 let (callsign, method) =
                                     ThunderBroker::get_callsign_and_method_from_alias(&v.rule.alias);
                                 if let Some(method) = method {
@@ -420,7 +469,7 @@ impl ThunderBroker {
                             }
                         } else {
                             debug!(
-                                "BrokerCleaner: no subscriptions found, skipping"
+                                "BrokerCleaner: no subscriptions found for cleanup, skipping"
                             );
                         }
                     }
@@ -500,56 +549,72 @@ impl ThunderBroker {
         let callsign = collection.join(".");
         (callsign, method)
     }
+
+    /// Get the subscription map key from the request context.
+    /// Uses connection_id (cid) if available, falls back to session_id.
+    fn get_subscription_key(request: &BrokerRequest) -> String {
+        request
+            .rpc
+            .ctx
+            .cid
+            .clone()
+            .unwrap_or_else(|| request.rpc.ctx.session_id.clone())
+    }
+
     fn unsubscribe(&self, request: &BrokerRequest) -> Option<BrokerRequest> {
         let mut sub_map = self.subscription_map.write().unwrap();
+        let sub_key = Self::get_subscription_key(request);
         trace!(
-            "Unsubscribing a listen request for session id: {:?}",
-            request.rpc.ctx.session_id
+            "Unsubscribing a listen request for key: {:?} (session_id: {:?}, cid: {:?})",
+            sub_key,
+            request.rpc.ctx.session_id,
+            request.rpc.ctx.cid
         );
-        let app_id = &request.rpc.ctx.session_id;
         let method = &request.rpc.ctx.method;
         let mut existing_request = None;
-        if let Some(mut existing_requests) = sub_map.remove(app_id) {
+        if let Some(mut existing_requests) = sub_map.remove(&sub_key) {
             if let Some(i) = existing_requests
                 .iter()
                 .position(|x| x.rpc.ctx.method.eq_ignore_ascii_case(method))
             {
                 existing_request = Some(existing_requests.remove(i));
             }
-            let _ = sub_map.insert(app_id.clone(), existing_requests);
+            if !existing_requests.is_empty() {
+                let _ = sub_map.insert(sub_key.clone(), existing_requests);
+            }
         }
         existing_request
     }
 
     fn subscribe(&self, request: &BrokerRequest) -> Option<BrokerRequest> {
         let mut sub_map = self.subscription_map.write().unwrap();
-        let app_id = &request.rpc.ctx.session_id;
+        let sub_key = Self::get_subscription_key(request);
         let method = &request.rpc.ctx.method;
         let listen = request.rpc.is_listening();
         let mut response = None;
         debug!(
-            "Initial subscription map of {:?} app_id {:?}",
-            sub_map, app_id
+            "Initial subscription map of {:?} sub_key {:?}",
+            sub_map, sub_key
         );
 
-        if let Some(mut v) = sub_map.remove(app_id) {
-            debug!("Subscription map after removing app {:?}", v);
+        if let Some(mut v) = sub_map.remove(&sub_key) {
+            debug!("Subscription map after removing key {:?}", v);
             if let Some(i) = v
                 .iter()
                 .position(|x| x.rpc.ctx.method.eq_ignore_ascii_case(method))
             {
                 debug!(
-                    "Removing subscription for method {} for app {}",
-                    method, app_id
+                    "Removing subscription for method {} for key {}",
+                    method, sub_key
                 );
                 response = Some(v.remove(i));
             }
             if listen {
                 v.push(request.clone());
             }
-            let _ = sub_map.insert(app_id.clone(), v);
-        } else {
-            let _ = sub_map.insert(app_id.clone(), vec![request.clone()]);
+            let _ = sub_map.insert(sub_key.clone(), v);
+        } else if listen {
+            let _ = sub_map.insert(sub_key.clone(), vec![request.clone()]);
         }
         response
     }
@@ -1380,8 +1445,8 @@ mod tests {
 
         thunder_broker.unsubscribe(&unsubscribe_request);
         let subscription_map = thunder_broker.subscription_map.write().unwrap();
-        // TBD : Check. Unsubscribe is re-inserting the subscription back to the map
-        // let _ = sub_map.insert(app_id.clone(), existing_requests);
-        assert_eq!(subscription_map.len(), 1);
+        // After unsubscribing the only subscription for this key, the map entry should be removed
+        // (we no longer keep empty Vec entries in the map)
+        assert_eq!(subscription_map.len(), 0);
     }
 }

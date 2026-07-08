@@ -17,7 +17,7 @@
 
 use super::endpoint_broker::{
     BrokerCallback, BrokerCleaner, BrokerConnectRequest, BrokerOutputForwarder, BrokerRequest,
-    BrokerSender, EndpointBroker,
+    BrokerSender, CleanupType, EndpointBroker,
 };
 use crate::broker::endpoint_broker::EndpointBrokerState;
 use crate::state::platform_state::PlatformState;
@@ -42,7 +42,7 @@ impl WebsocketBroker {
     fn start(request: BrokerConnectRequest, callback: BrokerCallback) -> Self {
         let endpoint = request.endpoint.clone();
         let (tx, mut tr) = mpsc::channel(10);
-        let (cleaner_tx, mut cleaner_tr) = mpsc::channel::<String>(1);
+        let (cleaner_tx, mut cleaner_tr) = mpsc::channel::<CleanupType>(1);
         let non_json_rpc_map: Arc<RwLock<HashMap<String, Vec<mpsc::Sender<String>>>>> =
             Arc::new(RwLock::new(HashMap::new()));
         let map_clone = non_json_rpc_map.clone();
@@ -106,13 +106,18 @@ impl WebsocketBroker {
             } else {
                 let cleaner_clone = non_json_rpc_map.clone();
                 tokio::spawn(async move {
-                    while let Some(v) = cleaner_tr.recv().await {
+                    while let Some(cleanup_type) = cleaner_tr.recv().await {
+                        // Extract the ID from the cleanup type
+                        let id = match cleanup_type {
+                            CleanupType::Connection(ref cid) => cid.clone(),
+                            CleanupType::Session(ref sid) => sid.clone(),
+                        };
                         {
                             if let Some(cleaner_list) =
-                                { cleaner_clone.write().unwrap().remove(&v) }
+                                { cleaner_clone.write().unwrap().remove(&id) }
                             {
                                 for sender in cleaner_list {
-                                    if sender.try_send(v.clone()).is_err() {
+                                    if sender.try_send(id.clone()).is_err() {
                                         error!("Cleaning up listener");
                                     }
                                 }
@@ -391,7 +396,13 @@ mod tests {
 
         broker.sender.send(request).await.unwrap();
 
-        broker.cleaner.cleaner.unwrap().send(id).await.unwrap();
+        broker
+            .cleaner
+            .cleaner
+            .unwrap()
+            .send(CleanupType::Connection(id))
+            .await
+            .unwrap();
         // See if ws is closed
         assert!(tr.recv().await.unwrap())
     }

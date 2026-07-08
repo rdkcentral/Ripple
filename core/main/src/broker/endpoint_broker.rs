@@ -81,19 +81,50 @@ pub struct BrokerSender {
     pub sender: Sender<BrokerRequest>,
 }
 
+/// Enum to distinguish between connection-level and session-level cleanup
+#[derive(Clone, Debug)]
+pub enum CleanupType {
+    /// Cleanup by connection_id - used when a single WebSocket connection disconnects
+    Connection(String),
+    /// Cleanup by session_id - used when an app session is unloaded/terminated
+    Session(String),
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct BrokerCleaner {
-    pub cleaner: Option<Sender<String>>,
+    pub cleaner: Option<Sender<CleanupType>>,
 }
 
 impl BrokerCleaner {
-    async fn cleanup_session(&self, appid: &str) -> Result<String, RippleError> {
+    /// Cleanup subscriptions for a specific connection (WebSocket disconnect)
+    pub async fn cleanup_connection(&self, connection_id: &str) -> Result<String, RippleError> {
         if let Some(cleaner) = self.cleaner.clone() {
-            if let Err(e) = cleaner.send(appid.to_owned()).await {
-                error!("Could not clean up {} {:?}", appid, e);
+            if let Err(e) = cleaner
+                .send(CleanupType::Connection(connection_id.to_owned()))
+                .await
+            {
+                error!(
+                    "Could not clean up connection {} {:?}",
+                    connection_id, e
+                );
                 return Err(RippleError::SendFailure);
             }
-            return Ok(appid.to_owned());
+            return Ok(connection_id.to_owned());
+        }
+        Err(RippleError::NotAvailable)
+    }
+
+    /// Cleanup all subscriptions for a session (app unload/termination)
+    pub async fn cleanup_session(&self, session_id: &str) -> Result<String, RippleError> {
+        if let Some(cleaner) = self.cleaner.clone() {
+            if let Err(e) = cleaner
+                .send(CleanupType::Session(session_id.to_owned()))
+                .await
+            {
+                error!("Could not clean up session {} {:?}", session_id, e);
+                return Err(RippleError::SendFailure);
+            }
+            return Ok(session_id.to_owned());
         }
         Err(RippleError::NotAvailable)
     }
@@ -1094,20 +1125,31 @@ impl EndpointBrokerState {
         }
     }
 
-    // Method to cleanup all subscription on App termination
-    pub async fn cleanup_for_app(&self, id: &str) {
+    /// Cleanup subscriptions for a specific connection (WebSocket disconnect).
+    /// This only removes subscriptions made by this specific connection,
+    /// not all subscriptions for the session.
+    pub async fn cleanup_for_connection(&self, connection_id: &str) {
         let cleaners = { self.cleaner_list.read().unwrap().clone() };
 
         for cleaner in cleaners {
-            /*
-            for now, just eat the error - the return type was mainly added to prepate for future refactoring/testability
-            */
-            let _ = cleaner.cleanup_session(id).await;
+            let _ = cleaner.cleanup_connection(connection_id).await;
         }
 
         // Clean up subscription entries from request_map and extension_request_map
-        // that belong to this app. These are never removed on disconnect otherwise.
-        self.cleanup_request_maps(id);
+        self.cleanup_request_maps(connection_id);
+    }
+
+    /// Cleanup all subscriptions for a session (app unload/termination).
+    /// This removes ALL subscriptions associated with this session_id.
+    pub async fn cleanup_for_session(&self, session_id: &str) {
+        let cleaners = { self.cleaner_list.read().unwrap().clone() };
+
+        for cleaner in cleaners {
+            let _ = cleaner.cleanup_session(session_id).await;
+        }
+
+        // Clean up subscription entries from request_map and extension_request_map
+        self.cleanup_request_maps(session_id);
     }
 
     /// Remove subscription/event entries from request_map and extension_request_map
@@ -3454,7 +3496,7 @@ mod endpoint_broker_tests {
     mod cleaner {
         use ripple_sdk::tokio::{self, sync::mpsc};
 
-        use crate::broker::endpoint_broker::BrokerCleaner;
+        use crate::broker::endpoint_broker::{BrokerCleaner, CleanupType};
 
         #[tokio::test]
         async fn test_cleanup_session_with_cleaner() {
@@ -3463,7 +3505,23 @@ mod endpoint_broker_tests {
 
             assert!(cleaner.cleanup_session("test_app").await.is_ok());
             let received = rx.recv().await;
-            assert_eq!(received, Some("test_app".to_string()));
+            assert!(matches!(
+                received,
+                Some(CleanupType::Session(ref s)) if s == "test_app"
+            ));
+        }
+
+        #[tokio::test]
+        async fn test_cleanup_connection_with_cleaner() {
+            let (tx, mut rx) = mpsc::channel(1);
+            let cleaner = BrokerCleaner { cleaner: Some(tx) };
+
+            assert!(cleaner.cleanup_connection("test_cid").await.is_ok());
+            let received = rx.recv().await;
+            assert!(matches!(
+                received,
+                Some(CleanupType::Connection(ref c)) if c == "test_cid"
+            ));
         }
 
         #[tokio::test]
@@ -3472,6 +3530,14 @@ mod endpoint_broker_tests {
 
             // Should not panic or send anything
             assert!(cleaner.cleanup_session("test_app").await.is_err());
+        }
+
+        #[tokio::test]
+        async fn test_cleanup_connection_without_cleaner() {
+            let cleaner = BrokerCleaner { cleaner: None };
+
+            // Should not panic or send anything
+            assert!(cleaner.cleanup_connection("test_cid").await.is_err());
         }
     }
     #[cfg(test)]

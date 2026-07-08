@@ -1308,10 +1308,19 @@ impl DelegatedLauncherHandler {
     async fn end_session(&mut self, app_id: &str) -> Result<AppManagerResponse, AppError> {
         debug!("end_session: entry: app_id={}", app_id);
         let app = self.platform_state.app_manager_state.remove(app_id);
-        if app.is_some() {
+        if let Some(app) = app {
             if let Some(timer) = self.timer_map.remove(app_id) {
                 timer.cancel();
             }
+            // Clean up all subscriptions for this session when the app session ends
+            debug!(
+                "end_session: cleaning up subscriptions for session_id={}",
+                app.session_id
+            );
+            self.platform_state
+                .endpoint_state
+                .cleanup_for_session(&app.session_id)
+                .await;
         } else {
             error!("end_session app_id={} Not found", app_id);
             return Err(AppError::NotFound);
