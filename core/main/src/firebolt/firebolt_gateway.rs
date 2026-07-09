@@ -145,9 +145,9 @@ impl FireboltGateway {
                         "Cleanup: WebSocket disconnect - cid={}, session_id={}",
                         cid, session_id
                     );
-                    // Clean event listeners by session_id
-                    AppEvents::remove_session(&self.state.platform_state, session_id.clone());
-                    // Also clean event listeners by connection_id (cid) in case session_id != cid
+                    // Clean event listeners by connection_id (cid).
+                    // All WebSocket RPC handlers populate cid, so we clean only this connection's listeners.
+                    // removes only this connection's listeners, leaving others intact.
                     AppEvents::cleanup_by_connection_id(&self.state.platform_state, &cid);
                     ProviderBroker::unregister_session(&self.state.platform_state, cid.clone())
                         .await;
