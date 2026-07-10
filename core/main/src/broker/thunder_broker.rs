@@ -613,7 +613,10 @@ impl ThunderBroker {
             if listen {
                 v.push(request.clone());
             }
-            let _ = sub_map.insert(sub_key.clone(), v);
+            // Only re-insert if the Vec is non-empty to avoid map bloat from empty entries
+            if !v.is_empty() {
+                let _ = sub_map.insert(sub_key.clone(), v);
+            }
         } else if listen {
             let _ = sub_map.insert(sub_key.clone(), vec![request.clone()]);
         }
