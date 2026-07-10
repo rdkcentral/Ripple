@@ -103,10 +103,7 @@ impl BrokerCleaner {
                 .send(CleanupType::Connection(connection_id.to_owned()))
                 .await
             {
-                error!(
-                    "Could not clean up connection {} {:?}",
-                    connection_id, e
-                );
+                error!("Could not clean up connection {} {:?}", connection_id, e);
                 return Err(RippleError::SendFailure);
             }
             return Ok(connection_id.to_owned());

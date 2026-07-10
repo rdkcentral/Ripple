@@ -375,7 +375,7 @@ impl ThunderBroker {
                                 // Connection cleanup: remove only subscriptions with matching cid
                                 let mut sub_map = broker_for_cleanup.subscription_map.write().unwrap();
                                 let mut to_cleanup = Vec::new();
-                                
+
                                 // Iterate all entries and remove matching subscriptions
                                 let keys: Vec<String> = sub_map.keys().cloned().collect();
                                 for key in keys {
@@ -399,7 +399,7 @@ impl ThunderBroker {
                                 // Session cleanup: remove all subscriptions for this session_id
                                 let mut sub_map = broker_for_cleanup.subscription_map.write().unwrap();
                                 let mut to_cleanup = Vec::new();
-                                
+
                                 // Iterate all entries and remove matching subscriptions
                                 let keys: Vec<String> = sub_map.keys().cloned().collect();
                                 for key in keys {
@@ -714,61 +714,52 @@ impl EndpointBroker for ThunderBroker {
         if rpc_request.rpc.is_subscription() && !rpc_request.rpc.is_unlisten() {
             let listen = rpc_request.rpc.is_listening();
             // If there was an existing app and method combo for the same subscription just unregister that
-             if let Some(cleanup) = self.subscribe(rpc_request) {
-                 info!(
-                     "Sending Thunder unregister for {}.{}",
-                     callsign, method
-                 );
-                 requests.push(
-                     json!({
-                         "jsonrpc": "2.0",
-                         "id": cleanup.rpc.ctx.call_id,
-                         "method": format!("{}.unregister", callsign),
-                         "params": {
-                             "event": method,
-                             "id": format!("{}", cleanup.rpc.ctx.call_id)
-                         }
-                     })
-                     .to_string(),
-                 )
-             }
+            if let Some(cleanup) = self.subscribe(rpc_request) {
+                info!("Sending Thunder unregister for {}.{}", callsign, method);
+                requests.push(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": cleanup.rpc.ctx.call_id,
+                        "method": format!("{}.unregister", callsign),
+                        "params": {
+                            "event": method,
+                            "id": format!("{}", cleanup.rpc.ctx.call_id)
+                        }
+                    })
+                    .to_string(),
+                )
+            }
 
-             // Given unregistration is already performed by previous step just do registration
-             if listen {
-                 info!(
-                     "Sending Thunder register for {}.{}",
-                     callsign, method
-                 );
-                 requests.push(
-                     json!({
-                         "jsonrpc": "2.0",
-                         "id": id,
-                         "method": format!("{}.register", callsign),
-                         "params": json!({
-                             "event": method,
-                             "id": format!("{}", id)
-                         })
-                     })
-                     .to_string(),
-                 )
-             }
+            // Given unregistration is already performed by previous step just do registration
+            if listen {
+                info!("Sending Thunder register for {}.{}", callsign, method);
+                requests.push(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "method": format!("{}.register", callsign),
+                        "params": json!({
+                            "event": method,
+                            "id": format!("{}", id)
+                        })
+                    })
+                    .to_string(),
+                )
+            }
         } else if rpc_request.rpc.is_unlisten() {
-             if let Some(cleanup) = self.unsubscribe(rpc_request) {
-                 info!(
-                     "Sending Thunder unregister for {}.{}",
-                     callsign, method
-                 );
-                 requests.push(
-                     json!({
-                         "jsonrpc": "2.0",
-                         "id": cleanup.rpc.ctx.call_id,
-                         "method": format!("{}.unregister", callsign),
-                         "params": {
-                             "event": method,
-                             "id": format!("{}", cleanup.rpc.ctx.call_id)
-                         }
-                     })
-                     .to_string(),
+            if let Some(cleanup) = self.unsubscribe(rpc_request) {
+                info!("Sending Thunder unregister for {}.{}", callsign, method);
+                requests.push(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": cleanup.rpc.ctx.call_id,
+                        "method": format!("{}.unregister", callsign),
+                        "params": {
+                            "event": method,
+                            "id": format!("{}", cleanup.rpc.ctx.call_id)
+                        }
+                    })
+                    .to_string(),
                 )
             }
         } else {

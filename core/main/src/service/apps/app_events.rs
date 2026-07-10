@@ -641,7 +641,7 @@ pub mod tests {
         // CRITICAL TEST: Secure mode scenario where multiple connections share the same session_id.
         // This verifies that cleanup_by_connection_id(cid) only removes the specific connection's listeners,
         // NOT all listeners for the shared session_id.
-        // 
+        //
         // Background: In secure mode (ws://127.0.0.1:3473?session=<sessionId>),
         // multiple WebSocket connections can share the same session_id but have unique cid values.
         // If cleanup incorrectly removes by session_id instead of cid, it would over-clean.
@@ -661,7 +661,12 @@ pub mod tests {
         {
             let listeners = state.app_events_state.listeners.read().unwrap();
             assert_eq!(
-                listeners.get("onNameChanged").unwrap().get(&None).unwrap().len(),
+                listeners
+                    .get("onNameChanged")
+                    .unwrap()
+                    .get(&None)
+                    .unwrap()
+                    .len(),
                 2
             );
         }
@@ -673,7 +678,12 @@ pub mod tests {
         {
             let listeners = state.app_events_state.listeners.read().unwrap();
             assert_eq!(
-                listeners.get("onNameChanged").unwrap().get(&None).unwrap().len(),
+                listeners
+                    .get("onNameChanged")
+                    .unwrap()
+                    .get(&None)
+                    .unwrap()
+                    .len(),
                 1
             );
             assert_eq!(

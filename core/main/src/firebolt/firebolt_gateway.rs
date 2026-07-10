@@ -151,7 +151,7 @@ impl FireboltGateway {
                     AppEvents::cleanup_by_connection_id(&self.state.platform_state, &cid);
                     ProviderBroker::unregister_session(&self.state.platform_state, cid.clone())
                         .await;
-                    
+
                     // Cleanup broker subscriptions by connection_id (cid)
                     // This removes only subscriptions made by this specific WebSocket connection
                     self.state
@@ -159,7 +159,7 @@ impl FireboltGateway {
                         .endpoint_state
                         .cleanup_for_connection(&cid)
                         .await;
-                    
+
                     // Resolve app_id from session state BEFORE clearing the session,
                     // because ThunderEventProcessor stores listeners by app_id (e.g. "epg"),
                     // not by cid (a UUID).
