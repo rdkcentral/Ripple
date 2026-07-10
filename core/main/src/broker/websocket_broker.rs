@@ -127,7 +127,12 @@ impl WebsocketBroker {
                 });
 
                 while let Some(v) = tr.recv().await {
-                    let id = v.rpc.ctx.cid.clone().unwrap_or_else(|| v.rpc.ctx.session_id.clone());
+                    let id = v
+                        .rpc
+                        .ctx
+                        .cid
+                        .clone()
+                        .unwrap_or_else(|| v.rpc.ctx.session_id.clone());
                     let cleaner = WSNotificationBroker::start(
                         v.clone(),
                         callback.clone(),
