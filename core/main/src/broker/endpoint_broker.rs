@@ -1070,7 +1070,7 @@ impl EndpointBrokerState {
                     Ok(response)
                 }
                 RenderedRequest::BrokerRequest(request) => {
-                    info!(
+                    trace!(
                         "Sending broker_request json rpc response to endpoint {:?}",
                         request
                     );
@@ -1176,7 +1176,7 @@ impl EndpointBrokerState {
             for id in &removed_ids {
                 extn_map.remove(id);
             }
-            debug!(
+            trace!(
                 "cleanup_request_maps: removed {} request_map and extension_request_map entries",
                 removed_ids.len()
             );

@@ -422,7 +422,7 @@ impl ThunderBroker {
                         };
 
                         if !subscriptions_to_cleanup.is_empty() {
-                            debug!(
+                            trace!(
                                 "BrokerCleaner: unsubscribing {} subscription(s)",
                                 subscriptions_to_cleanup.len()
                             );
@@ -444,7 +444,7 @@ impl ThunderBroker {
                                             "id": format!("{}", v.rpc.ctx.call_id)
                                         }
                                     });
-                                    debug!(
+                                    trace!(
                                         "BrokerCleaner: sending Thunder unregister for {}.{}",
                                         callsign, method
                                     );
@@ -468,7 +468,7 @@ impl ThunderBroker {
                                 );
                             }
                         } else {
-                            debug!(
+                            trace!(
                                 "BrokerCleaner: no subscriptions found for cleanup, skipping"
                             );
                         }
@@ -603,9 +603,10 @@ impl ThunderBroker {
                 .iter()
                 .position(|x| x.rpc.ctx.method.eq_ignore_ascii_case(method))
             {
-                debug!(
+                trace!(
                     "Removing subscription for method {} for key {}",
-                    method, sub_key
+                    method,
+                    sub_key
                 );
                 response = Some(v.remove(i));
             }
@@ -702,7 +703,7 @@ impl EndpointBroker for ThunderBroker {
         let mut requests = Vec::new();
 
         let method = method.unwrap();
-        debug!(
+        trace!(
             "Preparing request for method {} and callsign {} for {} subscription {}",
             method,
             callsign,
@@ -715,7 +716,7 @@ impl EndpointBroker for ThunderBroker {
             let listen = rpc_request.rpc.is_listening();
             // If there was an existing app and method combo for the same subscription just unregister that
             if let Some(cleanup) = self.subscribe(rpc_request) {
-                info!("Sending Thunder unregister for {}.{}", callsign, method);
+                trace!("Sending Thunder unregister for {}.{}", callsign, method);
                 requests.push(
                     json!({
                         "jsonrpc": "2.0",
@@ -732,7 +733,7 @@ impl EndpointBroker for ThunderBroker {
 
             // Given unregistration is already performed by previous step just do registration
             if listen {
-                info!("Sending Thunder register for {}.{}", callsign, method);
+                trace!("Sending Thunder register for {}.{}", callsign, method);
                 requests.push(
                     json!({
                         "jsonrpc": "2.0",
@@ -748,7 +749,7 @@ impl EndpointBroker for ThunderBroker {
             }
         } else if rpc_request.rpc.is_unlisten() {
             if let Some(cleanup) = self.unsubscribe(rpc_request) {
-                info!("Sending Thunder unregister for {}.{}", callsign, method);
+                trace!("Sending Thunder unregister for {}.{}", callsign, method);
                 requests.push(
                     json!({
                         "jsonrpc": "2.0",
