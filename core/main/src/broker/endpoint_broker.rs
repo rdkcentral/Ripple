@@ -1528,7 +1528,7 @@ impl BrokerOutputForwarder {
         .emit_debug();
         let session_id = rpc_request.ctx.get_id();
         if let Some(workflow_callback) = workflow_callback {
-            debug!("sending to workflow callback {:?}", response);
+            trace!("sending to workflow callback {:?}", response);
             LogSignal::new(
                 "forward_response".to_string(),
                 "sending to workflow callback".to_string(),

@@ -22,7 +22,7 @@ use crate::state::platform_state::PlatformState;
 use jsonrpsee::tracing::trace;
 use ripple_sdk::{
     api::{gateway::rpc_gateway_api::JsonRpcApiError, observability::log_signal::LogSignal},
-    log::{error, info},
+    log::error,
     service::service_message::{Id, ServiceMessage},
     tokio::{self, sync::mpsc},
     tokio_tungstenite::tungstenite::Message,
@@ -122,7 +122,7 @@ impl ServiceBroker {
                 }
 
                 let message = Message::Text(request.clone());
-                info!("Sending request to service {}: {:#?}", service_id, message);
+                trace!("Sending request to service {}: {:#?}", service_id, message);
 
                 if let Err(err) = service_sender.try_send(message) {
                     error!(

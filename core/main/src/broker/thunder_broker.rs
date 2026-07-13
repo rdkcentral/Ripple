@@ -291,7 +291,7 @@ impl ThunderBroker {
 
                     },
                     Some(mut request) = broker_request_rx.recv() => {
-                        debug!("Got request from receiver for broker {:?}", request);
+                        trace!("Got request from receiver for broker {:?}", request);
                         diagnostic_context.lock().await.replace(request.clone());
 
                         match broker_c.check_and_generate_plugin_activation_request(&request) {
