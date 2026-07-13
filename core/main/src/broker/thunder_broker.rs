@@ -592,13 +592,8 @@ impl ThunderBroker {
         let method = &request.rpc.ctx.method;
         let listen = request.rpc.is_listening();
         let mut response = None;
-        // debug!(
-        //     "Initial subscription map of {:?} sub_key {:?}",
-        //     sub_map, sub_key
-        // );
 
         if let Some(mut v) = sub_map.remove(&sub_key) {
-            // debug!("Subscription map after removing key {:?}", v);
             if let Some(i) = v
                 .iter()
                 .position(|x| x.rpc.ctx.method.eq_ignore_ascii_case(method))
