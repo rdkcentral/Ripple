@@ -539,9 +539,11 @@ fn get_parse_ctx() -> MutexGuard<'static, ParseCtx> {
 }
 
 pub fn jq_compile(input: Value, filter: &str, reference: String) -> Result<Value, RippleError> {
-    info!(
+    trace!(
         "Jq rule {}  input {:?}, reference {}",
-        filter, input, reference
+        filter,
+        input,
+        reference
     );
     let start = Utc::now().timestamp_millis();
     // start out only from core filters,

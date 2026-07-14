@@ -635,4 +635,71 @@ pub mod tests {
 
         assert_eq!(state.app_events_state.listeners.read().unwrap().len(), 1);
     }
+
+    #[tokio::test]
+    async fn test_cleanup_by_connection_id_shared_session_multi_connection() {
+        // CRITICAL TEST: Secure mode scenario where multiple connections share the same session_id.
+        // This verifies that cleanup_by_connection_id(cid) only removes the specific connection's listeners,
+        // NOT all listeners for the shared session_id.
+        //
+        // Background: In secure mode (ws://127.0.0.1:3473?session=<sessionId>),
+        // multiple WebSocket connections can share the same session_id but have unique cid values.
+        // If cleanup incorrectly removes by session_id instead of cid, it would over-clean.
+        let state = PlatformState::mock();
+        let session_abc = "session-abc";
+        let app = "app1";
+
+        // Connection 1 and 2 both join the same secure session "session-abc"
+        let ctx1 = make_ctx(session_abc, app, Some("conn-1-uuid"));
+        let ctx2 = make_ctx(session_abc, app, Some("conn-2-uuid"));
+
+        // Both subscribe to the same event
+        add_listener_direct(&state, "onNameChanged", ctx1, None);
+        add_listener_direct(&state, "onNameChanged", ctx2, None);
+
+        // Verify both listeners are registered
+        {
+            let listeners = state.app_events_state.listeners.read().unwrap();
+            assert_eq!(
+                listeners
+                    .get("onNameChanged")
+                    .unwrap()
+                    .get(&None)
+                    .unwrap()
+                    .len(),
+                2
+            );
+        }
+
+        // Connection 1 disconnects: cleanup only by conn-1-uuid, NOT by session_id
+        AppEvents::cleanup_by_connection_id(&state, "conn-1-uuid");
+
+        // Verify ONLY Connection 1's listener was removed, Connection 2's remains
+        {
+            let listeners = state.app_events_state.listeners.read().unwrap();
+            assert_eq!(
+                listeners
+                    .get("onNameChanged")
+                    .unwrap()
+                    .get(&None)
+                    .unwrap()
+                    .len(),
+                1
+            );
+            assert_eq!(
+                listeners.get("onNameChanged").unwrap().get(&None).unwrap()[0]
+                    .call_ctx
+                    .cid
+                    .as_deref(),
+                Some("conn-2-uuid")
+            );
+            // Verify Connection 2 still has the correct session_id
+            assert_eq!(
+                listeners.get("onNameChanged").unwrap().get(&None).unwrap()[0]
+                    .call_ctx
+                    .session_id,
+                session_abc
+            );
+        }
+    }
 }

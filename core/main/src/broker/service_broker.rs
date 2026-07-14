@@ -19,9 +19,10 @@ use super::endpoint_broker::{
     EndpointBroker, EndpointBrokerState, BROKER_CHANNEL_BUFFER_SIZE,
 };
 use crate::state::platform_state::PlatformState;
+use jsonrpsee::tracing::trace;
 use ripple_sdk::{
     api::{gateway::rpc_gateway_api::JsonRpcApiError, observability::log_signal::LogSignal},
-    log::{error, info},
+    log::error,
     service::service_message::{Id, ServiceMessage},
     tokio::{self, sync::mpsc},
     tokio_tungstenite::tungstenite::Message,
@@ -121,7 +122,7 @@ impl ServiceBroker {
                 }
 
                 let message = Message::Text(request.clone());
-                info!("Sending request to service {}: {:#?}", service_id, message);
+                trace!("Sending request to service {}: {:#?}", service_id, message);
 
                 if let Err(err) = service_sender.try_send(message) {
                     error!(
@@ -171,7 +172,7 @@ impl ServiceBroker {
 
     fn update_service_request(broker_request: &BrokerRequest) -> Result<String, RippleError> {
         let v = Self::apply_request_rule(broker_request)?;
-        info!("transformed request {:?}", v);
+        trace!("transformed request {:?}", v);
 
         // Create a ServiceMessage
         let mut request = ServiceMessage::new_request(

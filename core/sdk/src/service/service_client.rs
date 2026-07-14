@@ -245,7 +245,7 @@ impl ServiceClient {
             let handle_ws_message = |msg: Message| {
                 if let Message::Text(message) = msg.clone() {
                     // Service message
-                    debug!("Received Service Message: {:#?}", message);
+                    trace!("Received Service Message: {:#?}", message);
                     if let Ok(sm) = serde_json::from_str::<ServiceMessage>(&message) {
                         match sm.message {
                             JsonRpcMessage::Request(ref _json_rpc_request) => {
@@ -263,7 +263,7 @@ impl ServiceClient {
                                 }
                             }
                             JsonRpcMessage::Notification(ref json_rpc_notification) => {
-                                debug!(
+                                trace!(
                                     "Received Service Notification: {:?}",
                                     json_rpc_notification,
                                 );
