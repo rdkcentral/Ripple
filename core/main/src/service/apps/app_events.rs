@@ -440,7 +440,39 @@ impl AppEvents {
                     if let Some(event_listener) = ctx_map.get_mut(&context) {
                         AppEvents::remove_session_from_events(event_listener, &session_id);
                     }
+                    // Prune empty context entries to free heap
+                    if ctx_map.get(&context).map_or(false, |v| v.is_empty()) {
+                        ctx_map.remove(&context);
+                    }
                 }
+            }
+            // Prune empty event entries to prevent map bloat
+            if listeners.get(&event_name).map_or(false, |m| m.is_empty()) {
+                listeners.remove(&event_name);
+            }
+        }
+    }
+
+    /// Remove all event listeners matching a given connection_id (cid).
+    /// Needed because session_id != cid — each WebSocket connection has a unique cid.
+    pub fn cleanup_by_connection_id(state: &PlatformState, connection_id: &str) {
+        let mut listeners = state.app_events_state.listeners.write().unwrap();
+        let all_events = listeners.keys().cloned().collect::<Vec<String>>();
+        for event_name in all_events {
+            if let Some(ctx_map) = listeners.get_mut(&event_name) {
+                let all_contexts = ctx_map.keys().cloned().collect::<Vec<Option<String>>>();
+                for context in all_contexts {
+                    if let Some(event_listener) = ctx_map.get_mut(&context) {
+                        event_listener
+                            .retain(|l| l.call_ctx.cid.as_deref() != Some(connection_id));
+                    }
+                    if ctx_map.get(&context).map_or(false, |v| v.is_empty()) {
+                        ctx_map.remove(&context);
+                    }
+                }
+            }
+            if listeners.get(&event_name).map_or(false, |m| m.is_empty()) {
+                listeners.remove(&event_name);
             }
         }
     }

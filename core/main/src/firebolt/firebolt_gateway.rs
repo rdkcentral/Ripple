@@ -140,13 +140,19 @@ impl FireboltGateway {
                         .add_session(session_id, session);
                 }
                 UnregisterSession { session_id, cid } => {
-                    AppEvents::remove_session(&self.state.platform_state, session_id.clone());
+                    info!(
+                        "Cleanup: WebSocket disconnect - cid={}, session_id={}",
+                        cid, session_id
+                    );
+                    // Clean event listeners by cid — handles case where session_id != cid
+                    AppEvents::cleanup_by_connection_id(&self.state.platform_state, &cid);
                     ProviderBroker::unregister_session(&self.state.platform_state, cid.clone())
                         .await;
+                    // Clean broker subscriptions by cid (subscription_map keyed by cid)
                     self.state
                         .platform_state
                         .endpoint_state
-                        .cleanup_for_app(&cid)
+                        .cleanup_for_connection(&cid)
                         .await;
                     self.state.platform_state.session_state.clear_session(&cid);
                 }

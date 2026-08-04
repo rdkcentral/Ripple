@@ -82,19 +82,47 @@ pub struct BrokerSender {
     pub sender: Sender<BrokerRequest>,
 }
 
+/// Distinguishes connection-level from session-level cleanup.
+/// Connection cleanup is triggered on single WebSocket disconnect (cleans only that cid).
+/// Session cleanup is triggered on app unload (cleans all subscriptions for that session_id).
+#[derive(Clone, Debug)]
+pub enum CleanupType {
+    /// Single WebSocket disconnect — clean only subscriptions with this cid
+    Connection(String),
+    /// App session unload — clean all subscriptions for this session_id
+    Session(String),
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct BrokerCleaner {
-    pub cleaner: Option<Sender<String>>,
+    pub cleaner: Option<Sender<CleanupType>>,
 }
 
 impl BrokerCleaner {
-    async fn cleanup_session(&self, appid: &str) -> Result<String, RippleError> {
+    pub async fn cleanup_connection(&self, connection_id: &str) -> Result<String, RippleError> {
         if let Some(cleaner) = self.cleaner.clone() {
-            if let Err(e) = cleaner.try_send(appid.to_owned()) {
-                error!("Couldnt cleanup {} {:?}", appid, e);
+            if let Err(e) = cleaner
+                .send(CleanupType::Connection(connection_id.to_owned()))
+                .await
+            {
+                error!("Could not clean up connection {} {:?}", connection_id, e);
                 return Err(RippleError::SendFailure);
             }
-            return Ok(appid.to_owned());
+            return Ok(connection_id.to_owned());
+        }
+        Err(RippleError::NotAvailable)
+    }
+
+    pub async fn cleanup_session(&self, session_id: &str) -> Result<String, RippleError> {
+        if let Some(cleaner) = self.cleaner.clone() {
+            if let Err(e) = cleaner
+                .send(CleanupType::Session(session_id.to_owned()))
+                .await
+            {
+                error!("Could not clean up session {} {:?}", session_id, e);
+                return Err(RippleError::SendFailure);
+            }
+            return Ok(session_id.to_owned());
         }
         Err(RippleError::NotAvailable)
     }
@@ -1081,15 +1109,52 @@ impl EndpointBrokerState {
         }
     }
 
-    // Method to cleanup all subscription on App termination
-    pub async fn cleanup_for_app(&self, app_id: &str) {
+    /// Cleanup subscriptions for a single WebSocket disconnect (by connection_id / cid).
+    /// Only removes subscriptions made by this specific connection — others are unaffected.
+    pub async fn cleanup_for_connection(&self, connection_id: &str) {
         let cleaners = { self.cleaner_list.read().unwrap().clone() };
-
         for cleaner in cleaners {
-            /*
-            for now, just eat the error - the return type was mainly added to prepate for future refactoring/testability
-            */
-            let _ = cleaner.cleanup_session(app_id).await;
+            let _ = cleaner.cleanup_connection(connection_id).await;
+        }
+        self.cleanup_request_maps(connection_id);
+    }
+
+    /// Cleanup all subscriptions for an app session (by session_id).
+    /// Used on app unload — cleans subscriptions across all connections of that session.
+    pub async fn cleanup_for_session(&self, session_id: &str) {
+        let cleaners = { self.cleaner_list.read().unwrap().clone() };
+        for cleaner in cleaners {
+            let _ = cleaner.cleanup_session(session_id).await;
+        }
+        self.cleanup_request_maps(session_id);
+    }
+
+    /// Remove entries from request_map and extension_request_map matching id.
+    /// Matches against app_id, session_id, or cid. Without this, subscription entries
+    /// in request_map persist forever since they are never removed on disconnect.
+    fn cleanup_request_maps(&self, id: &str) {
+        let removed_ids: Vec<u64> = {
+            let mut request_map = self.request_map.write().unwrap();
+            let ids_to_remove: Vec<u64> = request_map
+                .iter()
+                .filter(|(_, req)| {
+                    req.rpc.ctx.app_id == id
+                        || req.rpc.ctx.session_id == id
+                        || req.rpc.ctx.cid.as_deref() == Some(id)
+                })
+                .map(|(id, _)| *id)
+                .collect();
+            for id in &ids_to_remove {
+                request_map.remove(id);
+            }
+            ids_to_remove
+        };
+
+        if !removed_ids.is_empty() {
+            let mut extn_map = self.extension_request_map.write().unwrap();
+            for id in &removed_ids {
+                extn_map.remove(id);
+            }
         }
     }
 }
