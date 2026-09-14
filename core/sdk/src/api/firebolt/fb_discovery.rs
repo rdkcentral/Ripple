@@ -31,6 +31,7 @@ use async_trait::async_trait;
 use serde::Serializer;
 
 pub const DISCOVERY_EVENT_ON_NAVIGATE_TO: &str = "discovery.onNavigateTo";
+pub const ACTIONS_EVENT_ON_INTENT: &str = "actions.onIntent";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct DiscoveryContext {
