@@ -71,6 +71,15 @@ impl AppSession {
     }
 }
 
+/// Response type for `Actions.intent` getter and `Actions.onIntent` event payload.
+/// Contains a monotonic intentId and the NavigationIntent JSON document.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionsIntentResponse {
+    pub intent_id: u64,
+    pub intent: NavigationIntent,
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct AppBasicInfo {
     pub id: String,
@@ -397,5 +406,34 @@ mod tests {
 
         let contract_type: RippleContract = RippleContract::AppEvents;
         test_extn_payload_provider(app_event_request, contract_type);
+    }
+
+    #[test]
+    fn test_actions_intent_response_camel_case_serialization() {
+        let home_intent = HomeIntent {
+            context: DiscoveryContext {
+                source: "voice".to_string(),
+                age_policy: None,
+            },
+        };
+        let response = ActionsIntentResponse {
+            intent_id: 99,
+            intent: NavigationIntent::NavigationIntentStrict(NavigationIntentStrict::Home(
+                home_intent,
+            )),
+        };
+
+        let json = serde_json::to_value(&response).unwrap();
+        // Verify camelCase: "intentId" not "intent_id"
+        assert_eq!(json["intentId"], 99);
+        assert!(json.get("intent_id").is_none());
+        assert!(json["intent"].is_object());
+    }
+
+    #[test]
+    fn test_actions_intent_response_deserialization() {
+        let json_str = r#"{"intentId":5,"intent":{"action":"home","context":{"source":"test"}}}"#;
+        let response: ActionsIntentResponse = serde_json::from_str(json_str).unwrap();
+        assert_eq!(response.intent_id, 5);
     }
 }

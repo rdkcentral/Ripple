@@ -19,6 +19,7 @@
 //pub mod firebolt_gateway;
 pub mod handlers {
     pub mod accessory_rpc;
+    pub mod actions_rpc;
     pub mod advertising_rpc;
     pub mod audio_description_rpc;
     pub mod capabilities_rpc;
