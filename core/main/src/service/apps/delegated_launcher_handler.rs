@@ -334,6 +334,7 @@ impl AppManagerState {
         }
     }
 
+    #[allow(dead_code)]
     fn set_session(&self, app_id: &str, session: AppSession) {
         let mut apps = self.apps.write().unwrap();
         if let Some(app) = apps.get_mut(app_id) {
@@ -1192,13 +1193,12 @@ impl DelegatedLauncherHandler {
             app.current_intent_id
         };
 
-        platform_state
-            .app_manager_state
-            .set_session(&app_id, session.clone());
-        // Persist the intent_id on the App so the Actions.intent getter can read it.
+        // Update the session and intent_id atomically under a single write lock
+        // to prevent a concurrent Actions.intent call from observing a mismatched pair.
         {
             let mut apps = platform_state.app_manager_state.apps.write().unwrap();
             if let Some(app) = apps.get_mut(&app_id) {
+                app.current_session = session.clone();
                 app.current_intent_id = intent_id;
             }
         }
