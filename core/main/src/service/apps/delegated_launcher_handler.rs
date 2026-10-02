@@ -18,7 +18,10 @@
 use std::{
     collections::HashMap,
     env, fs,
-    sync::{Arc, RwLock},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, RwLock,
+    },
 };
 
 use ripple_sdk::{
@@ -27,7 +30,7 @@ use ripple_sdk::{
         device::{device_user_grants_data::EvaluateAt, entertainment_data::NavigationIntent},
         firebolt::{
             fb_capabilities::{DenyReason, DenyReasonWithCap, FireboltPermission},
-            fb_discovery::DISCOVERY_EVENT_ON_NAVIGATE_TO,
+            fb_discovery::{ACTIONS_EVENT_ON_INTENT, DISCOVERY_EVENT_ON_NAVIGATE_TO},
             fb_lifecycle::{
                 Lifecycle2_0AppEvent, Lifecycle2_0AppEventData, LifecycleManagerState,
                 LifecycleState, LifecycleStateChangeEvent,
@@ -102,6 +105,7 @@ pub struct App {
     pub app_id: String,
     pub app_metrics_version: Option<String>, // Provided by app via call to Metrics.appInfo
     pub is_app_init_params_invoked: bool,
+    pub current_intent_id: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -118,6 +122,8 @@ pub struct AppManagerState {
     apps: Arc<RwLock<HashMap<String, App>>>,
     // Very useful for internal launcher where the intent might get untagged
     intents: Arc<RwLock<HashMap<String, NavigationIntent>>>,
+    // Global monotonic counter for intent IDs (Firebolt 9.0.0 Actions API)
+    intent_index: Arc<AtomicU64>,
     // This is a map <app_id, app_title>
     app_title: Arc<RwLock<HashMap<String, String>>>,
     app_title_persist_path: String,
@@ -185,6 +191,7 @@ impl AppManagerState {
         AppManagerState {
             apps: Arc::new(RwLock::new(HashMap::new())),
             intents: Arc::new(RwLock::new(HashMap::new())),
+            intent_index: Arc::new(AtomicU64::new(0)),
             app_title: Arc::new(RwLock::new(persisted_app_titles)),
             app_title_persist_path,
             migrated_apps: Arc::new(RwLock::new(persisted_migrated_apps)),
@@ -327,6 +334,7 @@ impl AppManagerState {
         }
     }
 
+    #[allow(dead_code)]
     fn set_session(&self, app_id: &str, session: AppSession) {
         let mut apps = self.apps.write().unwrap();
         if let Some(app) = apps.get_mut(app_id) {
@@ -387,6 +395,23 @@ impl AppManagerState {
     fn take_intent(&self, app_id: &str) -> Option<NavigationIntent> {
         let mut intents = self.intents.write().unwrap();
         intents.remove(app_id)
+    }
+
+    /// Allocate the next monotonic intent_id from the global counter.
+    pub fn next_intent_id(&self) -> u64 {
+        self.intent_index.fetch_add(1, Ordering::SeqCst) + 1
+    }
+
+    /// Returns the current intent and its monotonic intent_id for a given app,
+    /// read from the App's current_session and current_intent_id fields.
+    pub fn get_current_intent_with_id(&self, app_id: &str) -> Option<(NavigationIntent, u64)> {
+        let apps = self.apps.read().unwrap();
+        if let Some(app) = apps.get(app_id) {
+            if let Some(intent) = app.current_session.launch.intent.clone() {
+                return Some((intent, app.current_intent_id));
+            }
+        }
+        None
     }
 
     pub fn set_app_metrics_version(&self, app_id: &str, version: String) -> Result<(), AppError> {
@@ -1103,6 +1128,43 @@ impl DelegatedLauncherHandler {
             .await
     }
 
+    /// Emit Actions.onIntent event for an app.
+    /// This event is always emitted when the intent is updated — no conditional guards.
+    async fn emit_actions_on_intent(
+        platform_state: &PlatformState,
+        app_id: String,
+        intent: &NavigationIntent,
+        intent_id: u64,
+    ) {
+        let actions_payload = serde_json::json!({
+            "intentId": intent_id,
+            "intent": serde_json::to_value(intent).unwrap_or_default(),
+        });
+        AppEvents::emit_to_app(
+            platform_state,
+            app_id,
+            ACTIONS_EVENT_ON_INTENT,
+            &actions_payload,
+        )
+        .await;
+    }
+
+    /// Emit Discovery.onNavigateTo event for an app (backward compatibility).
+    /// Callers are responsible for applying any conditional guards before calling.
+    async fn emit_discovery_on_navigate_to(
+        platform_state: &PlatformState,
+        app_id: String,
+        intent: &NavigationIntent,
+    ) {
+        AppEvents::emit_to_app(
+            platform_state,
+            app_id,
+            DISCOVERY_EVENT_ON_NAVIGATE_TO,
+            &serde_json::to_value(intent).unwrap_or_default(),
+        )
+        .await;
+    }
+
     /// Actually perform the transition of the session from inactive to active.
     /// Generate a new active_session_id.
     /// If this transition happened asynchronously, then emit the completed event
@@ -1124,20 +1186,28 @@ impl DelegatedLauncherHandler {
                 .app_manager_state
                 .update_active_session(&app_id, Some(Uuid::new_v4().to_string()));
         }
-        platform_state
-            .app_manager_state
-            .set_session(&app_id, session.clone());
+        // Assign a new monotonic intent_id when the session carries an intent.
+        let intent_id = if session.launch.intent.is_some() {
+            platform_state.app_manager_state.next_intent_id()
+        } else {
+            app.current_intent_id
+        };
+
+        // Update the session and intent_id atomically under a single write lock
+        // to prevent a concurrent Actions.intent call from observing a mismatched pair.
+        {
+            let mut apps = platform_state.app_manager_state.apps.write().unwrap();
+            if let Some(app) = apps.get_mut(&app_id) {
+                app.current_session = session.clone();
+                app.current_intent_id = intent_id;
+            }
+        }
         if emit_event {
             Self::emit_completed(platform_state, &app_id).await;
         }
-        if let Some(intent) = session.launch.intent {
-            AppEvents::emit_to_app(
-                platform_state,
-                app_id.clone(),
-                DISCOVERY_EVENT_ON_NAVIGATE_TO,
-                &serde_json::to_value(intent).unwrap_or_default(),
-            )
-            .await;
+        if let Some(ref intent) = session.launch.intent {
+            Self::emit_actions_on_intent(platform_state, app_id.clone(), intent, intent_id).await;
+            Self::emit_discovery_on_navigate_to(platform_state, app_id.clone(), intent).await;
         }
 
         if let Some(ss) = session.launch.second_screen {
@@ -1172,6 +1242,13 @@ impl DelegatedLauncherHandler {
             app_id
         );
 
+        // Assign a monotonic intent_id if the session carries an intent.
+        let current_intent_id = if session.launch.intent.is_some() {
+            platform_state.app_manager_state.next_intent_id()
+        } else {
+            0
+        };
+
         let app = App {
             initial_session: session.clone(),
             current_session: session.clone(),
@@ -1183,6 +1260,7 @@ impl DelegatedLauncherHandler {
             app_id: app_id.clone(),
             app_metrics_version: None,
             is_app_init_params_invoked: false,
+            current_intent_id,
         };
         platform_state
             .app_manager_state
@@ -1350,6 +1428,20 @@ impl DelegatedLauncherHandler {
 
     pub async fn send_app_init_events(&self, app_id: &str) {
         if let Some(app) = self.platform_state.app_manager_state.get(app_id) {
+            // Actions.onIntent is always emitted when the app has an intent.
+            if let Some(ref intent) = app.initial_session.launch.intent {
+                Self::emit_actions_on_intent(
+                    &self.platform_state,
+                    app_id.to_string(),
+                    intent,
+                    app.current_intent_id,
+                )
+                .await;
+            }
+
+            // Discovery.onNavigateTo and second-screen events are conditional
+            // on the legacy emit-on-init flag and Parameters.initialization not
+            // having been called yet.
             if self
                 .platform_state
                 .get_device_manifest()
@@ -1357,12 +1449,11 @@ impl DelegatedLauncherHandler {
                 .is_emit_event_on_app_init_enabled()
                 && !app.is_app_init_params_invoked
             {
-                if let Some(intent) = app.initial_session.launch.intent.clone() {
-                    AppEvents::emit_to_app(
+                if let Some(ref intent) = app.initial_session.launch.intent {
+                    Self::emit_discovery_on_navigate_to(
                         &self.platform_state,
                         app_id.to_string(),
-                        DISCOVERY_EVENT_ON_NAVIGATE_TO,
-                        &serde_json::to_value(intent).unwrap_or_default(),
+                        intent,
                     )
                     .await;
                 }
@@ -1456,30 +1547,37 @@ impl DelegatedLauncherHandler {
             self.on_unloading(app_id).await.ok();
         }
 
-        // Check if the device manifest is enabled with events to emit discovery.navigateTo
-        // if an app is coming back to active from Inactive.
-        // This is necessary as some apps do not run processes to update the navigation
-        // intent to conserve memory footprint
-        if self
-            .platform_state
-            .get_device_manifest()
-            .lifecycle
-            .is_emit_navigate_on_activate()
-            && previous_state == LifecycleState::Inactive
+        // When an app transitions from Inactive to an active state, emit intent events.
+        if previous_state == LifecycleState::Inactive
             && matches!(
                 state,
                 LifecycleState::Background | LifecycleState::Foreground
             )
         {
-            let session = app.current_session.clone();
-            if let Some(intent) = session.launch.intent {
-                AppEvents::emit_to_app(
+            if let Some(ref intent) = app.current_session.launch.intent {
+                // Actions.onIntent always fires on activation.
+                Self::emit_actions_on_intent(
                     &self.platform_state,
                     app_id.to_owned(),
-                    DISCOVERY_EVENT_ON_NAVIGATE_TO,
-                    &serde_json::to_value(intent).unwrap_or_default(),
+                    intent,
+                    app.current_intent_id,
                 )
                 .await;
+
+                // Discovery.onNavigateTo is conditional on the device manifest flag.
+                if self
+                    .platform_state
+                    .get_device_manifest()
+                    .lifecycle
+                    .is_emit_navigate_on_activate()
+                {
+                    Self::emit_discovery_on_navigate_to(
+                        &self.platform_state,
+                        app_id.to_owned(),
+                        intent,
+                    )
+                    .await;
+                }
             }
         }
         Ok(AppManagerResponse::None)
@@ -1870,5 +1968,111 @@ mod tests {
             LifecycleState::Unloading,
             LifecycleState::Initializing
         ),);
+    }
+
+    #[test]
+    fn test_next_intent_id_increments() {
+        let state = AppManagerState::default();
+        assert_eq!(state.next_intent_id(), 1);
+        assert_eq!(state.next_intent_id(), 2);
+        assert_eq!(state.next_intent_id(), 3);
+    }
+
+    #[test]
+    fn test_store_and_take_intent() {
+        let state = AppManagerState::default();
+
+        state.store_intent("app1", NavigationIntent::default());
+        let taken = state.take_intent("app1");
+        assert!(taken.is_some());
+
+        // Should be gone after take
+        assert!(state.take_intent("app1").is_none());
+    }
+
+    #[test]
+    fn test_take_intent_nonexistent_returns_none() {
+        let state = AppManagerState::default();
+        assert!(state.take_intent("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_get_current_intent_with_id() {
+        let state = AppManagerState::default();
+
+        let session = AppSession {
+            app: ripple_sdk::api::apps::AppBasicInfo {
+                id: "app1".to_string(),
+                catalog: None,
+                url: None,
+                title: None,
+            },
+            runtime: None,
+            launch: ripple_sdk::api::apps::AppLaunchInfo {
+                intent: Some(NavigationIntent::default()),
+                second_screen: None,
+                inactive: false,
+            },
+        };
+
+        let app = App {
+            initial_session: session.clone(),
+            current_session: session,
+            session_id: "sess1".to_string(),
+            state: LifecycleState::Initializing,
+            loaded_session_id: "loaded1".to_string(),
+            active_session_id: None,
+            internal_state: None,
+            app_id: "app1".to_string(),
+            app_metrics_version: None,
+            is_app_init_params_invoked: false,
+            current_intent_id: 5,
+        };
+
+        state.insert("app1".to_string(), app);
+
+        let result = state.get_current_intent_with_id("app1");
+        assert!(result.is_some());
+        let (_, intent_id) = result.unwrap();
+        assert_eq!(intent_id, 5);
+    }
+
+    #[test]
+    fn test_get_current_intent_with_id_no_intent() {
+        let state = AppManagerState::default();
+
+        let session = AppSession {
+            app: ripple_sdk::api::apps::AppBasicInfo {
+                id: "app1".to_string(),
+                catalog: None,
+                url: None,
+                title: None,
+            },
+            runtime: None,
+            launch: ripple_sdk::api::apps::AppLaunchInfo {
+                intent: None,
+                second_screen: None,
+                inactive: false,
+            },
+        };
+
+        let app = App {
+            initial_session: session.clone(),
+            current_session: session,
+            session_id: "sess1".to_string(),
+            state: LifecycleState::Initializing,
+            loaded_session_id: "loaded1".to_string(),
+            active_session_id: None,
+            internal_state: None,
+            app_id: "app1".to_string(),
+            app_metrics_version: None,
+            is_app_init_params_invoked: false,
+            current_intent_id: 0,
+        };
+
+        state.insert("app1".to_string(), app);
+
+        // No intent on the session, should return None
+        assert!(state.get_current_intent_with_id("app1").is_none());
     }
 }
