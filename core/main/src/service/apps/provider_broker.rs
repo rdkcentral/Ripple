@@ -49,6 +49,9 @@ use crate::{
     state::{cap::cap_state::CapState, platform_state::PlatformState},
 };
 
+const FAST_FAIL_ERROR_CODE: i32 = 32001;
+const FAST_FAIL_ONESHOT_TAG: &str = "ProviderBrokerFastFail";
+
 const REQUEST_QUEUE_CAPACITY: usize = 3;
 
 #[derive(Debug)]
@@ -251,6 +254,35 @@ impl ProviderBroker {
                 }
             }
 
+            // Fail fast when no listener is ready for `event_name`; otherwise
+            // the caller would wait DEFAULT_PROVIDER_RESPONSE_TIMEOUT_MS.
+            match &app_id_opt {
+                Some(app_id) => {
+                    if !AppEvents::is_app_registered_for_event(
+                        pst,
+                        app_id.clone(),
+                        &event_name,
+                    ) {
+                        let message = format!(
+                            "Provider not registered for app_id {} (event={})",
+                            app_id, event_name
+                        );
+                        Self::fast_fail(request.tx, message);
+                        return None;
+                    }
+                }
+                None => {
+                    let listener_count =
+                        AppEvents::get_listeners(&pst.app_events_state, &event_name, None).len();
+                    if listener_count == 0 {
+                        let message =
+                            format!("No providers subscribed to event {}", event_name);
+                        Self::fast_fail(request.tx, message);
+                        return None;
+                    }
+                }
+            }
+
             let c_id =
                 ProviderBroker::start_provider_session(pst, request, provider_method.clone());
             if let Some(app_id) = app_id_opt {
@@ -282,20 +314,27 @@ impl ProviderBroker {
                 provider_app_id = Some(provider_method.provider.app_id);
             }
         } else {
-            // If no provider found, send error response
-            request
-                .tx
-                .send(ProviderResponsePayload::GenericError(
-                    GenericProviderError {
-                        code: 32001,
-                        message: format!("Provider not found for {}", request.method),
-                        data: None,
-                    },
-                ))
-                .unwrap();
+            let message = format!("Provider not found for {}", request.method);
+            Self::fast_fail(request.tx, message);
         }
 
         provider_app_id
+    }
+
+    fn fast_fail(
+        tx: oneshot::Sender<ProviderResponsePayload>,
+        message: String,
+    ) {
+        warn!("provider_broker fast-fail: {}", message);
+        oneshot_send_and_log(
+            tx,
+            ProviderResponsePayload::GenericError(GenericProviderError {
+                code: FAST_FAIL_ERROR_CODE,
+                message,
+                data: None,
+            }),
+            FAST_FAIL_ONESHOT_TAG,
+        );
     }
 
     fn start_provider_session(
