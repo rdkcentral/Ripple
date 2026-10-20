@@ -113,6 +113,7 @@ mod tests {
             context: DiscoveryContext {
                 source: "voice".to_string(),
                 age_policy: None,
+                profile_policy: None,
             },
         };
         let response = ActionsIntentResponse {
@@ -134,6 +135,7 @@ mod tests {
             context: DiscoveryContext {
                 source: "remote".to_string(),
                 age_policy: None,
+                profile_policy: None,
             },
         };
         let original = ActionsIntentResponse {
