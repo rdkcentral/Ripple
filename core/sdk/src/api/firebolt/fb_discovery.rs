@@ -734,10 +734,10 @@ mod tests {
         let context = DiscoveryContext {
             source: "app".to_string(),
             age_policy: None,
-            profile_policy: Some("app:child".to_string()),
+            profile_policy: Some("teenProfile".to_string()),
         };
         let json = serde_json::to_string(&context).unwrap();
-        assert_eq!(json, r#"{"source":"app","profilePolicy":"app:child"}"#);
+        assert_eq!(json, r#"{"source":"app","profilePolicy":"teenProfile"}"#);
         let deserialized: DiscoveryContext = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized, context);
     }
