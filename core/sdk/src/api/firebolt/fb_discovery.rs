@@ -39,6 +39,9 @@ pub struct DiscoveryContext {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "agePolicy")]
     pub age_policy: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "profilePolicy")]
+    pub profile_policy: Option<String>,
 }
 
 impl DiscoveryContext {
@@ -46,6 +49,7 @@ impl DiscoveryContext {
         DiscoveryContext {
             source: source.to_string(),
             age_policy,
+            profile_policy: None,
         }
     }
 }
@@ -89,6 +93,10 @@ impl AgePolicy {
             AgePolicy::Teen => "app:teen",
             AgePolicy::Adult => "app:adult",
         }
+    }
+
+    pub fn is_child_or_teen(&self) -> bool {
+        matches!(self, AgePolicy::Child | AgePolicy::Teen)
     }
 }
 
@@ -472,6 +480,7 @@ mod tests {
         let context = DiscoveryContext::new("test_source", None);
         assert_eq!(context.source, "test_source");
         assert_eq!(context.age_policy, None);
+        assert_eq!(context.profile_policy, None);
     }
 
     #[test]
@@ -480,6 +489,7 @@ mod tests {
             context: DiscoveryContext {
                 source: "test_source".to_string(),
                 age_policy: None,
+                profile_policy: None,
             },
         };
 
@@ -497,6 +507,7 @@ mod tests {
                 context: DiscoveryContext {
                     source: "test_source".to_string(),
                     age_policy: None,
+                    profile_policy: None,
                 }
             }))
         );
@@ -581,6 +592,13 @@ mod tests {
         }"#;
         let watched: WatchedInfo = serde_json::from_str(json).unwrap();
         assert_eq!(watched.age_policy, Some(AgePolicy::Teen));
+    }
+
+    #[test]
+    fn test_age_policy_is_child_or_teen() {
+        assert!(AgePolicy::Child.is_child_or_teen());
+        assert!(AgePolicy::Teen.is_child_or_teen());
+        assert!(!AgePolicy::Adult.is_child_or_teen());
     }
 
     #[test]
@@ -673,6 +691,7 @@ mod tests {
         let context = DiscoveryContext {
             source: "app".to_string(),
             age_policy: None,
+            profile_policy: None,
         };
 
         let json = serde_json::to_string(&context).unwrap();
@@ -688,6 +707,7 @@ mod tests {
         let context = DiscoveryContext {
             source: "".to_string(),
             age_policy: None,
+            profile_policy: None,
         };
         let json = serde_json::to_string(&context).unwrap();
         let deserialized: DiscoveryContext = serde_json::from_str(&json).unwrap();
@@ -697,10 +717,29 @@ mod tests {
         let context = DiscoveryContext {
             source: "voice-control/system".to_string(),
             age_policy: None,
+            profile_policy: None,
         };
         let json = serde_json::to_string(&context).unwrap();
         let deserialized: DiscoveryContext = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.source, "voice-control/system");
+    }
+
+    #[test]
+    fn test_discovery_context_profile_policy_json() {
+        // Missing profilePolicy deserializes to None
+        let context: DiscoveryContext = serde_json::from_str(r#"{"source":"app"}"#).unwrap();
+        assert_eq!(context.profile_policy, None);
+
+        // Provided profilePolicy round-trips
+        let context = DiscoveryContext {
+            source: "app".to_string(),
+            age_policy: None,
+            profile_policy: Some("teenProfile".to_string()),
+        };
+        let json = serde_json::to_string(&context).unwrap();
+        assert_eq!(json, r#"{"source":"app","profilePolicy":"teenProfile"}"#);
+        let deserialized: DiscoveryContext = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, context);
     }
 
     #[test]
